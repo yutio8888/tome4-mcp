@@ -73,6 +73,17 @@ local q4=assert(Actions.query(p4,'T_COST'))
 check(q4.current_costs.mana=='unknown' and q4.resource_checks.mana.reason=='dependency_source_modified',
     'F1: a dependency whose audited digest does not match is not trusted')
 
+-- F1 (transitive): a replaced fatigue getter used by a function cost factor
+-- must degrade the field to unknown instead of running the replacement.
+local p5=fixture()
+p5.combatFatigue=mk('/mod/class/interface/Combat.lua','return function(self) return 0 end')
+trustAll(p5)
+trust('actor.combatFatigue','/mod/class/interface/Combat.lua',p5.combatFatigue)
+p5.combatFatigue=function(self) return 0 end
+local q5=assert(Actions.query(p5,'T_COST'))
+check(q5.current_costs.mana=='unknown' and q5.resource_checks.mana.reason=='dependency_replaced',
+    'F1: a replaced transitive fatigue getter makes the function cost factor unknown')
+
 -- T-QRY-09 control: a fully audited static cost still resolves exactly.
 local p3=fixture()
 trustAll(p3)

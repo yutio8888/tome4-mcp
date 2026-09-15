@@ -18,20 +18,29 @@
   测试前后核心文件与 fixture 存档摘要不变（含于 G-01）。
 - Lua 单元、Python/SDK 单元、协议契约检查、原生 seam 生成检查全部通过。
 
+## 部分完成
+
+- **G-03 普通有限流程**：用普通存档 `campaign-play-01` 的副本运行 522 条命令
+  （无 probe），覆盖换层、物品/装备可见性、原生休息、治疗/野性纹身、敌人
+  inspect；但驱动要求的 5 个核心技能未在界内全部覆盖
+  （`T_STUNNING_BLOW_ASSAULT` 等缺失），且只发生 1 次换层。证据见
+  `campaign-ordinary.json`。
+- **G-04 内存与响应预算**：纯账本 1,000,000 条命令（~1.0s，retained≤256、
+  bytes≤4MiB）与 10,000 次视图创建/回收（~0.7s，views≤4）已实测并有界，证据见
+  `performance.json`。**未测量** Lua 堆、Python RSS、p50/p95/p99 响应时间与
+  长会话内存趋势。
+- **函数级摘要与间接依赖闭包（CMP-01/03）**：只做到“来源路径 + 完整文件摘要 +
+  定义行 + 函数身份”；并额外把 `combatFatigue` 作为 `cost_factor` 的传递依赖
+  登记，替换它会让相关费用 unknown。更深的闭包（如
+  `costFactor → knowTalent → 任意第三方 getter`）仍不在防护范围内。
+
 ## 未运行 / 未完成（不得当作通过）
 
-- **G-03 普通有限流程**：未在本候选运行"≥500 条命令、≥2 次换层"的普通战役
-  流程。`tests/campaign` 与 `tests/worldmap` 仍是早期协议驱动，需要先升级到
-  v4 规范命令 ID 才能作为本候选证据。
-- **G-04 内存与响应预算**：未做 Lua 堆 / Python RSS / p95-p99 的实测对照。
-  快照 16 条 / 4 MiB 与回执 4 MiB 预算有单元级证据，但没有长时间实机测量。
-- **插件组合**：本候选只在"纯原版 + bridge + mcp-probe"上运行。Battle
+- **插件组合**：本候选只在“纯原版 + bridge + mcp-probe”上运行。Battle
   Companion / Danger Alert 组合未在本候选验证；不得据此声称组合兼容。
-- **函数级摘要与间接依赖闭包审核（CMP-01/03）**：只做到"来源路径 + 完整文件
-  摘要 + 定义行 + 函数身份"。运行时以相同 source tag 注入的函数仍不在防护
-  范围内；这是 Spec 明确留给后续的范围。
-- **MCP `isError` 映射（API-05）**：Lua 与 Python 的 `ok/error` 已区分，但尚未
-  在 SDK 结果上设置 `isError`。
+- **MCP `isError` 映射（API-05）**：Lua 与 Python 的 `ok/error` 已区分，但当前
+  MCPServer 的 `convert_result` 会按返回注解 `ToolReply` 生成结果，无法同时
+  保留结构化结果并置 `isError`；完整实现需要绕过转换层，属后续工作。
 - **状态转换断言框架（STA-03）**：未实现带名称的转换断言。
 
 ## 环境

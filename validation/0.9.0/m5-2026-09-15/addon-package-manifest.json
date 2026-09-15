@@ -1,6 +1,6 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "75c3bc9edd0da5fb124bb24557b635019c532fddc3aacd83f94333a46c53c332",
+  "sha256": "792f4ba97dbd79a67bb833cdbd4005ad37e9f1e3a1089fdbb88e2a8bec41d22d",
   "files": {
     "README.md": "21ca37fc6d9ab107a7690cb70c16f273f6296522811cadc2b46902e74bac55a3",
     "hooks/load.lua": "19e2e2216d4d83005d9b7f560da6560d2320988d3d7c78f39c7a4c4a1fc007dd",
@@ -19,7 +19,7 @@
     "overload/mod/mcp_bridge/NativeDialogSeams.lua": "e1a3a9e477818e0701fd701870b0a78c6098c14446cb294a7f10de793e79a500",
     "overload/mod/mcp_bridge/NativeGameSeams.lua": "30a3ff32e174f40652845005d0c0ad5c8498652d4ebf1a9e00a45c9ff807f538",
     "overload/mod/mcp_bridge/NativeItemSeams.lua": "3b6381c29e39a1790a092adeb4ccbe7adb6ace5eb68efc6f1c48e7ebab43167a",
-    "overload/mod/mcp_bridge/NativeManifest.lua": "0960fd69ad5b610e84ecb560a9633bcef6fddab8c6aa854166ab0c94c11508fc",
+    "overload/mod/mcp_bridge/NativeManifest.lua": "bf28899bbe3c6f088a9ccb694ef16f11f56a8906494a9a2e6481bbe94de20d3a",
     "overload/mod/mcp_bridge/NativeTasks.lua": "0fae96eda18c9141f8ef22087cd3b8716debfbc6c4908ff1fa5db38f614802fc",
     "overload/mod/mcp_bridge/ObservationCollections.lua": "f98384b5def3d23054758c33aed13f8ca627fe2ba639ab7f4fac2b5e3ca18d86",
     "overload/mod/mcp_bridge/ObservationDetails.lua": "44aba42de074b244f5efc03b55683884284efffb1d7824665fa87708efb054ea",
@@ -27,7 +27,7 @@
     "overload/mod/mcp_bridge/Observer.lua": "fd4bc656e5626d92f776c80c7cb5f4fed3052d96e7fa8dfef304082c12a04228",
     "overload/mod/mcp_bridge/Progression.lua": "3ed2c1f65f3608e0325d948b0be18c5bbf8b2ddc50a3d9d1390ba3760b27a42e",
     "overload/mod/mcp_bridge/Runtime.lua": "5bc0670148adc85b65070f08860351aa91b84019c1f538941452981b063988a3",
-    "overload/mod/mcp_bridge/TalentQuery.lua": "1e3eca50af62ca614397f4a9b3204ecf2c21911a69e73c91bcca7947056f374b",
+    "overload/mod/mcp_bridge/TalentQuery.lua": "98bd5d4ed8719e76938afe7fd346a3a48bf125f5c655a5d15ba5889b74c6aab3",
     "overload/mod/mcp_bridge/TransportSocket.lua": "aa4366504f69ed3be2d74a8da2f9b059a858a163bd069dc0e6280b351703c66a",
     "superload/engine/GameTurnBased.lua": "8dfeb274274924f811aa08ed7d00da2450c49a7e3958c0a737cadc381e9ae65d",
     "superload/engine/Target.lua": "b3d6254e1819150916afb1a87446cd9b87dbbc144feca78bc4f551e9ad991535",

@@ -34,6 +34,10 @@ function M.registerNative(player)
         registerOnce('actor.alterTalentCost','talent_query',player.alterTalentCost,'/mod/class/Actor.lua','talent cost mutation',
             Manifest.actor_md5,'function _M:alterTalentCost')
     end
+    if type(player.combatFatigue)=='function' then
+        registerOnce('actor.combatFatigue','talent_query',player.combatFatigue,'/mod/class/interface/Combat.lua','fatigue-dependent cost factor',
+            Manifest.combat_md5,'function _M:combatFatigue')
+    end
     local defs=player.resources_def
     if type(defs)=='table' then
         for name,def in pairs(defs) do
@@ -91,9 +95,22 @@ local function finalResourceCosts(p,t,base_costs)
                         if not cf then
                             factor=nil;reasons[name]=cfreason or 'cost_factor_unverified'
                         else
-                            local factor_ok,value=pcall(cf,p,t,false,cost)
-                            factor=factor_ok and finite(value) and value or nil
-                            if factor==nil then reasons[name]='cost_factor_unverified' end
+                            -- A function factor may read fatigue indirectly. Require
+                            -- that transitive getter to be audited too, so replacing
+                            -- it (while the factor identity is unchanged) still
+                            -- degrades the field to unknown instead of executing it (F1).
+                            local fatigue_ok=true
+                            if type(p.combatFatigue)=='function' then
+                                local fatigue,fatigue_reason=Compat.dependency('actor.combatFatigue',p.combatFatigue)
+                                if not fatigue then fatigue_ok=false;reasons[name]=fatigue_reason or 'dependency_unverified' end
+                            end
+                            if not fatigue_ok then
+                                factor=nil
+                            else
+                                local factor_ok,value=pcall(cf,p,t,false,cost)
+                                factor=factor_ok and finite(value) and value or nil
+                                if factor==nil then reasons[name]='cost_factor_unverified' end
+                            end
                         end
                     elseif type(def.cost_factor)=='number' and finite(def.cost_factor) then factor=def.cost_factor
                     else factor=nil;reasons[name]='cost_factor_unverified' end

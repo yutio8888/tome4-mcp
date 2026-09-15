@@ -1,0 +1,37 @@
+{
+  "kind": "pure_bookkeeping_budget",
+  "method": "luajit tests/measure_budget.lua 1000000 10000",
+  "ledger": {
+    "bounded": true,
+    "byte_budget": 4194304,
+    "bytes": 21250,
+    "commands": 1000000,
+    "elapsed_seconds": 1.005519,
+    "evicted_through_seq": 999744,
+    "last_accepted_seq": 1000000,
+    "max_retained": 256,
+    "retained_count": 256
+  },
+  "views": {
+    "bounded": true,
+    "byte_budget": 4194304,
+    "bytes": 14364,
+    "cycles": 10000,
+    "elapsed_seconds": 0.6799759999999999,
+    "max_views": 4,
+    "retained_views": 4
+  },
+  "limits": {
+    "MAX_RETAINED_COMMANDS": 256,
+    "COMMAND_RECEIPTS_BYTE_BUDGET": 4194304,
+    "MAX_VIEWS": 4,
+    "VIEWS_BYTE_BUDGET": 4194304,
+    "MAX_RECENT_SNAPSHOTS": 16
+  },
+  "not_measured": [
+    "native Lua heap",
+    "Python RSS",
+    "p50/p95/p99 response time",
+    "long-session memory trend"
+  ]
+}

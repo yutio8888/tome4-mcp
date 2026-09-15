@@ -12,7 +12,7 @@ import json
 import sys
 from pathlib import Path
 
-VALID_STATUS = {"passed", "failed", "skipped", "not_run"}
+VALID_STATUS = {"passed", "failed", "skipped", "not_run", "partial"}
 
 
 def sha256(path: Path) -> str:

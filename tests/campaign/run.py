@@ -138,8 +138,10 @@ class Campaign:
             await self.connect()
             before = await self.observe()
         self.counter += 1
+        command_id = (before.get("history") or {}).get("next_command_id")
+        assert command_id, before.get("history")
         args = dict(session_id=self.connection["session_id"], control_token=self.connection["control_token"],
-                    command_id=f"campaign-{self.counter:05d}", expected_revision=before["revision"],
+                    command_id=command_id, expected_revision=before["revision"],
                     action=action, wait_ms=10000)
         self.decisions.write(json.dumps(dict(command_id=args["command_id"], action=action, reason=reason,
                                             before=compact(before)), ensure_ascii=False) + "\n")
