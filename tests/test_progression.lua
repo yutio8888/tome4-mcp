@@ -341,4 +341,25 @@ check(Progression.execute(g,{type='spend_stat',stat='str'}).ok and p.stats[stats
 check(Progression.execute(g,{type='learn_talent',talent_id='T_RUSH'}).ok,'learning works with a golem present')
 result=Progression.execute(g,{type='unlearn_talent',talent_id='T_RUSH'})
 check(result.ok and result.points_returned==1,'respec works with a golem present')
+-- Generic native growth path (report 3.a): a visible category/talent outside
+-- the reviewed list is described as native_generic and learnt through the
+-- native LevelupDialog instead of being rejected by the whitelist.
+g,p=fixture()
+base:newTalentType{type='celestial/star-fury',name='Star Fury'}
+base:newTalent{id='T_MOONLIGHT_RAY',name='Moonlight Ray',type={'celestial/star-fury',1},mode='activated',points=5,
+    info=function() return 'Moonlight Ray' end,require=function(self,t) return {level=1} end,action=function() end}
+p.talents_types['celestial/star-fury']=true
+local generic_tree=Progression.describe(g,p)
+local generic_category=find(generic_tree.categories,'id','celestial/star-fury')
+check(generic_category and generic_category.supported and generic_category.coverage=='native_generic',
+    'unreviewed visible category is native_generic')
+local generic_talent=talent(generic_tree,'T_MOONLIGHT_RAY')
+check(generic_talent and generic_talent.supported and generic_talent.coverage=='native_generic'
+    and generic_talent.readiness=='available','unreviewed visible talent is learnable via the native path')
+local before_class_points=p.unused_talents
+local generic_result=Progression.execute(g,{type='learn_talent',talent_id='T_MOONLIGHT_RAY'})
+check(generic_result.ok and generic_result.code=='progression_applied'
+    and p.talents.T_MOONLIGHT_RAY==1 and p.unused_talents==before_class_points-1,
+    'generic learn_talent spends a class point through the native dialog: '..Json.encode(generic_result))
+
 print('Progression: '..checks..' checks passed')

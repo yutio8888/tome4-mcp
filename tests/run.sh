@@ -17,6 +17,7 @@ fi
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_actions.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_talent_query.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_query_purity.lua
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_resource_filter.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_journal.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_observer.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_progression.lua

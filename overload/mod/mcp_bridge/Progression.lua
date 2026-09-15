@@ -249,9 +249,20 @@ local function talentSummary(p,t)
     local level=rawLevel(p,t.id)
     local result={id=t.id,name=D.text(t.name) or t.id,raw_level=level or 'unknown',max_points=maxPoints(p,t) or 'unknown',
         mode=D.text(t.mode,32) or 'unknown',point_cost={pool=t.generic and 'generic' or 'class',amount=1},
-        supported=spec~=nil and native==true,description_status='dynamic_description_not_evaluated',
-        requirements=requirementSummary(p,t,spec)}
-    if not result.supported then return readiness(result,false,reason or native_reason,true) end
+        supported=native==true and (spec~=nil or reason=='unsupported_progression_talent'),
+        coverage=spec and 'audited' or 'native_generic',
+        description_status='dynamic_description_not_evaluated',requirements=requirementSummary(p,t,spec)}
+    if not native then return readiness(result,false,native_reason,true) end
+    if not spec then
+        -- Visible but not in the reviewed list: the native LevelupDialog is the
+        -- judge of requirements, caps and points. A tampered reviewed talent is
+        -- still rejected by the reason check above.
+        if reason~='unsupported_progression_talent' then return readiness(result,false,reason,true) end
+        local points=p[pools[result.point_cost.pool]]
+        if not integer(points) then return readiness(result,false,'progression_state_unknown',true) end
+        if points<1 then return readiness(result,false,'insufficient_'..result.point_cost.pool..'_points') end
+        return readiness(result,true)
+    end
     local points=p[pools[result.point_cost.pool]]
     local req=result.requirements
     if not integer(points) or not level or result.max_points=='unknown' or req.status=='unknown' then
@@ -277,10 +288,13 @@ local function categorySummary(p,c)
     local result={id=c.type,name=D.text(c.name),known=known(p,c.type),generic=c.generic==true,
         mastery_base=mastery==nil and 1 or D.finite(mastery) and mastery+1 or 'unknown',
         improvements_used=integer(improved) and improved or 'unknown',minimum_level=D.number(c.min_lev) or 0,
-        point_cost={pool='category',amount=1},supported=spec~=nil and native==true,talents=Json.array()}
+        point_cost={pool='category',amount=1},
+        supported=native==true and (spec~=nil or reason=='unsupported_progression_category'),
+        coverage=spec and 'audited' or 'native_generic',talents=Json.array()}
     result.operation=result.known and 'improve_mastery' or 'unlock'
     result.mastery_increase=result.known and 0.2 or nil
-    if not result.supported then return readiness(result,false,reason or native_reason,true) end
+    if not native then return readiness(result,false,native_reason,true) end
+    if not spec and reason~='unsupported_progression_category' then return readiness(result,false,reason,true) end
     if not integer(p.unused_talents_types) or not integer(improved) or result.mastery_base=='unknown' then
         return readiness(result,false,'progression_state_unknown',true)
     end
@@ -453,11 +467,43 @@ function M.execute(g,action)
     elseif a.type=='learn_talent' then
         target=field(p,'talents_def',a.talent_id)
         if not visibleTalent(p,target) then return {ok=false,code='talent_not_in_growth_tree',energy_spent=0} end
-        description=talentSummary(p,target);before_value=rawLevel(p,a.talent_id)
+        local spec,audit_reason=auditTalent(p,target)
+        if spec then
+            description=talentSummary(p,target);before_value=rawLevel(p,a.talent_id)
+        elseif audit_reason=='unsupported_progression_talent' then
+            -- Generic native path: the talent is visible in a category the player
+            -- already knows but is outside the reviewed list. The native dialog
+            -- validates requirements, caps and the point cost.
+            local pool=target.generic and 'generic' or 'class'
+            if not integer(p[pools[pool]]) then return {ok=false,code='progression_state_unknown',energy_spent=0} end
+            if p[pools[pool]]<1 then return {ok=false,code='insufficient_'..pool..'_points',energy_spent=0} end
+            description={readiness='available',point_cost={pool=pool},native_generic=true}
+            before_value=rawLevel(p,a.talent_id)
+        else
+            return {ok=false,code=audit_reason or 'progression_talent_modified',energy_spent=0}
+        end
     else
         target=visibleCategory(p,a.category_id)
         if not target then return {ok=false,code='category_not_in_growth_tree',energy_spent=0} end
-        description=categorySummary(p,target);before_value=description.known and description.mastery_base or false
+        local spec,audit_reason=auditCategory(p,target)
+        if spec then
+            description=categorySummary(p,target);before_value=description.known and description.mastery_base or false
+        elseif audit_reason=='unsupported_progression_category' then
+            if not integer(p.unused_talents_types) then return {ok=false,code='progression_state_unknown',energy_spent=0} end
+            if p.unused_talents_types<1 then return {ok=false,code='insufficient_category_points',energy_spent=0} end
+            if p.level<(target.min_lev or 0) then return {ok=false,code='category_level_requirement',energy_spent=0} end
+            local mastery=field(p,'talents_types_mastery',target.type)
+            local base=false
+            if known(p,target.type) then
+                if mastery==nil then base=1
+                elseif D.finite(mastery) then base=mastery+1
+                else return {ok=false,code='progression_state_unknown',energy_spent=0} end
+            end
+            description={readiness='available',point_cost={pool='category'},native_generic=true,known=known(p,target.type)}
+            before_value=base
+        else
+            return {ok=false,code=audit_reason or 'progression_category_modified',energy_spent=0}
+        end
     end
     if description.readiness~='available' then return {ok=false,code=description.readiness_reason,energy_spent=0} end
     local loaded,dialog=pcall(require,'mod.dialogs.LevelupDialog')

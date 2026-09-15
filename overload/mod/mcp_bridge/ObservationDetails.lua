@@ -239,9 +239,23 @@ function M.player(g,p,meta,result)
     result.die_at=M.number(p.die_at) or 0
     result.energy=type(p.energy)=='table' and M.number(p.energy.value) or nil
     result.resources={}
+    local resource_defs=p.resources_def
     for _,name in ipairs{'mana','stamina','vim','positive','negative','psi','hate','equilibrium','paradox','air'} do
-        if M.finite(p[name]) then result.resources[name]={value=p[name],min=M.number(p['min_'..name]),
-            max=M.number(p['max_'..name]),regen=M.number(p[name..'_regen'])} end
+        if M.finite(p[name]) then
+            -- A resource is only reported when the player has unlocked it. Each
+            -- resource definition is tied to a resource-pool talent; a pool the
+            -- player has not learned is a default zero and carries no meaning
+            -- (air has no pool talent and is always kept).
+            local def=type(resource_defs)=='table' and resource_defs[name] or nil
+            local talent=type(def)=='table' and def.talent or nil
+            local unlocked=talent==nil or (type(p.talents)=='table' and p.talents[talent]~=nil)
+            if unlocked then
+                local regen=M.number(p[name..'_regen'])
+                if regen then regen=math.floor(regen*1000+0.5)/1000 end
+                result.resources[name]={value=p[name],min=M.number(p['min_'..name]),
+                    max=M.number(p['max_'..name]),regen=regen}
+            end
+        end
     end
     result.effects,result.effects_truncated=M.effects(p)
     result.effect_duration_is_raw=true

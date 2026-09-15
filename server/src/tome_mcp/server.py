@@ -357,11 +357,11 @@ def create_server(bridge: BridgeClient) -> MCPServer:
         return await call("observe", args)
 
     @server.tool(name="tome.inspect", annotations=read)
-    async def inspect(session_id: Identifier, kind: Literal["talent", "actor", "progression", "item"], id: Identifier,
+    async def inspect(session_id: Identifier, kind: Literal["talent", "actor", "progression", "item", "compatibility"], id: Identifier,
                       target_id: Identifier | None = None,
                       x: Annotated[int, Field(ge=0, le=2147483647)] | None = None,
                       y: Annotated[int, Field(ge=0, le=2147483647)] | None = None) -> ToolReply:
-        """Inspect a learned talent, visible actor, owned/visible item by its returned ID, or the progression tree with kind=progression and id=player. kind=talent adds a read-only query with range, costs, cooldown, affordability and readiness; pass target_id or x/y to include distance. Reads never evaluate dynamic talent descriptions or identify objects. Unavailable details remain unknown."""
+        """Inspect a learned talent, visible actor, owned/visible item by its returned ID, the progression tree with kind=progression and id=player, or the runtime compatibility summary with kind=compatibility and id=runtime. kind=talent adds a read-only query with range, costs, cooldown, affordability and readiness; pass target_id or x/y to include distance. Reads never evaluate dynamic talent descriptions or identify objects. Unavailable details remain unknown."""
         args: dict[str, Any] = {"session_id": session_id, "kind": kind, "id": id}
         if target_id is not None:
             args["target_id"] = target_id
