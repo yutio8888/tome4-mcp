@@ -53,7 +53,35 @@ function M.available(name) return entries[name] and entries[name].ok or false en
 -- the query field becomes unknown and the replacement is never called.
 -- File-digest unification with the entrypoint audit above is M4 (CMP-01/03).
 local dependencies={}
-function M.registerDependency(id,domain,fn,path,purpose)
+-- A line of a source text, 1-indexed; nil when out of range.
+local function lineAt(text, line)
+    if type(line)~='number' or line<1 then return nil end
+    local n=0
+    for value in (text..'\n'):gmatch('([^\n]*)\n') do
+        n=n+1
+        if n==line then return value end
+    end
+end
+-- A read-only dependency must come from the audited file (source path + full
+-- file digest) and, when a declaration is given, be defined on the expected
+-- line of that file. A runtime function that merely reuses the source tag is
+-- rejected, so a first-seen override is never trusted (spec QRY-02, F1).
+local function auditedMethod(fn,path,digest,declaration)
+    local info=type(fn)=='function' and debug.getinfo(fn,'S')
+    if not info or info.source~='@'..path then return false,'dependency_source_unverified' end
+    local read_ok,data=pcall(function() return fs.readAll(path) end)
+    if not read_ok or type(data)~='string' then return false,'dependency_source_unreadable' end
+    local hash_ok,hash=pcall(function() return require('md5').sumhexa(data) end)
+    if not hash_ok or hash~=digest then return false,'dependency_source_modified' end
+    if declaration then
+        local source_line=lineAt(data,info.linedefined)
+        if not source_line or not source_line:find(declaration,1,true) then
+            return false,'dependency_body_unverified'
+        end
+    end
+    return true
+end
+function M.registerDependency(id,domain,fn,path,purpose,digest,declaration)
     if type(fn)~='function' then
         dependencies[id]={ok=false,reason='dependency_missing',domain=domain,path=path}
         return false
@@ -63,8 +91,14 @@ function M.registerDependency(id,domain,fn,path,purpose)
         dependencies[id]={fn=fn,ok=false,reason='dependency_replaced',domain=domain,path=path}
         return false
     end
-    dependencies[id]={fn=fn,ok=true,domain=domain,path=path,purpose=purpose}
-    return true
+    -- No digest means the dependency was not audited: fail closed instead of
+    -- marking an arbitrary current function as trusted.
+    local ok,reason=false,'dependency_not_audited'
+    if type(digest)=='string' and #digest>0 then
+        ok,reason=auditedMethod(fn,path,digest,declaration)
+    end
+    dependencies[id]={fn=fn,ok=ok,reason=ok and nil or reason,domain=domain,path=path,purpose=purpose}
+    return ok
 end
 function M.dependency(id,fn)
     if type(fn)~='function' then return nil,'dependency_not_registered' end

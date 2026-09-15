@@ -18,6 +18,7 @@ class FakeGame:
         self.interaction_steps = 0
         self.pending = False
         self.legacy_bridge = False
+        self.status_error = None
         self.token = "test-token"
         self.snapshot = {"session_id": "s1", "revision": 7, "phase": "ready", "world_tick": 0}
 
@@ -73,18 +74,21 @@ class FakeGame:
                     if self.drop_response_reply:
                         continue
                 elif op == "status":
-                    record = self.commands[args["command_id"]]
-                    if record.get('response_receipt',{}).get('state')=='queued':
-                        record['response_receipt']['state']='applied'
-                        self.interaction_steps-=1
-                        if self.interaction_steps:
-                            record['interaction']={'interaction_id':'i2','kind':'target.grid'}
-                            record['revision']=9
-                        else:
-                            record['status']='completed'
-                    elif not self.pending and not self.interaction_steps:
-                        record.update(status="completed", energy_spent=1000, snapshot=self.snapshot)
-                    reply["result"] = record
+                    if self.status_error is not None:
+                        reply.update(ok=False, error=self.status_error)
+                    else:
+                        record = self.commands[args["command_id"]]
+                        if record.get('response_receipt',{}).get('state')=='queued':
+                            record['response_receipt']['state']='applied'
+                            self.interaction_steps-=1
+                            if self.interaction_steps:
+                                record['interaction']={'interaction_id':'i2','kind':'target.grid'}
+                                record['revision']=9
+                            else:
+                                record['status']='completed'
+                        elif not self.pending and not self.interaction_steps:
+                            record.update(status="completed", energy_spent=1000, snapshot=self.snapshot)
+                        reply["result"] = record
                 elif op == "stop":
                     for record in self.commands.values():
                         if record["status"] == "queued":

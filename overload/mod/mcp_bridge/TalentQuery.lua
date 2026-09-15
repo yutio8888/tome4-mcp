@@ -8,6 +8,7 @@
 local Json = require 'mod.mcp_bridge.Json'
 local Compat = require 'mod.mcp_bridge.NativeCompatibility'
 local Distance = require 'mod.mcp_bridge.Distance'
+local Manifest = require 'mod.mcp_bridge.NativeManifest'
 local M = {}
 local RESOURCES={'mana','stamina','vim','positive','negative','psi','hate','equilibrium','paradox'}
 
@@ -19,23 +20,26 @@ end
 -- A read-only dependency is only called after it has been registered once.
 -- Re-registering an existing id never overwrites the baseline, so a later
 -- replacement stays failed instead of being adopted.
-local function registerOnce(id,domain,fn,path,purpose)
+local function registerOnce(id,domain,fn,path,purpose,digest,declaration)
     if Compat.hasDependency and Compat.hasDependency(id) then return end
-    Compat.registerDependency(id,domain,fn,path,purpose)
+    Compat.registerDependency(id,domain,fn,path,purpose,digest,declaration)
 end
 function M.registerNative(player)
     if type(player)~='table' then return end
     if type(player.attr)=='function' then
-        registerOnce('actor.attr','talent_query',player.attr,'/engine/Entity.lua','resource suppression flags')
+        registerOnce('actor.attr','talent_query',player.attr,'/engine/Entity.lua','resource suppression flags',
+            Manifest.entity_md5,'function _M:attr')
     end
     if type(player.alterTalentCost)=='function' then
-        registerOnce('actor.alterTalentCost','talent_query',player.alterTalentCost,'/mod/class/Actor.lua','talent cost mutation')
+        registerOnce('actor.alterTalentCost','talent_query',player.alterTalentCost,'/mod/class/Actor.lua','talent cost mutation',
+            Manifest.actor_md5,'function _M:alterTalentCost')
     end
     local defs=player.resources_def
     if type(defs)=='table' then
         for name,def in pairs(defs) do
             if type(def)=='table' and type(def.cost_factor)=='function' then
-                registerOnce('resource.cost_factor:'..name,'talent_query',def.cost_factor,'data/resources.lua','resource cost factor')
+                registerOnce('resource.cost_factor:'..name,'talent_query',def.cost_factor,'data/resources.lua','resource cost factor',
+                    Manifest.resources_md5,'cost_factor = function')
             end
         end
     end
@@ -45,26 +49,26 @@ end
 -- per-resource reasons so the caller can explain an unknown value.
 local function finalResourceCosts(p,t,base_costs)
     local final,complete,reasons={},true,{}
+    local function unknownAll(reason)
+        for name in pairs(base_costs) do final[name]='unknown';reasons[name]=reason end
+        return final,false,reasons
+    end
+    -- Independent, already-known suppression rules first (stored scalars).
+    -- Otherwise the suppression flags must be read through an audited helper:
+    -- a missing, untrusted or raising helper is NOT "no suppression" (F4).
     local suppressed=false
-    local attr_fn=p.attr
-    if type(attr_fn)=='function' then
-        local attr,attr_reason=Compat.dependency('actor.attr',attr_fn)
-        if not attr then
-            -- Suppression flags cannot be trusted: report every cost unknown
-            -- rather than assume no suppression (which could yield a false
-            -- affordable=true). The replacement function is never called.
-            for name in pairs(base_costs) do
-                final[name]='unknown';reasons[name]=attr_reason or 'suppression_unverified'
-            end
-            return final,false,reasons
-        end
+    if t.fake_ressource then suppressed=true
+    elseif type(p.talent_no_resources)=='table' and p.talent_no_resources[t.id] then suppressed=true end
+    if not suppressed then
+        if type(p.attr)~='function' then return unknownAll('suppression_unverified') end
+        local attr,attr_reason=Compat.dependency('actor.attr',p.attr)
+        if not attr then return unknownAll(attr_reason or 'suppression_unverified') end
         local ok,value=pcall(function()
             return (attr(p,'zero_resource_cost') and true) or (attr(p,'force_talent_ignore_ressources') and true) or false
         end)
-        if ok and value==true then suppressed=true end
+        if not ok then return unknownAll('suppression_unverified') end
+        suppressed = value==true
     end
-    if t.fake_ressource then suppressed=true end
-    if type(p.talent_no_resources)=='table' and p.talent_no_resources[t.id] then suppressed=true end
     local alter=Compat.dependency('actor.alterTalentCost',p.alterTalentCost)
     for name in pairs(base_costs) do
         local base=t[name]

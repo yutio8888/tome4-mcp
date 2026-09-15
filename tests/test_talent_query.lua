@@ -66,12 +66,38 @@ check(unknownPoor.affordable=='unknown' and unknownPoor.readiness_reason~='insuf
     'low resources never fabricate a certain unaffordable result without a known current cost')
 queryP.mana=40
 check(select(2,Actions.query(queryP,'T_MISSING'))=='invalid_talent','unknown talent id is rejected')
+-- F1: read-only dependencies are only trusted after an audited registration
+-- (source path + file digest). Tests stub fs/md5 so the audit path itself runs.
+local files={}
+fs={readAll=function(path) return files[path] end}
+package.loaded.md5={sumhexa=function(bytes) return bytes end}
+local function mk(path,src) return assert(loadstring(src,'@'..path))() end
+local function trust(id,path,fn)
+    local token='md5:'..tostring(fn)
+    files[path]=token
+    return Compat.registerDependency(id,'talent_query',fn,path,'test',token)
+end
+local function resetAndTrust(p)
+    Compat.resetDependencies()
+    if type(p.attr)=='function' then trust('actor.attr','/engine/Entity.lua',p.attr) end
+    if type(p.alterTalentCost)=='function' then trust('actor.alterTalentCost','/mod/class/Actor.lua',p.alterTalentCost) end
+    local defs=p.resources_def
+    if type(defs)=='table' then
+        for name,def in pairs(defs) do
+            if type(def)=='table' and type(def.cost_factor)=='function' then
+                trust('resource.cost_factor:'..name,'data/resources.lua',def.cost_factor)
+            end
+        end
+    end
+end
 -- Real-time cost mirrors native postUseTalent order (alterTalentCost then cost_factor).
 local costP={x=1,y=1,level=10,talents={T_COST=1},talents_cd={},mana=100,
     talents_def={T_COST={id='T_COST',mode='activated',range=1,target='self',mana=10}},
-    resources_def={{short_name='mana',min=0,cost_factor=assert(loadstring('return function(self,t,check,value) return 1.5 end','@data/resources.lua')())}},
-    alterTalentCost=assert(loadstring('return function(self,t,r,c) return c end','@/mod/class/Actor.lua')())}
+    resources_def={{short_name='mana',min=0,cost_factor=mk('data/resources.lua','return function(self,t,check,value) return 1.5 end')}},
+    alterTalentCost=mk('/mod/class/Actor.lua','return function(self,t,r,c) return c end'),
+    attr=mk('/engine/Entity.lua','return function(self,name) return nil end')}
 costP.resources_def.mana=costP.resources_def[1]
+resetAndTrust(costP)
 local qc=assert(Actions.query(costP,'T_COST'))
 check(qc.base_costs.mana==10 and qc.current_costs.mana==15 and qc.costs_complete==true,
     'query reports the real-time cost with the native cost_factor')
@@ -92,6 +118,44 @@ costP.alterTalentCost=function() return 10 end
 local qi=assert(Actions.query(costP,'T_COST'))
 check(qi.current_costs.mana=='unknown' and qi.affordable=='unknown',
     'a modified alterTalentCost is not executed and affordability stays unknown')
+-- F1: a dependency that cannot be audited at registration is never used.
+local forgedP={x=1,y=1,level=10,talents={T_COST=1},talents_cd={},mana=100,
+    talents_def={T_COST={id='T_COST',mode='activated',range=1,target='self',mana=10}},
+    resources_def={{short_name='mana',min=0,cost_factor=mk('data/resources.lua','return function() return 1 end')}},
+    alterTalentCost=mk('/mod/class/Actor.lua','return function(self,t,r,c) return c end'),
+    attr=mk('/engine/Entity.lua','return function(self,name) return nil end')}
+forgedP.resources_def.mana=forgedP.resources_def[1]
+Compat.resetDependencies()
+files['/engine/Entity.lua']=nil
+Compat.registerDependency('actor.attr','talent_query',forgedP.attr,'/engine/Entity.lua','test','does-not-match')
+files['/mod/class/Actor.lua']='token-alter'
+Compat.registerDependency('actor.alterTalentCost','talent_query',forgedP.alterTalentCost,'/mod/class/Actor.lua','test','token-alter')
+files['data/resources.lua']='token-cf'
+Compat.registerDependency('resource.cost_factor:mana','talent_query',forgedP.resources_def.mana.cost_factor,'data/resources.lua','test','token-cf')
+local forged=assert(Actions.query(forgedP,'T_COST'))
+check(forged.current_costs.mana=='unknown' and forged.resource_checks.mana.reason=='dependency_source_unreadable',
+    'F1: an unauditable dependency is never used')
+-- F4: a suppression getter that is missing or raises must not become "not suppressed".
+local attrP={x=1,y=1,level=10,talents={T_COST=1},talents_cd={},mana=5,
+    talents_def={T_COST={id='T_COST',mode='activated',range=1,target='self',mana=10}},
+    resources_def={{short_name='mana',min=0,cost_factor=mk('data/resources.lua','return function() return 1 end')}},
+    alterTalentCost=mk('/mod/class/Actor.lua','return function(self,t,r,c) return c end')}
+attrP.resources_def.mana=attrP.resources_def[1]
+attrP.attr=mk('/engine/Entity.lua','return function(self,name) error("suppression getter failed") end')
+resetAndTrust(attrP)
+local f4=assert(Actions.query(attrP,'T_COST'))
+check(f4.current_costs.mana=='unknown' and f4.costs_complete==false
+    and f4.resource_checks.mana.reason=='suppression_unverified' and f4.affordable~=false,
+    'F4: a raising suppression getter yields unknown cost, not a confirmed cost')
+local nilAttrP={x=1,y=1,level=10,talents={T_COST=1},talents_cd={},mana=5,
+    talents_def={T_COST={id='T_COST',mode='activated',range=1,target='self',mana=10}},
+    resources_def={{short_name='mana',min=0,cost_factor=mk('data/resources.lua','return function() return 1 end')}},
+    alterTalentCost=mk('/mod/class/Actor.lua','return function(self,t,r,c) return c end')}
+nilAttrP.resources_def.mana=nilAttrP.resources_def[1]
+resetAndTrust(nilAttrP)
+local f4b=assert(Actions.query(nilAttrP,'T_COST'))
+check(f4b.current_costs.mana=='unknown' and f4b.resource_checks.mana.reason=='suppression_unverified',
+    'F4: a missing suppression getter is unknown, never a confirmed cost')
 
 -- --- One-shot target prefill -------------------------------------------------
 -- Replace the native seam and compatibility gate with controlled doubles so the
