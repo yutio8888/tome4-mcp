@@ -1,0 +1,15 @@
+{
+  "$comment": "Spec v1.0 section 4.1 ledger acceptance cases (design vectors; the checker validates their shape, the M2 implementation executes them).",
+  "cases": [
+    { "id": "T-LED-01", "given": { "H": 0, "W": 0, "command_id": "cmd-1", "repeat_fingerprint": "same" }, "expect": { "accepted": true, "native_entries": 1, "status": "completed" } },
+    { "id": "T-LED-02", "given": { "accepted_command_id": "cmd-1", "second_action_differs": true }, "expect": { "error": "command_conflict", "native_entries": 1 } },
+    { "id": "T-LED-03", "given": { "commands": 100000 }, "expect": { "H": 100000, "retained_count": 256, "bounded": true } },
+    { "id": "T-LED-04", "given": { "command_id": "cmd-1", "W": 100, "H": 356 }, "expect": { "error": "command_history_expired", "accepted": true, "native_entries": 0 } },
+    { "id": "T-LED-05", "given": { "command_id": "cmd-3", "H": 1 }, "expect": { "error": "command_sequence_gap", "H_unchanged": true } },
+    { "id": "T-LED-06", "given": { "command_id": "cmd-2", "H": 1, "stale_revision": true }, "expect": { "accepted": false, "error": "stale_revision", "H_unchanged": true } },
+    { "id": "T-LED-10", "given": { "H": 10, "W": 3, "python_restart": true, "level_change": true }, "expect": { "H": 10, "W": 3, "reset": false } },
+    { "id": "T-LED-11", "given": { "old_session": "s1", "new_session": "s2" }, "expect": { "error": "session_mismatch", "remapped": false } },
+    { "id": "T-LED-13", "given": { "command": "cmd-7", "snapshot_evicted": true, "receipt_retained": true }, "expect": { "snapshot_availability": "evicted", "snapshot": null } },
+    { "id": "T-LED-16", "given": { "act_enqueue_changes_ledger_only": true }, "expect": { "self_stale": false, "respond_uses_queued_revision": true } }
+  ]
+}

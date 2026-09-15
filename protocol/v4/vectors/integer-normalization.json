@@ -1,0 +1,16 @@
+{
+  "$comment": "Spec v1.0 section 2.2 integer rule. `1` and `1.0` normalize to the same integer; true, \"1\" and 1.5 are rejected. Raw JSON is used so Python float parsing cannot hide the difference.",
+  "cases": [
+    { "json": "1", "valid": true, "normalized": 1 },
+    { "json": "1.0", "valid": true, "normalized": 1 },
+    { "json": "1e0", "valid": true, "normalized": 1 },
+    { "json": "0", "valid": true, "normalized": 0 },
+    { "json": "9007199254740991", "valid": true, "normalized": 9007199254740991 },
+    { "json": "true", "valid": false },
+    { "json": "false", "valid": false },
+    { "json": "\"1\"", "valid": false },
+    { "json": "1.5", "valid": false },
+    { "json": "null", "valid": false },
+    { "json": "[]", "valid": false }
+  ]
+}

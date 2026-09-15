@@ -16,8 +16,8 @@
 
 | 包 | 内容 | 状态 |
 | --- | --- | --- |
-| M0 | 基线与契约（`protocol/v4`、跨语言向量、`--game-root` 入口） | 基线已建立；契约与向量待做 |
-| M1 | 纯查询修复（费用三态、纯度、`TalentQuery.lua`） | **进行中**：B-03 已修、模块已分离、测试已更新；纯度套件/依赖审核待做 |
+| M0 | 基线与契约（`protocol/v4`、跨语言向量、`--game-root` 入口） | **完成**：`protocol/v4/{limits,common.schema,errors.schema,requests.schema,results.schema}` + `vectors/`；`tools/generate_protocol.py --check` 通过；`generate_native_seams.py`/`package.py` 支持 `--game-root`。与双端校验器的生成接线留到 M2/M4 |
+| M1 | 纯查询修复（费用三态、纯度、`TalentQuery.lua`） | **完成**：QRY-04/05/07 三态与 `resource_checks`；QRY-08 统一 `Distance.lua`；QRY-02 只读依赖登记（身份基线）；QRY-09 纯度套件 `test_query_purity.lua`。文件摘要/加载链的完全统一留到 M4（CMP-01/03） |
 | M2 | `CommandLedger.lua` 与 v4（规范序号、回收、双端接线） | 未开始 |
 | M3 | `ObservationViews.lua` 冻结集合分页（`tome.list`） | 未开始 |
 | M4 | 能力诊断、状态转换断言、响应预算、认证期限 | 未开始 |
@@ -51,6 +51,6 @@
 
 ## 下一步
 
-1. 补 M1：`TalentQuery` 依赖审核登记 + 纯度测试（T-QRY-06/07/11）+ QRY-08 距离口径统一。
-2. M0：建立 `protocol/v4/` 契约与跨语言向量、`--game-root` 测试入口。
-3. M2：`CommandLedger.lua`（先纯 Lua fixture）+ v4 双端接线。
+1. **M2（待评审后开工）**：`CommandLedger.lua`（先纯 Lua fixture 验证 H/W、指纹、回收）+ v4 双端接线。破坏性协议变更，先设立检查点。
+2. M4：`NativeCompatibility` 文件摘要/加载链统一审核（CMP-01/03）、`action_support` 矩阵（CMP-05）。
+3. 协议契约与 Lua/Python 校验器的生成接线（API-07）。

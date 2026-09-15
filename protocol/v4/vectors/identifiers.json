@@ -1,0 +1,20 @@
+{
+  "$comment": "Spec v1.0 section 2.2 identifier vectors. Shared by the Lua and Python validators.",
+  "command_id": {
+    "valid": ["cmd-1", "cmd-2", "cmd-4272", "cmd-9007199254740991"],
+    "invalid": ["1", "cmd-0", "cmd-01", "cmd-+1", "cmd-1.0", "cmd-", "cmd-1e3", "cmd-1 ", "cmd- 1", "uuid-abc", "cmd-9007199254740992", "cmd-"]
+  },
+  "byte_limit_cases": [
+    { "field": "SessionId", "char": "a", "count": 1, "valid": true },
+    { "field": "SessionId", "char": "a", "count": 256, "valid": true },
+    { "field": "SessionId", "char": "a", "count": 257, "valid": false },
+    { "field": "SessionId", "char": "é", "count": 128, "valid": true },
+    { "field": "SessionId", "char": "é", "count": 129, "valid": false },
+    { "field": "OptionId", "char": "a", "count": 512, "valid": true },
+    { "field": "OptionId", "char": "a", "count": 513, "valid": false }
+  ],
+  "nul_and_control": {
+    "valid": ["plain", "with space", "unicode-星月"],
+    "invalid": ["has\u0000nul", "has\nnewline", "has\ttab"]
+  }
+}

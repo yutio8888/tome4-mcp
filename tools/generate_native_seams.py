@@ -15,6 +15,17 @@ WORKSPACE = ROOT.parents[2]
 ENGINE = WORKSPACE / 'game/engines/default/engine'
 
 
+def configure(game_root: str | None = None) -> None:
+    """Point the generator at a ToME source checkout (spec M0 --game-root)."""
+    global WORKSPACE, ENGINE
+    WORKSPACE = Path(game_root).resolve() if game_root else ROOT.parents[2]
+    ENGINE = WORKSPACE / 'game/engines/default/engine'
+    if not (ENGINE / 'interface/ActorTalents.lua').is_file():
+        raise SystemExit(
+            f'Native game source not found under {WORKSPACE}; pass --game-root /path/to/tome-source')
+
+
+
 def method(text: str, name: str) -> str:
     match = re.search(rf'^function _M:{re.escape(name)}\(.*?\nend(?=\n)', text, re.M | re.S)
     if not match:
@@ -281,7 +292,10 @@ def generate() -> dict[Path, str]:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true')
+    parser.add_argument('--game-root', default=None,
+                        help='ToME source root with game/ (defaults to the enclosing checkout)')
     args = parser.parse_args()
+    configure(args.game_root)
     for path, text in generate().items():
         if args.check:
             assert path.is_file() and path.read_text() == text, f'Native seam out of date: {path}'
