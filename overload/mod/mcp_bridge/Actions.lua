@@ -11,7 +11,6 @@ local attack_spec={target='actor',source='data/talents/misc/misc.lua',action_ada
 local function finite(value) return type(value)=='number' and value==value and value>-math.huge and value<math.huge end
 local function stringId(value) return type(value)=='string' and #value>0 and #value<=256 and not value:find('%z') end
 local function coordinate(value) return type(value)=='number' and value%1==0 and value>=0 and value<=2147483647 end
-local RESOURCES={'mana','stamina','vim','positive','negative','psi','hate','equilibrium','paradox'}
 local function native(fn, suffix)
     if type(fn) ~= 'function' then return false end
     local info = debug.getinfo(fn, 'S')
@@ -63,106 +62,8 @@ function M.describe(player, id)
         description='Runs through native talent rules; input requests are discovered during execution.',
         sustained_active=player.sustain_talents and player.sustain_talents[id] and true or false}
 end
--- Read-only talent query. Only stored fields and audited scalars are read:
--- dynamic range/requires_target/target functions are reported unknown instead
--- of being evaluated, so observation stays free of side effects.
-local function resourceDef(p,name)
-    local defs=p.resources_def
-    return type(defs)=='table' and defs[name] or nil
-end
--- Mirror Actor:postUseTalent's deduction: alterTalentCost, then cost_factor,
--- using only statically declared base costs and the audited native helpers.
-local function finalResourceCosts(p,t,base_costs)
-    local final,complete={},true
-    local ok,suppressed=pcall(function()
-        if type(p.attr)~='function' then return false end
-        return (p:attr('zero_resource_cost') and true)
-            or (p:attr('force_talent_ignore_ressources') and true) or false
-    end)
-    if not ok then complete=false end
-    if t.fake_ressource then suppressed=true end
-    if type(p.talent_no_resources)=='table' and p.talent_no_resources[t.id] then suppressed=true end
-    local alter=native(p.alterTalentCost,'/mod/class/Actor.lua')
-    for name in pairs(base_costs) do
-        local base=t[name]
-        if suppressed==true then final[name]=0
-        elseif type(base)~='number' or not finite(base) then final[name]='unknown';complete=false
-        elseif not alter then final[name]='unknown';complete=false
-        else
-            local called,cost=pcall(p.alterTalentCost,p,t,name,base)
-            if not called or not finite(cost) then final[name]='unknown';complete=false
-            elseif cost==0 then final[name]=0
-            else
-                local def=resourceDef(p,name)
-                local factor=1
-                if def and def.cost_factor~=nil then
-                    if type(def.cost_factor)=='function' and native(def.cost_factor,'data/resources.lua') then
-                        local factor_ok,value=pcall(def.cost_factor,p,t,false,cost)
-                        factor=factor_ok and finite(value) and value or nil
-                    elseif type(def.cost_factor)=='number' and finite(def.cost_factor) then factor=def.cost_factor
-                    else factor=nil end
-                end
-                if factor==nil then final[name]='unknown';complete=false
-                else final[name]=cost*factor end
-            end
-        end
-    end
-    return final,complete
-end
-function M.query(player,id,target,x,y)
-    local t=player and player.talents_def and player.talents_def[id]
-    if type(t)~='table' or t.id~=id then return nil,'invalid_talent' end
-    local q={id=id}
-    if type(t.range)=='number' and finite(t.range) then q.range=t.range
-    elseif type(t.range)=='function' then q.range='unknown'
-    else q.range=1 end
-    if type(t.requires_target)=='boolean' then q.requires_target=t.requires_target
-    elseif type(t.requires_target)=='function' then q.requires_target='unknown'
-    else q.requires_target=false end
-    if type(t.target)=='string' then q.target_type=t.target
-    elseif type(t.target)=='table' then q.target_type='table'
-    elseif type(t.target)=='function' then q.target_type='unknown' end
-    local cd=player.talents_cd and player.talents_cd[id]
-    q.cooldown_remaining=finite(cd) and cd or (cd==nil and 0 or 'unknown')
-    local base={}
-    for _,key in ipairs(RESOURCES) do
-        local value=t[key]
-        if finite(value) then base[key]=value
-        elseif value~=nil then base[key]='unknown' end
-    end
-    -- current_costs is the real-time value; base_costs is the stored base.
-    local costs,complete=finalResourceCosts(player,t,base)
-    q.current_costs=costs;q.costs_complete=complete;q.base_costs=base
-    local affordable,unknown=true,false
-    for key in pairs(base) do
-        local value=type(costs[key])=='number' and costs[key] or base[key]
-        if type(value)=='number' then
-            local have=player[key]
-            if finite(have) then
-                if value>have then affordable=false end
-            else unknown=true end
-        else unknown=true end
-    end
-    if not affordable then q.affordable=false
-    elseif unknown then q.affordable='unknown'
-    else q.affordable=true end
-    local tx,ty=target and target.x or x,target and target.y or y
-    if finite(tx) and finite(ty) and finite(player.x) and finite(player.y) then
-        q.distance=math.max(math.abs(tx-player.x),math.abs(ty-player.y))
-        if type(q.range)=='number' then q.in_range=q.distance<=q.range end
-    end
-    local learned=player.talents and finite(player.talents[id]) and player.talents[id]>0
-    if not learned then q.readiness,q.readiness_reason='blocked','talent_not_learned'
-    elseif q.cooldown_remaining=='unknown' then q.readiness,q.readiness_reason='unknown','cooldown_unknown'
-    elseif q.cooldown_remaining>0 then q.readiness,q.readiness_reason='blocked','cooldown'
-    elseif q.affordable==false then q.readiness,q.readiness_reason='blocked','resource'
-    elseif q.requires_target==true and not finite(tx) then q.readiness,q.readiness_reason='unknown','target_required'
-    else q.readiness,q.readiness_reason='unknown','native_precheck_not_run' end
-    q.prefill_supported=true
-    q.prefill_modes=Json.array{'actor','position'}
-    q.query_is_advisory=true
-    return q
-end
+-- Read-only talent query lives in its own pure module (spec QRY-01..09).
+M.query=require('mod.mcp_bridge.TalentQuery').query
 function M.validate(action)
     if type(action) ~= 'table' then return nil, 'invalid_action' end
     if Progression.isAction(action.type) then return Progression.validate(action) end

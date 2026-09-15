@@ -40,7 +40,11 @@ local q=assert(Actions.query(queryP,'T_STATIC'))
 check(q.range==8 and q.requires_target==true and q.target_type=='actor','query reads stored range and target flags')
 check(q.base_costs.mana==30 and q.current_costs.mana=='unknown' and q.costs_complete==false,
     'base cost is stored; real-time cost is unknown without the native helpers')
-check(q.affordable==true and q.cooldown_remaining==0,'query computes affordability from current resources')
+check(q.affordable=='unknown' and q.cooldown_remaining==0,
+    'unknown real-time cost yields unknown affordability, never a base-cost guess')
+check(q.resource_checks.mana.amount=='unknown' and q.resource_checks.mana.affordable=='unknown'
+    and q.resource_checks.mana.reason=='cost_dependency_unverified',
+    'resource_checks explains the unknown affordability per resource')
 check(q.prefill_supported==true and #q.prefill_modes==2,'query advertises prefill modes')
 check(q.readiness=='unknown' and q.readiness_reason=='target_required','readiness stays advisory and reports the missing target')
 local far=assert(Actions.query(queryP,'T_STATIC',{x=5,y=12}))
@@ -57,27 +61,37 @@ check(cooling.cooldown_remaining==3 and cooling.readiness=='blocked' and cooling
     'cooldown blocks readiness without running preUseTalent')
 queryP.talents_cd.T_COOLDOWN=nil
 queryP.mana=10
-local poor=assert(Actions.query(queryP,'T_STATIC'))
-check(poor.affordable==false and poor.readiness=='blocked' and poor.readiness_reason=='resource',
-    'known unaffordable cost blocks readiness')
+local unknownPoor=assert(Actions.query(queryP,'T_STATIC'))
+check(unknownPoor.affordable=='unknown' and unknownPoor.readiness_reason~='insufficient_resource',
+    'low resources never fabricate a certain unaffordable result without a known current cost')
 queryP.mana=40
 check(select(2,Actions.query(queryP,'T_MISSING'))=='invalid_talent','unknown talent id is rejected')
 -- Real-time cost mirrors native postUseTalent order (alterTalentCost then cost_factor).
 local costP={x=1,y=1,level=10,talents={T_COST=1},talents_cd={},mana=100,
     talents_def={T_COST={id='T_COST',mode='activated',range=1,target='self',mana=10}},
-    resources_def={{short_name='mana',cost_factor=assert(loadstring('return function(self,t,check,value) return 1.5 end','@data/resources.lua')())}},
+    resources_def={{short_name='mana',min=0,cost_factor=assert(loadstring('return function(self,t,check,value) return 1.5 end','@data/resources.lua')())}},
     alterTalentCost=assert(loadstring('return function(self,t,r,c) return c end','@/mod/class/Actor.lua')())}
 costP.resources_def.mana=costP.resources_def[1]
 local qc=assert(Actions.query(costP,'T_COST'))
 check(qc.base_costs.mana==10 and qc.current_costs.mana==15 and qc.costs_complete==true,
     'query reports the real-time cost with the native cost_factor')
+check(qc.affordable==true and qc.resource_checks.mana.reason=='sufficient',
+    'known sufficient current cost is affordable')
+costP.mana=5
+local qpoor=assert(Actions.query(costP,'T_COST'))
+check(qpoor.affordable==false and qpoor.readiness=='blocked' and qpoor.readiness_reason=='insufficient_resource'
+    and qpoor.resource_checks.mana.reason=='insufficient_resource',
+    'known insufficient current cost blocks readiness')
+costP.mana=100
 costP.talents_def.T_COST.mana=function() return 10 end
 local qd=assert(Actions.query(costP,'T_COST'))
-check(qd.current_costs.mana=='unknown' and qd.costs_complete==false,'dynamic base cost stays unknown')
+check(qd.current_costs.mana=='unknown' and qd.costs_complete==false and qd.affordable=='unknown',
+    'dynamic base cost stays unknown and does not fabricate affordability')
 costP.talents_def.T_COST.mana=10
 costP.alterTalentCost=function() return 10 end
 local qi=assert(Actions.query(costP,'T_COST'))
-check(qi.current_costs.mana=='unknown','a modified alterTalentCost is not executed for the query')
+check(qi.current_costs.mana=='unknown' and qi.affordable=='unknown',
+    'a modified alterTalentCost is not executed and affordability stays unknown')
 
 -- --- One-shot target prefill -------------------------------------------------
 -- Replace the native seam and compatibility gate with controlled doubles so the
