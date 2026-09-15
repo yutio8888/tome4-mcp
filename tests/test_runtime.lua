@@ -48,16 +48,27 @@ local function fixture()
     Runtime.reset(g);g:display()
     local seq=0
     local function request(op,args)
-        seq=seq+1;channel.options.onRequest{v=3,id=tostring(seq),op=op,args=args}
+        seq=seq+1;channel.options.onRequest{v=4,id=tostring(seq),op=op,args=args}
         return channel.messages[#channel.messages]
     end
     local hello=request('connect',{token='unit-test-token'}).result
     local function observe() return request('observe',{session_id=hello.session_id}).result end
-    local function act(id,action,revision)
-        return request('act',{session_id=hello.session_id,control_token=hello.control_token,
-            command_id=id,expected_revision=revision or observe().revision,action=action})
+    local labels={}
+    local function nextId(label)
+        if not labels[label] then labels[label]=observe().history.next_command_id end
+        return labels[label]
     end
-    local function status(id) return request('status',{session_id=hello.session_id,command_id=id}).result end
+    local function act(id,action,revision)
+        local reply=request('act',{session_id=hello.session_id,control_token=hello.control_token,
+            command_id=nextId(id),expected_revision=revision or observe().revision,action=action})
+        if not reply.result and reply.error then
+            local code=reply.error.code
+            if code=='command_in_progress' or code=='not_ready' or code=='control_lost'
+                or code=='stale_revision' or code=='read_only_connection' then labels[id]=nil end
+        end
+        return reply
+    end
+    local function status(id) return request('status',{session_id=hello.session_id,command_id=nextId(id)}).result end
     local function ready()
         Runtime.beforeTick(g);g.turn=g.turn+10;p.energy.value=1000;g.paused=true
         Runtime.onReady(p);Runtime.afterTick(g);g:display()
@@ -98,10 +109,13 @@ check(status('manual').status=='cancelled','cancelled record survives reconnect'
 g:tick();g:display()
 
 g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
-Runtime.MAX_COMMANDS=1
-act('retained',{type='wait'});g:tick();ready()
-check(act('overflow',{type='wait'}).error.code=='command_history_full','capacity rejects new writes without eviction')
-Runtime.MAX_COMMANDS=4096
+-- v4 ledger: capacity is bounded by eviction, never by rejecting new writes.
+check(observe().history.next_command_id=='cmd-1','fresh session starts at cmd-1')
+act('ledger-a',{type='wait'});g:tick();ready()
+act('ledger-b',{type='wait'});g:tick();ready()
+check(observe().history.last_accepted_seq==2 and observe().history.next_command_id=='cmd-3',
+    'accepted commands advance the canonical sequence and expose the next id')
+check(status('ledger-a').status=='completed','an earlier receipt is still queryable')
 local dialog={key={receiveKey=function() end},mouse={receiveMouse=function() end}}
 g.dialogs={dialog};g:onRegisterDialog(dialog)
 reconnect()
@@ -124,7 +138,7 @@ check(act('after_error',{type='wait'}).error.code=='not_ready','native error for
 local old_session=hello.session_id
 g:loaded();g:display();reconnect()
 check(hello.session_id~=old_session and observe().phase=='ready','reload creates usable new session')
-check(request('status',{session_id=old_session,command_id='error'}).error.code=='session_mismatch','old session rejected')
+check(request('status',{session_id=old_session,command_id='cmd-1'}).error.code=='session_mismatch','old session rejected')
 g.save_failure=true;ok=pcall(g.saveGame,g);g:display()
 check(not ok and observe().phase=='unavailable','save exception keeps frame access and quarantines writes')
 g:loaded();g:display();reconnect()

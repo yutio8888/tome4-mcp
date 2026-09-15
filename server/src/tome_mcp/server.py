@@ -139,6 +139,8 @@ Action = Annotated[
     Field(discriminator="type"),
 ]
 Identifier = Annotated[str, Field(min_length=1, max_length=128)]
+# Canonical command identity: cmd-<sequence> from history.next_command_id.
+CommandId = Annotated[str, Field(pattern=r"^cmd-[1-9][0-9]*$", max_length=32)]
 
 
 class ToolReply(BaseModel):
@@ -149,8 +151,8 @@ class ToolReply(BaseModel):
     error: dict[str, Any] | None = None
 
 
-RULES = """ToME MCP Bridge protocol 3
-Protocol 3 provides a read-only talent query and one-shot target prefill. In
+RULES = """ToME MCP Bridge protocol 4
+Protocol 4 provides a read-only talent query and one-shot target prefill. In
 inspect kind="talent" also returns a query
 object with range, requires_target, target_type, cooldown_remaining,
 current_costs, base_costs, costs_complete, affordable, readiness and, when
@@ -351,7 +353,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     async def act(
         session_id: Identifier,
         control_token: Identifier,
-        command_id: Identifier,
+        command_id: CommandId,
         expected_revision: Annotated[int, Field(ge=0)],
         action: Action,
         wait_ms: Annotated[int, Field(ge=0, le=10000)] = 2000,
@@ -370,7 +372,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
             return ToolReply(ok=False, error=exc.as_dict())
 
     @server.tool(name="tome.status", annotations=read)
-    async def status(session_id: Identifier, command_id: Identifier, include_map: bool = True,
+    async def status(session_id: Identifier, command_id: CommandId, include_map: bool = True,
                      response_id: Identifier | None = None,
                      options_offset: Annotated[int, Field(ge=0, le=2147483647)] | None = None) -> ToolReply:
         """Read the original command result without executing it again. Use after a pending act or after explicitly reconnecting following an uncertain result."""
@@ -382,7 +384,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
         return await call("status", args)
 
     @server.tool(name="tome.respond", annotations=write)
-    async def respond(session_id: Identifier, control_token: Identifier, command_id: Identifier,
+    async def respond(session_id: Identifier, control_token: Identifier, command_id: CommandId,
                       interaction_id: Identifier, response_id: Identifier,
                       expected_revision: Annotated[int, Field(ge=1)], answer: Answer,
                       wait_ms: Annotated[int, Field(ge=0, le=10000)] = 2000,

@@ -46,10 +46,8 @@ class FakeGame:
                 op, args = request["op"], request["args"]
                 reply = {"v": request["v"], "id": "wrong" if self.wrong_id else request["id"], "ok": True}
                 if op in {"connect", "connect_observer"}:
-                    if request['v']==3 and self.legacy_bridge:
-                        reply.update(ok=False,error={"code":"invalid_request","message":"Old protocol"})
-                    elif op == "connect_observer" and self.legacy_bridge:
-                        reply.update(ok=False, error={"code": "not_connected", "message": "Old bridge"})
+                    if self.legacy_bridge:
+                        reply.update(ok=False, error={"code": "protocol_mismatch", "message": "Old bridge"})
                     elif args["token"] != self.token:
                         reply.update(ok=False, error={"code": "unauthorized", "message": "Authentication failed"})
                     else:
@@ -115,7 +113,7 @@ class FakeGame:
             self.tasks.discard(task)
 
 
-def action_args(command_id="cmd1"):
+def action_args(command_id="cmd-1"):
     return {
         "session_id": "s1", "control_token": "c1", "command_id": command_id,
         "expected_revision": 7, "action": {"type": "wait"},

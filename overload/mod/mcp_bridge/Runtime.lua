@@ -10,7 +10,8 @@ local Tracker=require 'mod.mcp_bridge.InvocationTracker'
 local Interactions=require 'mod.mcp_bridge.Interactions'
 local Compat=require 'mod.mcp_bridge.NativeCompatibility'
 local NativeTasks=require 'mod.mcp_bridge.NativeTasks'
-local M={MAX_COMMANDS=4096}
+local CommandLedger=require 'mod.mcp_bridge.CommandLedger'
+local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304}
 local state, serial
 serial=0
 local function now()
@@ -76,12 +77,14 @@ local function meta(s)
     local raw=controller and type(controller.observation)=='function' and controller.observation(s.game.player)
     local summary=type(raw)=='table' and {state=Details.text(raw.state,48),code=Details.text(raw.code,128),
         message=Details.text(raw.message,512),actions=Details.number(raw.actions)} or nil
-    return {session_id=s.session_id,level_instance_id=s.level_id,revision=s.revision,protocol_version=3,
+    return {session_id=s.session_id,level_instance_id=s.level_id,revision=s.revision,protocol_version=4,
+        history=s.ledger and s.ledger:history() or Json.null,
         phase=nativePhase(s),control_source=s.control_token and 'remote' or localCombat(s) and 'battle_companion' or 'manual',
         battle_companion=summary}
 end
 local function snapshot(s,radius,options)
     local result=Observer.capture(s.game,meta(s),radius,options)
+    result.history=s.ledger:history()
     result.events=Journal.capture(s.game,options and options.events_after)
     local root=invocation(s)
     if root then
@@ -94,12 +97,15 @@ local function snapshot(s,radius,options)
 end
 local function commandView(command,include_map,response_id,options_offset)
     local out={}
-    for _,key in ipairs{'command_id','status','code','energy_spent','native_return','world_tick_before',
-        'world_tick_after','revision_before','revision_after','snapshot','interruption','uncertain',
+    for _,key in ipairs{'command_id','seq','status','code','energy_spent','native_return','world_tick_before',
+        'world_tick_after','revision_before','revision_after','snapshot','snapshot_availability','interruption','uncertain',
         'turns_executed','max_turns','stop_reason','native_message','level_changed',
         'points_spent','points_returned','point_pool','previous_value','new_value'} do out[key]=command[key] end
     if command.protocol then
         out.revision=state.revision;out.input_owner=command.input_owner
+        out.accepted=true;out.seq=command.seq
+        out.history=state.ledger:history()
+        out.snapshot_availability=command.snapshot_availability or (command.snapshot and 'retained' or 'not_captured')
         out.execution_released=command.execution_released==true
         out.energy_spent_complete=command.energy_spent_complete~=false
         if command.invocation then out.interaction=Interactions.describe(command.invocation,meta(state),options_offset) end
@@ -134,8 +140,8 @@ local function finish(s,command,status,code)
     command.player,command.level,command.control_token=nil,nil,nil
     command.native_rest,command.rest_dialog=nil,nil
     command.snapshot=snapshot(s)
-    s.recent[#s.recent+1]=command
-    if #s.recent>16 then local old=table.remove(s.recent,1);old.snapshot=nil end
+    command.snapshot_availability=command.snapshot and 'retained' or 'not_captured'
+    if command.execution_released and command.seq and s.ledger then s.ledger:release(command.seq) end
 end
 local function restFault(s,command)
     command.stop_error=true;command.uncertain=true
@@ -209,9 +215,15 @@ function M.reset(g)
     Observer.reset()
     Journal.reset()
     state={game=g,player=g.player,level=g.level,session_id=identifier('tome'),revision=1,
-        level_serial=1,level_id='level-1',commands={},command_count=0,recent={},ready_serial=0,
+        level_serial=1,level_id='level-1',ready_serial=0,
         tick_serial=0,tick_depth=0,next_start=0}
     local s=state
+    s.ledger=CommandLedger.new{max_retained=M.MAX_RETAINED_COMMANDS,byte_budget=M.COMMAND_RECEIPT_BYTES,
+        on_evict=function(record)
+            record.snapshot=nil;record.native_rest=nil;record.rest_dialog=nil
+            record.player,record.level,record.control_token=nil,nil,nil
+            record.snapshot_availability='evicted'
+        end}
     local function changed(root)
         if state==s and root.game==g then s.execution=root;bump(s) end
     end
@@ -612,10 +624,15 @@ local function executeResponse(s,command,receipt)
     command.status='settling'
     bump(s)
 end
-local function fail(code,message) return nil,{code=code,message=message or code:gsub('_',' ')} end
+local function fail(code,message,details)
+    local error={code=code,message=message or code:gsub('_',' ')}
+    if details then for key,value in pairs(details) do error[key]=value end end
+    return nil,error
+end
 local function dispatch(s,request)
-    if request.v~=3 or not stringId(request.id) or type(request.op)~='string'
+    if type(request.v)~='number' or not stringId(request.id) or type(request.op)~='string'
         or type(request.args)~='table' or request.args==Json.null then return fail('invalid_request') end
+    if request.v~=4 then return fail('protocol_mismatch') end
     local a,op=request.args,request.op
     if op=='connect' or op=='connect_observer' then
         if type(a.token)~='string' or a.token~=s.token then return fail('authentication_failed') end
@@ -624,7 +641,7 @@ local function dispatch(s,request)
         -- Re-acquiring control invalidates every old lease, including queued
         -- commands. No automatic client reconnect is implemented in Runtime.
         revoke(s,'control_replaced')
-        s.protocol=3
+        s.protocol=4
         s.access_mode=op=='connect_observer' and 'observe' or 'control'
         if s.access_mode=='control' then
             local controller=companion()
@@ -644,8 +661,8 @@ local function dispatch(s,request)
         end
         local snap=snapshot(s)
         local result={session_id=s.session_id,control_token=s.control_token or Json.null,revision=s.revision,mode=s.access_mode,
-            protocol_version=3,
-            capabilities={protocol=3,actions=Json.array{'move','wait','attack','use_talent','set_sustain','use_item','change_level','rest',
+            protocol_version=4,history=s.ledger:history(),
+            capabilities={protocol=4,actions=Json.array{'move','wait','attack','use_talent','set_sustain','use_item','change_level','rest',
                     'spend_stat','learn_talent','learn_category','unlearn_talent','pickup','equip','unequip'},
                 connection_modes=Json.array{'control','observe'},
                 talents=Actions.capabilities(s.game.player),
@@ -655,7 +672,7 @@ local function dispatch(s,request)
                 multi_step=true,unknown_interaction='manual_handoff',
                 limits={responses_per_command=Interactions.MAX_RESPONSES,options_per_page=Interactions.PAGE_SIZE},
                 talent_query=true,talent_prefill=Json.array{'actor','position'},
-                observation='player',max_radius=12,max_commands=M.MAX_COMMANDS,max_rest_turns=1000,
+                observation='player',max_radius=12,max_retained_commands=M.MAX_RETAINED_COMMANDS,max_rest_turns=1000,
                 compact_responses=true,event_cursor=true,inventory_read=true,ground_items_read=true,
                 progression_read=true,inspect_kinds=Json.array{'actor','talent','progression','item'}},snapshot=snap}
         local ok,reason=Compat.check(s.game)
@@ -664,7 +681,7 @@ local function dispatch(s,request)
         return result
     end
     if not s.authenticated then return fail('not_connected','Call connect with the configured token.') end
-    if request.v~=3 then return fail('protocol_mismatch') end
+    if request.v~=4 then return fail('protocol_mismatch') end
     if a.session_id~=s.session_id then return fail('session_mismatch') end
     sync(s)
     if s.access_mode=='observe' and (op=='act' or op=='stop' or op=='respond') then return fail('read_only_connection') end
@@ -683,8 +700,17 @@ local function dispatch(s,request)
         return result
     elseif op=='status' then
         if not stringId(a.command_id) then return fail('invalid_command_id') end
-        local command=s.commands[a.command_id]
-        if not command then return fail('unknown_command') end
+        local seq=CommandLedger.parseSeq(a.command_id)
+        if not seq then return fail('invalid_command_id') end
+        local ledger_status=s.ledger:status(seq)
+        if ledger_status=='expired' then
+            return fail('command_history_expired','The command was accepted earlier; its receipt is no longer retained.',
+                {accepted=true,uncertain=true,recovery='do_not_replay',command_id=a.command_id})
+        elseif ledger_status~='retained' then
+            return fail('command_not_accepted','The command was not accepted in this session.',
+                {accepted=false,uncertain=false,recovery='observe_before_resubmit',command_id=a.command_id})
+        end
+        local command=s.ledger:get(seq)
         if a.response_id~=nil and (not stringId(a.response_id) or not command.responses or not command.responses[a.response_id]) then
             return fail('unknown_response')
         end
@@ -699,22 +725,34 @@ local function dispatch(s,request)
         local action,code=Actions.validate(a.action)
         if not action then return fail(code) end
         local fingerprint=Actions.fingerprint(action,a.expected_revision)
-        local existing=s.commands[a.command_id]
-        -- Deduplication precedes current revision/lease checks. A reconnected
-        -- authenticated peer may retrieve a result using the original request.
-        if existing then
-            if existing.fingerprint~=fingerprint then return fail('command_conflict') end
+        -- Ledger classification precedes every lease/revision check (LED-03).
+        local cls,existing=s.ledger:classify(a.command_id,fingerprint)
+        if cls=='invalid' then return fail('invalid_command_id') end
+        if cls=='expired' then
+            return fail('command_history_expired','The command was accepted earlier; its receipt is no longer retained.',
+                {accepted=true,uncertain=true,recovery='do_not_replay',command_id=a.command_id})
+        elseif cls=='conflict' then
+            return fail('command_conflict','This command id already has a different request.',
+                {accepted=true,recovery='query_original',command_id=a.command_id})
+        elseif cls=='replay' then
             return commandView(existing,a.include_map)
+        elseif cls=='gap' then
+            return fail('command_sequence_gap','Submit the next canonical command id.',
+                {accepted=false,recovery='refresh_history',next_command_id=s.ledger:nextCommandId()})
+        elseif cls~='accept' then
+            return fail('command_ledger_hole','The command ledger is inconsistent.',{accepted=Json.null})
         end
+        -- None of the checks below consume the sequence on failure.
         if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
         if a.expected_revision~=s.revision then return fail('stale_revision','Observe the current state before acting.') end
         if s.active or s.execution then return fail('command_in_progress') end
         if nativePhase(s)~='ready' then return fail('not_ready') end
-        if s.command_count>=M.MAX_COMMANDS then return fail('command_history_full') end
-        local command={command_id=a.command_id,expected_revision=a.expected_revision,action=action,
-            control_token=s.control_token,status='queued',fingerprint=fingerprint,protocol=3,
-            input_owner='remote',responses={},response_count=0,consumed_interactions={}}
-        s.commands[a.command_id]=command;s.command_count=s.command_count+1;s.active=command
+        local command={expected_revision=a.expected_revision,action=action,
+            control_token=s.control_token,status='queued',protocol=4,
+            input_owner='remote',responses={},response_count=0,consumed_interactions={},
+            snapshot_availability='not_captured'}
+        s.ledger:accept(a.command_id,fingerprint,command)
+        s.active=command
         s.game:onTickEnd(function() execute(s,command) end,'mcp_bridge_action')
         return commandView(command,a.include_map)
     elseif op=='respond' then
@@ -722,8 +760,15 @@ local function dispatch(s,request)
             or not integer(a.expected_revision,1,9007199254740991) then return fail('invalid_response') end
         local answer,code=Interactions.validateAnswer(a.answer)
         if not answer then return fail(code) end
-        local command=s.commands[a.command_id]
-        if not command then return fail('unknown_command') end
+        local seq=CommandLedger.parseSeq(a.command_id)
+        if not seq then return fail('invalid_command_id') end
+        if s.ledger:status(seq)=='expired' then
+            return fail('command_history_expired','The parent command receipt is no longer retained.',
+                {accepted=Json.null,uncertain=true,acceptance_scope='response',recovery='do_not_replay',command_id=a.command_id})
+        end
+        local command=s.ledger:get(seq)
+        if not command then return fail('command_not_accepted','The parent command was not accepted in this session.',
+            {accepted=false,acceptance_scope='response',recovery='observe_before_resubmit',command_id=a.command_id}) end
         local fingerprint=Actions.fingerprint({interaction_id=a.interaction_id,answer=answer},a.expected_revision)
         local existing=command.responses[a.response_id]
         if existing then
@@ -757,7 +802,7 @@ end
 local function receive(s,request)
     if state~=s then return end
     local ok,result,err=pcall(dispatch,s,request)
-    local response={v=3,id=type(request.id)=='string' and request.id or Json.null}
+    local response={v=4,id=type(request.id)=='string' and request.id or Json.null}
     if not ok then
         revoke(s,'bridge_error');response.ok=false;response.error={code='bridge_error',message='The bridge could not process this request.'}
         print('[MCP Bridge] request error: '..tostring(result))

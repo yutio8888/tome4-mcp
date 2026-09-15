@@ -7,7 +7,7 @@ import json
 import uuid
 from typing import Any
 
-PROTOCOL_VERSION = 3
+PROTOCOL_VERSION = 4
 MAX_MESSAGE = 1024 * 1024
 TERMINAL = frozenset({"completed", "failed", "cancelled", "needs_input"})
 

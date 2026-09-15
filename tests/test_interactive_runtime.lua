@@ -48,22 +48,35 @@ local function fixture()
     Runtime.reset(g);g:display()
     local seq=0
     local function request(op,args,version)
-        seq=seq+1;channel.options.onRequest{v=version or 3,id=tostring(seq),op=op,args=args}
+        seq=seq+1;channel.options.onRequest{v=version or 4,id=tostring(seq),op=op,args=args}
         return channel.messages[#channel.messages]
     end
     local hello=request('connect',{token='unit-test-token'}).result
-    local v3hello=request('connect',{token='unit-test-token'},3)
-    check(v3hello.v==3 and v3hello.result.protocol_version==3 and v3hello.result.capabilities.talent_query==true,
-        'v3 request returns a v3 envelope, protocol and query capability')
+    local v4hello=request('connect',{token='unit-test-token'})
+    check(v4hello.v==4 and v4hello.result.protocol_version==4 and v4hello.result.capabilities.talent_query==true,
+        'v4 request returns a v4 envelope, protocol and query capability')
+    local oldproto=request('connect',{token='unit-test-token'},3)
+    check(oldproto.error and oldproto.error.code=='protocol_mismatch','a v3 request is rejected without taking control')
     local restored=request('connect',{token='unit-test-token'}).result
     for k in pairs(hello) do hello[k]=nil end
     for k,v in pairs(restored) do hello[k]=v end
     local function observe() return request('observe',{session_id=hello.session_id}).result end
-    local function act(id,action,revision)
-        return request('act',{session_id=hello.session_id,control_token=hello.control_token,
-            command_id=id,expected_revision=revision or observe().revision,action=action})
+    local labels={}
+    local function nextId(label)
+        if not labels[label] then labels[label]=observe().history.next_command_id end
+        return labels[label]
     end
-    local function status(id,response_id) return request('status',{session_id=hello.session_id,command_id=id,response_id=response_id}).result end
+    local function act(id,action,revision)
+        local reply=request('act',{session_id=hello.session_id,control_token=hello.control_token,
+            command_id=nextId(id),expected_revision=revision or observe().revision,action=action})
+        if not reply.result and reply.error then
+            local code=reply.error.code
+            if code=='command_in_progress' or code=='not_ready' or code=='control_lost'
+                or code=='stale_revision' or code=='read_only_connection' then labels[id]=nil end
+        end
+        return reply
+    end
+    local function status(id,response_id) return request('status',{session_id=hello.session_id,command_id=nextId(id),response_id=response_id}).result end
     local function ready()
         Runtime.beforeTick(g);g.turn=g.turn+10;p.energy.value=1000;g.paused=true
         Runtime.onReady(p);Runtime.afterTick(g);g:display()

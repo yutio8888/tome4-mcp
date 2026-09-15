@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | M0 | 基线与契约（`protocol/v4`、跨语言向量、`--game-root` 入口） | **完成**：`protocol/v4/{limits,common.schema,errors.schema,requests.schema,results.schema}` + `vectors/`；`tools/generate_protocol.py --check` 通过；`generate_native_seams.py`/`package.py` 支持 `--game-root`。与双端校验器的生成接线留到 M2/M4 |
 | M1 | 纯查询修复（费用三态、纯度、`TalentQuery.lua`） | **完成**：QRY-04/05/07 三态与 `resource_checks`；QRY-08 统一 `Distance.lua`；QRY-02 只读依赖登记（身份基线）；QRY-09 纯度套件 `test_query_purity.lua`。文件摘要/加载链的完全统一留到 M4（CMP-01/03） |
-| M2 | `CommandLedger.lua` 与 v4（规范序号、回收、双端接线） | 未开始 |
+| M2 | `CommandLedger.lua` 与 v4（规范序号、回收、双端接线） | **完成**：账本 + `tests/test_ledger.lua`；`Runtime` act/status/connect/observe 接账本、`history.next_command_id`、`command_history_expired/gap/conflict`；返回信封与 Python `BridgeClient`/MCP 工具/`RULES` 升到 v4，v3 返回 `protocol_mismatch`；`generate_protocol.py --check` 额外校验双端常量。真实 >4096 条命令的原生验收留到 M5 |
 | M3 | `ObservationViews.lua` 冻结集合分页（`tome.list`） | 未开始 |
 | M4 | 能力诊断、状态转换断言、响应预算、认证期限 | 未开始 |
 | M5 | 原生回归、长序列、升级/回退、候选包验收 | 未开始 |
@@ -51,6 +51,6 @@
 
 ## 下一步
 
-1. **M2（待评审后开工）**：`CommandLedger.lua`（先纯 Lua fixture 验证 H/W、指纹、回收）+ v4 双端接线。破坏性协议变更，先设立检查点。
-2. M4：`NativeCompatibility` 文件摘要/加载链统一审核（CMP-01/03）、`action_support` 矩阵（CMP-05）。
-3. 协议契约与 Lua/Python 校验器的生成接线（API-07）。
+1. M3：`ObservationViews.lua` 冻结集合分页（`tome.list`）：九个集合、TTL/容量、`cursor_expired`、历史标记。
+2. M4：`NativeCompatibility` 文件摘要/加载链统一审核（CMP-01/03）、`action_support` 矩阵（CMP-05）、错误 `acceptance_scope`/MCP 映射、认证期限。
+3. M5：原生回归、真实 >4096 命令长序列、升级/回退、候选包证据。

@@ -183,6 +183,30 @@ def check_schema_envelope(protocol: Path) -> list[str]:
     return [f"requests: {len(ops)} ops, v=4"]
 
 
+def check_code_alignment(protocol: Path, limits: dict) -> list[str]:
+    """Keep the contract and the two implementations from drifting (API-07)."""
+    root = protocol.parent.parent
+    bridge = (root / "server/src/tome_mcp/bridge.py").read_text()
+    if not re.search(r"^PROTOCOL_VERSION = 4$", bridge, re.M):
+        raise Failure("bridge.py PROTOCOL_VERSION must be 4")
+    runtime = (root / "overload/mod/mcp_bridge/Runtime.lua").read_text()
+    if "request.v~=4" not in runtime:
+        raise Failure("Runtime.lua must reject request.v~=4")
+    if "local response={v=4" not in runtime:
+        raise Failure("Runtime.lua must emit a v=4 response envelope")
+    interactions = (root / "overload/mod/mcp_bridge/Interactions.lua").read_text()
+    match = re.search(r"MAX_RESPONSES=(\d+)", interactions)
+    if not match or int(match.group(1)) != limits["MAX_RESPONSES_PER_COMMAND"]:
+        raise Failure("Interactions.MAX_RESPONSES disagrees with limits.MAX_RESPONSES_PER_COMMAND")
+    match = re.search(r"MAX_RETAINED_COMMANDS=(\d+)", runtime)
+    if not match or int(match.group(1)) != limits["MAX_RETAINED_COMMANDS"]:
+        raise Failure("Runtime MAX_RETAINED_COMMANDS disagrees with limits")
+    ledger = (root / "overload/mod/mcp_bridge/CommandLedger.lua").read_text()
+    if "MAX_SEQ = 9007199254740991" not in ledger:
+        raise Failure("CommandLedger MAX_SEQ disagrees with limits.MAX_SEQUENCE")
+    return ["code alignment: v4 + shared limits match"]
+
+
 def check_all(protocol: Path) -> list[str]:
     if not protocol.is_dir():
         raise Failure(f"protocol directory missing: {protocol}")
@@ -202,6 +226,7 @@ def check_all(protocol: Path) -> list[str]:
     notes += check_integer_vectors(integers)
     notes += check_ledger(protocol, ledger, limits)
     notes += check_result_examples(protocol, examples)
+    notes += check_code_alignment(protocol, limits)
     return notes
 
 
