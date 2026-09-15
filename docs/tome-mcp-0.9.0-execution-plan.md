@@ -21,7 +21,7 @@
 | M2 | `CommandLedger.lua` 与 v4（规范序号、回收、双端接线） | **完成**：账本 + `tests/test_ledger.lua`；`Runtime` act/status/connect/observe 接账本、`history.next_command_id`、`command_history_expired/gap/conflict`；返回信封与 Python `BridgeClient`/MCP 工具/`RULES` 升到 v4，v3 返回 `protocol_mismatch`；`generate_protocol.py --check` 额外校验双端常量。真实 >4096 条命令的原生验收留到 M5 |
 | M3 | `ObservationViews.lua` 冻结集合分页（`tome.list`） | **完成**：纯 `ObservationViews.lua` + 九个集合的 `ObservationCollections` 投影（actors/talents/effects/ground_items/inventory/equipment/progression_categories/progression_talents/compatibility）；`list_collection` op 与 `observe.collection_refs`；`ObservationDetails.inventoryAll`、`Observer.listActors/listTalents`、`Compat.providerSummary`；Python `tome.list` 工具 |
 | M4 | 能力诊断、状态转换断言、响应预算、认证期限 | **部分完成**：已做 `action_support` 矩阵（CMP-05）、`inspect(kind="compatibility")` + provider domain/effect（CMP-02/06）、未认证握手期限（NET-02，含可注入时钟测试）、集合错误 `acceptance_scope`。函数级/间接依赖审核（CMP-01/03）、MCP `isError` 映射（API-05）与断言框架（STA-03）仍缺，列入 M5 前补完 |
-| M5 | 原生回归、长序列、升级/回退、候选包验收 | 未开始 |
+| M5 | 原生回归、长序列、升级/回退、候选包验收 | **完成（部分门禁）**：原生回归 100/100（G-01）、真实 5000 命令长序列 + 重连/过期/冲突（G-02）、副本重载与旧会话拒绝（G-05）均通过；证据包 `validation/0.9.0/m5-2026-09-15/` + `tools/verify_validation_manifest.py`。**G-03（普通战役有限流程）与 G-04（内存/响应实测）未运行**，已在 `limitations.md` 明确标注；函数级/间接依赖审核与 MCP isError 仍待后续 |
 
 ## 反馈报告 → Spec 映射
 

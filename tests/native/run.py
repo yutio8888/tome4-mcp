@@ -24,7 +24,7 @@ class Wire:
 
     def packet(self, op: str, args: dict) -> dict:
         self.sequence += 1
-        return dict(v=3, id=f"r-{self.sequence}", op=op, args=args)
+        return dict(v=4, id=f"r-{self.sequence}", op=op, args=args)
 
     def send(self, packet: dict, fragmented: bool = False) -> None:
         self.transcript.append(dict(direction="request", message=packet))
@@ -41,7 +41,7 @@ class Wire:
         assert line, "Bridge closed the TCP connection"
         response = json.loads(line)
         self.transcript.append(dict(direction="response", message=response))
-        assert response["v"] == 3 and response["id"] == packet["id"], response
+        assert response["v"] == 4 and response["id"] == packet["id"], response
         return response
 
     def raw(self, op: str, args: dict, fragmented: bool = False) -> dict:
@@ -103,8 +103,13 @@ class Acceptance:
         self.sequence += 1
         if snapshot is None:
             snapshot = self.observe()
+        # v4 uses canonical cmd-<seq>; always take the current next id so a
+        # pre-accept rejection (stale/conflict) does not consume a sequence.
+        current = self.observe()
+        command_id = (current.get("history") or {}).get("next_command_id")
+        assert command_id, current
         return dict(session_id=self.session_id, control_token=self.control_token,
-                    command_id=f"native-{self.sequence}", expected_revision=snapshot["revision"], action=action)
+                    command_id=command_id, expected_revision=snapshot["revision"], action=action)
 
     def finish(self, result: dict) -> dict:
         deadline = time.monotonic() + 15
@@ -343,8 +348,8 @@ class Acceptance:
         self.control_token = connected["control_token"]
         response = self.wire.raw("observe", dict(session_id=old_session))
         self.check(not response.get("ok") and response["error"]["code"] == "session_mismatch", "old_session_rejected_after_native_load")
-        response = self.wire.raw("status", dict(session_id=self.session_id, command_id="official-mcp-wait"))
-        self.check(not response.get("ok") and response["error"]["code"] == "unknown_command", "old_command_history_not_serialized")
+        response = self.wire.raw("status", dict(session_id=self.session_id, command_id="cmd-1"))
+        self.check(not response.get("ok") and response["error"]["code"] == "command_not_accepted", "old_command_history_not_serialized")
         self.check(original_hashes == save_hashes(save_root), "original_fixture_save_unchanged_by_reload")
         self.check(original_hashes == save_hashes(self.runtime.home / ".t-engine/4.0/tome/save"),
                    "reload_does_not_rewrite_copied_fixture_save")

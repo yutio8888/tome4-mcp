@@ -24,7 +24,7 @@ async def main() -> None:
     async with Client(params) as client:
         tools = await client.list_tools()
         names = {tool.name for tool in tools.tools}
-        check(names == {"tome.connect", "tome.observe", "tome.inspect", "tome.act", "tome.status", "tome.stop", "tome.respond"},
+        check(names == {"tome.connect", "tome.observe", "tome.inspect", "tome.list", "tome.act", "tome.status", "tome.stop", "tome.respond"},
               "official_mcp_initialize_and_list_tools", tools=sorted(names))
         resource = await client.read_resource("tome://rules")
         check(bool(resource.contents), "official_mcp_rules_resource")
@@ -51,7 +51,7 @@ async def main() -> None:
             unchanged = await call("tome.observe", dict(session_id=session))
             check(unchanged["player"] == before["player"] and unchanged["world_tick"] == before["world_tick"]
                   and unchanged["revision"] == before["revision"], "mcp_native_growth_item_reads_preserve_state")
-        args = dict(session_id=session, control_token=connection["control_token"], command_id="official-mcp-wait",
+        args = dict(session_id=session, control_token=connection["control_token"], command_id=(before.get("history") or {}).get("next_command_id"),
                     expected_revision=before["revision"], action={"type": "wait"}, wait_ms=10000)
         action = await call("tome.act", args)
         check(action["status"] == "completed" and action["energy_spent"] > 0,

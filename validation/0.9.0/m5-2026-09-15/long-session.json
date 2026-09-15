@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "error": null,
+  "elapsed_seconds": 671.3220579499612,
+  "accepted": 5000,
+  "last_accepted_seq": 5000,
+  "evicted_through_seq": 4744,
+  "retained_count": 256,
+  "reconnect_same_session": true,
+  "expired_cmd1": true,
+  "conflict_no_replay": true,
+  "native_actions_before_conflict": 5000,
+  "native_actions": 4999
+}

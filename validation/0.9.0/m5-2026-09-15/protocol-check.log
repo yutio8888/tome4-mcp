@@ -1,0 +1,10 @@
+protocol check: requests: 9 ops, v=4
+protocol check: limits: 28 budgets consistent
+protocol check: errors: 29 codes valid
+protocol check: identifiers: 4 valid, 12 invalid ids
+protocol check: integer normalization: 11 vectors
+protocol check: ledger: 10 design cases
+protocol check: result examples: 5+8+14 required fields
+protocol check: commandview: 33 fields match the schema
+protocol check: code alignment: v4 + shared limits match
+protocol check: OK
