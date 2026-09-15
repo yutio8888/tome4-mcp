@@ -1,10 +1,10 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "9dab101c39b2619b1f56f4980f7422053a3fb044c69e421940455fc89401ab5b",
+  "sha256": "89984da716324fac00ca147656e050a9dcf4379a97d8c5e2e43272e62e637733",
   "files": {
-    "README.md": "2da15480425c045e814123fa53ba977fa69251eac3138321dbae5102ae879397",
+    "README.md": "21ca37fc6d9ab107a7690cb70c16f273f6296522811cadc2b46902e74bac55a3",
     "hooks/load.lua": "19e2e2216d4d83005d9b7f560da6560d2320988d3d7c78f39c7a4c4a1fc007dd",
-    "init.lua": "38ebba4f02e4bcc19022bcfc85c0855572878504c6a77e04224ac8446342451e",
+    "init.lua": "86313065d2d6090f12003c1cdcfb8cbe0fa370f82df2db6e04093126bafeca08",
     "overload/mod/mcp_bridge/Actions.lua": "9b1f3a0e4d9e0ef183977cef7937fde4fba39bf61d6cdc56d42fd0f1054fbb62",
     "overload/mod/mcp_bridge/CommandLedger.lua": "3128cb65511f3370ef3f80f54d1437a85597e17699d85309c0cbb7e70bbe6e02",
     "overload/mod/mcp_bridge/Distance.lua": "f9d1dfad298ebf982387ee2471626bb3b5649c8762e5a84caea95bdad910afa3",

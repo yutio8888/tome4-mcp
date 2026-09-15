@@ -189,6 +189,13 @@ def check_code_alignment(protocol: Path, limits: dict) -> list[str]:
     bridge = (root / "server/src/tome_mcp/bridge.py").read_text()
     if not re.search(r"^PROTOCOL_VERSION = 4$", bridge, re.M):
         raise Failure("bridge.py PROTOCOL_VERSION must be 4")
+    # PRO-02: product version is consistent across Lua, Python package and module.
+    if "addon_version = {0, 9, 0}" not in (root / "init.lua").read_text():
+        raise Failure("init.lua addon_version must be 0.9.0")
+    if not re.search(r'^version = "0\.9\.0"$', (root / "server/pyproject.toml").read_text(), re.M):
+        raise Failure("server/pyproject.toml version must be 0.9.0")
+    if '__version__ = "0.9.0"' not in (root / "server/src/tome_mcp/__init__.py").read_text():
+        raise Failure("tome_mcp.__version__ must be 0.9.0")
     runtime = (root / "overload/mod/mcp_bridge/Runtime.lua").read_text()
     if "request.v~=4" not in runtime:
         raise Failure("Runtime.lua must reject request.v~=4")

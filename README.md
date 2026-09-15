@@ -1,6 +1,8 @@
-# ToME MCP Bridge 0.8.0
+# ToME MCP Bridge 0.9.0
 
 让 MCP 客户端读取 ToME 1.7.6 的玩家视角状态，并执行一个原生游戏动作。由游戏内 Lua addon 与游戏外 Python MCP 服务组成，使用本机 TCP 通信。
+
+> **0.9.0**：内部 TCP 协议升级为 **v4**。写入使用规范序号命令身份 `cmd-<seq>`（由 `connect`/`observe` 的 `history.next_command_id` 给出）和有界命令账本；`status` 会区分保留结果、`command_history_expired` 与 `command_not_accepted`；v3 客户端会被明确拒绝（`protocol_mismatch`），不会自动降级。读路径本版还统一了技能费用的三态语义（未知费用不再伪报 `affordable`）与距离口径，并新增纯查询验收。集合分页、统一审核和原生长序列验收在后续完成，见 `docs/tome-mcp-0.9.0-execution-plan.md`。
 
 ## 能力
 

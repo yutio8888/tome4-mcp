@@ -7,7 +7,7 @@
 ## 基线
 
 - 代码基线：`e04c191a8db217112c513df5937ce9b6c8e5c29f`（Spec 固定基线，已核对一致）
-- 产品 0.8.0 / 内部协议 v3 → 目标 **0.9.0 / 内部协议 v4**
+- 产品 **0.9.0 / 内部协议 v4**（版本号在 M0–M2 后已升级；`init.lua`、`pyproject.toml`、`__init__.py`、README 一致，`generate_protocol.py --check` 会校验）
 - 工作分支：`feat/0.9.0-reliability`
 - M0 基线测试：Lua 全绿（Json/Transport/Actions/TalentQuery/Journal/Observer/Progression/Items/Tasks/Invocations/Runtime/Interactive/Chat/Compat），Python 26/26
 - 反馈证据：`tmp/mcp-play-support/agent-ham-madness-01-report.md`（半身人-星月术士-疯狂实机，68 分钟 / 3911 条命令）
