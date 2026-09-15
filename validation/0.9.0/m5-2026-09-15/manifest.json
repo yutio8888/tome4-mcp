@@ -3,7 +3,7 @@
   "product_version": "0.9.0",
   "protocol_version": 4,
   "code_baseline": "e04c191a8db217112c513df5937ce9b6c8e5c29f",
-  "candidate_commit": "1e6a75c20de74ac8bf9c49c932f903df43f34438",
+  "candidate_commit": "ae3b69c960cada2637742ee59e76c6c9fe2b479b",
   "evidence_note": "Large raw native results are not committed; only summaries and their source sha256. See raw_sources.",
   "raw_sources": {
     "validation/0.9.0/m5-2026-09-15/native-vanilla.json": "3a1dc7d65c67827f6f1e61f659541a92e59e698cddc4e08563a827c5daf6a691",
@@ -132,5 +132,6 @@
       ]
     }
   ],
-  "limitations": "limitations.md"
+  "limitations": "limitations.md",
+  "candidate_commit_note": "Production + evidence commit; the following manifest-only commit does not change production."
 }
