@@ -3,7 +3,12 @@
   "product_version": "0.9.0",
   "protocol_version": 4,
   "code_baseline": "e04c191a8db217112c513df5937ce9b6c8e5c29f",
-  "candidate_commit": "363b93a63a48d1b0621d8c66326c6951d5c56006",
+  "candidate_commit": "1e6a75c20de74ac8bf9c49c932f903df43f34438",
+  "evidence_note": "Large raw native results are not committed; only summaries and their source sha256. See raw_sources.",
+  "raw_sources": {
+    "validation/0.9.0/m5-2026-09-15/native-vanilla.json": "3a1dc7d65c67827f6f1e61f659541a92e59e698cddc4e08563a827c5daf6a691",
+    "validation/0.9.0/m5-2026-09-15/campaign-ordinary.json": "14c84536c1cf73e7967ed4b9156e9583f0ebae3a2bbecfff9388829955a24be4"
+  },
   "package": {
     "archive_sha256": "792f4ba97dbd79a67bb833cdbd4005ad37e9f1e3a1089fdbb88e2a8bec41d22d",
     "python_source_sha256": "0fa742659699d3a4b85fa5790a9e21b0c8afcd6b7e48d81334dd6489eb84b236",
@@ -47,8 +52,8 @@
       "sha256": "25058e044f185065eccf4786ad228868da39c3b2bd6ef4eae15a5ed8872093c6"
     },
     {
-      "path": "native-vanilla.json",
-      "sha256": "3a1dc7d65c67827f6f1e61f659541a92e59e698cddc4e08563a827c5daf6a691"
+      "path": "native-vanilla-summary.json",
+      "sha256": "c67bb7b787af28e7ce6a2ced5fa361975ced0e0e11cc8901dc893eb9602eac2e"
     },
     {
       "path": "native-vanilla-input.json",
@@ -59,8 +64,8 @@
       "sha256": "f812a2afefcdf02b2e9a3421b152f508119cb472ad217957491b465e9f2907f8"
     },
     {
-      "path": "campaign-ordinary.json",
-      "sha256": "14c84536c1cf73e7967ed4b9156e9583f0ebae3a2bbecfff9388829955a24be4"
+      "path": "campaign-ordinary-summary.json",
+      "sha256": "c904a8e787c3ab4c711cd07691032eeb8aae5b3e6ccf6e6c7f80e2e52c5b5c9b"
     },
     {
       "path": "performance.json",
@@ -81,7 +86,7 @@
       "name": "native_regression",
       "status": "passed",
       "evidence": [
-        "native-vanilla.json"
+        "native-vanilla-summary.json"
       ]
     },
     {
@@ -97,7 +102,7 @@
       "name": "ordinary_finite_flow",
       "status": "partial",
       "evidence": [
-        "campaign-ordinary.json"
+        "campaign-ordinary-summary.json"
       ]
     },
     {
@@ -113,7 +118,7 @@
       "name": "save_and_version_boundaries",
       "status": "passed",
       "evidence": [
-        "native-vanilla.json"
+        "native-vanilla-summary.json"
       ]
     },
     {
