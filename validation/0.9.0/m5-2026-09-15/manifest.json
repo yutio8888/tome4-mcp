@@ -1,0 +1,131 @@
+{
+  "candidate_id": "m5-2026-09-15",
+  "product_version": "0.9.0",
+  "protocol_version": 4,
+  "code_baseline": "e04c191a8db217112c513df5937ce9b6c8e5c29f",
+  "candidate_commit": "363b93a63a48d1b0621d8c66326c6951d5c56006",
+  "package": {
+    "archive_sha256": "792f4ba97dbd79a67bb833cdbd4005ad37e9f1e3a1089fdbb88e2a8bec41d22d",
+    "python_source_sha256": "0fa742659699d3a4b85fa5790a9e21b0c8afcd6b7e48d81334dd6489eb84b236",
+    "game_engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+    "plugin_combination": {},
+    "addon_archive": null
+  },
+  "environment": {
+    "python": "3.11.2",
+    "luajit": "LuaJIT 2.1.0-beta3 -- Copyright (C) 2005-2022 Mike Pall. https://luajit.org/",
+    "platform": "Linux-7.2.3-1-cachyos-x86_64-with-glibc2.36"
+  },
+  "commands": {
+    "unit_lua": "bash game/addons/tome-mcp-bridge/tests/run.sh",
+    "unit_python": "PYTHONPATH=server/src python -m unittest discover -s server/tests",
+    "protocol": "python3 tools/generate_protocol.py --check",
+    "native": "python3 tests/native/run.py m5-native-04",
+    "long_session": "python3 tests/native/long_session.py m5-long-02 --count 5000",
+    "ordinary_flow": "python tests/campaign/run.py m5-campaign-01 --max-actions 520",
+    "budget": "luajit tests/measure_budget.lua 1000000 10000"
+  },
+  "evidence": [
+    {
+      "path": "unit-lua.log",
+      "sha256": "37e6f127d60cbd103e7442388d1e511eedc08825fc3f6e175ec497b23a27a432"
+    },
+    {
+      "path": "unit-python.log",
+      "sha256": "9d25a00fe3ed0fa2e6440e9f3d8dc24c92cd24f3bfde9e011d87281329950291"
+    },
+    {
+      "path": "protocol-check.log",
+      "sha256": "93dac2948ab6bf68b6f8e64aab7a1920cd1a1634f008716c7fedba840425bc9f"
+    },
+    {
+      "path": "seams-check.log",
+      "sha256": "f354aa96f329b59c64a3f44ed3b28cfe00ace03a07fe3a583dba69484ddaed9a"
+    },
+    {
+      "path": "package.log",
+      "sha256": "25058e044f185065eccf4786ad228868da39c3b2bd6ef4eae15a5ed8872093c6"
+    },
+    {
+      "path": "native-vanilla.json",
+      "sha256": "3a1dc7d65c67827f6f1e61f659541a92e59e698cddc4e08563a827c5daf6a691"
+    },
+    {
+      "path": "native-vanilla-input.json",
+      "sha256": "e29a759b9758c2ceb9ec4570dbf57f2814b1279d87ae25bdea10f77bf8b1dfcb"
+    },
+    {
+      "path": "long-session.json",
+      "sha256": "f812a2afefcdf02b2e9a3421b152f508119cb472ad217957491b465e9f2907f8"
+    },
+    {
+      "path": "campaign-ordinary.json",
+      "sha256": "14c84536c1cf73e7967ed4b9156e9583f0ebae3a2bbecfff9388829955a24be4"
+    },
+    {
+      "path": "performance.json",
+      "sha256": "1ce6b2e3d92b7eacdbcd025a0ae7b95802088c6464c9d6fbc1e945db47b35343"
+    },
+    {
+      "path": "addon-package-manifest.json",
+      "sha256": "1906fd26144f999493780029a5561a8c9de17627fb492d4a5c3c5f2ccca886fe"
+    },
+    {
+      "path": "limitations.md",
+      "sha256": "fcc86304d9c22f625c2087f391509d032ccf17de9568dd9bf0629aaacf5846fe"
+    }
+  ],
+  "gates": [
+    {
+      "id": "G-01",
+      "name": "native_regression",
+      "status": "passed",
+      "evidence": [
+        "native-vanilla.json"
+      ]
+    },
+    {
+      "id": "G-02",
+      "name": "beyond_old_command_limit",
+      "status": "passed",
+      "evidence": [
+        "long-session.json"
+      ]
+    },
+    {
+      "id": "G-03",
+      "name": "ordinary_finite_flow",
+      "status": "partial",
+      "evidence": [
+        "campaign-ordinary.json"
+      ]
+    },
+    {
+      "id": "G-04",
+      "name": "memory_and_response_budget",
+      "status": "partial",
+      "evidence": [
+        "performance.json"
+      ]
+    },
+    {
+      "id": "G-05",
+      "name": "save_and_version_boundaries",
+      "status": "passed",
+      "evidence": [
+        "native-vanilla.json"
+      ]
+    },
+    {
+      "id": "UNIT",
+      "name": "lua_python_protocol",
+      "status": "passed",
+      "evidence": [
+        "unit-lua.log",
+        "unit-python.log",
+        "protocol-check.log"
+      ]
+    }
+  ],
+  "limitations": "limitations.md"
+}
