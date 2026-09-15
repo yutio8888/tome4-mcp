@@ -11,6 +11,8 @@ local Interactions=require 'mod.mcp_bridge.Interactions'
 local Compat=require 'mod.mcp_bridge.NativeCompatibility'
 local NativeTasks=require 'mod.mcp_bridge.NativeTasks'
 local CommandLedger=require 'mod.mcp_bridge.CommandLedger'
+local ObservationViews=require 'mod.mcp_bridge.ObservationViews'
+local ObservationCollections=require 'mod.mcp_bridge.ObservationCollections'
 local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304,MAX_RECENT_SNAPSHOTS=16,SNAPSHOT_BYTE_BUDGET=4194304}
 local state, serial
 serial=0
@@ -85,6 +87,7 @@ end
 local function snapshot(s,radius,options)
     local result=Observer.capture(s.game,meta(s),radius,options)
     result.history=s.ledger:history()
+    result.collection_refs=ObservationCollections.refs()
     result.events=Journal.capture(s.game,options and options.events_after)
     local root=invocation(s)
     if root then
@@ -235,6 +238,7 @@ local function sync(s)
         s.scene_resume=nil
         s.player,s.level=s.game.player,s.game.level
         s.level_serial=s.level_serial+1;s.level_id='level-'..s.level_serial
+        if s.views then s.views:invalidateContext{session_id=s.session_id,level_instance_id=s.level_id} end
         bump(s)
     end
 end
@@ -249,6 +253,8 @@ function M.reset(g)
         tick_serial=0,tick_depth=0,next_start=0}
     local s=state
     s.snapshots={};s.snapshot_bytes=0
+    s.connection_generation=1
+    s.views=ObservationViews.new{}
     s.ledger=CommandLedger.new{max_retained=M.MAX_RETAINED_COMMANDS,byte_budget=M.COMMAND_RECEIPT_BYTES,
         on_evict=function(record)
             if record.snapshot then
@@ -681,6 +687,8 @@ local function dispatch(s,request)
         -- commands. No automatic client reconnect is implemented in Runtime.
         revoke(s,'control_replaced')
         s.protocol=4
+        s.connection_generation=(s.connection_generation or 1)+1
+        s.views:invalidateContext{connection_generation=s.connection_generation}
         s.access_mode=op=='connect_observer' and 'observe' or 'control'
         if s.access_mode=='control' then
             local controller=companion()
@@ -755,6 +763,30 @@ local function dispatch(s,request)
         end
         if a.options_offset~=nil and not integer(a.options_offset,0,2147483647) then return fail('invalid_options_offset') end
         return commandView(command,a.include_map,a.response_id,a.options_offset)
+    elseif op=='list_collection' then
+        local req=a.request
+        if type(req)~='table' or req==Json.null then return fail('invalid_request') end
+        s.views:setRevision(s.revision)
+        s.views:invalidateContext{session_id=s.session_id,level_instance_id=s.level_id,connection_generation=s.connection_generation}
+        if req.type=='next' then
+            if not stringId(req.cursor) then return fail('invalid_cursor') end
+            if req.collection~=nil or req.filter~=nil or req.page_size~=nil then return fail('invalid_request') end
+            local page,code=s.views:nextPage(req.cursor)
+            if not page then return fail(code) end
+            return page
+        elseif req.type=='first' then
+            if not ObservationCollections.supported(req.collection) then return fail('unsupported_collection') end
+            if req.page_size~=nil and not integer(req.page_size,1,64) then return fail('invalid_page_size') end
+            local projection,code=ObservationCollections.project(s.game,meta(s),req.collection,req.filter)
+            if not projection then return fail(code) end
+            local page,capcode=s.views:capture{collection=req.collection,items=projection.items,
+                complete=projection.complete,
+                context={session_id=s.session_id,level_instance_id=s.level_id,connection_generation=s.connection_generation},
+                revision=s.revision,page_size=req.page_size}
+            if not page then return fail(capcode) end
+            return page
+        end
+        return fail('invalid_request')
     elseif op=='stop' then
         if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
         revoke(s,'stopped')

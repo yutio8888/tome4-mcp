@@ -176,4 +176,26 @@ function M.inspect(g,meta,kind,id,options)
     end
     return nil,'unsupported_inspect'
 end
+function M.listActors(g,meta)
+    local out=Json.array()
+    if not g.player or not g.level then return out,true end
+    for _,actor in pairs(g.level.entities or {}) do
+        if actor~=g.player and actor.__is_actor and M.visible(g,actor) then
+            out[#out+1]=actorSummary(g,meta,actor,false)
+        end
+    end
+    table.sort(out,function(a,b) return a.id<b.id end)
+    return out,true
+end
+function M.listTalents(g)
+    local out=Json.array()
+    local p=g.player
+    if not p then return out,true end
+    local ids,truncated=Details.keys(p.talents,4096,function(id,level)
+        return type(id)=='string' and #id<=256 and finite(level) and level>0
+    end)
+    table.sort(ids)
+    for _,id in ipairs(ids) do out[#out+1]=talentSummary(p,id) end
+    return out,not truncated
+end
 return M

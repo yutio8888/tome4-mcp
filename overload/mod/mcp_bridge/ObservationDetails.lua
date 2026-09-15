@@ -362,4 +362,33 @@ function M.bounded(result)
     end
     return result
 end
+function M.inventoryAll(g,p,meta,which)
+    local items,truncated=Json.array(),false
+    if not p or type(p.inven)~='table' then return items,true end
+    local keys,keys_truncated=M.keys(p.inven,4096,function(k,v) return M.finite(k) and type(v)=='table' end)
+    if keys_truncated then truncated=true end
+    table.sort(keys)
+    for _,inven_id in ipairs(keys) do
+        local inven=p.inven[inven_id]
+        local def=p.inven_def and p.inven_def[inven_id] or {}
+        local equipped=inven.worn==true or def.is_worn==true
+        local is_equipment=equipped or def.is_shown_equip==true
+        if (which=='equipment' and is_equipment) or (which=='inventory' and not is_equipment) then
+            local slots,slots_truncated=M.keys(inven,4096,function(k,v)
+                return M.finite(k) and k>0 and k%1==0 and type(v)=='table'
+            end)
+            if slots_truncated then truncated=true end
+            table.sort(slots)
+            for _,slot in ipairs(slots) do
+                local obj=inven[slot]
+                local item=M.item(g,obj,meta)
+                item.inventory_id=inven_id;item.slot=slot
+                item.container=M.text(inven.short_name or def.short_name,48);item.equipped=equipped
+                item.transmogrification_pending=obj.__transmo and true or false
+                items[#items+1]=item
+            end
+        end
+    end
+    return items,not truncated
+end
 return M

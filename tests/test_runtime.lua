@@ -242,6 +242,24 @@ reconnect()
 check(act('after-partial',stat_action).error.code=='not_ready','reconnect cannot bypass failed mutation quarantine')
 check(executed==3 and p.unused_stats==6,'failed partial mutation is not rolled back or repeated')
 Actions.execute=original_execute
+-- M3: tome.list frozen collection pagination.
+g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+p.talents={T_X=1,T_Y=2}
+p.talents_def={T_X={id='T_X',mode='activated',name='X'},T_Y={id='T_Y',mode='activated',name='Y'}}
+local list_first=request('list_collection',{session_id=hello.session_id,request={type='first',collection='talents',page_size=1}}).result
+check(list_first and list_first.returned_count==1 and list_first.total_count==2
+    and list_first.capture_complete==true and list_first.has_more,'tome.list freezes and pages a full collection')
+local list_second=request('list_collection',{session_id=hello.session_id,request={type='next',cursor=list_first.next_cursor}}).result
+check(list_second and list_second.returned_count==1 and list_second.has_more==false
+    and list_second.items[1].id~=list_first.items[1].id,'the next cursor returns the remaining item without duplication')
+reconnect()
+local list_expired=request('list_collection',{session_id=hello.session_id,request={type='next',cursor=list_first.next_cursor}})
+check(list_expired.error and list_expired.error.code=='cursor_expired','a new connection generation expires old cursors')
+check(#observe().collection_refs==9,'observe advertises the nine collection refs')
+local list_bad=request('list_collection',{session_id=hello.session_id,request={type='first',collection='nope'}})
+check(list_bad.error and list_bad.error.code=='unsupported_collection','an unknown collection is rejected')
+local list_badfilter=request('list_collection',{session_id=hello.session_id,request={type='first',collection='actors',filter={x=1}}})
+check(list_badfilter.error and list_badfilter.error.code=='invalid_filter','an unknown filter is rejected')
 -- F3: snapshots have their own 16-entry budget, independent of the receipt
 -- ledger. Eviction keeps the receipt queryable but drops the snapshot.
 g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()

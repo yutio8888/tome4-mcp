@@ -143,6 +143,22 @@ Identifier = Annotated[str, Field(min_length=1, max_length=128)]
 CommandId = Annotated[str, Field(pattern=r"^cmd-[1-9][0-9]*$", max_length=32)]
 
 
+class ListFirst(StrictModel):
+    type: Literal["first"]
+    collection: Literal["inventory", "equipment", "actors", "talents", "effects", "ground_items",
+                        "progression_categories", "progression_talents", "compatibility"]
+    page_size: Annotated[int, Field(ge=1, le=64)] | None = None
+    filter: dict[str, Any] = Field(default_factory=dict)
+
+
+class ListNext(StrictModel):
+    type: Literal["next"]
+    cursor: str = Field(min_length=1, max_length=256)
+
+
+ListRequest = Annotated[ListFirst | ListNext, Field(discriminator="type")]
+
+
 class ToolReply(BaseModel):
     """Business result. Check ok before using result; errors never imply rollback."""
 
@@ -257,7 +273,13 @@ Observe events are changes to the existing player-visible log, not a structured
 combat simulator. Pass events.cursor as events_after for incremental pages, and
 check events.gap/has_more. A remove event only describes log history changes.
 Inventory names and base combat fields are read without identifying objects or
-invoking combat calculations. Base values are not final damage or success odds.
+invoking combat calculations. `tome.list` reads one frozen collection page at
+at a time (inventory, equipment, actors, talents, effects, ground_items,
+progression_categories, progression_talents, compatibility); start from
+observe.collection_refs and follow next_cursor. A page is historical when the
+revision moved; the cursor expires on TTL, capacity eviction or a
+session/level/connection change. It enumerates the allowed set directly and
+never pages an already-truncated summary. Base values are not final damage or success odds.
 A talent query is the same kind of advisory read; query_is_advisory
 and costs_complete show whether the value is exact, and the native action still
 decides the outcome.
@@ -370,6 +392,11 @@ def create_server(bridge: BridgeClient) -> MCPServer:
             return ToolReply(ok=True, result=await bridge.act(args, wait_ms=wait_ms))
         except BridgeError as exc:
             return ToolReply(ok=False, error=exc.as_dict())
+
+    @server.tool(name="tome.list", annotations=read)
+    async def list_collection(session_id: Identifier, request: ListRequest) -> ToolReply:
+        """Read one page of a frozen collection: inventory, equipment, actors, talents, effects, ground_items, progression_categories, progression_talents or compatibility. Start from the first shape in observe.collection_refs, then follow next_cursor. The page is historical when the game revision moved, and the cursor expires on TTL, capacity eviction or a session/level/connection change. This enumerates the allowed set directly; it does not page an already-truncated summary."""
+        return await call("list_collection", {"session_id": session_id, "request": request.model_dump(exclude_none=True)})
 
     @server.tool(name="tome.status", annotations=read)
     async def status(session_id: Identifier, command_id: CommandId, include_map: bool = True,

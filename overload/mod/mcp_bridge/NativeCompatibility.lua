@@ -124,4 +124,12 @@ function M.alias(name,fn,parent,previous)
     local entry=entries[parent]
     entries[name]={fn=fn,ok=entry and entry.ok and previous==entry.fn or false}
 end
+function M.providerSummary()
+    local out={}
+    for name,entry in pairs(entries) do
+        out[#out+1]={provider_id=name,state=entry.ok and 'verified' or 'unverified',reason=entry.reason}
+    end
+    table.sort(out,function(a,b) return a.provider_id<b.provider_id end)
+    return out,true
+end
 return M

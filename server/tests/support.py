@@ -89,6 +89,15 @@ class FakeGame:
                         elif not self.pending and not self.interaction_steps:
                             record.update(status="completed", energy_spent=1000, snapshot=self.snapshot)
                         reply["result"] = record
+                elif op == "list_collection":
+                    req = args["request"]
+                    reply["result"] = {
+                        "view_id": "view-1", "session_id": "s1", "level_instance_id": "l1",
+                        "captured_revision": 7, "current_revision": 7, "historical": False,
+                        "collection": req.get("collection", "inventory"), "items": [],
+                        "returned_count": 0, "total_count": 0, "capture_complete": True,
+                        "has_more": False, "next_cursor": None, "expires_in_ms": 120000,
+                    }
                 elif op == "stop":
                     for record in self.commands.values():
                         if record["status"] == "queued":
