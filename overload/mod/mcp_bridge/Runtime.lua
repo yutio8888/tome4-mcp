@@ -11,7 +11,7 @@ local Interactions=require 'mod.mcp_bridge.Interactions'
 local Compat=require 'mod.mcp_bridge.NativeCompatibility'
 local NativeTasks=require 'mod.mcp_bridge.NativeTasks'
 local CommandLedger=require 'mod.mcp_bridge.CommandLedger'
-local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304}
+local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304,MAX_RECENT_SNAPSHOTS=16,SNAPSHOT_BYTE_BUDGET=4194304}
 local state, serial
 serial=0
 local function now()
@@ -121,6 +121,32 @@ local function commandView(command,include_map,response_id,options_offset)
     end
     return out
 end
+local function receiptBytes(command)
+    local size=#(command.command_id or '')+#tostring(command.fingerprint or '')+64
+    if type(command.responses)=='table' then
+        for id,receipt in pairs(command.responses) do
+            size=size+#tostring(id)+#tostring(receipt.fingerprint or '')
+        end
+    end
+    return size
+end
+-- Snapshots have their own 16-entry / 4 MiB budget (LED-06), independent of
+-- the 256-receipt ledger. Evicting a snapshot keeps the receipt queryable.
+local function retainSnapshot(s,command)
+    local ok,encoded=pcall(Json.encode,command.snapshot)
+    command.snapshot_bytes=(ok and type(encoded)=='string') and #encoded or 0
+    s.snapshots[#s.snapshots+1]={seq=command.seq,bytes=command.snapshot_bytes}
+    s.snapshot_bytes=s.snapshot_bytes+command.snapshot_bytes
+    while #s.snapshots>M.MAX_RECENT_SNAPSHOTS or s.snapshot_bytes>M.SNAPSHOT_BYTE_BUDGET do
+        local oldest=table.remove(s.snapshots,1)
+        if not oldest then break end
+        s.snapshot_bytes=s.snapshot_bytes-oldest.bytes
+        local evicted=s.ledger:get(oldest.seq)
+        if evicted then
+            evicted.snapshot=nil;evicted.snapshot_bytes=nil;evicted.snapshot_availability='evicted'
+        end
+    end
+end
 local function finish(s,command,status,code)
     command.status,command.code=status,code or command.code
     command.world_tick_after=s.game.turn or 0
@@ -141,7 +167,11 @@ local function finish(s,command,status,code)
     command.native_rest,command.rest_dialog=nil,nil
     command.snapshot=snapshot(s)
     command.snapshot_availability=command.snapshot and 'retained' or 'not_captured'
-    if command.execution_released and command.seq and s.ledger then s.ledger:release(command.seq) end
+    if command.snapshot then retainSnapshot(s,command) end
+    if command.seq and s.ledger then
+        s.ledger:touch(command.seq,receiptBytes(command))
+        if command.execution_released then s.ledger:release(command.seq) end
+    end
 end
 local function restFault(s,command)
     command.stop_error=true;command.uncertain=true
@@ -218,9 +248,18 @@ function M.reset(g)
         level_serial=1,level_id='level-1',ready_serial=0,
         tick_serial=0,tick_depth=0,next_start=0}
     local s=state
+    s.snapshots={};s.snapshot_bytes=0
     s.ledger=CommandLedger.new{max_retained=M.MAX_RETAINED_COMMANDS,byte_budget=M.COMMAND_RECEIPT_BYTES,
         on_evict=function(record)
-            record.snapshot=nil;record.native_rest=nil;record.rest_dialog=nil
+            if record.snapshot then
+                for index=#s.snapshots,1,-1 do
+                    if s.snapshots[index].seq==record.seq then
+                        s.snapshot_bytes=s.snapshot_bytes-s.snapshots[index].bytes
+                        table.remove(s.snapshots,index);break
+                    end
+                end
+            end
+            record.snapshot=nil;record.snapshot_bytes=nil;record.native_rest=nil;record.rest_dialog=nil
             record.player,record.level,record.control_token=nil,nil,nil
             record.snapshot_availability='evicted'
         end}
@@ -750,7 +789,7 @@ local function dispatch(s,request)
         local command={expected_revision=a.expected_revision,action=action,
             control_token=s.control_token,status='queued',protocol=4,
             input_owner='remote',responses={},response_count=0,consumed_interactions={},
-            snapshot_availability='not_captured'}
+            uncertain=false,snapshot_availability='not_captured'}
         s.ledger:accept(a.command_id,fingerprint,command)
         s.active=command
         s.game:onTickEnd(function() execute(s,command) end,'mcp_bridge_action')
@@ -793,6 +832,7 @@ local function dispatch(s,request)
         command.responses[a.response_id]=receipt;command.response_count=command.response_count+1
         command.consumed_interactions[a.interaction_id]=true
         command.last_response_id=a.response_id;command.pending_response=receipt;h.consumed=true
+        s.ledger:touch(command.seq,receiptBytes(command))
         bump(s);receipt.queued_revision=s.revision
         s.game:onTickEnd(function() executeResponse(s,command,receipt) end,'mcp_bridge_response')
         return commandView(command,a.include_map,a.response_id)

@@ -49,6 +49,20 @@
 - 不修改游戏核心；不手改 `GENERATED` 文件；运行态不入存档。
 - 不新增任意 Lua 执行；不移除成长白名单；不引入多写者；轮询不自动重连/重发。
 
+## 审查修复（review F1–F5）
+
+针对 `tome4-mcp-review-0.9.0.md` 的 5 条发现，已在 M3 之前修复：
+
+| 编号 | 修复 | 回归 |
+| --- | --- | --- |
+| F1（P1） | 只读依赖登记改为真正的审核：来源路径 + 完整文件摘要 + 定义行；无摘要即 fail-closed，首次被覆盖的函数不再可信。生成器写入 actor/entity/resources 摘要 | `test_talent_query.lua`、`test_query_purity.lua` |
+| F2（P1） | `BridgeError` 保留 `accepted/acceptance_scope/recovery/details`，`_request`/`_poll`/传输错误不再把 `uncertain` 洗成 false | `server/tests/test_bridge.py` |
+| F3（P2） | 恢复独立快照缓存（16 条 / 4 MiB）；归档前按规范字节 `touch` 回执账本 | `test_runtime.lua` |
+| F4（P2） | 抑制 getter 缺失/不可信/抛错 → 受影响费用 unknown，不再当作“未抑制” | `test_talent_query.lua`、`test_query_purity.lua` |
+| F5（P2） | `CommandView` schema 与实际输出逐字段对齐，`generate_protocol.py` 增加代码↔schema 校验 | `tools/generate_protocol.py` |
+
+残留（spec 已归入 M4）：函数级摘要/间接依赖闭包；集合分页（M3）与原生验收（M5）仍未开始。
+
 ## 下一步
 
 1. M3：`ObservationViews.lua` 冻结集合分页（`tome.list`）：九个集合、TTL/容量、`cursor_expired`、历史标记。

@@ -214,6 +214,29 @@ def check_code_alignment(protocol: Path, limits: dict) -> list[str]:
     return ["code alignment: v4 + shared limits match"]
 
 
+def check_commandview_schema(protocol: Path, limits: dict) -> list[str]:
+    """The strict CommandView schema must match the real Runtime output (F5)."""
+    root = protocol.parent.parent
+    runtime = (root / "overload/mod/mcp_bridge/Runtime.lua").read_text()
+    body = runtime[runtime.index("local function commandView"):runtime.index("local function receiptBytes")]
+    names = set(re.findall(r"out\.([A-Za-z_]+)\s*=", body))
+    table = re.search(r"ipairs\{(.*?)\}", body, re.S)
+    if table:
+        names |= set(re.findall(r"'([A-Za-z_]+)'", table.group(1)))
+    schema = set(load(protocol / "results.schema.json")["$defs"]["CommandView"]["properties"])
+    missing = names - schema
+    extra = schema - names
+    if missing:
+        raise Failure(f"CommandView emits undeclared fields: {sorted(missing)}")
+    if extra:
+        raise Failure(f"CommandView schema declares unemitted fields: {sorted(extra)}")
+    if f"MAX_RECENT_SNAPSHOTS={limits['MAX_RECENT_SNAPSHOTS']}" not in runtime:
+        raise Failure("Runtime MAX_RECENT_SNAPSHOTS disagrees with limits")
+    if f"SNAPSHOT_BYTE_BUDGET={limits['SNAPSHOT_BYTE_BUDGET']}" not in runtime:
+        raise Failure("Runtime SNAPSHOT_BYTE_BUDGET disagrees with limits")
+    return [f"commandview: {len(names)} fields match the schema"]
+
+
 def check_all(protocol: Path) -> list[str]:
     if not protocol.is_dir():
         raise Failure(f"protocol directory missing: {protocol}")
@@ -233,6 +256,7 @@ def check_all(protocol: Path) -> list[str]:
     notes += check_integer_vectors(integers)
     notes += check_ledger(protocol, ledger, limits)
     notes += check_result_examples(protocol, examples)
+    notes += check_commandview_schema(protocol, limits)
     notes += check_code_alignment(protocol, limits)
     return notes
 

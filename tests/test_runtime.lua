@@ -242,4 +242,17 @@ reconnect()
 check(act('after-partial',stat_action).error.code=='not_ready','reconnect cannot bypass failed mutation quarantine')
 check(executed==3 and p.unused_stats==6,'failed partial mutation is not rolled back or repeated')
 Actions.execute=original_execute
+-- F3: snapshots have their own 16-entry budget, independent of the receipt
+-- ledger. Eviction keeps the receipt queryable but drops the snapshot.
+g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+for i=1,17 do
+    act('snap-'..i,{type='wait'});g:tick();ready()
+end
+local old_snapshot=status('snap-1')
+check(old_snapshot.status=='completed','an old receipt survives beyond the snapshot window')
+check(old_snapshot.snapshot_availability=='evicted' and old_snapshot.snapshot==nil,
+    'an old snapshot is evicted independently of its receipt')
+local new_snapshot=status('snap-17')
+check(new_snapshot.snapshot_availability=='retained' and new_snapshot.snapshot~=nil,
+    'the newest snapshot is retained')
 print('Runtime: '..count..' checks passed')
