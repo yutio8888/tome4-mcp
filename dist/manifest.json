@@ -1,8 +1,8 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "6936bf6865f74e55ab4a2ae515d6dd8a4692ca4015e08b1e782ce6c150d19499",
+  "sha256": "7a183788dd63284f65807065e06e9bf80a7e53c707fe94cd21180bf2703be6df",
   "files": {
-    "README.md": "6d6717431faba39a069114ba549b64ce4a390bf3155c1ddd65aebe295c3fc52f",
+    "README.md": "2da15480425c045e814123fa53ba977fa69251eac3138321dbae5102ae879397",
     "hooks/load.lua": "71321ca93c4d63b07800a8ef2c2348d2207d38c2a1447de53db76c53992489d1",
     "init.lua": "38ebba4f02e4bcc19022bcfc85c0855572878504c6a77e04224ac8446342451e",
     "overload/mod/mcp_bridge/Actions.lua": "d5a1e8955aaca68ee238a6f169a5c8ae578a5ccdca328afc9467ab628f3c5cd3",
