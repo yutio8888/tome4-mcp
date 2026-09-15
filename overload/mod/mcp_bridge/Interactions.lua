@@ -4,6 +4,7 @@ local Details=require 'mod.mcp_bridge.ObservationDetails'
 local Observer=require 'mod.mcp_bridge.Observer'
 local Tracker=require 'mod.mcp_bridge.InvocationTracker'
 local Compat=require 'mod.mcp_bridge.NativeCompatibility'
+local Distance=require 'mod.mcp_bridge.Distance'
 local M={MAX_RESPONSES=128,PAGE_SIZE=32}
 local dialogs=setmetatable({}, {__mode='k'})
 local targets=setmetatable({}, {__mode='k'})
@@ -334,10 +335,7 @@ function M.prepare(h,answer,meta)
         if type(h.range)=='number' and h.range==h.range and h.range>=0 then
             local p=h.game.player
             local ox,oy=(h.origin and h.origin.x) or p.x,(h.origin and h.origin.y) or p.y
-            local dist
-            if core and core.fov and type(core.fov.distance)=='function' then
-                dist=core.fov.distance(ox,oy,x,y)
-            else dist=math.max(math.abs(ox-x),math.abs(oy-y)) end
+            local dist=Distance.grid(ox,oy,x,y)
             if dist>h.range then return nil,'position_out_of_range' end
         end
         return {type='position',x=x,y=y}

@@ -5,6 +5,7 @@ local Progression = require 'mod.mcp_bridge.Progression'
 local Items = require 'mod.mcp_bridge.Items'
 local Tracker = require 'mod.mcp_bridge.InvocationTracker'
 local Compat = require 'mod.mcp_bridge.NativeCompatibility'
+local Distance = require 'mod.mcp_bridge.Distance'
 local M = {}
 local attack_spec={target='actor',source='data/talents/misc/misc.lua',action_adapter='attack',
     description='Use the attack action with target_id to make a native ordinary attack, including native alternate attacks.'}
@@ -132,10 +133,6 @@ local function changeLevel(g)
     -- changes and pending native interaction, not its return value, decide.
     return {ok=false,code='native_rejected',energy_spent=spent,level_changed=false}
 end
-local function gridDistance(ax,ay,bx,by)
-    if core and core.fov and type(core.fov.distance)=='function' then return core.fov.distance(ax,ay,bx,by) end
-    return math.max(math.abs(ax-bx),math.abs(ay-by))
-end
 function M.execute(g, action, target, meta, command)
     local normalized,invalid=M.validate(action)
     if not normalized then return {ok=false,code=invalid,energy_spent=0} end
@@ -159,7 +156,7 @@ function M.execute(g, action, target, meta, command)
         local static_range=type(t)=='table' and t.range
         local tx,ty=target and target.x or action.x,target and target.y or action.y
         if finite(static_range) and finite(tx) and finite(ty) and finite(p.x) and finite(p.y)
-            and gridDistance(p.x,p.y,tx,ty)>static_range then
+            and Distance.grid(p.x,p.y,tx,ty)>static_range then
             return {ok=false,code='target_out_of_range',energy_spent=0}
         end
     end
@@ -211,7 +208,7 @@ function M.execute(g, action, target, meta, command)
                         if type(typ)=='table' then
                             -- Preserve the native range guard for the first request.
                             if finite(typ.range) and finite(p.x) and finite(p.y)
-                                and gridDistance(p.x,p.y,x,y)>typ.range then return false end
+                                and Distance.grid(p.x,p.y,x,y)>typ.range then return false end
                             -- Let the native UI raise its own self-target warning.
                             if x==p.x and y==p.y and typ.nowarning~=true and typ.talent~=nil then return false end
                         end

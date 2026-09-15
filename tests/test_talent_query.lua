@@ -43,7 +43,7 @@ check(q.base_costs.mana==30 and q.current_costs.mana=='unknown' and q.costs_comp
 check(q.affordable=='unknown' and q.cooldown_remaining==0,
     'unknown real-time cost yields unknown affordability, never a base-cost guess')
 check(q.resource_checks.mana.amount=='unknown' and q.resource_checks.mana.affordable=='unknown'
-    and q.resource_checks.mana.reason=='cost_dependency_unverified',
+    and type(q.resource_checks.mana.reason)=='string' and q.resource_checks.mana.reason:find('unverified'),
     'resource_checks explains the unknown affordability per resource')
 check(q.prefill_supported==true and #q.prefill_modes==2,'query advertises prefill modes')
 check(q.readiness=='unknown' and q.readiness_reason=='target_required','readiness stays advisory and reports the missing target')

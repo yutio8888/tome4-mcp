@@ -46,6 +46,46 @@ function M.check(g)
 end
 
 function M.available(name) return entries[name] and entries[name].ok or false end
+
+-- Read-only dependency registry (spec QRY-02). Query helpers such as a cost
+-- factor or an attribute getter are registered once with their intended
+-- provider id and source. A later replacement of the same key fails closed:
+-- the query field becomes unknown and the replacement is never called.
+-- File-digest unification with the entrypoint audit above is M4 (CMP-01/03).
+local dependencies={}
+function M.registerDependency(id,domain,fn,path,purpose)
+    if type(fn)~='function' then
+        dependencies[id]={ok=false,reason='dependency_missing',domain=domain,path=path}
+        return false
+    end
+    local existing=dependencies[id]
+    if existing and existing.fn and existing.fn~=fn then
+        dependencies[id]={fn=fn,ok=false,reason='dependency_replaced',domain=domain,path=path}
+        return false
+    end
+    dependencies[id]={fn=fn,ok=true,domain=domain,path=path,purpose=purpose}
+    return true
+end
+function M.dependency(id,fn)
+    if type(fn)~='function' then return nil,'dependency_not_registered' end
+    local entry=dependencies[id]
+    if not entry or not entry.ok then return nil,entry and entry.reason or 'dependency_not_registered' end
+    if fn~=entry.fn then
+        entry.ok=false;entry.reason='dependency_replaced'
+        return nil,'dependency_replaced'
+    end
+    return fn,entry.reason
+end
+function M.hasDependency(id) return dependencies[id]~=nil end
+function M.resetDependencies() dependencies={} end
+function M.dependencySummary()
+    local out={}
+    for id,entry in pairs(dependencies) do
+        out[id]={ok=entry.ok==true,reason=entry.reason,domain=entry.domain,
+            path=entry.path,purpose=entry.purpose}
+    end
+    return out
+end
 function M.alias(name,fn,parent,previous)
     local entry=entries[parent]
     entries[name]={fn=fn,ok=entry and entry.ok and previous==entry.fn or false}
