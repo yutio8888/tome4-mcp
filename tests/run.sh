@@ -12,6 +12,7 @@ else
 fi
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_json.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_ledger.lua
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_observation_views.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_transport.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_actions.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_talent_query.lua
