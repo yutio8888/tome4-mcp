@@ -3,7 +3,7 @@ local Json = require 'mod.mcp_bridge.Json'
 local M = {}
 local Transport = {}; Transport.__index = Transport
 local DEFAULTS = { max_message=65536, max_queue=524288, max_queued_messages=64,
-    read_budget=32768, write_budget=65536, message_budget=8, accept_budget=4 }
+    read_budget=32768, write_budget=65536, message_budget=8, accept_budget=4, handshake_timeout=5000 }
 local function close(socket) if socket then pcall(socket.close, socket) end end
 function M.new(options)
     options = options or {}
@@ -32,11 +32,13 @@ function M.new(options)
         if type(chosen) ~= 'number' or chosen < 1 or chosen % 1 ~= 0 then close(listener); return nil, 'invalid_limit' end
         self[name] = chosen
     end
+    self.clock = options.clock
     return self
 end
 function Transport:disconnectClient(reason)
     local previous = self.client
     self.client, self.input, self.output, self.output_bytes, self.output_offset = nil, '', {}, 0, 1
+    self.client_since, self.client_authenticated = nil, false
     close(previous)
     -- Clear state before calling Runtime, so its cleanup may safely call stop.
     if previous and self.onDisconnect then pcall(self.onDisconnect, reason or 'disconnected') end
@@ -58,10 +60,18 @@ function Transport:send(value)
     self.output_bytes = self.output_bytes + #encoded
     return true
 end
+function Transport:markAuthenticated() self.client_authenticated = true end
+function Transport:now() return self.clock and self.clock() or os.time() * 1000 end
 function Transport:poll()
     if not self.listener or self.polling then return end
     self.polling = true
     local ok = pcall(function()
+        -- An unauthenticated connection holds the single slot only briefly
+        -- (NET-02). A healthy authenticated client is not affected.
+        if self.client and not self.client_authenticated
+            and self:now() - (self.client_since or self:now()) > self.handshake_timeout then
+            self:disconnectClient('handshake_timeout'); return
+        end
         local read = 0
         local function read_input(client)
             while read < self.read_budget do
@@ -89,7 +99,8 @@ function Transport:poll()
             if self.client then close(incoming)
             else
                 local ready = incoming:settimeout(0)
-                if ready then self.client = incoming else close(incoming) end
+                if ready then self.client = incoming; self.client_since = self:now(); self.client_authenticated = false
+                else close(incoming) end
             end
         end
         local client = self.client

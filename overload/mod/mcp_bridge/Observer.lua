@@ -173,6 +173,9 @@ function M.inspect(g,meta,kind,id,options)
         return Progression.describe(g,g.player)
     elseif kind=='item' then
         return Items.inspect(g,meta,id)
+    elseif kind=='compatibility' then
+        if id~='runtime' then return nil,'invalid_inspect' end
+        return Compat.summary()
     end
     return nil,'unsupported_inspect'
 end

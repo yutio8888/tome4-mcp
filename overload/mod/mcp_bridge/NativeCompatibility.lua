@@ -24,7 +24,7 @@ function M.register(name,fn,previous,path,digest,wrapper)
         end
     end
     local ok=audited(previous,path,digest)
-    entries[name]={fn=fn,ok=ok,reason=ok and nil or 'native_entrypoint_modified'}
+    entries[name]={fn=fn,ok=ok,reason=ok and nil or 'native_entrypoint_modified',path=path}
 end
 
 function M.matches(name,fn)
@@ -124,12 +124,42 @@ function M.alias(name,fn,parent,previous)
     local entry=entries[parent]
     entries[name]={fn=fn,ok=entry and entry.ok and previous==entry.fn or false}
 end
+local domainFor
 function M.providerSummary()
     local out={}
     for name,entry in pairs(entries) do
-        out[#out+1]={provider_id=name,state=entry.ok and 'verified' or 'unverified',reason=entry.reason}
+        out[#out+1]={provider_id=name,domain=domainFor(name),state=entry.ok and 'verified' or 'unverified',
+            reason=entry.reason,source=entry.path,
+            effect=entry.ok and nil or (name..' capability unavailable')}
+    end
+    for name,entry in pairs(dependencies) do
+        out[#out+1]={provider_id=name,domain=entry.domain or domainFor(name),
+            state=entry.ok and 'verified' or 'unverified',reason=entry.reason,source=entry.path,
+            effect=entry.ok and nil or (name..' query field becomes unknown')}
     end
     table.sort(out,function(a,b) return a.provider_id<b.provider_id end)
     return out,true
+end
+-- Domain classification for diagnostics (CMP-01/02). Not a security boundary.
+local DOMAINS = {
+    useTalent='talent_execution', targetGetForPlayer='interactions', targetMode='interactions',
+    playerGetTarget='talent_execution', playerUseEnergy='scheduler', turnBasedTick='scheduler',
+    playerFOV='observation', computeFOV='observation', restInit='native_tasks', restStop='native_tasks',
+    restStopAlias='native_tasks', yesnoPopup='interactions', yesnoLongPopup='interactions',
+    listPopup='interactions', ['TomeChat.init']='interactions', ['TomeChat.makeUI']='interactions',
+    changeLevelReal='scheduler',
+}
+function domainFor(name)
+    if DOMAINS[name] then return DOMAINS[name] end
+    if name:match('^map%.') then return 'observation' end
+    if name:match('^object%.') or name:match('^ShowInventory%.') or name:match('^ShowEquipInven%.') then return 'items' end
+    if name:match('Popup%.') or name:match('Lore') or name:match('Quest') then return 'interactions' end
+    if name:match('^actor%.') or name:match('^resource%.') or name:match('^query%.') then return 'talent_query' end
+    return 'native'
+end
+function M.summary()
+    local providers=select(1,M.providerSummary())
+    return {scope='runtime audit: full file summary and function identity for entrypoints; source, digest, definition line and identity for query dependencies',
+        capture_complete=true,providers=providers,dependencies=M.dependencySummary()}
 end
 return M

@@ -260,6 +260,16 @@ local list_bad=request('list_collection',{session_id=hello.session_id,request={t
 check(list_bad.error and list_bad.error.code=='unsupported_collection','an unknown collection is rejected')
 local list_badfilter=request('list_collection',{session_id=hello.session_id,request={type='first',collection='actors',filter={x=1}}})
 check(list_badfilter.error and list_badfilter.error.code=='invalid_filter','an unknown filter is rejected')
+-- M4: capability diagnostics (CMP-05/06).
+check(hello.capabilities and hello.capabilities.action_support
+    and hello.capabilities.action_support.learn_talent.implementation=='limited'
+    and hello.capabilities.action_support.use_talent.implementation=='supported',
+    'capabilities expose an action_support matrix with the growth limit')
+local compat_inspect=request('inspect',{session_id=hello.session_id,kind='compatibility',id='runtime'}).result
+check(compat_inspect and type(compat_inspect.scope)=='string' and type(compat_inspect.providers)=='table',
+    'inspect compatibility returns an audited provider summary')
+local compat_list=request('list_collection',{session_id=hello.session_id,request={type='first',collection='compatibility'}}).result
+check(compat_list and compat_list.collection=='compatibility','the compatibility collection is enumerable')
 -- F3: snapshots have their own 16-entry budget, independent of the receipt
 -- ledger. Eviction keeps the receipt queryable but drops the snapshot.
 g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()

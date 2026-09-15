@@ -682,6 +682,7 @@ local function dispatch(s,request)
     if op=='connect' or op=='connect_observer' then
         if type(a.token)~='string' or a.token~=s.token then return fail('authentication_failed') end
         s.authenticated=true
+        if s.transport and s.transport.markAuthenticated then s.transport:markAuthenticated() end
         sync(s)
         -- Re-acquiring control invalidates every old lease, including queued
         -- commands. No automatic client reconnect is implemented in Runtime.
@@ -720,8 +721,24 @@ local function dispatch(s,request)
                 limits={responses_per_command=Interactions.MAX_RESPONSES,options_per_page=Interactions.PAGE_SIZE},
                 talent_query=true,talent_prefill=Json.array{'actor','position'},
                 observation='player',max_radius=12,max_retained_commands=M.MAX_RETAINED_COMMANDS,max_rest_turns=1000,
+                action_support={
+                    move={implementation='supported',scope='native_movement'},
+                    wait={implementation='supported',scope='native_wait'},
+                    attack={implementation='supported',scope='native_attack'},
+                    use_talent={implementation='supported',scope='admitted_native_entrypoints',interaction_coverage='runtime_checked'},
+                    set_sustain={implementation='supported',scope='admitted_native_entrypoints'},
+                    use_item={implementation='supported',scope='owned_item_native_use'},
+                    change_level={implementation='supported',scope='native_exit_command'},
+                    rest={implementation='supported',scope='native_rest'},
+                    spend_stat={implementation='supported',scope='native_levelup'},
+                    learn_talent={implementation='limited',scope='audited_growth_trees',reason='not_all_classes_supported',detail_collection='progression_categories'},
+                    learn_category={implementation='limited',scope='audited_growth_trees',reason='not_all_classes_supported',detail_collection='progression_categories'},
+                    unlearn_talent={implementation='limited',scope='native_last_learnt_window',reason='recent_window_only'},
+                    pickup={implementation='supported',scope='player_tile'},
+                    equip={implementation='supported',scope='native_inventory_rules'},
+                    unequip={implementation='supported',scope='native_inventory_rules'}},
                 compact_responses=true,event_cursor=true,inventory_read=true,ground_items_read=true,
-                progression_read=true,inspect_kinds=Json.array{'actor','talent','progression','item'}},snapshot=snap}
+                progression_read=true,inspect_kinds=Json.array{'actor','talent','progression','item','compatibility'}},snapshot=snap}
         local ok,reason=Compat.check(s.game)
         result.capabilities.native_compatibility={compatible=ok==true,reason=reason,providers='runtime_checked'}
         if not ok then result.capabilities.talents=Json.array() end
@@ -769,21 +786,22 @@ local function dispatch(s,request)
         s.views:setRevision(s.revision)
         s.views:invalidateContext{session_id=s.session_id,level_instance_id=s.level_id,connection_generation=s.connection_generation}
         if req.type=='next' then
-            if not stringId(req.cursor) then return fail('invalid_cursor') end
+            if not stringId(req.cursor) then return fail('invalid_cursor',nil,{acceptance_scope='not_applicable'}) end
             if req.collection~=nil or req.filter~=nil or req.page_size~=nil then return fail('invalid_request') end
             local page,code=s.views:nextPage(req.cursor)
-            if not page then return fail(code) end
+            if not page then return fail(code,nil,{acceptance_scope='not_applicable'}) end
             return page
         elseif req.type=='first' then
-            if not ObservationCollections.supported(req.collection) then return fail('unsupported_collection') end
+            if not ObservationCollections.supported(req.collection) then
+                return fail('unsupported_collection',nil,{acceptance_scope='not_applicable'}) end
             if req.page_size~=nil and not integer(req.page_size,1,64) then return fail('invalid_page_size') end
             local projection,code=ObservationCollections.project(s.game,meta(s),req.collection,req.filter)
-            if not projection then return fail(code) end
+            if not projection then return fail(code,nil,{acceptance_scope='not_applicable'}) end
             local page,capcode=s.views:capture{collection=req.collection,items=projection.items,
                 complete=projection.complete,
                 context={session_id=s.session_id,level_instance_id=s.level_id,connection_generation=s.connection_generation},
                 revision=s.revision,page_size=req.page_size}
-            if not page then return fail(capcode) end
+            if not page then return fail(capcode,nil,{acceptance_scope='not_applicable'}) end
             return page
         end
         return fail('invalid_request')
