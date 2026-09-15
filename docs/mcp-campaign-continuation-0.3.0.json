@@ -1,0 +1,3120 @@
+{
+  "session": "campaign-play-v030-01",
+  "date": "2026-09-15",
+  "version": "0.3.0",
+  "normal_campaign": true,
+  "gameplay_fixture": false,
+  "cheat": false,
+  "outcome": "Reached Trollmire 3 and character level 3; retreated from Prox and a rare caster to Trollmire 2; saved alive at full life and stamina. Boss not killed; campaign incomplete.",
+  "input": {
+    "command": [
+      "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v030-01/runtime/t-engine",
+      "--no-steam",
+      "--no-web",
+      "--flush-stdout",
+      "--home",
+      "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home",
+      "-Mtome",
+      "-uMCP_campaign-play-01",
+      "-Eno_birth_popup=true"
+    ],
+    "source": "/workspace/t-engine4/tmp/battle-companion-validation-20260914/runtime",
+    "dependencies": "/workspace/t-engine4/tmp/worktrees/yron-profile-20260912/tmp/profile/deps/root/usr",
+    "engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+    "candidate_sha256": "c09b3198718b6bb0ebf41a2fcdc8e5ba17bd9b7a7fdf37e04344debfe085314f",
+    "new_character": false,
+    "imported_save": true,
+    "display": ":110",
+    "port": 56365,
+    "addon_archive": "/workspace/t-engine4/game/addons/tome-mcp-bridge/dist/tome-mcp-bridge.teaa",
+    "addon_archive_sha256": "e88a46a8888f9a0d9ae2ddbb5642dae5010e0830b7a45c7114cf103036035a8d",
+    "extra_addons": {
+      "battle-companion": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-01/runtime/game/addons/tome-battle-companion.teaa",
+      "danger-alert": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-01/runtime/game/addons/tome-danger-alert.teaa",
+      "mcp-play-birth": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-01/runtime/game/addons/tome-mcp-play-birth"
+    },
+    "addon_lua_sha256": {
+      "tome-mcp-play-birth/init.lua": "30325fdeb37eb6be737c2f0485f58b9a222a08f084013c1e91ffdf64fe50f774",
+      "tome-mcp-play-birth/superload/mod/dialogs/Birther.lua": "bcf2e5beef3ddb3df5522b163f7bfe8b649911f6fcd051a7edc3c859e74bf719",
+      "tome-mcp-play-birth/hooks/load.lua": "73c4c0789f527c852af0c88efd5aa7d0385138edd24c57cfc669b75d9bcc4e04"
+    },
+    "copied_recorded_test_save": true,
+    "source_session": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-01",
+    "source_save_sha256": {
+      "mcp_campaign_play_01/cur.png": "557f0204a6bf553c258b44e335b564ab0cefecfe5f2a52e0765d79194ffe20b0",
+      "mcp_campaign_play_01/desc.lua": "68fa28462c855634855fc47183fb4c4aa28244d247c525b9fe667f789eb4d828",
+      "mcp_campaign_play_01/game.teag": "5050a3a46d2e68c5db255cecaa2e6a8227eabdcf67197f5e0b6af90e32f8d25a",
+      "mcp_campaign_play_01/last_log.txt": "c929a47707cd3119f29a2f3f087fba2027f44acbb4f8089db7539beaa86ec981",
+      "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+      "world.teaw": "be820b11513eef15a6ada6aa66611b4f31ca50b5dfa16f2ea56a0eb16259c1a7"
+    },
+    "recorded_save_sha256": {
+      "mcp_campaign_play_01/desc.lua": "68fa28462c855634855fc47183fb4c4aa28244d247c525b9fe667f789eb4d828",
+      "mcp_campaign_play_01/game.teag": "5050a3a46d2e68c5db255cecaa2e6a8227eabdcf67197f5e0b6af90e32f8d25a"
+    },
+    "cheat": false,
+    "normal_campaign": true,
+    "gameplay_fixture": false,
+    "character_name": "MCP_campaign-play-01",
+    "supporting_addon_sha256": {
+      "battle-companion": "a771e3d99bb13fe4abd888478097f3b409f95935264c144ee103524a2895a988",
+      "danger-alert": "f1ffd214c72d3967589acb167a091e3a370985ef304f9099bae00390092314ef",
+      "mcp-play-birth": {
+        "hooks/load.lua": "73c4c0789f527c852af0c88efd5aa7d0385138edd24c57cfc669b75d9bcc4e04",
+        "init.lua": "30325fdeb37eb6be737c2f0485f58b9a222a08f084013c1e91ffdf64fe50f774",
+        "superload/mod/dialogs/Birther.lua": "bcf2e5beef3ddb3df5522b163f7bfe8b649911f6fcd051a7edc3c859e74bf719"
+      }
+    },
+    "mcp_server_py_sha256": {
+      "tome_mcp/__init__.py": "f36dd10b430c8341656ca9c57c0bbeffabc43895d9566a5477e97f3dc36f4b04",
+      "tome_mcp/__main__.py": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+      "tome_mcp/bridge.py": "756c8cafb9431345a6213ccee93e5a918d7b6dedc8a3a7e457f7e8e40e25077a",
+      "tome_mcp/server.py": "38ec4c7b215dd29d6ae5029961af4df89ab02e8372620055d25d9d1c0b733b10"
+    },
+    "runner_sha256": {
+      "runtime.py": "58d24dce5b0a6f30bd49e89e2ba2b921da69366b9a292e1243aedea16ad9052a",
+      "run.py": "99b06f2e2f8a28138a3d85fb8e7ddc04d01b5747fd09ad8bed1949f95d985c2b"
+    },
+    "interactive_driver_sha256": "e75066030bb5ce0b0df222efd0e53cf425b329b686428728083c284c5237361e"
+  },
+  "capabilities": {
+    "actions": [
+      "move",
+      "wait",
+      "attack",
+      "use_talent",
+      "change_level",
+      "rest"
+    ],
+    "compact_responses": true,
+    "connection_modes": [
+      "control",
+      "observe"
+    ],
+    "event_cursor": true,
+    "inventory_read": true,
+    "max_commands": 4096,
+    "max_radius": 12,
+    "max_rest_turns": 1000,
+    "observation": "player",
+    "protocol": 1,
+    "talents": [
+      "T_INFUSION:_HEALING_3",
+      "T_INFUSION:_REGENERATION_1",
+      "T_INFUSION:_WILD_2",
+      "T_STUNNING_BLOW_ASSAULT",
+      "T_WARSHOUT_BERSERKER"
+    ]
+  },
+  "tool_calls": {
+    "tome.connect": 6,
+    "tome.observe": 1027,
+    "tome.act": 829,
+    "tome.inspect": 3,
+    "tome.stop": 1
+  },
+  "submitted_actions": 829,
+  "completed_actions": 829,
+  "actions_by_type": {
+    "change_level": 3,
+    "move": 620,
+    "wait": 56,
+    "use_talent": 53,
+    "rest": 25,
+    "attack": 72
+  },
+  "tool_errors": [],
+  "minimum_observed_life": 104.76914665606657,
+  "native_log_kills": {
+    "count": 38,
+    "by_name": {
+      "Midge swarm": 4,
+      "Red ooze": 1,
+      "Large white snake": 2,
+      "Green worm mass": 1,
+      "Great wolf": 2,
+      "Stone troll": 2,
+      "Black bear": 2,
+      "White wolf": 2,
+      "Giant brown mouse": 3,
+      "Giant brown rat": 3,
+      "Wolf": 2,
+      "Giant grey mouse": 2,
+      "Green jelly": 1,
+      "Large brown snake": 2,
+      "Forest troll": 5,
+      "Giant grey rat": 1,
+      "Copperhead snake": 1,
+      "White ooze": 1,
+      "Fox": 1
+    },
+    "lines": [
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Midge swarm!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Red ooze!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Large white snake!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Green worm mass!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Great wolf!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Stone troll!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Black bear!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Black bear!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed White wolf!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Midge swarm!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Large white snake!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Midge swarm!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Giant brown mouse!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Giant brown rat!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Wolf!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Midge swarm!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Giant grey mouse!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Green jelly!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Large brown snake!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Forest troll!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Giant grey rat!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Forest troll!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Copperhead snake!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Forest troll!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Giant grey mouse!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Giant brown rat!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed White ooze!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Wolf!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Forest troll!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Forest troll!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Great wolf!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Stone troll!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Giant brown mouse!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed White wolf!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Large brown snake!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Giant brown rat!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Fox!#{normal}#",
+      "[LOG]\t#{bold}##UID:2849:0##fbd578#MCP_campaign-play-01#LAST# killed Giant brown mouse!#{normal}#"
+    ]
+  },
+  "first_state": {
+    "phase": "ready",
+    "control": "remote",
+    "revision": 3,
+    "world_tick": 7038,
+    "scene": {
+      "level": 1,
+      "zone_id": "trollmire",
+      "zone_name": "Trollmire"
+    },
+    "level_instance_id": "level-1",
+    "battle_companion": {
+      "actions": 0,
+      "state": "idle"
+    },
+    "player": {
+      "name": "MCP_campaign-play-01",
+      "x": 64,
+      "y": 18,
+      "life": 132,
+      "max_life": 132,
+      "level": 1,
+      "exp": 13.98,
+      "exp_next": 27,
+      "unused_stats": 3,
+      "unused_talents": 3,
+      "unused_generics": 2,
+      "unused_talents_types": 1,
+      "effects": [],
+      "stats": {
+        "con": {
+          "base": 13,
+          "bonus": 0
+        },
+        "cun": {
+          "base": 10,
+          "bonus": 0
+        },
+        "dex": {
+          "base": 11,
+          "bonus": 0
+        },
+        "mag": {
+          "base": 10,
+          "bonus": 0
+        },
+        "str": {
+          "base": 15,
+          "bonus": 0
+        },
+        "wil": {
+          "base": 10,
+          "bonus": 0
+        }
+      },
+      "descriptor": {
+        "class": "Warrior",
+        "difficulty": "Normal",
+        "race": "Human",
+        "sex": "Female",
+        "subclass": "Berserker",
+        "subrace": "Cornac"
+      },
+      "stamina": {
+        "max": 100,
+        "min": 0,
+        "regen": 0.3,
+        "value": 100
+      },
+      "equipment": [
+        {
+          "name": "iron greatsword",
+          "container": "MAINHAND",
+          "identified": true
+        },
+        {
+          "name": "brass lantern",
+          "container": "LITE",
+          "identified": true
+        },
+        {
+          "name": "iron mail armour",
+          "container": "BODY",
+          "identified": true
+        }
+      ]
+    },
+    "actors": []
+  },
+  "last_state": {
+    "phase": "ready",
+    "control": "remote",
+    "revision": 13427,
+    "world_tick": 18668,
+    "scene": {
+      "level": 2,
+      "zone_id": "trollmire",
+      "zone_name": "Trollmire"
+    },
+    "level_instance_id": "level-4",
+    "battle_companion": {
+      "actions": 0,
+      "state": "idle"
+    },
+    "player": {
+      "name": "MCP_campaign-play-01",
+      "x": 64,
+      "y": 36,
+      "life": 162.225,
+      "max_life": 162.225,
+      "level": 3,
+      "exp": 7.579999999999992,
+      "exp_next": 110,
+      "unused_stats": 9,
+      "unused_talents": 5,
+      "unused_generics": 4,
+      "unused_talents_types": 1,
+      "effects": [],
+      "stats": {
+        "con": {
+          "base": 13,
+          "bonus": 0
+        },
+        "cun": {
+          "base": 10,
+          "bonus": 0
+        },
+        "dex": {
+          "base": 11,
+          "bonus": 0
+        },
+        "mag": {
+          "base": 10,
+          "bonus": 0
+        },
+        "str": {
+          "base": 15,
+          "bonus": 0
+        },
+        "wil": {
+          "base": 10,
+          "bonus": 0
+        }
+      },
+      "descriptor": {
+        "class": "Warrior",
+        "difficulty": "Normal",
+        "race": "Human",
+        "sex": "Female",
+        "subclass": "Berserker",
+        "subrace": "Cornac"
+      },
+      "stamina": {
+        "max": 106,
+        "min": 0,
+        "regen": 0.30000000000000004,
+        "value": 106
+      },
+      "equipment": [
+        {
+          "name": "iron greatsword",
+          "container": "MAINHAND",
+          "identified": true
+        },
+        {
+          "name": "brass lantern",
+          "container": "LITE",
+          "identified": true
+        },
+        {
+          "name": "iron mail armour",
+          "container": "BODY",
+          "identified": true
+        }
+      ]
+    },
+    "actors": []
+  },
+  "final_activated_talent_cooldowns": {
+    "T_ATTACK": 0,
+    "T_INFUSION:_HEALING_3": 0,
+    "T_INFUSION:_REGENERATION_1": 0,
+    "T_INFUSION:_WILD_2": 0,
+    "T_STUNNING_BLOW_ASSAULT": 0,
+    "T_WARSHOUT_BERSERKER": 0
+  },
+  "level_changes": [
+    {
+      "code": "level_changed",
+      "command_id": "campaign-00001",
+      "energy_spent": 0,
+      "interruption": "scene_changed",
+      "level_changed": true,
+      "revision_after": 14,
+      "revision_before": 3,
+      "status": "completed",
+      "world_tick_after": 7038,
+      "world_tick_before": 7038,
+      "action": {
+        "type": "change_level"
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 3,
+        "world_tick": 7038,
+        "scene": {
+          "level": 1,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-1",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 64,
+          "y": 18,
+          "life": 132,
+          "max_life": 132,
+          "level": 1,
+          "exp": 13.98,
+          "exp_next": 27,
+          "unused_stats": 3,
+          "unused_talents": 3,
+          "unused_generics": 2,
+          "unused_talents_types": 1,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 100,
+            "min": 0,
+            "regen": 0.3,
+            "value": 100
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": []
+      },
+      "after": {
+        "phase": "ready",
+        "control": "manual",
+        "revision": 14,
+        "world_tick": 7038,
+        "scene": {
+          "level": 2,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-2",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 0,
+          "y": 3,
+          "life": 132,
+          "max_life": 132,
+          "level": 1,
+          "exp": 13.98,
+          "exp_next": 27,
+          "unused_stats": 3,
+          "unused_talents": 3,
+          "unused_generics": 2,
+          "unused_talents_types": 1,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 100,
+            "min": 0,
+            "regen": 0.3,
+            "value": 100
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": []
+      }
+    },
+    {
+      "code": "level_changed",
+      "command_id": "campaign-00615",
+      "energy_spent": 0,
+      "interruption": "scene_changed",
+      "level_changed": true,
+      "revision_after": 9630,
+      "revision_before": 9619,
+      "status": "completed",
+      "world_tick_after": 15368,
+      "world_tick_before": 15368,
+      "action": {
+        "type": "change_level"
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 9619,
+        "world_tick": 15368,
+        "scene": {
+          "level": 2,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-2",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 64,
+          "y": 36,
+          "life": 146.95,
+          "max_life": 146.95,
+          "level": 2,
+          "exp": 30.779999999999994,
+          "exp_next": 61,
+          "unused_stats": 6,
+          "unused_talents": 4,
+          "unused_generics": 3,
+          "unused_talents_types": 1,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 103,
+            "min": 0,
+            "regen": 0.3,
+            "value": 103
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": []
+      },
+      "after": {
+        "phase": "ready",
+        "control": "manual",
+        "revision": 9630,
+        "world_tick": 15368,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-3",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 0,
+          "y": 5,
+          "life": 146.95,
+          "max_life": 146.95,
+          "level": 2,
+          "exp": 30.779999999999994,
+          "exp_next": 61,
+          "unused_stats": 6,
+          "unused_talents": 4,
+          "unused_generics": 3,
+          "unused_talents_types": 1,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 103,
+            "min": 0,
+            "regen": 0.3,
+            "value": 103
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": []
+      }
+    },
+    {
+      "code": "level_changed",
+      "command_id": "campaign-00828",
+      "energy_spent": 0,
+      "interruption": "scene_changed",
+      "level_changed": true,
+      "revision_after": 13220,
+      "revision_before": 13212,
+      "status": "completed",
+      "world_tick_after": 18478,
+      "world_tick_before": 18478,
+      "action": {
+        "type": "change_level"
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 13212,
+        "world_tick": 18478,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-3",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 0,
+          "y": 5,
+          "life": 162.225,
+          "max_life": 162.225,
+          "level": 3,
+          "exp": 7.579999999999992,
+          "exp_next": 110,
+          "unused_stats": 9,
+          "unused_talents": 5,
+          "unused_generics": 4,
+          "unused_talents_types": 1,
+          "effects": [
+            {
+              "duration": 2,
+              "id": "EFF_INFUSION_COOLDOWN",
+              "name": "Infusion Saturation",
+              "status": "detrimental",
+              "type": "other"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 106,
+            "min": 0,
+            "regen": 0.30000000000000004,
+            "value": 78.43999999999987
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": [
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9284",
+            "name": "Prox the Mighty",
+            "x": 3,
+            "y": 4,
+            "life": 439.93117084538596,
+            "max_life": 470.125,
+            "level": 7,
+            "rank": 4,
+            "effects": null
+          }
+        ]
+      },
+      "after": {
+        "phase": "ready",
+        "control": "manual",
+        "revision": 13220,
+        "world_tick": 18478,
+        "scene": {
+          "level": 2,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-4",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 64,
+          "y": 36,
+          "life": 162.225,
+          "max_life": 162.225,
+          "level": 3,
+          "exp": 7.579999999999992,
+          "exp_next": 110,
+          "unused_stats": 9,
+          "unused_talents": 5,
+          "unused_generics": 4,
+          "unused_talents_types": 1,
+          "effects": [
+            {
+              "duration": 2,
+              "id": "EFF_INFUSION_COOLDOWN",
+              "name": "Infusion Saturation",
+              "status": "detrimental",
+              "type": "other"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 106,
+            "min": 0,
+            "regen": 0.30000000000000004,
+            "value": 78.43999999999987
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": []
+      }
+    }
+  ],
+  "level_ups": [
+    {
+      "code": "action_complete",
+      "command_id": "campaign-00132",
+      "energy_spent": 1000,
+      "native_return": true,
+      "revision_after": 2146,
+      "revision_before": 2134,
+      "status": "completed",
+      "world_tick_after": 8898,
+      "world_tick_before": 8888,
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789440493-1686-4-table0x42d291c8:level-2:actor-7098"
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 2134,
+        "world_tick": 8888,
+        "scene": {
+          "level": 2,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-2",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 46,
+          "y": 6,
+          "life": 126.6278353064269,
+          "max_life": 132,
+          "level": 1,
+          "exp": 24.18,
+          "exp_next": 27,
+          "unused_stats": 3,
+          "unused_talents": 3,
+          "unused_generics": 2,
+          "unused_talents_types": 1,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 100,
+            "min": 0,
+            "regen": 0.3,
+            "value": 59.239999999999974
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": [
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-2:actor-7098",
+            "name": "black bear",
+            "x": 47,
+            "y": 6,
+            "life": 23.690645302327656,
+            "max_life": 191.54999999999998,
+            "level": 6,
+            "rank": 2,
+            "effects": null
+          },
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-2:actor-7124",
+            "name": "black bear",
+            "x": 50,
+            "y": 5,
+            "life": 190.1,
+            "max_life": 190.1,
+            "level": 6,
+            "rank": 2,
+            "effects": null
+          }
+        ]
+      },
+      "after": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 2146,
+        "world_tick": 8898,
+        "scene": {
+          "level": 2,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-2",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 46,
+          "y": 6,
+          "life": 146.95,
+          "max_life": 146.95,
+          "level": 2,
+          "exp": 1.9800000000000004,
+          "exp_next": 61,
+          "unused_stats": 6,
+          "unused_talents": 4,
+          "unused_generics": 3,
+          "unused_talents_types": 1,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 103,
+            "min": 0,
+            "regen": 0.3,
+            "value": 103
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": [
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-2:actor-7124",
+            "name": "black bear",
+            "x": 49,
+            "y": 5,
+            "life": 190.1,
+            "max_life": 190.1,
+            "level": 6,
+            "rank": 2,
+            "effects": null
+          }
+        ]
+      }
+    },
+    {
+      "code": "action_complete",
+      "command_id": "campaign-00728",
+      "energy_spent": 1000,
+      "native_return": true,
+      "revision_after": 11822,
+      "revision_before": 11810,
+      "status": "completed",
+      "world_tick_after": 17298,
+      "world_tick_before": 17288,
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9266"
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 11810,
+        "world_tick": 17288,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-3",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 36,
+          "y": 3,
+          "life": 145.76968043981205,
+          "max_life": 146.95,
+          "level": 2,
+          "exp": 59.97999999999999,
+          "exp_next": 61,
+          "unused_stats": 6,
+          "unused_talents": 4,
+          "unused_generics": 3,
+          "unused_talents_types": 1,
+          "effects": [
+            {
+              "duration": 5,
+              "id": "EFF_INFUSION_COOLDOWN",
+              "name": "Infusion Saturation",
+              "status": "detrimental",
+              "type": "other"
+            },
+            {
+              "duration": 0,
+              "id": "EFF_REGENERATION",
+              "name": "Regeneration",
+              "status": "beneficial",
+              "type": "physical"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 103,
+            "min": 0,
+            "regen": 0.3,
+            "value": 55.37999999999995
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": [
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9266",
+            "name": "large brown snake",
+            "x": 37,
+            "y": 4,
+            "life": 27.700000000000003,
+            "max_life": 27.700000000000003,
+            "level": 4,
+            "rank": 2,
+            "effects": null
+          }
+        ]
+      },
+      "after": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 11822,
+        "world_tick": 17298,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-3",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 36,
+          "y": 3,
+          "life": 162.225,
+          "max_life": 162.225,
+          "level": 3,
+          "exp": 2.1799999999999926,
+          "exp_next": 110,
+          "unused_stats": 9,
+          "unused_talents": 5,
+          "unused_generics": 4,
+          "unused_talents_types": 1,
+          "effects": [
+            {
+              "duration": 4,
+              "id": "EFF_INFUSION_COOLDOWN",
+              "name": "Infusion Saturation",
+              "status": "detrimental",
+              "type": "other"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 106,
+            "min": 0,
+            "regen": 0.3,
+            "value": 106
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": []
+      }
+    }
+  ],
+  "talent_uses": {
+    "T_STUNNING_BLOW_ASSAULT": 28,
+    "T_WARSHOUT_BERSERKER": 10,
+    "T_INFUSION:_REGENERATION_1": 8,
+    "T_INFUSION:_HEALING_3": 5,
+    "T_INFUSION:_WILD_2": 2
+  },
+  "wild_cleansing": {
+    "command": {
+      "code": "action_complete",
+      "command_id": "campaign-00712",
+      "energy_spent": 0,
+      "native_return": true,
+      "revision_after": 11635,
+      "revision_before": 11632,
+      "status": "completed",
+      "world_tick_after": 17148,
+      "world_tick_before": 17148,
+      "action": {
+        "type": "use_talent",
+        "talent_id": "T_INFUSION:_WILD_2"
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 11632,
+        "world_tick": 17148,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-3",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 36,
+          "y": 3,
+          "life": 135.87185157353767,
+          "max_life": 146.95,
+          "level": 2,
+          "exp": 52.57999999999999,
+          "exp_next": 61,
+          "unused_stats": 6,
+          "unused_talents": 4,
+          "unused_generics": 3,
+          "unused_talents_types": 1,
+          "effects": [
+            {
+              "duration": 0,
+              "id": "EFF_OFFBALANCE",
+              "name": "Off-balance",
+              "status": "detrimental",
+              "type": "physical"
+            },
+            {
+              "duration": 2,
+              "id": "EFF_STUNNED",
+              "name": "Stunned",
+              "status": "detrimental",
+              "type": "physical"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 103,
+            "min": 0,
+            "regen": 0.3,
+            "value": 103
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": [
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9244",
+            "name": "white wolf",
+            "x": 41,
+            "y": 7,
+            "life": 90.32664502172223,
+            "max_life": 90.32664502172223,
+            "level": 4,
+            "rank": 1,
+            "effects": null
+          },
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9246",
+            "name": "stone troll",
+            "x": 37,
+            "y": 4,
+            "life": 146.9,
+            "max_life": 146.9,
+            "level": 4,
+            "rank": 2,
+            "effects": null
+          }
+        ]
+      },
+      "after": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 11635,
+        "world_tick": 17148,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-3",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 36,
+          "y": 3,
+          "life": 135.87185157353767,
+          "max_life": 146.95,
+          "level": 2,
+          "exp": 52.57999999999999,
+          "exp_next": 61,
+          "unused_stats": 6,
+          "unused_talents": 4,
+          "unused_generics": 3,
+          "unused_talents_types": 1,
+          "effects": [
+            {
+              "duration": 10,
+              "id": "EFF_INFUSION_COOLDOWN",
+              "name": "Infusion Saturation",
+              "status": "detrimental",
+              "type": "other"
+            },
+            {
+              "duration": 4,
+              "id": "EFF_PAIN_SUPPRESSION",
+              "name": "Pain Suppression",
+              "status": "beneficial",
+              "type": "physical"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 103,
+            "min": 0,
+            "regen": 0.3,
+            "value": 103
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": [
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9244",
+            "name": "white wolf",
+            "x": 41,
+            "y": 7,
+            "life": 90.32664502172223,
+            "max_life": 90.32664502172223,
+            "level": 4,
+            "rank": 1,
+            "effects": null
+          },
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9246",
+            "name": "stone troll",
+            "x": 37,
+            "y": 4,
+            "life": 146.9,
+            "max_life": 146.9,
+            "level": 4,
+            "rank": 2,
+            "effects": null
+          }
+        ]
+      }
+    },
+    "events": [
+      {
+        "cursor": 364,
+        "line_id": 364,
+        "observed_world_tick": 17148,
+        "op": "append",
+        "text": "Stone troll uses #{bold}##RED#Stun.#{normal}##LAST#",
+        "text_truncated": false
+      },
+      {
+        "cursor": 365,
+        "line_id": 365,
+        "observed_world_tick": 17148,
+        "op": "append",
+        "text": "MCP_campaign-play-01 is stunned!",
+        "text_truncated": false
+      },
+      {
+        "cursor": 366,
+        "line_id": 366,
+        "observed_world_tick": 17148,
+        "op": "append",
+        "text": "#UID:9246:0#Stone troll hits #fbd578#MCP_campaign-play-01#LAST# for #WHITE#11 physical#LAST# damage.",
+        "text_truncated": false
+      },
+      {
+        "cursor": 367,
+        "line_id": 367,
+        "observed_world_tick": 17148,
+        "op": "append",
+        "text": "MCP_campaign-play-01 uses #{bold}##GREEN#Infusion: Wild.#{normal}##LAST#",
+        "text_truncated": false
+      },
+      {
+        "cursor": 368,
+        "line_id": 368,
+        "observed_world_tick": 17148,
+        "op": "append",
+        "text": "MCP_campaign-play-01 is not stunned anymore.",
+        "text_truncated": false
+      },
+      {
+        "cursor": 369,
+        "line_id": 369,
+        "observed_world_tick": 17148,
+        "op": "append",
+        "text": "MCP_campaign-play-01 is cured!",
+        "text_truncated": false
+      },
+      {
+        "cursor": 370,
+        "line_id": 370,
+        "observed_world_tick": 17148,
+        "op": "append",
+        "text": "MCP_campaign-play-01 lessens the pain.",
+        "text_truncated": false
+      }
+    ]
+  },
+  "rests": [
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00023",
+      "energy_spent": 15000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 421,
+      "revision_before": 267,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 15,
+      "world_tick_after": 7398,
+      "world_tick_before": 7248,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00072",
+      "energy_spent": 22000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 1221,
+      "revision_before": 997,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 22,
+      "world_tick_after": 8098,
+      "world_tick_before": 7878,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00097",
+      "energy_spent": 23000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 1736,
+      "revision_before": 1502,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 23,
+      "world_tick_after": 8558,
+      "world_tick_before": 8328,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00144",
+      "energy_spent": 17000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 2453,
+      "revision_before": 2279,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 17,
+      "world_tick_after": 9178,
+      "world_tick_before": 9008,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00186",
+      "energy_spent": 15000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 3090,
+      "revision_before": 2936,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 15,
+      "world_tick_after": 9728,
+      "world_tick_before": 9578,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00205",
+      "energy_spent": 15000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 3451,
+      "revision_before": 3297,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 15,
+      "world_tick_after": 10048,
+      "world_tick_before": 9898,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00216",
+      "energy_spent": 22000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 3796,
+      "revision_before": 3572,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 22,
+      "world_tick_after": 10368,
+      "world_tick_before": 10148,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00264",
+      "energy_spent": 22000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 4574,
+      "revision_before": 4350,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 22,
+      "world_tick_after": 11048,
+      "world_tick_before": 10828,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00310",
+      "energy_spent": 15000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 5258,
+      "revision_before": 5104,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 15,
+      "world_tick_after": 11638,
+      "world_tick_before": 11488,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00319",
+      "energy_spent": 15000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 5508,
+      "revision_before": 5354,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 15,
+      "world_tick_after": 11868,
+      "world_tick_before": 11718,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "damaged",
+      "command_id": "campaign-00329",
+      "energy_spent": 1000,
+      "max_turns": 150,
+      "native_message": "taken damage",
+      "revision_after": 5631,
+      "revision_before": 5617,
+      "status": "completed",
+      "stop_reason": "damaged",
+      "turns_executed": 1,
+      "world_tick_after": 11968,
+      "world_tick_before": 11958,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "damaged",
+      "command_id": "campaign-00330",
+      "energy_spent": 1000,
+      "max_turns": 150,
+      "native_message": "taken damage",
+      "revision_after": 5645,
+      "revision_before": 5631,
+      "status": "completed",
+      "stop_reason": "damaged",
+      "turns_executed": 1,
+      "world_tick_after": 11978,
+      "world_tick_before": 11968,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "damaged",
+      "command_id": "campaign-00331",
+      "energy_spent": 1000,
+      "max_turns": 150,
+      "native_message": "taken damage",
+      "revision_after": 5659,
+      "revision_before": 5645,
+      "status": "completed",
+      "stop_reason": "damaged",
+      "turns_executed": 1,
+      "world_tick_after": 11988,
+      "world_tick_before": 11978,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00332",
+      "energy_spent": 15000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 5813,
+      "revision_before": 5659,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 15,
+      "world_tick_after": 12138,
+      "world_tick_before": 11988,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00344",
+      "energy_spent": 15000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 6091,
+      "revision_before": 5937,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 15,
+      "world_tick_after": 12388,
+      "world_tick_before": 12238,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00415",
+      "energy_spent": 17000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 7087,
+      "revision_before": 6913,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 17,
+      "world_tick_after": 13238,
+      "world_tick_before": 13068,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00605",
+      "energy_spent": 16000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 9521,
+      "revision_before": 9357,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 16,
+      "world_tick_after": 15288,
+      "world_tick_before": 15128,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00632",
+      "energy_spent": 16000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 9988,
+      "revision_before": 9824,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 16,
+      "world_tick_after": 15688,
+      "world_tick_before": 15528,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00646",
+      "energy_spent": 17000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 10310,
+      "revision_before": 10136,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 17,
+      "world_tick_after": 15978,
+      "world_tick_before": 15808,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_stopped",
+      "command_id": "campaign-00663",
+      "energy_spent": 16000,
+      "max_turns": 150,
+      "native_message": "hostile spotted to the east (forest troll)",
+      "revision_after": 10659,
+      "revision_before": 10495,
+      "status": "completed",
+      "stop_reason": "native_stopped",
+      "turns_executed": 16,
+      "world_tick_after": 16288,
+      "world_tick_before": 16128,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00683",
+      "energy_spent": 29000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 11171,
+      "revision_before": 10877,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 29,
+      "world_tick_after": 16748,
+      "world_tick_before": 16458,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00704",
+      "energy_spent": 15000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 11557,
+      "revision_before": 11403,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 15,
+      "world_tick_after": 17088,
+      "world_tick_before": 16938,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00729",
+      "energy_spent": 6000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 11886,
+      "revision_before": 11822,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 6,
+      "world_tick_after": 17358,
+      "world_tick_before": 17298,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00762",
+      "energy_spent": 22000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 12475,
+      "revision_before": 12251,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 22,
+      "world_tick_after": 17878,
+      "world_tick_before": 17658,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    },
+    {
+      "code": "native_complete",
+      "command_id": "campaign-00829",
+      "energy_spent": 19000,
+      "max_turns": 150,
+      "native_message": "all resources and life at maximum",
+      "revision_after": 13415,
+      "revision_before": 13221,
+      "status": "completed",
+      "stop_reason": "native_complete",
+      "turns_executed": 19,
+      "world_tick_after": 18668,
+      "world_tick_before": 18478,
+      "action": {
+        "type": "rest",
+        "max_turns": 150
+      }
+    }
+  ],
+  "rest_turns": 387,
+  "rest_stop_reasons": {
+    "native_complete": 21,
+    "damaged": 3,
+    "native_stopped": 1
+  },
+  "events": {
+    "count": 720,
+    "ops": {
+      "append": 552,
+      "remove": 168
+    },
+    "gaps": [],
+    "contiguous_unique_cursors": true,
+    "text_truncated_count": 0
+  },
+  "actor_inspections": [
+    {
+      "kind": "actor",
+      "result": {
+        "base_combat": {
+          "combat_armor": 0,
+          "combat_armor_hardiness": 0,
+          "combat_atk": 0,
+          "combat_dam": 0,
+          "combat_def": 17,
+          "combat_mentalresist": 1.0531684192950936,
+          "combat_mindpower": 0,
+          "combat_physcrit": 0,
+          "combat_physresist": 2.6184141417637496,
+          "combat_spellpower": 5,
+          "combat_spellresist": 1.141765902072498
+        },
+        "base_resists": {
+          "COLD": 15,
+          "DARKNESS": 5.924160907669218,
+          "NATURE": 1.4645344152841115,
+          "all": 9.554149005204032
+        },
+        "base_weapon": {
+          "apr": 0,
+          "atk": 1,
+          "dam": 1,
+          "damrange": 1.1,
+          "physcrit": 0,
+          "physspeed": 1
+        },
+        "combat_scope": "stored base fields; excludes computed scaling, penetration and target-specific modifiers",
+        "combat_values_are_final": false,
+        "effect_duration_is_raw": true,
+        "effects": [],
+        "effects_truncated": false,
+        "faction": "enemies",
+        "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9284",
+        "level": 7,
+        "life": 470.125,
+        "max_life": 470.125,
+        "name": "Prox the Mighty",
+        "rank": 4,
+        "resists_truncated": false,
+        "speed": {
+          "combat_mindspeed": 1,
+          "combat_physspeed": 1,
+          "combat_spellspeed": 1,
+          "global_speed": 1,
+          "global_speed_add": 0,
+          "global_speed_base": 1,
+          "movement_speed": 1.15
+        },
+        "speed_values_are_final": false,
+        "subtype": "troll",
+        "type": "giant",
+        "x": 50,
+        "y": 30
+      }
+    },
+    {
+      "kind": "actor",
+      "result": {
+        "base_combat": {
+          "combat_armor": 4,
+          "combat_armor_hardiness": 0,
+          "combat_atk": 0,
+          "combat_dam": 0,
+          "combat_def": 0,
+          "combat_mentalresist": 1.0036996067254105,
+          "combat_mindpower": 2,
+          "combat_physcrit": 0,
+          "combat_physresist": 0.8428186520684554,
+          "combat_spellpower": 0,
+          "combat_spellresist": 1.5934803707806813
+        },
+        "base_resists": {
+          "ACID": 5.749102394243064,
+          "FIRE": -50
+        },
+        "base_weapon": {
+          "apr": 6,
+          "atk": 2,
+          "dam": 13,
+          "damrange": 1.1,
+          "physspeed": 2
+        },
+        "combat_scope": "stored base fields; excludes computed scaling, penetration and target-specific modifiers",
+        "combat_values_are_final": false,
+        "effect_duration_is_raw": true,
+        "effects": [],
+        "effects_truncated": false,
+        "faction": "enemies",
+        "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9276",
+        "level": 6,
+        "life": 240.2,
+        "max_life": 240.2,
+        "name": "Forest Troll Hedge-Wizard",
+        "rank": 3.5,
+        "resists_truncated": false,
+        "speed": {
+          "combat_mindspeed": 1,
+          "combat_physspeed": 1,
+          "combat_spellspeed": 1,
+          "global_speed": 1,
+          "global_speed_add": 0,
+          "global_speed_base": 1,
+          "movement_speed": 1
+        },
+        "speed_values_are_final": false,
+        "subtype": "troll",
+        "type": "giant",
+        "x": 43,
+        "y": 28
+      }
+    },
+    {
+      "kind": "actor",
+      "result": {
+        "base_combat": {
+          "combat_armor": 0,
+          "combat_armor_hardiness": 0,
+          "combat_atk": 0,
+          "combat_dam": 0,
+          "combat_def": 17,
+          "combat_mentalresist": 1.0531684192950936,
+          "combat_mindpower": 0,
+          "combat_physcrit": 0,
+          "combat_physresist": 2.6184141417637496,
+          "combat_spellpower": 5,
+          "combat_spellresist": 1.141765902072498
+        },
+        "base_resists": {
+          "COLD": 15,
+          "DARKNESS": 5.924160907669218,
+          "NATURE": 1.4645344152841115,
+          "all": 9.554149005204032
+        },
+        "base_weapon": {
+          "apr": 0,
+          "atk": 1,
+          "dam": 1,
+          "damrange": 1.1,
+          "physcrit": 0,
+          "physspeed": 1
+        },
+        "combat_scope": "stored base fields; excludes computed scaling, penetration and target-specific modifiers",
+        "combat_values_are_final": false,
+        "effect_duration_is_raw": true,
+        "effects": [
+          {
+            "duration": 0,
+            "id": "EFF_CONFUSED",
+            "name": "Confused",
+            "status": "detrimental",
+            "type": "mental"
+          },
+          {
+            "duration": 3,
+            "id": "EFF_INFUSION_COOLDOWN",
+            "name": "Infusion Saturation",
+            "status": "detrimental",
+            "type": "other"
+          }
+        ],
+        "effects_truncated": false,
+        "faction": "enemies",
+        "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9284",
+        "level": 7,
+        "life": 470.125,
+        "max_life": 470.125,
+        "name": "Prox the Mighty",
+        "rank": 4,
+        "resists_truncated": false,
+        "speed": {
+          "combat_mindspeed": 1,
+          "combat_physspeed": 1,
+          "combat_spellspeed": 1,
+          "global_speed": 1,
+          "global_speed_add": 0,
+          "global_speed_base": 1,
+          "movement_speed": 1.1499999999999995
+        },
+        "speed_values_are_final": false,
+        "subtype": "troll",
+        "type": "giant",
+        "x": 44,
+        "y": 25
+      }
+    }
+  ],
+  "dialog_examples": [
+    {
+      "phase": "needs_input",
+      "dialogs": [
+        {
+          "title": "Screenshot taken!",
+          "topmost": true,
+          "widgets": [
+            {
+              "kind": "text",
+              "text": "File: /workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/screenshots/tome-1.7.6-1789441714.png"
+            },
+            {
+              "kind": "button",
+              "text": "Close"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "phase": "needs_input",
+      "dialogs": [
+        {
+          "title": "Screenshot taken!",
+          "topmost": true,
+          "widgets": [
+            {
+              "kind": "text",
+              "text": "File: /workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/screenshots/tome-1.7.6-1789441714.png"
+            },
+            {
+              "kind": "button",
+              "text": "Close"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "boss_player_miss_events": [
+    {
+      "cursor": 557,
+      "line_id": 473,
+      "observed_world_tick": 17998,
+      "op": "append",
+      "text": "#UID:2849:0##fbd578#MCP_campaign-play-01#LAST# misses Prox the Mighty.",
+      "text_truncated": false
+    },
+    {
+      "cursor": 558,
+      "line_id": 474,
+      "observed_world_tick": 17998,
+      "op": "append",
+      "text": "#UID:2849:0##fbd578#MCP_campaign-play-01#LAST# misses Prox the Mighty.",
+      "text_truncated": false
+    },
+    {
+      "cursor": 576,
+      "line_id": 483,
+      "observed_world_tick": 18018,
+      "op": "append",
+      "text": "#UID:2849:0##fbd578#MCP_campaign-play-01#LAST# misses Prox the Mighty.",
+      "text_truncated": false
+    }
+  ],
+  "boss_friendly_fire_event": [
+    {
+      "cursor": 599,
+      "line_id": 496,
+      "observed_world_tick": 18068,
+      "op": "append",
+      "text": "Forest Troll Hedge-Wizard's Manathrust hits Prox the Mighty for #PURPLE#41 arcane#LAST# damage.",
+      "text_truncated": false
+    }
+  ],
+  "retreat_displacements": [
+    {
+      "code": "action_complete",
+      "command_id": "campaign-00792",
+      "energy_spent": 1000,
+      "native_return": true,
+      "revision_after": 12799,
+      "revision_before": 12786,
+      "status": "completed",
+      "world_tick_after": 18138,
+      "world_tick_before": 18128,
+      "action": {
+        "type": "move",
+        "direction": 8
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 12786,
+        "world_tick": 18128,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-3",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 35,
+          "y": 15,
+          "life": 162.225,
+          "max_life": 162.225,
+          "level": 3,
+          "exp": 7.579999999999992,
+          "exp_next": 110,
+          "unused_stats": 9,
+          "unused_talents": 5,
+          "unused_generics": 4,
+          "unused_talents_types": 1,
+          "effects": [
+            {
+              "duration": 8,
+              "id": "EFF_INFUSION_COOLDOWN",
+              "name": "Infusion Saturation",
+              "status": "detrimental",
+              "type": "other"
+            },
+            {
+              "duration": 3,
+              "id": "EFF_REGENERATION",
+              "name": "Regeneration",
+              "status": "beneficial",
+              "type": "physical"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 106,
+            "min": 0,
+            "regen": 0.30000000000000004,
+            "value": 67.93999999999997
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": [
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9276",
+            "name": "Forest Troll Hedge-Wizard",
+            "x": 36,
+            "y": 18,
+            "life": 240.2,
+            "max_life": 240.2,
+            "level": 6,
+            "rank": 3.5,
+            "effects": null
+          },
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9284",
+            "name": "Prox the Mighty",
+            "x": 35,
+            "y": 16,
+            "life": 430.4194055965783,
+            "max_life": 470.125,
+            "level": 7,
+            "rank": 4,
+            "effects": null
+          }
+        ]
+      },
+      "after": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 12799,
+        "world_tick": 18138,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-3",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 35,
+          "y": 13,
+          "life": 149.2194429453778,
+          "max_life": 162.225,
+          "level": 3,
+          "exp": 7.579999999999992,
+          "exp_next": 110,
+          "unused_stats": 9,
+          "unused_talents": 5,
+          "unused_generics": 4,
+          "unused_talents_types": 1,
+          "effects": [
+            {
+              "duration": 7,
+              "id": "EFF_INFUSION_COOLDOWN",
+              "name": "Infusion Saturation",
+              "status": "detrimental",
+              "type": "other"
+            },
+            {
+              "duration": 0,
+              "id": "EFF_OFFBALANCE",
+              "name": "Off-balance",
+              "status": "detrimental",
+              "type": "physical"
+            },
+            {
+              "duration": 2,
+              "id": "EFF_REGENERATION",
+              "name": "Regeneration",
+              "status": "beneficial",
+              "type": "physical"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 106,
+            "min": 0,
+            "regen": 0.30000000000000004,
+            "value": 68.23999999999997
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": [
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9276",
+            "name": "Forest Troll Hedge-Wizard",
+            "x": 36,
+            "y": 17,
+            "life": 240.2,
+            "max_life": 240.2,
+            "level": 6,
+            "rank": 3.5,
+            "effects": null
+          },
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9284",
+            "name": "Prox the Mighty",
+            "x": 35,
+            "y": 15,
+            "life": 430.6911703179728,
+            "max_life": 470.125,
+            "level": 7,
+            "rank": 4,
+            "effects": null
+          }
+        ]
+      }
+    },
+    {
+      "code": "action_complete",
+      "command_id": "campaign-00819",
+      "energy_spent": 1000,
+      "native_return": true,
+      "revision_after": 13116,
+      "revision_before": 13103,
+      "status": "completed",
+      "world_tick_after": 18398,
+      "world_tick_before": 18388,
+      "action": {
+        "type": "move",
+        "direction": 1
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 13103,
+        "world_tick": 18388,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-3",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 12,
+          "y": 0,
+          "life": 162.225,
+          "max_life": 162.225,
+          "level": 3,
+          "exp": 7.579999999999992,
+          "exp_next": 110,
+          "unused_stats": 9,
+          "unused_talents": 5,
+          "unused_generics": 4,
+          "unused_talents_types": 1,
+          "effects": [
+            {
+              "duration": 4,
+              "id": "EFF_INFUSION_COOLDOWN",
+              "name": "Infusion Saturation",
+              "status": "detrimental",
+              "type": "other"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 106,
+            "min": 0,
+            "regen": 0.30000000000000004,
+            "value": 75.7399999999999
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": [
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9276",
+            "name": "Forest Troll Hedge-Wizard",
+            "x": 16,
+            "y": 2,
+            "life": 240.2,
+            "max_life": 240.2,
+            "level": 6,
+            "rank": 3.5,
+            "effects": null
+          },
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9284",
+            "name": "Prox the Mighty",
+            "x": 13,
+            "y": 1,
+            "life": 437.4852883528354,
+            "max_life": 470.125,
+            "level": 7,
+            "rank": 4,
+            "effects": null
+          }
+        ]
+      },
+      "after": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 13116,
+        "world_tick": 18398,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-3",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 7,
+          "y": 1,
+          "life": 120.60423156424639,
+          "max_life": 162.225,
+          "level": 3,
+          "exp": 7.579999999999992,
+          "exp_next": 110,
+          "unused_stats": 9,
+          "unused_talents": 5,
+          "unused_generics": 4,
+          "unused_talents_types": 1,
+          "effects": [
+            {
+              "duration": 3,
+              "id": "EFF_INFUSION_COOLDOWN",
+              "name": "Infusion Saturation",
+              "status": "detrimental",
+              "type": "other"
+            },
+            {
+              "duration": 0,
+              "id": "EFF_OFFBALANCE",
+              "name": "Off-balance",
+              "status": "detrimental",
+              "type": "physical"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 13,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 15,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 106,
+            "min": 0,
+            "regen": 0.30000000000000004,
+            "value": 76.03999999999989
+          },
+          "equipment": [
+            {
+              "name": "iron greatsword",
+              "container": "MAINHAND",
+              "identified": true
+            },
+            {
+              "name": "brass lantern",
+              "container": "LITE",
+              "identified": true
+            },
+            {
+              "name": "iron mail armour",
+              "container": "BODY",
+              "identified": true
+            }
+          ]
+        },
+        "actors": [
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9276",
+            "name": "Forest Troll Hedge-Wizard",
+            "x": 15,
+            "y": 2,
+            "life": 240.2,
+            "max_life": 240.2,
+            "level": 6,
+            "rank": 3.5,
+            "effects": null
+          },
+          {
+            "id": "tome-1789440493-1686-4-table0x42d291c8:level-3:actor-9284",
+            "name": "Prox the Mighty",
+            "x": 12,
+            "y": 1,
+            "life": 437.75705307422993,
+            "max_life": 470.125,
+            "level": 7,
+            "rank": 4,
+            "effects": null
+          }
+        ]
+      }
+    }
+  ],
+  "save": {
+    "path": "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save",
+    "desc": "module = \"tome\"\nmodule_version = {1,7,6}\naddons = {'danger-alert', 'mcp-bridge', 'mcp-play-birth', 'battle-companion'}\nname = \"MCP_campaign-play-01\"\nshort_name = \"mcp_campaign_play_01\"\ntimestamp = 1789441715\nloadable = true\ncheat = false\ndescription = \"MCP_campaign-play-01 the level 3 Cornac Berserker.\\\nDifficulty: Normal / Roguelike\\\nCampaign: Maj'Eyal\\\nExploring level 2 of Trollmire.\"\n",
+    "saving_done": true,
+    "process_exit_code": 0
+  },
+  "original_save_hashes_unchanged": {
+    "mcp_campaign_play_01/cur.png": true,
+    "mcp_campaign_play_01/desc.lua": true,
+    "mcp_campaign_play_01/game.teag": true,
+    "mcp_campaign_play_01/last_log.txt": true,
+    "quick_hotkeys": true,
+    "world.teaw": true
+  },
+  "frozen_python_hashes_verified": {
+    "tome_mcp/__init__.py": true,
+    "tome_mcp/__main__.py": true,
+    "tome_mcp/bridge.py": true,
+    "tome_mcp/server.py": true
+  },
+  "formal_archive_hash_unchanged": true,
+  "lua_error_or_stack_trace_lines": [],
+  "trace_file_bytes": 86136193,
+  "trace_size_scope": "Local JSONL including repeated snapshots; not network or token consumption.",
+  "sha256": {
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/input.json": "d23a0686fba333370d7423b921341416e7665fbe50b826a5aa43b4f33ed32e92",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/candidate.zip": "c09b3198718b6bb0ebf41a2fcdc8e5ba17bd9b7a7fdf37e04344debfe085314f",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/campaign-mcp.jsonl": "c86681cd316b5402ca2d07ec8f4c7d95987f451e659f95a27229c631354e39fe",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/decisions.jsonl": "926fa4e7ca43bc11aaecd1cb9bde636f7d0d9324f247cce647a8b78ac62c187b",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/visible-log-events.jsonl": "511fe8c9e5d0f0a927b3d86f6c6e59b63ac71a4c46aa7bc62fc6369c09d9bf2b",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/play-summary.json": "c768da12f2a7836bec81f8fd3f57e1c6636dac673a7b16bd8ca3a8464c6ab4ed",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/game.log": "7f40150ba8a554c0d8a7e544aeaf22240cd051afef2f285fa2651cb7fd91836c",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/player-visible-combat.log": "c43c1ce82decc902fde113934781c2a985a26c20ccbd302bcdb9ddf2cae9a191",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/escape-plan.json": "0d3f83bfa2fecde95d7717a6f9525e89137b26e6cbf26be27d35fddb5312f8ac",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/escape-plan-02.json": "de5905fece7048923f3772ff7c7acd0e326e4f415dd33fb21e4e5a219ed7e665",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/world.teaw": "cdd0579e2bc04249d9c19bcfc21de06fd5dda479f55313ab189a2914a9b39157",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/last_log.txt": "7b2e61b43d6f7423a6cd6a481aa86598ef3d8a813390dd9dd6769ed7eaf2318e",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/desc.lua": "639ca8613e78b314ca68f1a0ba23e003df35b831c47c98368c7c85fd8a6726d7",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/cur.png": "0af2e50de12cce30d871e08f1509b247ff4a0f92976f0a7296941e539fa766ca",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/game.teag": "c38a69bda7e9547ff35720a838b2900e202998803425487d25c90be86af49097",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/mcp-server-src/tome_mcp/__init__.py": "f36dd10b430c8341656ca9c57c0bbeffabc43895d9566a5477e97f3dc36f4b04",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/mcp-server-src/tome_mcp/__main__.py": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/mcp-server-src/tome_mcp/bridge.py": "756c8cafb9431345a6213ccee93e5a918d7b6dedc8a3a7e457f7e8e40e25077a",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/mcp-server-src/tome_mcp/server.py": "38ec4c7b215dd29d6ae5029961af4df89ab02e8372620055d25d9d1c0b733b10",
+    "tmp/mcp-play-support/continue.py": "e75066030bb5ce0b0df222efd0e53cf425b329b686428728083c284c5237361e",
+    "tmp/mcp-play-support/summarize-continuation.py": "9dfb2aed8944b2e3860b8fffe076a2b9fbc3d775dbbede147469abd8044acd9f",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/screenshots/tome-1.7.6-1789441714.png": "ea2ed2019659559a779877353cb0bf4c19765ba63385913d092022941a8e2623",
+    "documentation/mcp-campaign-continuation-0.3.0.png": "ea2ed2019659559a779877353cb0bf4c19765ba63385913d092022941a8e2623"
+  },
+  "handoff": {
+    "agent_id": "31bbc9fd-4cd3-4714-afbb-b5fa198e0378",
+    "date": "2026-09-15",
+    "tool_success": true,
+    "background": true,
+    "notify_on_finish": true,
+    "development_completed": false,
+    "requested_priorities": [
+      "native character point allocation and skill learning",
+      "visible ground items and native pickup/equip/unequip",
+      "scoped growth and inventory dialog actions"
+    ],
+    "evidence_preservation": "Copy recorded level-3 save to a new isolated session; preserve both historical play sessions."
+  }
+}

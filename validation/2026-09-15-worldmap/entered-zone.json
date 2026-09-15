@@ -1,0 +1,3588 @@
+{
+  "actors": [],
+  "battle_companion": {
+    "actions": 0,
+    "state": "idle"
+  },
+  "control": "remote",
+  "dialogs": [],
+  "dialogs_truncated": false,
+  "events": {
+    "cursor": 10,
+    "cursor_ahead": false,
+    "entries": [
+      {
+        "cursor": 1,
+        "line_id": 1,
+        "observed_world_tick": 23347,
+        "op": "append",
+        "text": "#LIGHT_RED#Online profile disabled(switching to offline profile) due to no online profile active.",
+        "text_truncated": false
+      },
+      {
+        "cursor": 2,
+        "line_id": 2,
+        "observed_world_tick": 23347,
+        "op": "append",
+        "text": "#YELLOW#Connection to online server established.",
+        "text_truncated": false
+      },
+      {
+        "cursor": 3,
+        "line_id": 3,
+        "observed_world_tick": 24357,
+        "op": "append",
+        "text": "Today is the 77th Pyre of the 122nd year of the Age of Ascendancy of Maj'Eyal.\nThe time is 06:38.",
+        "text_truncated": false
+      },
+      {
+        "cursor": 4,
+        "line_id": 4,
+        "observed_world_tick": 25368,
+        "op": "append",
+        "text": "#YELLOW_GREEN#There is a Passageway into the Trollmire here (press '<', '>' or right click to use).",
+        "text_truncated": false
+      },
+      {
+        "cursor": 5,
+        "line_id": 5,
+        "observed_world_tick": 29412,
+        "op": "append",
+        "text": "#YELLOW_GREEN#There is a Ruins of Kor'Pul here (press '<', '>' or right click to use).",
+        "text_truncated": false
+      },
+      {
+        "cursor": 6,
+        "line_id": 6,
+        "observed_world_tick": 31434,
+        "op": "append",
+        "text": "Today is the 78th Pyre of the 122nd year of the Age of Ascendancy of Maj'Eyal.\nThe time is 02:18.",
+        "text_truncated": false
+      },
+      {
+        "cursor": 7,
+        "line_id": 7,
+        "observed_world_tick": 33456,
+        "op": "append",
+        "text": "#YELLOW_GREEN#There is a Passageway into the Trollmire here (press '<', '>' or right click to use).",
+        "text_truncated": false
+      },
+      {
+        "cursor": 8,
+        "line_id": 8,
+        "observed_world_tick": 33456,
+        "op": "append",
+        "text": "#YELLOW_GREEN#There is an exit to the worldmap here (press '<', '>' or right click to use).",
+        "text_truncated": false
+      },
+      {
+        "cursor": 9,
+        "line_id": 9,
+        "observed_world_tick": 33456,
+        "op": "append",
+        "text": "MCP: save deferred until the current native talent finishes.",
+        "text_truncated": false
+      },
+      {
+        "cursor": 10,
+        "line_id": 10,
+        "observed_world_tick": 33456,
+        "op": "append",
+        "text": "Saving done.",
+        "text_truncated": false
+      }
+    ],
+    "gap": false,
+    "has_more": false,
+    "head_cursor": 10,
+    "oldest_cursor": 1,
+    "semantics": "Log changes only; remove means rollback, clearing, or history eviction, not game rollback.",
+    "source": "player_visible_log"
+  },
+  "ground": {
+    "items": [],
+    "pickup_scope": "current_tile_only",
+    "radius": 12,
+    "scope": "current visible objects; distant piles reveal their top object and count; underfoot piles reveal their pickup list",
+    "truncated": false
+  },
+  "level_instance_id": "level-2",
+  "map": {
+    "block_scope": "terrain only, recorded for player state at last observation; excludes actors, objects, map attributes and movement callbacks",
+    "cells": [
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 0
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 1
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 2
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 2
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 2,
+        "y": 2
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 2
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 2
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 2
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 2
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 2
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 2
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 2
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 2
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 2
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 2
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 3
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 3
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 2,
+        "y": 3
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 3
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 3
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 3
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 3
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 3
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 3
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 3
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 3
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 3
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 3
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 4
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 2,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 5
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 2,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 5
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 6,
+        "y": 5
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 7,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 6
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 1,
+        "y": 6
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 2,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 6
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 5,
+        "y": 6
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 6,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 7
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 1,
+        "y": 7
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 2,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 7
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 4,
+        "y": 7
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 5,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 7
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 9,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 8
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 1,
+        "y": 8
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 2,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 8
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 4,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 8
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 7,
+        "y": 8
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 8,
+        "y": 8
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 9,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 9
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 1,
+        "y": 9
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 2,
+        "y": 9
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 3,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 9
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 6,
+        "y": 9
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 7,
+        "y": 9
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 8,
+        "y": 9
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 9,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 10
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 1,
+        "y": 10
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 2,
+        "y": 10
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 3,
+        "y": 10
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 4,
+        "y": 10
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 5,
+        "y": 10
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 6,
+        "y": 10
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 7,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 10
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 0,
+        "y": 11
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 1,
+        "y": 11
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ";",
+        "known": true,
+        "name": "flower",
+        "visible": true,
+        "x": 2,
+        "y": 11
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 3,
+        "y": 11
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 4,
+        "y": 11
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 5,
+        "y": 11
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 6,
+        "y": 11
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 7,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 11
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "<",
+        "is_exit": true,
+        "known": true,
+        "name": "exit to the worldmap",
+        "visible": true,
+        "x": 0,
+        "y": 12
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 1,
+        "y": 12
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 2,
+        "y": 12
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 3,
+        "y": 12
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 4,
+        "y": 12
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 5,
+        "y": 12
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 6,
+        "y": 12
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 7,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 12
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 0,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 1,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 2,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 3,
+        "y": 13
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 4,
+        "y": 13
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 5,
+        "y": 13
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 6,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 7,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 8,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "=",
+        "known": true,
+        "name": "old road",
+        "visible": true,
+        "x": 9,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 10,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 0,
+        "y": 14
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 1,
+        "y": 14
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 2,
+        "y": 14
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 3,
+        "y": 14
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 4,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 14
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 0,
+        "y": 15
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 1,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 15
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 0,
+        "y": 16
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 1,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 16
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 0,
+        "y": 17
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "grass",
+        "visible": true,
+        "x": 1,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 18
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "tree",
+        "visible": true,
+        "x": 1,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 24
+      }
+    ],
+    "height": 25,
+    "legend": {
+      "?": "unknown",
+      "@": "player",
+      "A": "perceived actor"
+    },
+    "memory_scope": "terrain observed by this bridge in this session",
+    "merge_scope": "merge this window only within the same session_id and level_instance_id; outside cells are omitted",
+    "radius": 12,
+    "rows": [
+      "?????????????",
+      "?????????????",
+      "??#??????????",
+      "??.??????????",
+      "??.??????????",
+      "??.???..?????",
+      "?#.??..??????",
+      "?.#?..???=???",
+      "?.#?.??===???",
+      "?.#.??==.=???",
+      "?..#.==#?????",
+      "#.;.==##?????",
+      "@====..#?????",
+      "....###..=.??",
+      ".####????????",
+      ".#???????????",
+      "..???????????",
+      "#.???????????",
+      "?#???????????",
+      "?????????????",
+      "?????????????",
+      "?????????????",
+      "?????????????",
+      "?????????????",
+      "?????????????"
+    ],
+    "width": 13,
+    "window": {
+      "x_max": 12,
+      "x_min": 0,
+      "y_max": 24,
+      "y_min": 0
+    },
+    "x": 0,
+    "y": 0
+  },
+  "map_omitted": false,
+  "phase": "ready",
+  "player": {
+    "descriptor": {
+      "class": "Warrior",
+      "difficulty": "Normal",
+      "race": "Human",
+      "sex": "Female",
+      "subclass": "Berserker",
+      "subrace": "Cornac"
+    },
+    "die_at": 0,
+    "effect_duration_is_raw": true,
+    "effects": [],
+    "effects_truncated": false,
+    "energy": 1033.3333333333,
+    "equipment": [
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#COMBAT#)",
+        "combat": {
+          "apr": 1,
+          "dam": 18,
+          "damrange": 1.5,
+          "physcrit": 0.5,
+          "physspeed": 1
+        },
+        "combat_values_are_final": false,
+        "container": "MAINHAND",
+        "count": 1,
+        "encumbrance": 5,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "MAINHAND",
+        "equipped": true,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2862",
+        "identified": true,
+        "inventory_id": 2,
+        "material_level": 1,
+        "name": "iron greatmaul",
+        "name_is_raw": true,
+        "requirements": {
+          "flags": [],
+          "stats": {
+            "str": 11
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 1,
+        "subtype": "greatmaul",
+        "transmogrification_pending": false,
+        "type": "weapon",
+        "wielder": {}
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "LITE",
+        "count": 1,
+        "encumbrance": 2,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "LITE",
+        "equipped": true,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2863",
+        "identified": true,
+        "inventory_id": 7,
+        "material_level": 1,
+        "name": "brass lantern",
+        "name_is_raw": true,
+        "requirements": {},
+        "requirements_are_final": false,
+        "slot": 1,
+        "subtype": "lite",
+        "transmogrification_pending": false,
+        "type": "lite",
+        "wielder": {}
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#ARMOR#)",
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "BODY",
+        "count": 1,
+        "encumbrance": 14,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "BODY",
+        "equipped": true,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2864",
+        "identified": true,
+        "inventory_id": 8,
+        "material_level": 1,
+        "name": "iron mail armour",
+        "name_is_raw": true,
+        "requirements": {
+          "flags": [
+            {
+              "id": "allow_wear_heavy",
+              "level": 1
+            }
+          ],
+          "stats": {
+            "str": 14
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 1,
+        "subtype": "heavy",
+        "transmogrification_pending": false,
+        "type": "armor",
+        "wielder": {
+          "combat_armor": 4,
+          "combat_def": 2
+        }
+      },
+      {
+        "activation": {
+          "max_power": 10,
+          "power": 10,
+          "present": true,
+          "recharge_per_turn": 1,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "TOOL",
+        "count": 1,
+        "encumbrance": 2,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "TOOL",
+        "equipped": true,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2845",
+        "identified": true,
+        "inventory_id": 14,
+        "material_level": 1,
+        "name": "Prox's Lucky Halfling Foot",
+        "name_is_raw": true,
+        "requirements": {},
+        "requirements_are_final": false,
+        "slot": 1,
+        "subtype": "misc",
+        "transmogrification_pending": false,
+        "type": "tool",
+        "wielder": {
+          "combat_def": 5
+        }
+      }
+    ],
+    "equipment_truncated": false,
+    "exp": 210.38,
+    "exp_next": 254,
+    "exp_scope": "progress within current level; exp_next is the next-level threshold",
+    "faction": "allied-kingdoms",
+    "id": "tome-1789458371-2121-4-table0x447a8b58:level-2:actor-2865",
+    "inventory": [
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#COMBAT#)",
+        "combat": {
+          "apr": 1,
+          "dam": 17,
+          "damrange": 1.6,
+          "physcrit": 2.5,
+          "physspeed": 1
+        },
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 3,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "MAINHAND",
+        "equipped": false,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2846",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "iron greatsword",
+        "name_is_raw": true,
+        "requirements": {
+          "flags": [],
+          "stats": {
+            "str": 11
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 1,
+        "subtype": "greatsword",
+        "transmogrification_pending": false,
+        "type": "weapon",
+        "wielder": {}
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#COMBAT#)",
+        "combat": {
+          "apr": 2,
+          "dam": 17.5,
+          "damrange": 1.4,
+          "physcrit": 0.5,
+          "physspeed": 1
+        },
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 3,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "MAINHAND",
+        "equipped": false,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2850",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "flaming iron mace of massacre",
+        "name_is_raw": true,
+        "requirements": {
+          "flags": [],
+          "stats": {
+            "str": 11
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 2,
+        "subtype": "mace",
+        "transmogrification_pending": false,
+        "type": "weapon",
+        "wielder": {}
+      },
+      {
+        "activation": {
+          "max_power": 8,
+          "power": 8,
+          "present": true,
+          "recharge_per_turn": 1,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#COMBAT_DAMTYPE#)",
+        "combat": {
+          "apr": 15,
+          "dam": 7,
+          "damrange": 1.1,
+          "physcrit": 7,
+          "physspeed": 1
+        },
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 3,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "MAINHAND",
+        "equipped": false,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2851",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "Serpent's Glare",
+        "name_is_raw": true,
+        "offslot": "OFFHAND",
+        "requirements": {
+          "flags": [],
+          "stats": {
+            "wil": 12
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 3,
+        "subtype": "mindstar",
+        "transmogrification_pending": false,
+        "type": "weapon",
+        "wielder": {
+          "combat_mindpower": 4
+        }
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#COMBAT_DAMTYPE#)",
+        "combat": {
+          "apr": 12,
+          "dam": 2.5,
+          "damrange": 1.1,
+          "physcrit": 2.5,
+          "physspeed": 1
+        },
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 3,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "MAINHAND",
+        "equipped": false,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2854",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "horrifying mossy mindstar",
+        "name_is_raw": true,
+        "offslot": "OFFHAND",
+        "requirements": {
+          "flags": [],
+          "stats": {
+            "wil": 11
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 4,
+        "subtype": "mindstar",
+        "transmogrification_pending": false,
+        "type": "weapon",
+        "wielder": {
+          "combat_mindpower": 2
+        }
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#COMBAT_ELEMENT#)",
+        "combat": {
+          "apr": 2,
+          "dam": 10,
+          "damrange": 1.2,
+          "physcrit": 2.5,
+          "physspeed": 1
+        },
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 5,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "MAINHAND",
+        "equipped": false,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2858",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "cruel elm magestaff of fate",
+        "name_is_raw": true,
+        "requirements": {
+          "flags": [],
+          "stats": {
+            "mag": 11
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 5,
+        "subtype": "staff",
+        "transmogrification_pending": false,
+        "type": "weapon",
+        "wielder": {
+          "combat_mentalresist": 6,
+          "combat_physresist": 6,
+          "combat_spellpower": 3,
+          "combat_spellresist": 6
+        }
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#ARMOR#)",
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 2,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "BODY",
+        "equipped": false,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2859",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "Silk Current",
+        "name_is_raw": true,
+        "requirements": {},
+        "requirements_are_final": false,
+        "slot": 6,
+        "subtype": "cloth",
+        "transmogrification_pending": false,
+        "type": "armor",
+        "wielder": {
+          "combat_def": 12,
+          "combat_spellpower": 5
+        }
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 1,
+        "encumbrance_is_per_item": true,
+        "equipped": false,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2860",
+        "identified": true,
+        "inventory_id": 1,
+        "name": "Scrying Orb",
+        "name_is_raw": true,
+        "requirements": {},
+        "requirements_are_final": false,
+        "slot": 7,
+        "subtype": "orb",
+        "transmogrification_pending": false,
+        "type": "orb",
+        "wielder": {}
+      },
+      {
+        "activation": {
+          "max_power": 400,
+          "power": 252,
+          "present": true,
+          "recharge_per_turn": 1,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": "#CHARGES#",
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 2,
+        "encumbrance_is_per_item": true,
+        "equipped": false,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2866",
+        "identified": true,
+        "inventory_id": 1,
+        "name": "Rod of Recall",
+        "name_is_raw": true,
+        "requirements": {},
+        "requirements_are_final": false,
+        "slot": 8,
+        "subtype": "rod",
+        "transmogrification_pending": false,
+        "type": "charm",
+        "wielder": {}
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": true
+        },
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 0,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "GEM",
+        "equipped": false,
+        "id": "tome-1789458371-2121-4-table0x447a8b58:object-2861",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "zircon",
+        "name_is_raw": true,
+        "requirements": {},
+        "requirements_are_final": false,
+        "slot": 9,
+        "subtype": "yellow",
+        "transmogrification_pending": false,
+        "type": "gem",
+        "wielder": {
+          "combat_armor": 1
+        }
+      }
+    ],
+    "inventory_scope": "owned items; raw known names and identified scalar properties only",
+    "inventory_truncated": false,
+    "level": 5,
+    "life": 217.75,
+    "life_regen": 0.25,
+    "max_life": 217.75,
+    "name": "MCP_campaign-play-01",
+    "rank": 3,
+    "regeneration_is_raw": true,
+    "resources": {
+      "air": {
+        "max": 100,
+        "min": 0,
+        "regen": 3,
+        "value": 100
+      },
+      "equilibrium": {
+        "min": 0,
+        "regen": 0,
+        "value": 0
+      },
+      "hate": {
+        "max": 100,
+        "min": 0,
+        "regen": 0,
+        "value": 0
+      },
+      "mana": {
+        "max": 124,
+        "min": 0,
+        "regen": 0,
+        "value": 0
+      },
+      "negative": {
+        "max": 62,
+        "min": 0,
+        "regen": 0.5,
+        "value": 62
+      },
+      "paradox": {
+        "min": 0,
+        "regen": 0,
+        "value": 300
+      },
+      "positive": {
+        "max": 62,
+        "min": 0,
+        "regen": 0.5,
+        "value": 62
+      },
+      "psi": {
+        "max": 100,
+        "min": 0,
+        "regen": 0.2,
+        "value": 50.8
+      },
+      "stamina": {
+        "max": 112,
+        "min": 0,
+        "regen": 0.3,
+        "value": 112
+      },
+      "vim": {
+        "max": 116,
+        "min": 0,
+        "regen": 0,
+        "value": 0
+      }
+    },
+    "stats": {
+      "con": {
+        "base": 19,
+        "bonus": 0
+      },
+      "cun": {
+        "base": 10,
+        "bonus": 0
+      },
+      "dex": {
+        "base": 11,
+        "bonus": 0
+      },
+      "mag": {
+        "base": 10,
+        "bonus": 0
+      },
+      "str": {
+        "base": 24,
+        "bonus": 0
+      },
+      "wil": {
+        "base": 10,
+        "bonus": 0
+      }
+    },
+    "stats_are_raw": true,
+    "subtype": "human",
+    "type": "humanoid",
+    "unused_generics": 0,
+    "unused_prodigies": 0,
+    "unused_stats": 0,
+    "unused_talents": 0,
+    "unused_talents_types": 0,
+    "x": 0,
+    "y": 12
+  },
+  "revision": 2103,
+  "scene": {
+    "level": 1,
+    "zone_id": "trollmire",
+    "zone_name": "Trollmire"
+  },
+  "session_id": "tome-1789458371-2121-4-table0x447a8b58",
+  "talents": [
+    {
+      "activation": {
+        "admitted": false,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked",
+        "reason": "talent_mode_unsupported"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_ARMOUR_TRAINING",
+      "instant": false,
+      "level": 2,
+      "mode": "passive",
+      "name": "Heavy Armour Training",
+      "supported": false,
+      "sustained_active": false,
+      "target": "runtime",
+      "unsupported_reason": "talent_mode_unsupported"
+    },
+    {
+      "action_adapter": "attack",
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_ATTACK",
+      "instant": false,
+      "level": 1,
+      "mode": "activated",
+      "name": "Attack",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "set_sustain",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_BERSERKER_RAGE",
+      "instant": true,
+      "level": 1,
+      "mode": "sustained",
+      "name": "Berserker Rage",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {
+        "stamina": 20
+      },
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_FEARLESS_CLEAVE",
+      "instant": false,
+      "level": 1,
+      "mode": "activated",
+      "name": "Fearless Cleave",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_INFUSION:_HEALING_3",
+      "instant": true,
+      "level": 1,
+      "mode": "activated",
+      "name": "Infusion: Healing",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_INFUSION:_REGENERATION_1",
+      "instant": false,
+      "level": 1,
+      "mode": "activated",
+      "name": "Infusion: Regeneration",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_INFUSION:_WILD_2",
+      "instant": true,
+      "level": 1,
+      "mode": "activated",
+      "name": "Infusion: Wild",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "set_sustain",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_PRECISE_STRIKES",
+      "instant": false,
+      "level": 1,
+      "mode": "sustained",
+      "name": "Precise Strikes",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {
+        "hate": "unknown",
+        "stamina": "unknown"
+      },
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_RUSH",
+      "instant": false,
+      "level": 1,
+      "mode": "activated",
+      "name": "Rush",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": false,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked",
+        "reason": "talent_mode_unsupported"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_STAMINA_POOL",
+      "instant": false,
+      "level": 1,
+      "mode": "passive",
+      "name": "Stamina Pool",
+      "supported": false,
+      "sustained_active": false,
+      "target": "runtime",
+      "unsupported_reason": "talent_mode_unsupported"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {
+        "stamina": 8
+      },
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_STUNNING_BLOW_ASSAULT",
+      "instant": false,
+      "level": 3,
+      "mode": "activated",
+      "name": "Stunning Blow",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": false,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked",
+        "reason": "talent_mode_unsupported"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_VITALITY",
+      "instant": false,
+      "level": 3,
+      "mode": "passive",
+      "name": "Vitality",
+      "supported": false,
+      "sustained_active": false,
+      "target": "runtime",
+      "unsupported_reason": "talent_mode_unsupported"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {
+        "stamina": 30
+      },
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_WARSHOUT_BERSERKER",
+      "instant": false,
+      "level": 3,
+      "mode": "activated",
+      "name": "Warshout",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": false,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked",
+        "reason": "talent_mode_unsupported"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_WEAPONS_MASTERY",
+      "instant": false,
+      "level": 1,
+      "mode": "passive",
+      "name": "Weapons Mastery",
+      "supported": false,
+      "sustained_active": false,
+      "target": "runtime",
+      "unsupported_reason": "talent_mode_unsupported"
+    },
+    {
+      "activation": {
+        "admitted": false,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked",
+        "reason": "talent_mode_unsupported"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_WEAPON_COMBAT",
+      "instant": false,
+      "level": 2,
+      "mode": "passive",
+      "name": "Combat Accuracy",
+      "supported": false,
+      "sustained_active": false,
+      "target": "runtime",
+      "unsupported_reason": "talent_mode_unsupported"
+    }
+  ],
+  "talents_truncated": false,
+  "world_tick": 33456
+}

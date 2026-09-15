@@ -1,0 +1,144 @@
+{
+  "version": "0.4.0",
+  "date": "2026-09-15",
+  "generated_at_utc": "2026-09-15T03:48:58.765986+00:00",
+  "archive": {
+    "path": "game/addons/tome-mcp-bridge/dist/tome-mcp-bridge.teaa",
+    "sha256": "ff627dd0a9c686b27da034e86db0a5b3bc3ce075e1feeb7858aa1dc16e2c9a74",
+    "production_files": 15,
+    "source_and_archive_bytes_equal": true,
+    "formal_growth_and_regression_inputs_match": true
+  },
+  "unit_tests": {
+    "lua": {
+      "passed": true,
+      "checks": 790,
+      "breakdown": {
+        "json": 62,
+        "transport": 28,
+        "actions": 159,
+        "journal": 29,
+        "observer": 75,
+        "progression": 214,
+        "items": 97,
+        "tasks": 62,
+        "runtime": 64
+      },
+      "log_sha256": "3542f8ff8052b7cbac97408255b48c439a6a4d95e5d4f02a67c81622e2d2a13f"
+    },
+    "python": {
+      "passed": true,
+      "tests": 19,
+      "log_sha256": "cb6939dbbf0523921d17a585ca571191136443a108052765740c34e7fda3fbb7"
+    },
+    "growth_driver": {
+      "passed": true,
+      "tests": 16,
+      "source_tests": 11,
+      "persistence_comparison_tests": 5,
+      "log_sha256": "cd30f30567eeaacabfa4089f86d21dcd493e4fcf409d22722d6a509e8f2f136f"
+    }
+  },
+  "final_native_runs": {
+    "growth-native-package-final-01": {
+      "passed": true,
+      "checks": 99,
+      "result": "tmp/tome-mcp-validation/sessions/growth-native-package-final-01/result.json",
+      "result_sha256": "789f872783d0b13b2f7c2d21974cf4bce03621e6e54ad7d01e4e36eaa8f89e9b",
+      "input_sha256": "2c6181c0d5fd91a5accab365acd2720afa603da9f84b514c345182742670f6e4",
+      "candidate_sha256": "e4f12a003d3d6214ab4942b08cc168493329db41afbfa7ee71508c8db10b7e48",
+      "addon_archive_sha256": "ff627dd0a9c686b27da034e86db0a5b3bc3ce075e1feeb7858aa1dc16e2c9a74"
+    },
+    "growth-control-package-final-01": {
+      "passed": true,
+      "checks": 35,
+      "result": "tmp/tome-mcp-validation/sessions/growth-control-package-final-01/companion-result.json",
+      "result_sha256": "34462caad83e9a511c5371887f87154795b3c9c42a6d42c7c740a284ef1d63f3",
+      "input_sha256": "8da8d67fdccaa3dc5782aa5a045ae26019c09c8894323b0081ce3d9d2e41f273",
+      "candidate_sha256": "590d569594aa98749762ecbf21962c8da173311a4a692412553590d202126ef1",
+      "addon_archive_sha256": "ff627dd0a9c686b27da034e86db0a5b3bc3ce075e1feeb7858aa1dc16e2c9a74"
+    },
+    "growth-source-final-01": {
+      "passed": true,
+      "checks": 91,
+      "result": "tmp/tome-mcp-validation/sessions/growth-source-final-01/result.json",
+      "result_sha256": "283cea83bce97642505886053aaade3e9d2ec193e578cad0d215964f05438af4",
+      "input_sha256": "879e1805091f89e6a213c09670cfdfda2e258c6eac0b44688b43558df57e1555",
+      "candidate_sha256": "6c5161e7bd4350aeb8f6af95082fa491eefac02e20b47f38bf24585d2fe1412a",
+      "addon_archive_sha256": null,
+      "submitted_actions": 76,
+      "statuses": {
+        "failed": 13,
+        "completed": 63
+      }
+    },
+    "growth-package-final-01": {
+      "passed": true,
+      "checks": 92,
+      "result": "tmp/tome-mcp-validation/sessions/growth-package-final-01/result.json",
+      "result_sha256": "2a3669fa75ea922dd424e71a5baf3b458a4aad600961296e729973a820087911",
+      "input_sha256": "e76be1b802956696564bd5b1abd9dd5ced6be0e2032195afe49a5a0769c0a8ed",
+      "candidate_sha256": "11c7101228d142b2f1bf61e448ea670edd793e97ebe1bbdce9500996991c2302",
+      "addon_archive_sha256": "ff627dd0a9c686b27da034e86db0a5b3bc3ce075e1feeb7858aa1dc16e2c9a74",
+      "submitted_actions": 73,
+      "statuses": {
+        "failed": 14,
+        "completed": 59
+      }
+    }
+  },
+  "python_source_sha256": {
+    "tome_mcp/__init__.py": "fcd87357c975b5c54c9320451428cab3014bc054b47cbd2eed11276e398d1466",
+    "tome_mcp/__main__.py": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+    "tome_mcp/bridge.py": "756c8cafb9431345a6213ccee93e5a918d7b6dedc8a3a7e457f7e8e40e25077a",
+    "tome_mcp/server.py": "2f1a771b817c2b2e2e9fd763cf2c3625d8a64eb51f80830e52115298a7cafa97"
+  },
+  "campaign_runner_sha256": {
+    "runtime.py": "56081b5d9ac96f0cdba216cbf6ffff5d3e9d930133b7b96a484f69d882ea39e2",
+    "run.py": "99b06f2e2f8a28138a3d85fb8e7ddc04d01b5747fd09ad8bed1949f95d985c2b"
+  },
+  "growth_driver_sha256": {
+    "test_sources.py": "8863751bd68440b961e7f82e407dce4f65ebb7a2eecb68e116e04386173bdc20",
+    "run.py": "b52b1495167b3f780a7368d0861d66195b4aab130c1b2563a043f7635b826d9a",
+    "test_persistence.py": "055279be8600084232ae8b6269c57cfe686f7a463ac2391f161318ff516a0c82"
+  },
+  "current_driver_and_python_match_both_final_runs": true,
+  "historical_sources": {
+    "campaign-play-01": {
+      "all_save_files_unchanged": true,
+      "save_files": 6,
+      "save_sha256": {
+        "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+        "world.teaw": "be820b11513eef15a6ada6aa66611b4f31ca50b5dfa16f2ea56a0eb16259c1a7",
+        "mcp_campaign_play_01/last_log.txt": "c929a47707cd3119f29a2f3f087fba2027f44acbb4f8089db7539beaa86ec981",
+        "mcp_campaign_play_01/desc.lua": "68fa28462c855634855fc47183fb4c4aa28244d247c525b9fe667f789eb4d828",
+        "mcp_campaign_play_01/cur.png": "557f0204a6bf553c258b44e335b564ab0cefecfe5f2a52e0765d79194ffe20b0",
+        "mcp_campaign_play_01/game.teag": "5050a3a46d2e68c5db255cecaa2e6a8227eabdcf67197f5e0b6af90e32f8d25a"
+      },
+      "all_published_evidence_unchanged": true,
+      "published_evidence_files": 13,
+      "evidence_json_sha256": "13afa726d30199dc7a89dc2bf6f26640bd5d63df6a5e836aff61891c25cb2b4a"
+    },
+    "campaign-play-v030-01": {
+      "all_save_files_unchanged": true,
+      "save_files": 6,
+      "save_sha256": {
+        "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+        "world.teaw": "cdd0579e2bc04249d9c19bcfc21de06fd5dda479f55313ab189a2914a9b39157",
+        "mcp_campaign_play_01/last_log.txt": "7b2e61b43d6f7423a6cd6a481aa86598ef3d8a813390dd9dd6769ed7eaf2318e",
+        "mcp_campaign_play_01/desc.lua": "639ca8613e78b314ca68f1a0ba23e003df35b831c47c98368c7c85fd8a6726d7",
+        "mcp_campaign_play_01/cur.png": "0af2e50de12cce30d871e08f1509b247ff4a0f92976f0a7296941e539fa766ca",
+        "mcp_campaign_play_01/game.teag": "c38a69bda7e9547ff35720a838b2900e202998803425487d25c90be86af49097"
+      },
+      "all_published_evidence_unchanged": true,
+      "published_evidence_files": 24,
+      "evidence_json_sha256": "e15575b6527ca763cab2c1fcb6e530d0dbc45ac2ec9b32ab5a76622f7a075e28"
+    }
+  },
+  "scope": [
+    "The 99-check native regression and 35-check interoperability runs use isolated gameplay fixtures.",
+    "The two final growth runs use independent copies of the documented natural level-3 character without gameplay fixtures.",
+    "Counts of unique action requests include intentional rejection tests.",
+    "Special multi-object pickup, Swift Hands, refusal and exception branches are covered by native-entry unit or differential tests, not claimed as naturally encountered."
+  ]
+}

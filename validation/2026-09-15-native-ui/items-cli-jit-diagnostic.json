@@ -1,0 +1,306 @@
+{
+  "2": [
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    }
+  ],
+  "3": [
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "luajit: game/addons/tome-mcp-bridge/tests/test_items.lua:10: native equipment requirement denial restores source: {\"stat\":{\"str\":16}} / {\"code\":\"item_not_in_backpack\",\"energy_spent\":0,\"ok\":false}\nstack traceback:\n\t[C]: in function 'assert'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:10: in function 'check'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:187: in main chunk\n\t[C]: at 0x55788db0e2c0\n"
+    },
+    {
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "luajit: game/addons/tome-mcp-bridge/tests/test_items.lua:10: native equipment requirement denial restores source: {\"stat\":{\"str\":16}} / {\"code\":\"item_not_in_backpack\",\"energy_spent\":0,\"ok\":false}\nstack traceback:\n\t[C]: in function 'assert'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:10: in function 'check'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:187: in main chunk\n\t[C]: at 0x563aba5032c0\n"
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "luajit: game/addons/tome-mcp-bridge/tests/test_items.lua:10: native requirement conversion and original requirement restoration\nstack traceback:\n\t[C]: in function 'assert'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:10: in function 'check'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:192: in main chunk\n\t[C]: at 0x55987dc752c0\n"
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "luajit: game/addons/tome-mcp-bridge/tests/test_items.lua:10: native equipment requirement denial restores source: {\"stat\":{\"str\":16}} / {\"code\":\"item_not_in_backpack\",\"energy_spent\":0,\"ok\":false}\nstack traceback:\n\t[C]: in function 'assert'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:10: in function 'check'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:187: in main chunk\n\t[C]: at 0x559be32542c0\n"
+    },
+    {
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "luajit: game/addons/tome-mcp-bridge/tests/test_items.lua:10: replacement cannot enter implicit removal veto\nstack traceback:\n\t[C]: in function 'assert'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:10: in function 'check'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:225: in main chunk\n\t[C]: at 0x55d8ec46b2c0\n"
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "luajit: game/addons/tome-mcp-bridge/tests/test_items.lua:10: native equipment requirement denial restores source: {\"talent\":[[\"T_ARMOUR\",2]]} / {\"code\":\"item_not_in_backpack\",\"energy_spent\":0,\"ok\":false}\nstack traceback:\n\t[C]: in function 'assert'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:10: in function 'check'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:187: in main chunk\n\t[C]: at 0x55883ad882c0\n"
+    },
+    {
+      "exit_code": 0,
+      "stdout": "Items: 97 checks passed\n",
+      "stderr": ""
+    },
+    {
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "luajit: game/addons/tome-mcp-bridge/tests/test_items.lua:10: native equipment requirement denial restores source: {\"stat\":{\"str\":16}} / {\"code\":\"item_not_in_backpack\",\"energy_spent\":0,\"ok\":false}\nstack traceback:\n\t[C]: in function 'assert'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:10: in function 'check'\n\tgame/addons/tome-mcp-bridge/tests/test_items.lua:187: in main chunk\n\t[C]: at 0x55c471b402c0\n"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+json: 62 checks passed
+transport: 28 checks passed
+Actions: 159 checks passed
+Journal: 29 checks passed
+Observer: 75 checks passed; stress snapshot 194837 bytes
+Progression: 214 checks passed
+Items: 97 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Tasks: 62 checks passed
+Invocations: 26 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Runtime: 64 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Interactive Runtime: 48 checks passed

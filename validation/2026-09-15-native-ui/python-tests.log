@@ -1,0 +1,31 @@
+test_bad_auth_is_reported_without_token (test_bridge.BridgeTests.test_bad_auth_is_reported_without_token) ... ok
+test_cancelled_request_drops_late_response_channel (test_bridge.BridgeTests.test_cancelled_request_drops_late_response_channel) ... ok
+test_explicit_connect_replaces_peer_closed_socket (test_bridge.BridgeTests.test_explicit_connect_replaces_peer_closed_socket) ... ok
+test_explicit_connect_reuses_connection (test_bridge.BridgeTests.test_explicit_connect_reuses_connection) ... ok
+test_fragmented_responses_and_concurrent_requests (test_bridge.BridgeTests.test_fragmented_responses_and_concurrent_requests) ... ok
+test_interaction_returns_without_waiting_for_terminal (test_bridge.BridgeTests.test_interaction_returns_without_waiting_for_terminal) ... ok
+test_mismatched_response_closes_connection (test_bridge.BridgeTests.test_mismatched_response_closes_connection) ... ok
+test_native_polling_submits_exactly_once (test_bridge.BridgeTests.test_native_polling_submits_exactly_once) ... ok
+test_old_bridge_v2_rejection_never_falls_back (test_bridge.BridgeTests.test_old_bridge_v2_rejection_never_falls_back) ... ok
+test_pending_action_is_returned_without_retry (test_bridge.BridgeTests.test_pending_action_is_returned_without_retry) ... ok
+test_read_does_not_connect_or_acquire_control (test_bridge.BridgeTests.test_read_does_not_connect_or_acquire_control) ... ok
+test_response_requires_explicit_v2_connection (test_bridge.BridgeTests.test_response_requires_explicit_v2_connection) ... ok
+test_response_timeout_preserves_both_ids_and_does_not_retry (test_bridge.BridgeTests.test_response_timeout_preserves_both_ids_and_does_not_retry) ... ok
+test_stop_can_interleave_with_status_polling (test_bridge.BridgeTests.test_stop_can_interleave_with_status_polling) ... ok
+test_timeout_marks_uncertainty_and_never_resubmits (test_bridge.BridgeTests.test_timeout_marks_uncertainty_and_never_resubmits) ... ok
+test_campaign_actions_and_compact_polling (test_server.MCPTests.test_campaign_actions_and_compact_polling) ... ok
+test_growth_and_item_actions_are_specific_and_single_step (test_server.MCPTests.test_growth_and_item_actions_are_specific_and_single_step) ... ok
+test_growth_and_item_inspection_remain_read_only (test_server.MCPTests.test_growth_and_item_inspection_remain_read_only) ... ok
+test_legacy_stdio_client (test_server.MCPTests.test_legacy_stdio_client)
+Verify initialize-based clients as well as the SDK's current protocol. ... ok
+test_observer_mode_and_explicit_upgrade (test_server.MCPTests.test_observer_mode_and_explicit_upgrade) ... ok
+test_older_bridge_never_silently_acquires_control_for_observer (test_server.MCPTests.test_older_bridge_never_silently_acquires_control_for_observer) ... ok
+test_real_stdio_transport_through_tcp (test_server.MCPTests.test_real_stdio_transport_through_tcp) ... ok
+test_schema_validation_and_structured_output (test_server.MCPTests.test_schema_validation_and_structured_output) ... ok
+test_use_item_schema_accepts_owned_id_and_rejects_extra_controls (test_server.MCPTests.test_use_item_schema_accepts_owned_id_and_rejects_extra_controls) ... ok
+test_v2_answers_are_strict_and_reach_native_protocol_once (test_server.MCPTests.test_v2_answers_are_strict_and_reach_native_protocol_once) ... ok
+
+----------------------------------------------------------------------
+Ran 25 tests in 2.234s
+
+OK

@@ -1,0 +1,17 @@
+{
+  "prompt": "本轮 Chat 修复已完成。用户最新要求“请你完成这轮后暂停”，因此这条仅为交付通知：请不要继续战役、启动新任务或安排下一轮测试；无需回复。\n\nBridge/Python server 0.7.0 已交付，Python 代码及安装元数据均为 0.7.0。\n正式包：/workspace/t-engine4/game/addons/tome-mcp-bridge/dist/tome-mcp-bridge.teaa\n36 个生产文件，SHA-256：23e34185c3be9c465079bf71626e072fd53f71faa8ea382dec3a5f71f8a9b196\n说明：/workspace/t-engine4/documentation/tome-mcp-chat-0.7.0.md\n冻结证据：/workspace/t-engine4/game/addons/tome-mcp-bridge/validation/2026-09-15-chat/summary.json\n\n原生 Chat 当前可见选项现通过 dialog.choice/native_ui=Chat 暴露。原生 use 执行奖励、跳页和告别，读取不重算条件；每页独立 ID。已有移动、换层和奖励不会因继续对话或重复 act/respond 重放。change_level 后保留原命令及当前 UI、撤销旧租约；未来若运行，应显式 connect，再 status 原 command_id 后 respond，不能重新换层。原生加载等待窗口与后台自动保存不再中断此流程；手动接管仍保留真实窗口。\n\n五组最终运行使用同一正式包：Lua 912 / Python 25；原生 v1 100；三插件 v2 96；Chat 专项 41；自然护送 87；现有 Lv6 存档升级保存重载 5 项全部通过。自然验收从已发布 campaign-play-v060-02 Lv5 世界地图存档新副本开始，lost warrior 护送的开场、Strength +5、Thank you 全部由 MCP 处理，63 次动作全 completed，保存复制重载后奖励仍只有一次。专项另用未修改原生 escort-quest.lua/EscortRewards 验证先知 Willpower +5 回调及重复请求。原 campaign-play-v061-01 Lv6 Kor'Pul2(10,16) 单独复制升级、保存重载，原意志 +5 保留，未重做旧护送。\n\n历史 126,350 个受保护文件哈希未变；随机未出现护送、NPC 战死、早期代码/驱动失败均保留，未计入通过项。未完成整场战役。现在按用户要求暂停。",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"success\": true,\n  \"status\": \"idle\",\n  \"lastMessage\": null,\n  \"permission\": null\n}"
+      }
+    ],
+    "structuredContent": {
+      "success": true,
+      "status": "idle",
+      "lastMessage": null,
+      "permission": null
+    }
+  }
+}

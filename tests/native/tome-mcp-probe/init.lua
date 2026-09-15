@@ -1,0 +1,11 @@
+long_name = "MCP Bridge native acceptance probe"
+short_name = "mcp-probe"
+for_module = "tome"
+version = {1, 7, 6}
+addon_version = {0, 1, 0}
+weight = 100100
+author = {"MCP Bridge contributors"}
+description = [[Test-only fresh-character fixture. Never enable in an ordinary game.]]
+superload = true
+overload = true
+hooks = true

@@ -1,0 +1,44 @@
+{
+  "command": [
+    "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/interaction-combo-package-final-02/runtime/t-engine",
+    "--no-steam",
+    "--no-web",
+    "--flush-stdout",
+    "--home",
+    "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/interaction-combo-package-final-02/home",
+    "-Mtome",
+    "-n",
+    "-uMCP_interaction-combo-p",
+    "-Eset_addons={'mcp-bridge','mcp-probe','battle-companion','danger-alert'};no_birth_popup=true;mcp_probe_interactions=true"
+  ],
+  "source": "/workspace/t-engine4/tmp/battle-companion-validation-20260914/runtime",
+  "dependencies": "/workspace/t-engine4/tmp/worktrees/yron-profile-20260912/tmp/profile/deps/root/usr",
+  "engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+  "candidate_sha256": "05ee3354d07f4a77013bd97ed589e0e32ffb134c30cf2c13cf1931d4da4009cc",
+  "new_character": true,
+  "imported_save": false,
+  "display": ":110",
+  "port": 37879,
+  "interaction_probe": true,
+  "addon_archive": "game/addons/tome-mcp-bridge/dist/tome-mcp-bridge.teaa",
+  "addon_archive_sha256": "8e9bf95bc39761cdca28f19ee6a6ea8eabc51dc5bb2603a821585cf6dfa5ec1c",
+  "extra_addons": {
+    "battle-companion": "/workspace/t-engine4/game/addons/tome-battle-companion/dist/tome-battle-companion.teaa",
+    "danger-alert": "/workspace/t-engine4/game/addons/tome-battle-companion/dist/tome-danger-alert.teaa"
+  },
+  "addon_lua_sha256": {
+    "tome-mcp-probe/init.lua": "a5672d7f269392f64f9830e5ba8278f08e15b46dd6a3fd2807b4ad9813b7671f",
+    "tome-mcp-probe/hooks/load.lua": "805abd80e32479ed328f0674a765c9704eff2d643223e59ffa8ea0249d55e14f",
+    "tome-mcp-probe/superload/mod/dialogs/Birther.lua": "8a52a16416e4f169840bb25676fc0cadfe55985d90c5f72a9ca42bbc0d75ca4c",
+    "tome-mcp-probe/superload/mod/class/Game.lua": "4de1e9f5a78ba74b416d11ff2b312d932e89fadfa32ba95fbd49b0966b5d9d85",
+    "tome-mcp-probe/superload/mod/class/Player.lua": "686dc3eff9c50161b1168313680e817873383c94f2aa6ed12801140ef867d9b9",
+    "tome-mcp-probe/superload/mod/class/NPC.lua": "b80ea7c63cafc1244f74bf1ae6b9a1f1f71f3a90c8aa9f415ae1b0562b359d60",
+    "tome-mcp-probe/overload/data/zones/mcp-test/zone.lua": "e86f27ac5370dbcfc889c597115e2bd2f62d962c56714a8526386f01e54a1194",
+    "tome-mcp-probe/overload/data/zones/mcp-test/grids.lua": "b79b2db3579deec51110498ad9091af65d788a51e078439bffee0217e2431a63",
+    "tome-mcp-probe/overload/data/zones/mcp-test/npcs.lua": "d30515eb6e5ce4230ae3721bca6858f2ba2124af00da9f5a06b2722e0216b986",
+    "tome-mcp-probe/overload/data/zones/mcp-test/objects.lua": "495e06ce789946fc19d1377b310372e85bf1b095ec55c02e4a44f86ac3da6e13",
+    "tome-mcp-probe/overload/data/zones/mcp-test/traps.lua": "e0f31c66e366417e102c2d38e35035e346b0101344439eb5cc139c352851483d",
+    "tome-mcp-probe/overload/mod/MCPProbe.lua": "07f062680e61b6b462ef712c52b2737dd0c21ebfe3247dffa9f148007b3a82c4",
+    "tome-mcp-probe/overload/mod/MCPInteractionProbe.lua": "39748035c0fbc93a8f29e1fdd8e821174eed38c49ee5d61b55e180f29b72ca3f"
+  }
+}

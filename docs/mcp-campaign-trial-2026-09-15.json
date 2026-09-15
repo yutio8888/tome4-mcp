@@ -1,0 +1,5358 @@
+{
+  "session": "campaign-play-01",
+  "normal_campaign": true,
+  "cheat": false,
+  "input": {
+    "command": [
+      "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-01/runtime/t-engine",
+      "--no-steam",
+      "--no-web",
+      "--flush-stdout",
+      "--home",
+      "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-01/home",
+      "-Mtome",
+      "-n",
+      "-uMCP_campaign-play-01",
+      "-Eset_addons={'mcp-bridge','battle-companion','danger-alert','mcp-play-birth'};no_birth_popup=true"
+    ],
+    "source": "/workspace/t-engine4/tmp/battle-companion-validation-20260914/runtime",
+    "dependencies": "/workspace/t-engine4/tmp/worktrees/yron-profile-20260912/tmp/profile/deps/root/usr",
+    "engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+    "candidate_sha256": "d02a12477059162e21e79e6788686a3ce103cd8b62a777175cd3ed7d78338695",
+    "new_character": true,
+    "imported_save": false,
+    "display": ":110",
+    "port": 45381,
+    "addon_archive": "/workspace/t-engine4/game/addons/tome-mcp-bridge/dist/tome-mcp-bridge.teaa",
+    "addon_archive_sha256": "5badcb410662b0a36f0638418fb179464813544b2cc84bf0233de51a0e877bc8",
+    "extra_addons": {
+      "battle-companion": "/workspace/t-engine4/game/addons/tome-battle-companion/dist/tome-battle-companion.teaa",
+      "danger-alert": "/workspace/t-engine4/game/addons/tome-battle-companion/dist/tome-danger-alert.teaa",
+      "mcp-play-birth": "/workspace/t-engine4/tmp/mcp-play-support/tome-mcp-play-birth"
+    },
+    "addon_lua_sha256": {
+      "tome-mcp-play-birth/init.lua": "30325fdeb37eb6be737c2f0485f58b9a222a08f084013c1e91ffdf64fe50f774",
+      "tome-mcp-play-birth/superload/mod/dialogs/Birther.lua": "bcf2e5beef3ddb3df5522b163f7bfe8b649911f6fcd051a7edc3c859e74bf719",
+      "tome-mcp-play-birth/hooks/load.lua": "73c4c0789f527c852af0c88efd5aa7d0385138edd24c57cfc669b75d9bcc4e04"
+    },
+    "cheat": false,
+    "normal_campaign": true,
+    "fixture_removed": true,
+    "driver_sha256": "87604f2f86e3fbf441be884eb4632d93e90409a3bf64af0d083c1f2548b1db7c"
+  },
+  "tool_calls": {
+    "tome.connect": 4,
+    "tome.observe": 809,
+    "tome.act": 716,
+    "tome.inspect": 1,
+    "tome.stop": 1
+  },
+  "submitted_actions": 716,
+  "completed_actions": 712,
+  "completed_by_type": {
+    "move": 93,
+    "attack": 25,
+    "wait": 594
+  },
+  "errors": [
+    {
+      "command_id": "play-00010",
+      "action": {
+        "type": "use_talent",
+        "talent_id": "T_STUNNING_BLOW_ASSAULT",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5530"
+      },
+      "ok": false,
+      "error": {
+        "code": "unsupported_talent",
+        "message": "unsupported talent",
+        "uncertain": false,
+        "command_id": "play-00010"
+      },
+      "status": null,
+      "code": null,
+      "energy_spent": null,
+      "world_tick_before": null,
+      "world_tick_after": null,
+      "player": null,
+      "actors": null
+    },
+    {
+      "command_id": "play-00034",
+      "action": {
+        "type": "use_talent",
+        "talent_id": "T_INFUSION:_HEALING_3"
+      },
+      "ok": false,
+      "error": {
+        "code": "unsupported_talent",
+        "message": "unsupported talent",
+        "uncertain": false,
+        "command_id": "play-00034"
+      },
+      "status": null,
+      "code": null,
+      "energy_spent": null,
+      "world_tick_before": null,
+      "world_tick_after": null,
+      "player": null,
+      "actors": null
+    },
+    {
+      "command_id": "play-00042",
+      "action": {
+        "type": "use_talent",
+        "talent_id": "T_INFUSION:_WILD_2"
+      },
+      "ok": false,
+      "error": {
+        "code": "unsupported_talent",
+        "message": "unsupported talent",
+        "uncertain": false,
+        "command_id": "play-00042"
+      },
+      "status": null,
+      "code": null,
+      "energy_spent": null,
+      "world_tick_before": null,
+      "world_tick_after": null,
+      "player": null,
+      "actors": null
+    },
+    {
+      "command_id": "play-00688",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5565"
+      },
+      "ok": true,
+      "error": null,
+      "status": "failed",
+      "code": "target_not_adjacent",
+      "energy_spent": 0,
+      "world_tick_before": 6786,
+      "world_tick_after": 6786,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 132,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 53,
+        "y": 4
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13932",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 51,
+          "y": 3
+        },
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13935",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 50,
+          "y": 3
+        },
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5565",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 51,
+          "y": 4
+        }
+      ]
+    }
+  ],
+  "minimum_observed_life": 49.43890727375099,
+  "kills_confirmed_from_native_log": [
+    "Blue jelly",
+    "Giant white rat",
+    "Green worm mass",
+    "Wolf",
+    "Forest troll",
+    "Wolf",
+    "Thief",
+    "Thief",
+    "White ooze",
+    "White ooze",
+    "White worm mass",
+    "White worm mass",
+    "White worm mass",
+    "Large brown snake"
+  ],
+  "long_wait_streaks": [
+    {
+      "first": "play-00051",
+      "last": "play-00371",
+      "waits": 321,
+      "life_after_first": 49.95307542431676,
+      "life_after_last": 132
+    },
+    {
+      "first": "play-00391",
+      "last": "play-00656",
+      "waits": 266,
+      "life_after_first": 64.05306816952107,
+      "life_after_last": 132
+    }
+  ],
+  "inspections": [
+    {
+      "kind": "actor",
+      "result": {
+        "faction": "enemies",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5500",
+        "life": 18.9,
+        "max_life": 18.9,
+        "name": "blue jelly",
+        "x": 8,
+        "y": 13
+      }
+    }
+  ],
+  "first_snapshot": {
+    "actors": [
+      {
+        "faction": "enemies",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5500",
+        "life": 18.9,
+        "max_life": 18.9,
+        "name": "blue jelly",
+        "x": 8,
+        "y": 13
+      }
+    ],
+    "battle_companion": {
+      "actions": 0,
+      "state": "idle"
+    },
+    "control": "remote",
+    "level_instance_id": "level-2",
+    "map": {
+      "cells": [
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 4
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 1,
+          "y": 4
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 2,
+          "y": 4
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 4
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 4
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 4
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 4
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 4
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 4
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 5
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 1,
+          "y": 5
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 2,
+          "y": 5
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 5
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 5
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 5
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 6,
+          "y": 5
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 7,
+          "y": 5
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 5
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 6
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 1,
+          "y": 6
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 2,
+          "y": 6
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 6
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 6
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 5,
+          "y": 6
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 6,
+          "y": 6
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 6
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 6
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 7
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 1,
+          "y": 7
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 2,
+          "y": 7
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 7
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 4,
+          "y": 7
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 5,
+          "y": 7
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 7
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 7
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 7
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 8
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 1,
+          "y": 8
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 2,
+          "y": 8
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 8
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 4,
+          "y": 8
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 8
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 8
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 7,
+          "y": 8
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 8,
+          "y": 8
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 9
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 1,
+          "y": 9
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 2,
+          "y": 9
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 3,
+          "y": 9
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 9
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 9
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 6,
+          "y": 9
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 7,
+          "y": 9
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 8,
+          "y": 9
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 1,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 2,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 3,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 4,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 5,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 6,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 7,
+          "y": 10
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 0,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 1,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": ";",
+          "known": true,
+          "name": "flower",
+          "visible": true,
+          "x": 2,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 3,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 4,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 5,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 6,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 7,
+          "y": 11
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": "<",
+          "known": true,
+          "name": "exit to the worldmap",
+          "visible": true,
+          "x": 0,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 1,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 2,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 3,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 4,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 5,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 6,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 7,
+          "y": 12
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 0,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 1,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 2,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 3,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 4,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 5,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 6,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 7,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 8,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 0,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 1,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 2,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 3,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 4,
+          "y": 14
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 14
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 14
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 14
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 0,
+          "y": 15
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 1,
+          "y": 15
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 2,
+          "y": 15
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 15
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 15
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 15
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 15
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 15
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 15
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 0,
+          "y": 16
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 1,
+          "y": 16
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 2,
+          "y": 16
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 16
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 16
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 16
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 16
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 16
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 16
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 0,
+          "y": 17
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 1,
+          "y": 17
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 2,
+          "y": 17
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 17
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 17
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 17
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 17
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 17
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 17
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 18
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 1,
+          "y": 18
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 2,
+          "y": 18
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 18
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 18
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 18
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 18
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 18
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 18
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 19
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 1,
+          "y": 19
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 2,
+          "y": 19
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 19
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 19
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 19
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 19
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 19
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 19
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 1,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 2,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 20
+        }
+      ],
+      "height": 17,
+      "legend": {
+        "?": "unknown",
+        "@": "player",
+        "A": "perceived actor"
+      },
+      "memory_scope": "terrain observed by this bridge in this session",
+      "rows": [
+        "??.??????",
+        "??.???..?",
+        "?#.??..??",
+        "?.#?..???",
+        "?.#?.??==",
+        "?.#.??==.",
+        "?..#.==#?",
+        "#.;.==##?",
+        "@====..#?",
+        "....###.A",
+        ".####????",
+        ".#???????",
+        "..???????",
+        "#.???????",
+        "?#???????",
+        "?????????",
+        "?????????"
+      ],
+      "width": 9,
+      "x": 0,
+      "y": 4
+    },
+    "phase": "ready",
+    "player": {
+      "die_at": 0,
+      "effects": [],
+      "energy": 1000,
+      "faction": "allied-kingdoms",
+      "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+      "life": 132,
+      "max_life": 132,
+      "name": "MCP_campaign-play-01",
+      "resources": {
+        "air": {
+          "max": 100,
+          "value": 100
+        },
+        "equilibrium": {
+          "value": 0
+        },
+        "hate": {
+          "max": 100,
+          "value": 0
+        },
+        "mana": {
+          "max": 100,
+          "value": 0
+        },
+        "negative": {
+          "max": 50,
+          "value": 0
+        },
+        "paradox": {
+          "value": 300
+        },
+        "positive": {
+          "max": 50,
+          "value": 0
+        },
+        "psi": {
+          "max": 100,
+          "value": 0
+        },
+        "stamina": {
+          "max": 100,
+          "value": 100
+        },
+        "vim": {
+          "max": 100,
+          "value": 0
+        }
+      },
+      "x": 0,
+      "y": 12
+    },
+    "revision": 21,
+    "session_id": "tome-1789436100-1453-3-table0x40d95af0",
+    "talents": [
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_ARMOUR_TRAINING",
+        "instant": false,
+        "level": 1,
+        "mode": "passive",
+        "name": "Heavy Armour Training",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_ATTACK",
+        "instant": false,
+        "level": 1,
+        "mode": "activated",
+        "name": "Attack",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_INFUSION:_HEALING_3",
+        "instant": true,
+        "level": 1,
+        "mode": "activated",
+        "name": "Infusion: Healing",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_INFUSION:_REGENERATION_1",
+        "instant": false,
+        "level": 1,
+        "mode": "activated",
+        "name": "Infusion: Regeneration",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_INFUSION:_WILD_2",
+        "instant": true,
+        "level": 1,
+        "mode": "activated",
+        "name": "Infusion: Wild",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_STAMINA_POOL",
+        "instant": false,
+        "level": 1,
+        "mode": "passive",
+        "name": "Stamina Pool",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {
+          "stamina": 8
+        },
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_STUNNING_BLOW_ASSAULT",
+        "instant": false,
+        "level": 1,
+        "mode": "activated",
+        "name": "Stunning Blow",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {
+          "stamina": 30
+        },
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_WARSHOUT_BERSERKER",
+        "instant": false,
+        "level": 1,
+        "mode": "activated",
+        "name": "Warshout",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_WEAPONS_MASTERY",
+        "instant": false,
+        "level": 1,
+        "mode": "passive",
+        "name": "Weapons Mastery",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_WEAPON_COMBAT",
+        "instant": false,
+        "level": 1,
+        "mode": "passive",
+        "name": "Combat Accuracy",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      }
+    ],
+    "world_tick": 0
+  },
+  "last_snapshot": {
+    "actors": [],
+    "battle_companion": {
+      "actions": 0,
+      "state": "idle"
+    },
+    "control": "manual",
+    "level_instance_id": "level-2",
+    "map": {
+      "cells": [
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": false,
+          "x": 56,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": false,
+          "x": 57,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": ";",
+          "known": true,
+          "name": "flower",
+          "visible": true,
+          "x": 58,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 59,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 60,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 61,
+          "y": 10
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 62,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 63,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 64,
+          "y": 10
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 56,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 57,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 58,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 59,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 60,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 61,
+          "y": 11
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 62,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 63,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 64,
+          "y": 11
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 56,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 57,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 58,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 59,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 60,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 61,
+          "y": 12
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 62,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 63,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 64,
+          "y": 12
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 56,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": ";",
+          "known": true,
+          "name": "flower",
+          "visible": false,
+          "x": 57,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 58,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 59,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 60,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 61,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 62,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 63,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 64,
+          "y": 13
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 56,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 57,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 58,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 59,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 60,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 61,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 62,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 63,
+          "y": 14
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 64,
+          "y": 14
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 56,
+          "y": 15
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 57,
+          "y": 15
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 58,
+          "y": 15
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 59,
+          "y": 15
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 60,
+          "y": 15
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 61,
+          "y": 15
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 62,
+          "y": 15
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 63,
+          "y": 15
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 64,
+          "y": 15
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 56,
+          "y": 16
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 57,
+          "y": 16
+        },
+        {
+          "block_status": "unknown",
+          "char": ";",
+          "known": true,
+          "name": "flower",
+          "visible": false,
+          "x": 58,
+          "y": 16
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 59,
+          "y": 16
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 60,
+          "y": 16
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 61,
+          "y": 16
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 62,
+          "y": 16
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 63,
+          "y": 16
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 64,
+          "y": 16
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 56,
+          "y": 17
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 57,
+          "y": 17
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 58,
+          "y": 17
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 59,
+          "y": 17
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 60,
+          "y": 17
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 61,
+          "y": 17
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 62,
+          "y": 17
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 63,
+          "y": 17
+        },
+        {
+          "block_status": "unknown",
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 64,
+          "y": 17
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 56,
+          "y": 18
+        },
+        {
+          "block_status": "unknown",
+          "char": ";",
+          "known": true,
+          "name": "flower",
+          "visible": false,
+          "x": 57,
+          "y": 18
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 58,
+          "y": 18
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 59,
+          "y": 18
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 60,
+          "y": 18
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 61,
+          "y": 18
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 62,
+          "y": 18
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 63,
+          "y": 18
+        },
+        {
+          "block_status": "unknown",
+          "char": ">",
+          "known": true,
+          "name": "way to the next level",
+          "visible": true,
+          "x": 64,
+          "y": 18
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 56,
+          "y": 19
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 57,
+          "y": 19
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 58,
+          "y": 19
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 59,
+          "y": 19
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 60,
+          "y": 19
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 61,
+          "y": 19
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 62,
+          "y": 19
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 63,
+          "y": 19
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 64,
+          "y": 19
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 56,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 57,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 58,
+          "y": 20
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 59,
+          "y": 20
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 60,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 61,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 62,
+          "y": 20
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 63,
+          "y": 20
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 64,
+          "y": 20
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 56,
+          "y": 21
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 57,
+          "y": 21
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 58,
+          "y": 21
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 59,
+          "y": 21
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 60,
+          "y": 21
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 61,
+          "y": 21
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 62,
+          "y": 21
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 63,
+          "y": 21
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 64,
+          "y": 21
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 56,
+          "y": 22
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 57,
+          "y": 22
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 58,
+          "y": 22
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 59,
+          "y": 22
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 60,
+          "y": 22
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 61,
+          "y": 22
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 62,
+          "y": 22
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 63,
+          "y": 22
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 64,
+          "y": 22
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 56,
+          "y": 23
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 57,
+          "y": 23
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 58,
+          "y": 23
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 59,
+          "y": 23
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 60,
+          "y": 23
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 61,
+          "y": 23
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 62,
+          "y": 23
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 63,
+          "y": 23
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 64,
+          "y": 23
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 56,
+          "y": 24
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 57,
+          "y": 24
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 58,
+          "y": 24
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 59,
+          "y": 24
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 60,
+          "y": 24
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 61,
+          "y": 24
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 62,
+          "y": 24
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 63,
+          "y": 24
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 64,
+          "y": 24
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 56,
+          "y": 25
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 57,
+          "y": 25
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 58,
+          "y": 25
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 59,
+          "y": 25
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 60,
+          "y": 25
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 61,
+          "y": 25
+        },
+        {
+          "block_status": "unknown",
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 62,
+          "y": 25
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 63,
+          "y": 25
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 64,
+          "y": 25
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 56,
+          "y": 26
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 57,
+          "y": 26
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 58,
+          "y": 26
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 59,
+          "y": 26
+        },
+        {
+          "block_status": "unknown",
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 60,
+          "y": 26
+        },
+        {
+          "block_status": "unknown",
+          "char": ";",
+          "known": true,
+          "name": "flower",
+          "visible": true,
+          "x": 61,
+          "y": 26
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 62,
+          "y": 26
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 63,
+          "y": 26
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 64,
+          "y": 26
+        }
+      ],
+      "height": 17,
+      "legend": {
+        "?": "unknown",
+        "@": "player",
+        "A": "perceived actor"
+      },
+      "memory_scope": "terrain observed by this bridge in this session",
+      "rows": [
+        "==;###?.#",
+        "#==..#?.#",
+        "#.==.#?..",
+        "#;.==##.#",
+        "####==...",
+        "?#...==#.",
+        "##;.#.==#",
+        "?##.#..==",
+        ".;...#.#@",
+        "#.##.###.",
+        "???#.??.#",
+        "????#?..?",
+        "??????..?",
+        "?????#.#?",
+        "?????..??",
+        "?????..??",
+        "????#;???"
+      ],
+      "width": 9,
+      "x": 56,
+      "y": 10
+    },
+    "phase": "ready",
+    "player": {
+      "die_at": 0,
+      "effects": [],
+      "energy": 1000,
+      "faction": "allied-kingdoms",
+      "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+      "life": 132,
+      "max_life": 132,
+      "name": "MCP_campaign-play-01",
+      "resources": {
+        "air": {
+          "max": 100,
+          "value": 100
+        },
+        "equilibrium": {
+          "value": 0
+        },
+        "hate": {
+          "max": 100,
+          "value": 0
+        },
+        "mana": {
+          "max": 100,
+          "value": 0
+        },
+        "negative": {
+          "max": 50,
+          "value": 0
+        },
+        "paradox": {
+          "value": 300
+        },
+        "positive": {
+          "max": 50,
+          "value": 0
+        },
+        "psi": {
+          "max": 100,
+          "value": 0
+        },
+        "stamina": {
+          "max": 100,
+          "value": 100
+        },
+        "vim": {
+          "max": 100,
+          "value": 0
+        }
+      },
+      "x": 64,
+      "y": 18
+    },
+    "revision": 8506,
+    "session_id": "tome-1789436100-1453-3-table0x40d95af0",
+    "talents": [
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_ARMOUR_TRAINING",
+        "instant": false,
+        "level": 1,
+        "mode": "passive",
+        "name": "Heavy Armour Training",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_ATTACK",
+        "instant": false,
+        "level": 1,
+        "mode": "activated",
+        "name": "Attack",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_INFUSION:_HEALING_3",
+        "instant": true,
+        "level": 1,
+        "mode": "activated",
+        "name": "Infusion: Healing",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_INFUSION:_REGENERATION_1",
+        "instant": false,
+        "level": 1,
+        "mode": "activated",
+        "name": "Infusion: Regeneration",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_INFUSION:_WILD_2",
+        "instant": true,
+        "level": 1,
+        "mode": "activated",
+        "name": "Infusion: Wild",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_STAMINA_POOL",
+        "instant": false,
+        "level": 1,
+        "mode": "passive",
+        "name": "Stamina Pool",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {
+          "stamina": 8
+        },
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_STUNNING_BLOW_ASSAULT",
+        "instant": false,
+        "level": 1,
+        "mode": "activated",
+        "name": "Stunning Blow",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {
+          "stamina": 30
+        },
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_WARSHOUT_BERSERKER",
+        "instant": false,
+        "level": 1,
+        "mode": "activated",
+        "name": "Warshout",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_WEAPONS_MASTERY",
+        "instant": false,
+        "level": 1,
+        "mode": "passive",
+        "name": "Weapons Mastery",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      },
+      {
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "This talent is not adapted for MCP execution.",
+        "id": "T_WEAPON_COMBAT",
+        "instant": false,
+        "level": 1,
+        "mode": "passive",
+        "name": "Combat Accuracy",
+        "supported": false,
+        "target": "unknown",
+        "unsupported_reason": "unsupported_talent"
+      }
+    ],
+    "world_tick": 7038
+  },
+  "combat_actions": [
+    {
+      "command_id": "play-00008",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5500"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 70,
+      "world_tick_after": 80,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 128.84926210353638,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 7,
+        "y": 13
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5530",
+          "life": 1,
+          "max_life": 1,
+          "name": "giant white rat",
+          "x": 9,
+          "y": 12
+        }
+      ]
+    },
+    {
+      "command_id": "play-00010",
+      "action": {
+        "type": "use_talent",
+        "talent_id": "T_STUNNING_BLOW_ASSAULT",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5530"
+      },
+      "ok": false,
+      "error": {
+        "code": "unsupported_talent",
+        "message": "unsupported talent",
+        "uncertain": false,
+        "command_id": "play-00010"
+      },
+      "status": null,
+      "code": null,
+      "energy_spent": null,
+      "world_tick_before": null,
+      "world_tick_after": null,
+      "player": null,
+      "actors": null
+    },
+    {
+      "command_id": "play-00011",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5530"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 90,
+      "world_tick_after": 100,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 129.36343025410213,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 7,
+        "y": 13
+      },
+      "actors": []
+    },
+    {
+      "command_id": "play-00022",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5541"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 190,
+      "world_tick_after": 200,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 131.93427100693089,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 14,
+        "y": 21
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5498",
+          "life": 55,
+          "max_life": 55,
+          "name": "wolf",
+          "x": 16,
+          "y": 21
+        }
+      ]
+    },
+    {
+      "command_id": "play-00024",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5498"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 210,
+      "world_tick_after": 220,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 130.17139645533524,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 14,
+        "y": 21
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5498",
+          "life": 23.242201144949046,
+          "max_life": 55,
+          "name": "wolf",
+          "x": 15,
+          "y": 21
+        }
+      ]
+    },
+    {
+      "command_id": "play-00025",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5498"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 220,
+      "world_tick_after": 230,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 130.42848053061812,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 14,
+        "y": 21
+      },
+      "actors": []
+    },
+    {
+      "command_id": "play-00031",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5538"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 270,
+      "world_tick_after": 280,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 131.7139009070325,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 16,
+        "y": 23
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5538",
+          "life": 71.65635929462667,
+          "max_life": 93.4,
+          "name": "forest troll",
+          "x": 17,
+          "y": 22
+        }
+      ]
+    },
+    {
+      "command_id": "play-00032",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5538"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 280,
+      "world_tick_after": 290,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 131.97098498231537,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 16,
+        "y": 23
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5538",
+          "life": 44.94338629619451,
+          "max_life": 93.4,
+          "name": "forest troll",
+          "x": 17,
+          "y": 22
+        }
+      ]
+    },
+    {
+      "command_id": "play-00033",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5538"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 290,
+      "world_tick_after": 300,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 116.56316301056889,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 16,
+        "y": 23
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5538",
+          "life": 23.199745590821177,
+          "max_life": 93.4,
+          "name": "forest troll",
+          "x": 17,
+          "y": 22
+        }
+      ]
+    },
+    {
+      "command_id": "play-00034",
+      "action": {
+        "type": "use_talent",
+        "talent_id": "T_INFUSION:_HEALING_3"
+      },
+      "ok": false,
+      "error": {
+        "code": "unsupported_talent",
+        "message": "unsupported talent",
+        "uncertain": false,
+        "command_id": "play-00034"
+      },
+      "status": null,
+      "code": null,
+      "energy_spent": null,
+      "world_tick_before": null,
+      "world_tick_after": null,
+      "player": null,
+      "actors": null
+    },
+    {
+      "command_id": "play-00035",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5538"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 300,
+      "world_tick_after": 310,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 116.82024708585176,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 16,
+        "y": 23
+      },
+      "actors": []
+    },
+    {
+      "command_id": "play-00040",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5540"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 340,
+      "world_tick_after": 350,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 111.59152052714032,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 20,
+        "y": 25
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5540",
+          "life": 17.742201144949046,
+          "max_life": 55.5,
+          "name": "wolf",
+          "x": 21,
+          "y": 24
+        }
+      ]
+    },
+    {
+      "command_id": "play-00041",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5540"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 350,
+      "world_tick_after": 360,
+      "player": {
+        "die_at": 0,
+        "effects": [
+          {
+            "duration": 3,
+            "id": "EFF_DISARMED",
+            "name": "Disarmed"
+          }
+        ],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 97.05602701017118,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 20,
+        "y": 25
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5546",
+          "life": 83.5,
+          "max_life": 83.5,
+          "name": "thief",
+          "x": 20,
+          "y": 26
+        }
+      ]
+    },
+    {
+      "command_id": "play-00042",
+      "action": {
+        "type": "use_talent",
+        "talent_id": "T_INFUSION:_WILD_2"
+      },
+      "ok": false,
+      "error": {
+        "code": "unsupported_talent",
+        "message": "unsupported talent",
+        "uncertain": false,
+        "command_id": "play-00042"
+      },
+      "status": null,
+      "code": null,
+      "energy_spent": null,
+      "world_tick_before": null,
+      "world_tick_after": null,
+      "player": null,
+      "actors": null
+    },
+    {
+      "command_id": "play-00047",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5546"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 390,
+      "world_tick_after": 400,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 81.08700424075863,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 17,
+        "y": 22
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5546",
+          "life": 79.54220114494905,
+          "max_life": 83.5,
+          "name": "thief",
+          "x": 18,
+          "y": 23
+        }
+      ]
+    },
+    {
+      "command_id": "play-00048",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5546"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 400,
+      "world_tick_after": 410,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 62.84672924549747,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 17,
+        "y": 22
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5546",
+          "life": 48.7844022898981,
+          "max_life": 83.5,
+          "name": "thief",
+          "x": 18,
+          "y": 23
+        }
+      ]
+    },
+    {
+      "command_id": "play-00049",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5546"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 410,
+      "world_tick_after": 420,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 49.43890727375099,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 17,
+        "y": 22
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5546",
+          "life": 18.026603434847143,
+          "max_life": 83.5,
+          "name": "thief",
+          "x": 18,
+          "y": 23
+        }
+      ]
+    },
+    {
+      "command_id": "play-00050",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5546"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 420,
+      "world_tick_after": 430,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 49.695991349033875,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 17,
+        "y": 22
+      },
+      "actors": []
+    },
+    {
+      "command_id": "play-00387",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5503"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 3780,
+      "world_tick_after": 3790,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 96.51945000947765,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 32,
+        "y": 27
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5503",
+          "life": 61.44220114494905,
+          "max_life": 90.2,
+          "name": "thief",
+          "x": 33,
+          "y": 28
+        }
+      ]
+    },
+    {
+      "command_id": "play-00388",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5503"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 3790,
+      "world_tick_after": 3800,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 79.77917501421648,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 32,
+        "y": 27
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5503",
+          "life": 29.6844022898981,
+          "max_life": 90.2,
+          "name": "thief",
+          "x": 33,
+          "y": 28
+        }
+      ]
+    },
+    {
+      "command_id": "play-00389",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5503"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 3800,
+      "world_tick_after": 3810,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 63.53890001895531,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 32,
+        "y": 27
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5503",
+          "life": 2.926603434847147,
+          "max_life": 90.2,
+          "name": "thief",
+          "x": 33,
+          "y": 28
+        }
+      ]
+    },
+    {
+      "command_id": "play-00390",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5503"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 3810,
+      "world_tick_after": 3820,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 63.79598409423819,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 32,
+        "y": 27
+      },
+      "actors": []
+    },
+    {
+      "command_id": "play-00686",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5520"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 6764,
+      "world_tick_after": 6775,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 132,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 53,
+        "y": 4
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13932",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 50,
+          "y": 4
+        },
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13933",
+          "life": 1.2500000774990374,
+          "max_life": 9,
+          "name": "white ooze",
+          "x": 52,
+          "y": 3
+        },
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5565",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 51,
+          "y": 4
+        }
+      ]
+    },
+    {
+      "command_id": "play-00687",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13933"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 6775,
+      "world_tick_after": 6786,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 132,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 53,
+        "y": 4
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13932",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 51,
+          "y": 3
+        },
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13935",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 50,
+          "y": 3
+        },
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5565",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 51,
+          "y": 4
+        }
+      ]
+    },
+    {
+      "command_id": "play-00688",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5565"
+      },
+      "ok": true,
+      "error": null,
+      "status": "failed",
+      "code": "target_not_adjacent",
+      "energy_spent": 0,
+      "world_tick_before": 6786,
+      "world_tick_after": 6786,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 132,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 53,
+        "y": 4
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13932",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 51,
+          "y": 3
+        },
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13935",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 50,
+          "y": 3
+        },
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5565",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 51,
+          "y": 4
+        }
+      ]
+    },
+    {
+      "command_id": "play-00690",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5565"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 6786,
+      "world_tick_after": 6797,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 129.25708407528288,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 52,
+        "y": 4
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13932",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 51,
+          "y": 3
+        },
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13935",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 51,
+          "y": 4
+        }
+      ]
+    },
+    {
+      "command_id": "play-00691",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13932"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 6797,
+      "world_tick_after": 6808,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 129.51416815056575,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 52,
+        "y": 4
+      },
+      "actors": [
+        {
+          "faction": "enemies",
+          "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13935",
+          "life": 1,
+          "max_life": 1,
+          "name": "white worm mass",
+          "x": 51,
+          "y": 4
+        }
+      ]
+    },
+    {
+      "command_id": "play-00692",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-13935"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 6808,
+      "world_tick_after": 6818,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 129.77125222584863,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 52,
+        "y": 4
+      },
+      "actors": []
+    },
+    {
+      "command_id": "play-00712",
+      "action": {
+        "type": "attack",
+        "target_id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-5544"
+      },
+      "ok": true,
+      "error": null,
+      "status": "completed",
+      "code": "action_complete",
+      "energy_spent": 1000,
+      "world_tick_before": 6998,
+      "world_tick_after": 7008,
+      "player": {
+        "die_at": 0,
+        "effects": [],
+        "energy": 1000,
+        "faction": "allied-kingdoms",
+        "id": "tome-1789436100-1453-3-table0x40d95af0:level-2:actor-2394",
+        "life": 132,
+        "max_life": 132,
+        "name": "MCP_campaign-play-01",
+        "resources": {
+          "air": {
+            "max": 100,
+            "value": 100
+          },
+          "equilibrium": {
+            "value": 0
+          },
+          "hate": {
+            "max": 100,
+            "value": 0
+          },
+          "mana": {
+            "max": 100,
+            "value": 0
+          },
+          "negative": {
+            "max": 50,
+            "value": 0
+          },
+          "paradox": {
+            "value": 300
+          },
+          "positive": {
+            "max": 50,
+            "value": 0
+          },
+          "psi": {
+            "max": 100,
+            "value": 0
+          },
+          "stamina": {
+            "max": 100,
+            "value": 100
+          },
+          "vim": {
+            "max": 100,
+            "value": 0
+          }
+        },
+        "x": 61,
+        "y": 14
+      },
+      "actors": []
+    }
+  ],
+  "sha256": {
+    "tmp/tome-mcp-validation/sessions/campaign-play-01/play-mcp.jsonl": "90fb2a032068b1b28676d2a8e9118b3b101a8b799b4fbe7e15a778a6ecde3724",
+    "tmp/tome-mcp-validation/sessions/campaign-play-01/decisions.jsonl": "a1716b4ff69f5479cebade6d3a2951b67c25a2708189767da0f38c0f5cc3337a",
+    "tmp/tome-mcp-validation/sessions/campaign-play-01/input.json": "83f7c35b48b592eaf3e3411cfac124a95fcae47916106d6191d240e960a1ef67",
+    "tmp/tome-mcp-validation/sessions/campaign-play-01/candidate.zip": "d02a12477059162e21e79e6788686a3ce103cd8b62a777175cd3ed7d78338695",
+    "tmp/tome-mcp-validation/sessions/campaign-play-01/game.log": "40735b91a6a2714f6ac1fc3fea4908ab4a64696a205d4c5073782a8687d455cc",
+    "tmp/tome-mcp-validation/sessions/campaign-play-01/action-schema.json": "710c53b4ea4245a18cbf543dda0849e279d75fc25e836f14d441b126dfa2a22d",
+    "tmp/tome-mcp-validation/sessions/campaign-play-01/play-summary.json": "88cc9d9e989326fecb080bd232420f97193fa4a9ec1b88d94a19ffae24608f7c",
+    "tmp/tome-mcp-validation/sessions/campaign-play-01/player-visible-combat.log": "773e84f89283229765f39bce273c9bf478077d4695e06b24c117c6e3d220c03b",
+    "tmp/tome-mcp-validation/sessions/campaign-play-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/desc.lua": "68fa28462c855634855fc47183fb4c4aa28244d247c525b9fe667f789eb4d828",
+    "tmp/tome-mcp-validation/sessions/campaign-play-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/game.teag": "5050a3a46d2e68c5db255cecaa2e6a8227eabdcf67197f5e0b6af90e32f8d25a",
+    "documentation/mcp-campaign-trial-2026-09-15.png": "1f39b92a520ad19d4f20a12a364c462ef12c75cb00f5608a56959a40faa386a6",
+    "tmp/mcp-play-support/play.py": "87604f2f86e3fbf441be884eb4632d93e90409a3bf64af0d083c1f2548b1db7c",
+    "tmp/tome-mcp-validation/sessions/campaign-play-01/rest-1789436756675916970-mcp.jsonl": "fec53162d98f9850202867f8854fa5eb59ed796223bf0d28af253e32af052550"
+  },
+  "wire_bytes": 69765112,
+  "auxiliary_connections": [
+    {
+      "file": "tmp/tome-mcp-validation/sessions/campaign-play-01/rest-1789436756675916970-mcp.jsonl",
+      "records": [
+        {
+          "tool": "tome.connect",
+          "args": {
+            "mode": "control"
+          },
+          "response": {
+            "ok": false,
+            "result": null,
+            "error": {
+              "code": "bridge_disconnected",
+              "message": "The game reply was not confirmed. Reconnect explicitly and query tome.status for the same command_id; do not submit a new action to retry it.",
+              "uncertain": true
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "handoff": {
+    "provider": "Paseo",
+    "agent_id": "31bbc9fd-4cd3-4714-afbb-b5fa198e0378",
+    "success": true,
+    "background": true,
+    "notify_on_finish": true,
+    "development_completed": false
+  }
+}

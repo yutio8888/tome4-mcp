@@ -1,0 +1,365 @@
+{
+  "version": "0.3.0",
+  "normal_campaign": true,
+  "cheat": false,
+  "gameplay_fixture": false,
+  "all_gameplay_via_official_mcp_sdk": true,
+  "formal_archive": "/workspace/t-engine4/game/addons/tome-mcp-bridge/dist/tome-mcp-bridge.teaa",
+  "formal_archive_sha256": "e88a46a8888f9a0d9ae2ddbb5642dae5010e0830b7a45c7114cf103036035a8d",
+  "formal_archive_files": 13,
+  "formal_archive_equals_frozen_source": true,
+  "frozen_python_source_equal": true,
+  "frozen_driver_equal": true,
+  "original_save_still_unchanged": true,
+  "original_source_save_sha256": {
+    "mcp_campaign_play_01/cur.png": "557f0204a6bf553c258b44e335b564ab0cefecfe5f2a52e0765d79194ffe20b0",
+    "mcp_campaign_play_01/desc.lua": "68fa28462c855634855fc47183fb4c4aa28244d247c525b9fe667f789eb4d828",
+    "mcp_campaign_play_01/game.teag": "5050a3a46d2e68c5db255cecaa2e6a8227eabdcf67197f5e0b6af90e32f8d25a",
+    "mcp_campaign_play_01/last_log.txt": "c929a47707cd3119f29a2f3f087fba2027f44acbb4f8089db7539beaa86ec981",
+    "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+    "world.teaw": "be820b11513eef15a6ada6aa66611b4f31ca50b5dfa16f2ea56a0eb16259c1a7"
+  },
+  "sessions": [
+    {
+      "session": "campaign-source-final-01",
+      "evidence": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-source-final-01",
+      "passed": true,
+      "checks": 40,
+      "submitted_actions": 202,
+      "action_counts": {
+        "change_level": 1,
+        "wait": 16,
+        "move": 166,
+        "rest": 8,
+        "use_talent": 10,
+        "attack": 1
+      },
+      "native_log_kills": [
+        "Large white snake",
+        "Giant grey rat",
+        "Hornet swarm",
+        "Copperhead snake"
+      ],
+      "minimum_observed_life": 124.25708407528288,
+      "final": {
+        "scene": {
+          "level": 2,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "life": 132,
+        "max_life": 132,
+        "stamina": {
+          "max": 100,
+          "min": 0,
+          "regen": 0.3,
+          "value": 100
+        },
+        "level": 1,
+        "exp": 21.78,
+        "unused_stats": 3,
+        "unused_talents": 3,
+        "unused_generics": 2,
+        "unused_talents_types": 1,
+        "talents": [
+          {
+            "id": "T_ARMOUR_TRAINING",
+            "cooldown": 0
+          },
+          {
+            "id": "T_ATTACK",
+            "cooldown": 0
+          },
+          {
+            "id": "T_INFUSION:_HEALING_3",
+            "cooldown": 0
+          },
+          {
+            "id": "T_INFUSION:_REGENERATION_1",
+            "cooldown": 0
+          },
+          {
+            "id": "T_INFUSION:_WILD_2",
+            "cooldown": 0
+          },
+          {
+            "id": "T_STAMINA_POOL",
+            "cooldown": 0
+          },
+          {
+            "id": "T_STUNNING_BLOW_ASSAULT",
+            "cooldown": 0
+          },
+          {
+            "id": "T_WARSHOUT_BERSERKER",
+            "cooldown": 0
+          },
+          {
+            "id": "T_WEAPONS_MASTERY",
+            "cooldown": 0
+          },
+          {
+            "id": "T_WEAPON_COMBAT",
+            "cooldown": 0
+          }
+        ],
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "visible_actors": []
+      },
+      "successful_talents": [
+        "T_INFUSION:_HEALING_3",
+        "T_INFUSION:_REGENERATION_1",
+        "T_INFUSION:_WILD_2",
+        "T_STUNNING_BLOW_ASSAULT",
+        "T_WARSHOUT_BERSERKER"
+      ],
+      "visible_log_events": 74,
+      "visible_log_gaps": [],
+      "rests": [
+        {
+          "command_id": "campaign-00025",
+          "status": "completed",
+          "energy_spent": 0,
+          "turns_executed": 0,
+          "max_turns": 5,
+          "stop_reason": "native_stopped",
+          "native_message": "hostile spotted to the southeast (large white snake - offscreen)"
+        },
+        {
+          "command_id": "campaign-00030",
+          "status": "completed",
+          "energy_spent": 5000,
+          "turns_executed": 5,
+          "max_turns": 5,
+          "stop_reason": "max_turns",
+          "native_message": "max_turns"
+        },
+        {
+          "command_id": "campaign-00031",
+          "status": "completed",
+          "energy_spent": 4000,
+          "turns_executed": 4,
+          "max_turns": 150,
+          "stop_reason": "native_stopped",
+          "native_message": "hostile spotted to the southwest (large white snake)"
+        },
+        {
+          "command_id": "campaign-00035",
+          "status": "completed",
+          "energy_spent": 1000,
+          "turns_executed": 1,
+          "max_turns": 150,
+          "stop_reason": "native_stopped",
+          "native_message": "hostile spotted to the southwest (large white snake)"
+        },
+        {
+          "command_id": "campaign-00039",
+          "status": "completed",
+          "energy_spent": 21000,
+          "turns_executed": 21,
+          "max_turns": 150,
+          "stop_reason": "native_complete",
+          "native_message": "all resources and life at maximum"
+        },
+        {
+          "command_id": "campaign-00136",
+          "status": "completed",
+          "energy_spent": 15000,
+          "turns_executed": 15,
+          "max_turns": 150,
+          "stop_reason": "native_complete",
+          "native_message": "all resources and life at maximum"
+        },
+        {
+          "command_id": "campaign-00188",
+          "status": "completed",
+          "energy_spent": 15000,
+          "turns_executed": 15,
+          "max_turns": 150,
+          "stop_reason": "native_complete",
+          "native_message": "all resources and life at maximum"
+        },
+        {
+          "command_id": "campaign-00202",
+          "status": "completed",
+          "energy_spent": 15000,
+          "turns_executed": 15,
+          "max_turns": 150,
+          "stop_reason": "native_complete",
+          "native_message": "all resources and life at maximum"
+        }
+      ],
+      "original_save_unchanged": true,
+      "lua_error": false,
+      "elapsed_seconds": 43.67321237100987,
+      "addon_archive_sha256": null,
+      "evidence_sha256": {
+        "input.json": "f07659325a27573f83f909d3882d2b1945fe452e87ce198446bcf2c7ffafd8b0",
+        "result.json": "f8d23937e402d15fe04219b7bae02c739ce7ab4adfbb99e69edfb09733a5c04b",
+        "candidate.zip": "4fd4e58ca5ab1cd6141538f2e754965e8ee057d86ce084cbea711467d57afa52",
+        "campaign-mcp.jsonl": "d7d566c7a7855449662cbb4534ad9fedaa0cbbfad39f852c7ba0bff40622189b",
+        "decisions.jsonl": "5a73afcc1512465c8f941cba910a14f4d2c685483c01a3e56b5bed1fc2dc8f2d",
+        "visible-log-events.jsonl": "7ab3f4363923a7168db5974ff009f5f75671f19ef0a0c0054df31c807c395b8f",
+        "player-visible-combat.log": "6d245b2861f781da4284a9d18f6fe4ae43cc35e39ba372c5045fb6ee32b263fc"
+      }
+    },
+    {
+      "session": "campaign-package-final-01",
+      "evidence": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-package-final-01",
+      "passed": true,
+      "checks": 36,
+      "submitted_actions": 69,
+      "action_counts": {
+        "change_level": 1,
+        "wait": 11,
+        "move": 32,
+        "rest": 4,
+        "use_talent": 8,
+        "attack": 13
+      },
+      "native_log_kills": [
+        "Stone troll",
+        "Giant brown mouse",
+        "Wolf",
+        "Stone troll"
+      ],
+      "minimum_observed_life": 125.5994990052954,
+      "final": {
+        "scene": {
+          "level": 2,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "life": 132,
+        "max_life": 132,
+        "stamina": {
+          "max": 100,
+          "min": 0,
+          "regen": 0.3,
+          "value": 100
+        },
+        "level": 1,
+        "exp": 21.18,
+        "unused_stats": 3,
+        "unused_talents": 3,
+        "unused_generics": 2,
+        "unused_talents_types": 1,
+        "talents": [
+          {
+            "id": "T_ARMOUR_TRAINING",
+            "cooldown": 0
+          },
+          {
+            "id": "T_ATTACK",
+            "cooldown": 0
+          },
+          {
+            "id": "T_INFUSION:_HEALING_3",
+            "cooldown": 0
+          },
+          {
+            "id": "T_INFUSION:_REGENERATION_1",
+            "cooldown": 0
+          },
+          {
+            "id": "T_INFUSION:_WILD_2",
+            "cooldown": 0
+          },
+          {
+            "id": "T_STAMINA_POOL",
+            "cooldown": 0
+          },
+          {
+            "id": "T_STUNNING_BLOW_ASSAULT",
+            "cooldown": 0
+          },
+          {
+            "id": "T_WARSHOUT_BERSERKER",
+            "cooldown": 0
+          },
+          {
+            "id": "T_WEAPONS_MASTERY",
+            "cooldown": 0
+          },
+          {
+            "id": "T_WEAPON_COMBAT",
+            "cooldown": 0
+          }
+        ],
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "visible_actors": []
+      },
+      "successful_talents": [
+        "T_INFUSION:_HEALING_3",
+        "T_INFUSION:_REGENERATION_1",
+        "T_INFUSION:_WILD_2",
+        "T_STUNNING_BLOW_ASSAULT",
+        "T_WARSHOUT_BERSERKER"
+      ],
+      "visible_log_events": 79,
+      "visible_log_gaps": [],
+      "rests": [
+        {
+          "command_id": "campaign-00024",
+          "status": "completed",
+          "energy_spent": 0,
+          "turns_executed": 0,
+          "max_turns": 5,
+          "stop_reason": "native_stopped",
+          "native_message": "hostile spotted to the southeast (stone troll)"
+        },
+        {
+          "command_id": "campaign-00038",
+          "status": "completed",
+          "energy_spent": 5000,
+          "turns_executed": 5,
+          "max_turns": 5,
+          "stop_reason": "max_turns",
+          "native_message": "max_turns"
+        },
+        {
+          "command_id": "campaign-00039",
+          "status": "completed",
+          "energy_spent": 21000,
+          "turns_executed": 21,
+          "max_turns": 150,
+          "stop_reason": "native_complete",
+          "native_message": "all resources and life at maximum"
+        },
+        {
+          "command_id": "campaign-00069",
+          "status": "completed",
+          "energy_spent": 17000,
+          "turns_executed": 17,
+          "max_turns": 150,
+          "stop_reason": "native_complete",
+          "native_message": "all resources and life at maximum"
+        }
+      ],
+      "original_save_unchanged": true,
+      "lua_error": false,
+      "elapsed_seconds": 20.388893070979975,
+      "addon_archive_sha256": "e88a46a8888f9a0d9ae2ddbb5642dae5010e0830b7a45c7114cf103036035a8d",
+      "evidence_sha256": {
+        "input.json": "ee9a98aae131da96556f7e5309e1b4ac921209236103fe60d6bb69d439630378",
+        "result.json": "ba6b26236f3e3c4c1d88462e6de5b9751d4f9c3d92b68ead2f95bf427315c566",
+        "candidate.zip": "c09b3198718b6bb0ebf41a2fcdc8e5ba17bd9b7a7fdf37e04344debfe085314f",
+        "campaign-mcp.jsonl": "952cd781f2af49c6dec74fe1315a39259075f7ab57001586e24eb13ccb52c21f",
+        "decisions.jsonl": "b497b5b36c38ff122760228fd01f204bbc8d81c8b04ea21cf355ed186f8f5eed",
+        "visible-log-events.jsonl": "503aa74e84135df61c05c002354bd8a6278919e6c0209467b8fc9d04e9af5a1b",
+        "player-visible-combat.log": "40b6eb5e7a1675e3410d7c8e6264da1a967c62dc7e359a7f74df631d5102b275"
+      }
+    }
+  ],
+  "limitations": [
+    "Wild native defensive effect verified; removal of a specific naturally applied detrimental effect was not required or proven.",
+    "Execution-time disconnect/manual-input interruption is covered separately by isolated runtime regressions, not claimed from these ordinary campaign runs.",
+    "These are ordinary combat and recovery acceptance runs in Trollmire 2, not a completed campaign."
+  ]
+}

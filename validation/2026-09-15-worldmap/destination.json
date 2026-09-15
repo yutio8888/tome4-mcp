@@ -1,0 +1,11 @@
+{
+  "block_status": "passable",
+  "blocked": false,
+  "char": ">",
+  "is_exit": true,
+  "known": true,
+  "name": "Ruins of Kor'Pul",
+  "visible": true,
+  "x": 24,
+  "y": 14
+}

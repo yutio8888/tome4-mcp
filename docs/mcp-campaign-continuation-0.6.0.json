@@ -1,0 +1,5630 @@
+{
+  "session": "campaign-play-v060-02",
+  "date": "2026-09-15",
+  "version": "0.6.0",
+  "protocol": 2,
+  "normal_campaign": true,
+  "cheat": false,
+  "gameplay_fixture": false,
+  "outcome": "Continued the exact published Lv5 save; acknowledged new artifact LorePopup via MCP, picked up both drops, used Rod of Recall and completed its transfer to World of Eyal. Saved at Trollmire entrance. MCP world-map terrain is all unknown despite visible native terrain; campaign remains incomplete.",
+  "input": {
+    "command": [
+      "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v060-02/runtime/t-engine",
+      "--no-steam",
+      "--no-web",
+      "--flush-stdout",
+      "--home",
+      "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v060-02/home",
+      "-Mtome",
+      "-uMCP_campaign-play-01",
+      "-Eno_birth_popup=true"
+    ],
+    "source": "/workspace/t-engine4/tmp/battle-companion-validation-20260914/runtime",
+    "dependencies": "/workspace/t-engine4/tmp/worktrees/yron-profile-20260912/tmp/profile/deps/root/usr",
+    "engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+    "candidate_sha256": "503c37189b7cb7349bfdab73a78afdced06c5b258cb63c0eea2b06ebbb871038",
+    "new_character": false,
+    "imported_save": true,
+    "display": ":110",
+    "port": 37637,
+    "interaction_probe": false,
+    "addon_archive": "/workspace/t-engine4/game/addons/tome-mcp-bridge/dist/tome-mcp-bridge.teaa",
+    "addon_archive_sha256": "a3bd05bd4968c51dabc25ab8602c5c188e779bbec05f735502d743e15b17a363",
+    "extra_addons": {
+      "battle-companion": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v050-01/runtime/game/addons/tome-battle-companion.teaa",
+      "danger-alert": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v050-01/runtime/game/addons/tome-danger-alert.teaa",
+      "mcp-play-birth": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v050-01/runtime/game/addons/tome-mcp-play-birth"
+    },
+    "addon_lua_sha256": {
+      "tome-mcp-play-birth/init.lua": "30325fdeb37eb6be737c2f0485f58b9a222a08f084013c1e91ffdf64fe50f774",
+      "tome-mcp-play-birth/superload/mod/dialogs/Birther.lua": "bcf2e5beef3ddb3df5522b163f7bfe8b649911f6fcd051a7edc3c859e74bf719",
+      "tome-mcp-play-birth/hooks/load.lua": "73c4c0789f527c852af0c88efd5aa7d0385138edd24c57cfc669b75d9bcc4e04"
+    },
+    "copied_recorded_test_save": true,
+    "source_session": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v050-01",
+    "source_record": "campaign-play-v050-01",
+    "source_evidence": "/workspace/t-engine4/documentation/mcp-campaign-continuation-0.5.0.json",
+    "source_evidence_sha256": "69ba0b2f4dd75666833465ec32b07813069e7df06d5dababa6a772a1df0a6ef8",
+    "source_save_sha256": {
+      "mcp_campaign_play_01/cur.png": "7a1be56d560e01d40435dcdda06fc8e8da9433ccacf1785f0c9858ac9bfeaee1",
+      "mcp_campaign_play_01/desc.lua": "7bc124f04cec90b754057318cbf8090d115c5f68b3bf0a8582cd121b3f964aa1",
+      "mcp_campaign_play_01/game.teag": "b988a4b1b515c57ecaf2527ca263c54911e68ee5ca6b54d729cf5ae9962fdb51",
+      "mcp_campaign_play_01/last_log.txt": "2ac14d1feda6d156aed54aae98e8e1aa4cfc459f2b7ad95556036ebff96c485a",
+      "quick_hotkeys": "a5097aea35914779f7754860fea283add9f99c6e6b05e61ea992ef90fdf48127",
+      "world.teaw": "05768bf864922656b4c82d208bd8e7606c6fe94572c40619a7d4299d7dbadd23"
+    },
+    "recorded_save_sha256": {
+      "quick_hotkeys": "a5097aea35914779f7754860fea283add9f99c6e6b05e61ea992ef90fdf48127",
+      "world.teaw": "05768bf864922656b4c82d208bd8e7606c6fe94572c40619a7d4299d7dbadd23",
+      "mcp_campaign_play_01/last_log.txt": "2ac14d1feda6d156aed54aae98e8e1aa4cfc459f2b7ad95556036ebff96c485a",
+      "mcp_campaign_play_01/desc.lua": "7bc124f04cec90b754057318cbf8090d115c5f68b3bf0a8582cd121b3f964aa1",
+      "mcp_campaign_play_01/cur.png": "7a1be56d560e01d40435dcdda06fc8e8da9433ccacf1785f0c9858ac9bfeaee1",
+      "mcp_campaign_play_01/game.teag": "b988a4b1b515c57ecaf2527ca263c54911e68ee5ca6b54d729cf5ae9962fdb51"
+    },
+    "historical_source_save_sha256": {
+      "campaign-play-01": {
+        "mcp_campaign_play_01/cur.png": "557f0204a6bf553c258b44e335b564ab0cefecfe5f2a52e0765d79194ffe20b0",
+        "mcp_campaign_play_01/desc.lua": "68fa28462c855634855fc47183fb4c4aa28244d247c525b9fe667f789eb4d828",
+        "mcp_campaign_play_01/game.teag": "5050a3a46d2e68c5db255cecaa2e6a8227eabdcf67197f5e0b6af90e32f8d25a",
+        "mcp_campaign_play_01/last_log.txt": "c929a47707cd3119f29a2f3f087fba2027f44acbb4f8089db7539beaa86ec981",
+        "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+        "world.teaw": "be820b11513eef15a6ada6aa66611b4f31ca50b5dfa16f2ea56a0eb16259c1a7"
+      },
+      "campaign-play-v030-01": {
+        "mcp_campaign_play_01/cur.png": "0af2e50de12cce30d871e08f1509b247ff4a0f92976f0a7296941e539fa766ca",
+        "mcp_campaign_play_01/desc.lua": "639ca8613e78b314ca68f1a0ba23e003df35b831c47c98368c7c85fd8a6726d7",
+        "mcp_campaign_play_01/game.teag": "c38a69bda7e9547ff35720a838b2900e202998803425487d25c90be86af49097",
+        "mcp_campaign_play_01/last_log.txt": "7b2e61b43d6f7423a6cd6a481aa86598ef3d8a813390dd9dd6769ed7eaf2318e",
+        "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+        "world.teaw": "cdd0579e2bc04249d9c19bcfc21de06fd5dda479f55313ab189a2914a9b39157"
+      },
+      "campaign-play-v050-01": {
+        "mcp_campaign_play_01/cur.png": "7a1be56d560e01d40435dcdda06fc8e8da9433ccacf1785f0c9858ac9bfeaee1",
+        "mcp_campaign_play_01/desc.lua": "7bc124f04cec90b754057318cbf8090d115c5f68b3bf0a8582cd121b3f964aa1",
+        "mcp_campaign_play_01/game.teag": "b988a4b1b515c57ecaf2527ca263c54911e68ee5ca6b54d729cf5ae9962fdb51",
+        "mcp_campaign_play_01/last_log.txt": "2ac14d1feda6d156aed54aae98e8e1aa4cfc459f2b7ad95556036ebff96c485a",
+        "quick_hotkeys": "a5097aea35914779f7754860fea283add9f99c6e6b05e61ea992ef90fdf48127",
+        "world.teaw": "05768bf864922656b4c82d208bd8e7606c6fe94572c40619a7d4299d7dbadd23"
+      }
+    },
+    "historical_source_evidence_sha256": {
+      "campaign-play-01": "13afa726d30199dc7a89dc2bf6f26640bd5d63df6a5e836aff61891c25cb2b4a",
+      "campaign-play-v030-01": "e15575b6527ca763cab2c1fcb6e530d0dbc45ac2ec9b32ab5a76622f7a075e28",
+      "campaign-play-v050-01": "69ba0b2f4dd75666833465ec32b07813069e7df06d5dababa6a772a1df0a6ef8"
+    },
+    "cheat": false,
+    "normal_campaign": true,
+    "gameplay_fixture": false,
+    "character_name": "MCP_campaign-play-01",
+    "supporting_addon_sha256": {
+      "battle-companion": "a771e3d99bb13fe4abd888478097f3b409f95935264c144ee103524a2895a988",
+      "danger-alert": "f1ffd214c72d3967589acb167a091e3a370985ef304f9099bae00390092314ef",
+      "mcp-play-birth": {
+        "hooks/load.lua": "73c4c0789f527c852af0c88efd5aa7d0385138edd24c57cfc669b75d9bcc4e04",
+        "init.lua": "30325fdeb37eb6be737c2f0485f58b9a222a08f084013c1e91ffdf64fe50f774",
+        "superload/mod/dialogs/Birther.lua": "bcf2e5beef3ddb3df5522b163f7bfe8b649911f6fcd051a7edc3c859e74bf719"
+      }
+    },
+    "source_engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+    "mcp_server_py_sha256": {
+      "tome_mcp/__init__.py": "96b299735fb0a79fd0ade5d0d545808ce0f099b0cb06ea9e149ca7367787475a",
+      "tome_mcp/__main__.py": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+      "tome_mcp/bridge.py": "cdabf8f5a0142d69dbbd2864f3430140836c5833a560645a76cc94e5aed45029",
+      "tome_mcp/server.py": "8820172959bb65322f47f22087b43665e5795134d57a3147c058c3867b6abdc2"
+    },
+    "runner_sha256": {
+      "runtime-v060.py": "d70937db70a6be5bac0ce51326f99a566f2f7dc2a7a5e0ba7f440740bdc678f2"
+    },
+    "interactive_driver_sha256": "3e3093827f41a882a42be30b83e6837d9a1447b14a67e2f7ce5a453073cfc2df"
+  },
+  "capabilities_at_connect": {
+    "actions": [
+      "move",
+      "wait",
+      "attack",
+      "use_talent",
+      "change_level",
+      "rest",
+      "spend_stat",
+      "learn_talent",
+      "learn_category",
+      "pickup",
+      "equip",
+      "unequip",
+      "set_sustain",
+      "use_item"
+    ],
+    "compact_responses": true,
+    "connection_modes": [
+      "control",
+      "observe"
+    ],
+    "event_cursor": true,
+    "ground_items_read": true,
+    "inspect_kinds": [
+      "actor",
+      "talent",
+      "progression",
+      "item"
+    ],
+    "interactions": [
+      "target.grid",
+      "target.direction",
+      "dialog.confirm",
+      "dialog.choice",
+      "dialog.notice",
+      "inventory.select"
+    ],
+    "inventory_read": true,
+    "limits": {
+      "options_per_page": 32,
+      "responses_per_command": 128
+    },
+    "max_commands": 4096,
+    "max_radius": 12,
+    "max_rest_turns": 1000,
+    "multi_step": true,
+    "native_compatibility": {
+      "compatible": true,
+      "providers": "runtime_checked"
+    },
+    "native_tasks": [
+      "task.rest"
+    ],
+    "observation": "player",
+    "progression_read": true,
+    "protocol": 2,
+    "talent_execution": "native_interactive",
+    "talents": [
+      "T_ATTACK",
+      "T_BERSERKER_RAGE",
+      "T_FEARLESS_CLEAVE",
+      "T_INFUSION:_HEALING_3",
+      "T_INFUSION:_REGENERATION_1",
+      "T_INFUSION:_WILD_2",
+      "T_PRECISE_STRIKES",
+      "T_RUSH",
+      "T_STUNNING_BLOW_ASSAULT",
+      "T_WARSHOUT_BERSERKER"
+    ],
+    "unknown_interaction": "manual_handoff"
+  },
+  "python_environment": {
+    "code_version": "0.6.0",
+    "installed_metadata": "0.6.0",
+    "module_path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v060-02/mcp-server-src/tome_mcp/__init__.py",
+    "mcp_sdk": "2.2.0"
+  },
+  "submitted_actions": 46,
+  "final_action_statuses": {
+    "completed": 45,
+    "failed": 1
+  },
+  "actions_by_type": {
+    "move": 3,
+    "pickup": 2,
+    "use_item": 1,
+    "wait": 40
+  },
+  "tool_calls": {
+    "tome.connect": 4,
+    "tome.observe": 98,
+    "tome.act": 46,
+    "tome.status": 1,
+    "tome.respond": 1,
+    "tome.stop": 1
+  },
+  "tool_errors": [],
+  "lua_error_or_stack_trace_lines": [],
+  "minimum_observed_life": 217.75,
+  "native_kill_count_this_run": 0,
+  "first_state": {
+    "phase": "ready",
+    "control": "remote",
+    "revision": 3,
+    "world_tick": 20905,
+    "scene": {
+      "level": 3,
+      "zone_id": "trollmire",
+      "zone_name": "Trollmire"
+    },
+    "level_instance_id": "level-1",
+    "battle_companion": {
+      "actions": 0,
+      "state": "idle"
+    },
+    "player": {
+      "name": "MCP_campaign-play-01",
+      "x": 9,
+      "y": 5,
+      "life": 217.75,
+      "max_life": 217.75,
+      "level": 5,
+      "exp": 210.38,
+      "exp_next": 254,
+      "effects": [],
+      "stats": {
+        "con": {
+          "base": 19,
+          "bonus": 0
+        },
+        "cun": {
+          "base": 10,
+          "bonus": 0
+        },
+        "dex": {
+          "base": 11,
+          "bonus": 0
+        },
+        "mag": {
+          "base": 10,
+          "bonus": 0
+        },
+        "str": {
+          "base": 24,
+          "bonus": 0
+        },
+        "wil": {
+          "base": 10,
+          "bonus": 0
+        }
+      },
+      "unused_stats": 0,
+      "unused_talents": 0,
+      "unused_generics": 0,
+      "unused_talents_types": 0,
+      "descriptor": {
+        "class": "Warrior",
+        "difficulty": "Normal",
+        "race": "Human",
+        "sex": "Female",
+        "subclass": "Berserker",
+        "subrace": "Cornac"
+      },
+      "stamina": {
+        "max": 112,
+        "min": 0,
+        "regen": 0.3,
+        "value": 112
+      },
+      "inventory": [
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+          "name": "iron greatsword",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+          "name": "flaming iron mace of massacre",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+          "name": "cruel elm magestaff of fate",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+          "name": "Silk Current",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+          "name": "Scrying Orb",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+          "name": "Rod of Recall",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "max_power": 400,
+            "power": 400,
+            "present": true,
+            "recharge_per_turn": 1,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+          "name": "zircon",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": true
+          }
+        }
+      ],
+      "equipment": [
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+          "name": "iron greatmaul",
+          "count": 1,
+          "container": "MAINHAND",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+          "name": "brass lantern",
+          "count": 1,
+          "container": "LITE",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+          "name": "iron mail armour",
+          "count": 1,
+          "container": "BODY",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+          "name": "Prox's Lucky Halfling Foot",
+          "count": 1,
+          "container": "TOOL",
+          "identified": true,
+          "activation": {
+            "max_power": 10,
+            "power": 10,
+            "present": true,
+            "recharge_per_turn": 1,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        }
+      ]
+    },
+    "actors": []
+  },
+  "last_state_before_shutdown": {
+    "phase": "ready",
+    "control": "remote",
+    "revision": 10060,
+    "world_tick": 23347,
+    "scene": {
+      "level": 1,
+      "zone_id": "wilderness",
+      "zone_name": "World of Eyal"
+    },
+    "level_instance_id": "level-2",
+    "battle_companion": {
+      "actions": 0,
+      "state": "idle"
+    },
+    "player": {
+      "name": "MCP_campaign-play-01",
+      "x": 28,
+      "y": 13,
+      "life": 217.75,
+      "max_life": 217.75,
+      "level": 5,
+      "exp": 210.38,
+      "exp_next": 254,
+      "effects": [],
+      "stats": {
+        "con": {
+          "base": 19,
+          "bonus": 0
+        },
+        "cun": {
+          "base": 10,
+          "bonus": 0
+        },
+        "dex": {
+          "base": 11,
+          "bonus": 0
+        },
+        "mag": {
+          "base": 10,
+          "bonus": 0
+        },
+        "str": {
+          "base": 24,
+          "bonus": 0
+        },
+        "wil": {
+          "base": 10,
+          "bonus": 0
+        }
+      },
+      "unused_stats": 0,
+      "unused_talents": 0,
+      "unused_generics": 0,
+      "unused_talents_types": 0,
+      "descriptor": {
+        "class": "Warrior",
+        "difficulty": "Normal",
+        "race": "Human",
+        "sex": "Female",
+        "subclass": "Berserker",
+        "subrace": "Cornac"
+      },
+      "stamina": {
+        "max": 112,
+        "min": 0,
+        "regen": 0.3,
+        "value": 112
+      },
+      "inventory": [
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+          "name": "iron greatsword",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+          "name": "flaming iron mace of massacre",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+          "name": "Serpent's Glare",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "max_power": 8,
+            "power": 8,
+            "present": true,
+            "recharge_per_turn": 1,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+          "name": "horrifying mossy mindstar",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+          "name": "cruel elm magestaff of fate",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+          "name": "Silk Current",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+          "name": "Scrying Orb",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+          "name": "Rod of Recall",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "max_power": 400,
+            "power": 241,
+            "present": true,
+            "recharge_per_turn": 1,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+          "name": "zircon",
+          "count": 1,
+          "container": "INVEN",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": true
+          }
+        }
+      ],
+      "equipment": [
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+          "name": "iron greatmaul",
+          "count": 1,
+          "container": "MAINHAND",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+          "name": "brass lantern",
+          "count": 1,
+          "container": "LITE",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+          "name": "iron mail armour",
+          "count": 1,
+          "container": "BODY",
+          "identified": true,
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        },
+        {
+          "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+          "name": "Prox's Lucky Halfling Foot",
+          "count": 1,
+          "container": "TOOL",
+          "identified": true,
+          "activation": {
+            "max_power": 10,
+            "power": 10,
+            "present": true,
+            "recharge_per_turn": 1,
+            "runtime_checked": true,
+            "use_no_wear": false
+          }
+        }
+      ]
+    },
+    "actors": [],
+    "map_summary": {
+      "cells": 625,
+      "known": 0,
+      "visible": 0,
+      "rows": [
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "????????????@????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????",
+        "?????????????????????????"
+      ]
+    }
+  },
+  "selected_commands": [
+    {
+      "command_id": "play060-00001",
+      "action": {
+        "type": "move",
+        "direction": 9
+      },
+      "reason": "Collect the real rare-caster drops left beside the safe level-five save before recalling to the world map.",
+      "final_result": {
+        "code": "action_complete",
+        "command_id": "play060-00001",
+        "energy_spent": 0,
+        "energy_spent_complete": true,
+        "execution_released": true,
+        "input_owner": "remote",
+        "native_return": true,
+        "response_receipt": {
+          "interaction_id": "interaction-1",
+          "response_id": "play060-answer-00001",
+          "state": "applied"
+        },
+        "revision": 14,
+        "revision_after": 14,
+        "revision_before": 3,
+        "status": "completed",
+        "world_tick_after": 20905,
+        "world_tick_before": 20905
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 3,
+        "world_tick": 20905,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-1",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 9,
+          "y": 5,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 400,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      },
+      "after": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 14,
+        "world_tick": 20905,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-1",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 10,
+          "y": 4,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 400,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      }
+    },
+    {
+      "command_id": "play060-00002",
+      "action": {
+        "type": "pickup",
+        "item_id": "tome-1789456897-1824-4-table0x4305fbd0:level-1:ground-10,4:object-2605"
+      },
+      "reason": "Collect the naturally dropped Serpent's Glare after acknowledging its actual LorePopup through MCP.",
+      "final_result": {
+        "code": "item_action_complete",
+        "command_id": "play060-00002",
+        "energy_spent": 0,
+        "energy_spent_complete": true,
+        "execution_released": true,
+        "input_owner": "remote",
+        "revision": 18,
+        "revision_after": 18,
+        "revision_before": 14,
+        "status": "completed",
+        "world_tick_after": 20905,
+        "world_tick_before": 20905
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 14,
+        "world_tick": 20905,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-1",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 10,
+          "y": 4,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 400,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      },
+      "after": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 18,
+        "world_tick": 20905,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-1",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 10,
+          "y": 4,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 400,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      }
+    },
+    {
+      "command_id": "play060-00003",
+      "action": {
+        "type": "pickup",
+        "item_id": "tome-1789456897-1824-4-table0x4305fbd0:level-1:ground-10,4:object-2604"
+      },
+      "reason": "Collect the remaining identified rare-caster drop using its current ground ID.",
+      "final_result": {
+        "code": "item_action_complete",
+        "command_id": "play060-00003",
+        "energy_spent": 1000,
+        "energy_spent_complete": true,
+        "execution_released": true,
+        "input_owner": "remote",
+        "revision": 31,
+        "revision_after": 31,
+        "revision_before": 18,
+        "status": "completed",
+        "world_tick_after": 20915,
+        "world_tick_before": 20905
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 18,
+        "world_tick": 20905,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-1",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 10,
+          "y": 4,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 400,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      },
+      "after": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 31,
+        "world_tick": 20915,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-1",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 10,
+          "y": 4,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+              "name": "horrifying mossy mindstar",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 400,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      }
+    },
+    {
+      "command_id": "play060-00004",
+      "action": {
+        "type": "use_item",
+        "item_id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463"
+      },
+      "reason": "Activate the naturally owned Rod of Recall through generic native item use to leave Trollmire and continue the ordinary campaign.",
+      "final_result": {
+        "code": "action_complete",
+        "command_id": "play060-00004",
+        "energy_spent": 1000,
+        "energy_spent_complete": true,
+        "execution_released": true,
+        "input_owner": "remote",
+        "native_return": true,
+        "revision": 45,
+        "revision_after": 45,
+        "revision_before": 31,
+        "status": "completed",
+        "world_tick_after": 20925,
+        "world_tick_before": 20915
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 31,
+        "world_tick": 20915,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-1",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 10,
+          "y": 4,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+              "name": "horrifying mossy mindstar",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 400,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      },
+      "after": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 45,
+        "world_tick": 20925,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-1",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 10,
+          "y": 4,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [
+            {
+              "duration": 39,
+              "id": "EFF_RECALL",
+              "name": "Recalling",
+              "status": "beneficial",
+              "type": "magical"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+              "name": "horrifying mossy mindstar",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 199,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      }
+    },
+    {
+      "command_id": "play060-00043",
+      "action": {
+        "type": "wait"
+      },
+      "reason": "Wait on cleared known ground for the native Recall effect, stopping on new actors, phase or scene changes.",
+      "final_result": {
+        "code": "action_complete",
+        "command_id": "play060-00043",
+        "energy_spent": 1000,
+        "energy_spent_complete": true,
+        "execution_released": true,
+        "input_owner": "remote",
+        "native_return": true,
+        "revision": 552,
+        "revision_after": 552,
+        "revision_before": 539,
+        "status": "completed",
+        "world_tick_after": 21315,
+        "world_tick_before": 21305
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 539,
+        "world_tick": 21305,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-1",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 10,
+          "y": 4,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [
+            {
+              "duration": 1,
+              "id": "EFF_RECALL",
+              "name": "Recalling",
+              "status": "beneficial",
+              "type": "magical"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+              "name": "horrifying mossy mindstar",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 237,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      },
+      "after": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 552,
+        "world_tick": 21315,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-1",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 10,
+          "y": 4,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [
+            {
+              "duration": 0,
+              "id": "EFF_RECALL",
+              "name": "Recalling",
+              "status": "beneficial",
+              "type": "magical"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+              "name": "horrifying mossy mindstar",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 238,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      }
+    },
+    {
+      "command_id": "play060-00044",
+      "action": {
+        "type": "wait"
+      },
+      "reason": "Allow the native Recall effect at duration zero to execute its expiration callback and transfer.",
+      "final_result": {
+        "code": "scene_changed",
+        "command_id": "play060-00044",
+        "energy_spent": 1000,
+        "energy_spent_complete": true,
+        "execution_released": true,
+        "input_owner": "manual",
+        "interruption": "scene_changed",
+        "native_return": true,
+        "revision": 567,
+        "revision_after": 567,
+        "revision_before": 552,
+        "status": "failed",
+        "world_tick_after": 21319,
+        "world_tick_before": 21315
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 552,
+        "world_tick": 21315,
+        "scene": {
+          "level": 3,
+          "zone_id": "trollmire",
+          "zone_name": "Trollmire"
+        },
+        "level_instance_id": "level-1",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 10,
+          "y": 4,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [
+            {
+              "duration": 0,
+              "id": "EFF_RECALL",
+              "name": "Recalling",
+              "status": "beneficial",
+              "type": "magical"
+            }
+          ],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+              "name": "horrifying mossy mindstar",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 238,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      },
+      "after": {
+        "phase": "settling",
+        "control": "manual",
+        "revision": 567,
+        "world_tick": 21319,
+        "scene": {
+          "level": 1,
+          "zone_id": "wilderness",
+          "zone_name": "World of Eyal"
+        },
+        "level_instance_id": "level-2",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 28,
+          "y": 13,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+              "name": "horrifying mossy mindstar",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 239,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      }
+    },
+    {
+      "command_id": "play060-00045",
+      "action": {
+        "type": "move",
+        "direction": 4
+      },
+      "reason": "Diagnostic world-map step onto the adjacent grass visible in the captured native screen; test whether a fresh native FOV update makes MCP terrain observable.",
+      "final_result": {
+        "code": "action_complete",
+        "command_id": "play060-00045",
+        "energy_spent": 1000,
+        "energy_spent_complete": true,
+        "execution_released": true,
+        "input_owner": "remote",
+        "native_return": true,
+        "revision": 10034,
+        "revision_after": 10034,
+        "revision_before": 10020,
+        "status": "completed",
+        "world_tick_after": 22336,
+        "world_tick_before": 21325
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 10020,
+        "world_tick": 21325,
+        "scene": {
+          "level": 1,
+          "zone_id": "wilderness",
+          "zone_name": "World of Eyal"
+        },
+        "level_instance_id": "level-2",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 28,
+          "y": 13,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+              "name": "horrifying mossy mindstar",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 239,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      },
+      "after": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 10034,
+        "world_tick": 22336,
+        "scene": {
+          "level": 1,
+          "zone_id": "wilderness",
+          "zone_name": "World of Eyal"
+        },
+        "level_instance_id": "level-2",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 27,
+          "y": 13,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+              "name": "horrifying mossy mindstar",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 240,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      }
+    },
+    {
+      "command_id": "play060-00046",
+      "action": {
+        "type": "move",
+        "direction": 6
+      },
+      "reason": "Return over the just-traversed world-map step to the Trollmire entrance after confirming the terrain-observation issue.",
+      "final_result": {
+        "code": "action_complete",
+        "command_id": "play060-00046",
+        "energy_spent": 1000,
+        "energy_spent_complete": true,
+        "execution_released": true,
+        "input_owner": "remote",
+        "native_return": true,
+        "revision": 10048,
+        "revision_after": 10048,
+        "revision_before": 10034,
+        "status": "completed",
+        "world_tick_after": 23347,
+        "world_tick_before": 22336
+      },
+      "before": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 10034,
+        "world_tick": 22336,
+        "scene": {
+          "level": 1,
+          "zone_id": "wilderness",
+          "zone_name": "World of Eyal"
+        },
+        "level_instance_id": "level-2",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 27,
+          "y": 13,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+              "name": "horrifying mossy mindstar",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 240,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      },
+      "after": {
+        "phase": "ready",
+        "control": "remote",
+        "revision": 10048,
+        "world_tick": 23347,
+        "scene": {
+          "level": 1,
+          "zone_id": "wilderness",
+          "zone_name": "World of Eyal"
+        },
+        "level_instance_id": "level-2",
+        "battle_companion": {
+          "actions": 0,
+          "state": "idle"
+        },
+        "player": {
+          "name": "MCP_campaign-play-01",
+          "x": 28,
+          "y": 13,
+          "life": 217.75,
+          "max_life": 217.75,
+          "level": 5,
+          "exp": 210.38,
+          "exp_next": 254,
+          "effects": [],
+          "stats": {
+            "con": {
+              "base": 19,
+              "bonus": 0
+            },
+            "cun": {
+              "base": 10,
+              "bonus": 0
+            },
+            "dex": {
+              "base": 11,
+              "bonus": 0
+            },
+            "mag": {
+              "base": 10,
+              "bonus": 0
+            },
+            "str": {
+              "base": 24,
+              "bonus": 0
+            },
+            "wil": {
+              "base": 10,
+              "bonus": 0
+            }
+          },
+          "unused_stats": 0,
+          "unused_talents": 0,
+          "unused_generics": 0,
+          "unused_talents_types": 0,
+          "descriptor": {
+            "class": "Warrior",
+            "difficulty": "Normal",
+            "race": "Human",
+            "sex": "Female",
+            "subclass": "Berserker",
+            "subrace": "Cornac"
+          },
+          "stamina": {
+            "max": 112,
+            "min": 0,
+            "regen": 0.3,
+            "value": 112
+          },
+          "inventory": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+              "name": "iron greatsword",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+              "name": "flaming iron mace of massacre",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+              "name": "Serpent's Glare",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 8,
+                "power": 8,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+              "name": "horrifying mossy mindstar",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+              "name": "cruel elm magestaff of fate",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+              "name": "Silk Current",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+              "name": "Scrying Orb",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+              "name": "Rod of Recall",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "max_power": 400,
+                "power": 241,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+              "name": "zircon",
+              "count": 1,
+              "container": "INVEN",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": true
+              }
+            }
+          ],
+          "equipment": [
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+              "name": "iron greatmaul",
+              "count": 1,
+              "container": "MAINHAND",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+              "name": "brass lantern",
+              "count": 1,
+              "container": "LITE",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+              "name": "iron mail armour",
+              "count": 1,
+              "container": "BODY",
+              "identified": true,
+              "activation": {
+                "present": false,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            },
+            {
+              "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+              "name": "Prox's Lucky Halfling Foot",
+              "count": 1,
+              "container": "TOOL",
+              "identified": true,
+              "activation": {
+                "max_power": 10,
+                "power": 10,
+                "present": true,
+                "recharge_per_turn": 1,
+                "runtime_checked": true,
+                "use_no_wear": false
+              }
+            }
+          ]
+        },
+        "actors": []
+      }
+    }
+  ],
+  "interactions": [
+    {
+      "stage": "act",
+      "command_id": "play060-00001",
+      "status": "awaiting_input",
+      "revision": 9,
+      "interaction": {
+        "answer_types": [
+          "option",
+          "cancel"
+        ],
+        "consumed": false,
+        "interaction_id": "interaction-1",
+        "kind": "dialog.notice",
+        "native_ui": "LorePopup",
+        "options": [
+          {
+            "disabled": false,
+            "label": "Close",
+            "option_id": "interaction-1:option-1"
+          }
+        ],
+        "options_offset": 0,
+        "options_total": 1,
+        "prompt": "Lore found: #0080FF#Serpent's Glare",
+        "revision": 9,
+        "sequence": 1,
+        "text": "A thick venom drips from this mindstar.\n"
+      },
+      "response_receipt": null,
+      "execution_released": false,
+      "energy_spent": 0,
+      "world_tick_after": null
+    },
+    {
+      "stage": "respond",
+      "command_id": "play060-00001",
+      "status": "completed",
+      "revision": 14,
+      "interaction": null,
+      "response_receipt": {
+        "interaction_id": "interaction-1",
+        "response_id": "play060-answer-00001",
+        "state": "applied"
+      },
+      "execution_released": true,
+      "energy_spent": 0,
+      "world_tick_after": 20905
+    }
+  ],
+  "response_calls": [
+    {
+      "args": {
+        "session_id": "tome-1789456897-1824-4-table0x4305fbd0",
+        "control_token": "<redacted>",
+        "command_id": "play060-00001",
+        "interaction_id": "interaction-1",
+        "response_id": "play060-answer-00001",
+        "expected_revision": 9,
+        "answer": {
+          "type": "option",
+          "option_id": "interaction-1:option-1"
+        },
+        "wait_ms": 10000,
+        "include_map": false
+      },
+      "result": {
+        "code": "action_complete",
+        "command_id": "play060-00001",
+        "energy_spent": 0,
+        "energy_spent_complete": true,
+        "execution_released": true,
+        "input_owner": "remote",
+        "native_return": true,
+        "response_receipt": {
+          "interaction_id": "interaction-1",
+          "response_id": "play060-answer-00001",
+          "state": "applied"
+        },
+        "revision": 14,
+        "revision_after": 14,
+        "revision_before": 3,
+        "status": "completed",
+        "world_tick_after": 20905,
+        "world_tick_before": 20905
+      }
+    }
+  ],
+  "pending_at_end": null,
+  "native_ui_coverage": {
+    "LorePopup": 1,
+    "QuestPopup": 0,
+    "simplePopup": 0,
+    "multiple_notice_layers": false,
+    "multiple_skill_questions": false
+  },
+  "world_map_issue": {
+    "after_command": "play060-00046",
+    "scene": {
+      "level": 1,
+      "zone_id": "wilderness",
+      "zone_name": "World of Eyal"
+    },
+    "position": {
+      "x": 28,
+      "y": 13
+    },
+    "map_cells": 625,
+    "known_cells": 0,
+    "visible_cells": 0,
+    "native_framebuffer": "world-map-observation.png",
+    "diagnostic_moves": {
+      "play060-00045": "west onto grass visible in native framebuffer; position changed 28,13 to27,13",
+      "play060-00046": "east back over just traversed step, to28,13"
+    },
+    "no_hidden_live_game_queries": true,
+    "code_explanation": {
+      "observer": "Observer.lua:112 requires both seens and infovs",
+      "native_player": "Player.lua:558 wilderness uses computeFOV callback applyLite, then returns",
+      "native_map": "Map.lua:677 applyLite writes seens/has_seens/remembers but not infovs"
+    },
+    "scope": "Native gameplay and item recall succeeded; MCP terrain observation prevents navigation using MCP-only map data. Screenshot used for two diagnostic movement decisions only."
+  },
+  "world_map_ready_observations": [
+    {
+      "phase": "ready",
+      "control": "remote",
+      "revision": 10020,
+      "world_tick": 21325,
+      "scene": {
+        "level": 1,
+        "zone_id": "wilderness",
+        "zone_name": "World of Eyal"
+      },
+      "level_instance_id": "level-2",
+      "battle_companion": {
+        "actions": 0,
+        "state": "idle"
+      },
+      "player": {
+        "name": "MCP_campaign-play-01",
+        "x": 28,
+        "y": 13,
+        "life": 217.75,
+        "max_life": 217.75,
+        "level": 5,
+        "exp": 210.38,
+        "exp_next": 254,
+        "effects": [],
+        "stats": {
+          "con": {
+            "base": 19,
+            "bonus": 0
+          },
+          "cun": {
+            "base": 10,
+            "bonus": 0
+          },
+          "dex": {
+            "base": 11,
+            "bonus": 0
+          },
+          "mag": {
+            "base": 10,
+            "bonus": 0
+          },
+          "str": {
+            "base": 24,
+            "bonus": 0
+          },
+          "wil": {
+            "base": 10,
+            "bonus": 0
+          }
+        },
+        "unused_stats": 0,
+        "unused_talents": 0,
+        "unused_generics": 0,
+        "unused_talents_types": 0,
+        "descriptor": {
+          "class": "Warrior",
+          "difficulty": "Normal",
+          "race": "Human",
+          "sex": "Female",
+          "subclass": "Berserker",
+          "subrace": "Cornac"
+        },
+        "stamina": {
+          "max": 112,
+          "min": 0,
+          "regen": 0.3,
+          "value": 112
+        },
+        "inventory": [
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+            "name": "iron greatsword",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+            "name": "flaming iron mace of massacre",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+            "name": "Serpent's Glare",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "max_power": 8,
+              "power": 8,
+              "present": true,
+              "recharge_per_turn": 1,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+            "name": "horrifying mossy mindstar",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+            "name": "cruel elm magestaff of fate",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+            "name": "Silk Current",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+            "name": "Scrying Orb",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+            "name": "Rod of Recall",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "max_power": 400,
+              "power": 239,
+              "present": true,
+              "recharge_per_turn": 1,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+            "name": "zircon",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": true
+            }
+          }
+        ],
+        "equipment": [
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+            "name": "iron greatmaul",
+            "count": 1,
+            "container": "MAINHAND",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+            "name": "brass lantern",
+            "count": 1,
+            "container": "LITE",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+            "name": "iron mail armour",
+            "count": 1,
+            "container": "BODY",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+            "name": "Prox's Lucky Halfling Foot",
+            "count": 1,
+            "container": "TOOL",
+            "identified": true,
+            "activation": {
+              "max_power": 10,
+              "power": 10,
+              "present": true,
+              "recharge_per_turn": 1,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          }
+        ]
+      },
+      "actors": [],
+      "map_summary": {
+        "cells": 289,
+        "known": 0,
+        "visible": 0,
+        "rows": [
+          "?????????????????",
+          "?????????????????",
+          "?????????????????",
+          "?????????????????",
+          "?????????????????",
+          "?????????????????",
+          "?????????????????",
+          "?????????????????",
+          "????????@????????",
+          "?????????????????",
+          "?????????????????",
+          "?????????????????",
+          "?????????????????",
+          "?????????????????",
+          "?????????????????",
+          "?????????????????",
+          "?????????????????"
+        ]
+      }
+    },
+    {
+      "phase": "ready",
+      "control": "remote",
+      "revision": 10034,
+      "world_tick": 22336,
+      "scene": {
+        "level": 1,
+        "zone_id": "wilderness",
+        "zone_name": "World of Eyal"
+      },
+      "level_instance_id": "level-2",
+      "battle_companion": {
+        "actions": 0,
+        "state": "idle"
+      },
+      "player": {
+        "name": "MCP_campaign-play-01",
+        "x": 27,
+        "y": 13,
+        "life": 217.75,
+        "max_life": 217.75,
+        "level": 5,
+        "exp": 210.38,
+        "exp_next": 254,
+        "effects": [],
+        "stats": {
+          "con": {
+            "base": 19,
+            "bonus": 0
+          },
+          "cun": {
+            "base": 10,
+            "bonus": 0
+          },
+          "dex": {
+            "base": 11,
+            "bonus": 0
+          },
+          "mag": {
+            "base": 10,
+            "bonus": 0
+          },
+          "str": {
+            "base": 24,
+            "bonus": 0
+          },
+          "wil": {
+            "base": 10,
+            "bonus": 0
+          }
+        },
+        "unused_stats": 0,
+        "unused_talents": 0,
+        "unused_generics": 0,
+        "unused_talents_types": 0,
+        "descriptor": {
+          "class": "Warrior",
+          "difficulty": "Normal",
+          "race": "Human",
+          "sex": "Female",
+          "subclass": "Berserker",
+          "subrace": "Cornac"
+        },
+        "stamina": {
+          "max": 112,
+          "min": 0,
+          "regen": 0.3,
+          "value": 112
+        },
+        "inventory": [
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2464",
+            "name": "iron greatsword",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2468",
+            "name": "flaming iron mace of massacre",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2605",
+            "name": "Serpent's Glare",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "max_power": 8,
+              "power": 8,
+              "present": true,
+              "recharge_per_turn": 1,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2604",
+            "name": "horrifying mossy mindstar",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2472",
+            "name": "cruel elm magestaff of fate",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2473",
+            "name": "Silk Current",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2474",
+            "name": "Scrying Orb",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2463",
+            "name": "Rod of Recall",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "max_power": 400,
+              "power": 240,
+              "present": true,
+              "recharge_per_turn": 1,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2475",
+            "name": "zircon",
+            "count": 1,
+            "container": "INVEN",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": true
+            }
+          }
+        ],
+        "equipment": [
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2476",
+            "name": "iron greatmaul",
+            "count": 1,
+            "container": "MAINHAND",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2477",
+            "name": "brass lantern",
+            "count": 1,
+            "container": "LITE",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2478",
+            "name": "iron mail armour",
+            "count": 1,
+            "container": "BODY",
+            "identified": true,
+            "activation": {
+              "present": false,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          },
+          {
+            "id": "tome-1789456897-1824-4-table0x4305fbd0:object-2462",
+            "name": "Prox's Lucky Halfling Foot",
+            "count": 1,
+            "container": "TOOL",
+            "identified": true,
+            "activation": {
+              "max_power": 10,
+              "power": 10,
+              "present": true,
+              "recharge_per_turn": 1,
+              "runtime_checked": true,
+              "use_no_wear": false
+            }
+          }
+        ]
+      },
+      "actors": [],
+      "map_summary": {
+        "cells": 625,
+        "known": 0,
+        "visible": 0,
+        "rows": [
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "????????????@????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????",
+          "?????????????????????????"
+        ]
+      }
+    }
+  ],
+  "events": {
+    "count": 17,
+    "contiguous_unique_cursors": true,
+    "gaps": [],
+    "ops": {
+      "append": 17
+    }
+  },
+  "save": {
+    "path": "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/home/.t-engine/4.0/tome/save",
+    "desc": "module = \"tome\"\nmodule_version = {1,7,6}\naddons = {'danger-alert', 'mcp-bridge', 'mcp-play-birth', 'battle-companion'}\nname = \"MCP_campaign-play-01\"\nshort_name = \"mcp_campaign_play_01\"\ntimestamp = 1789457206\nloadable = true\ncheat = false\ndescription = \"MCP_campaign-play-01 the level 5 Cornac Berserker.\\\nDifficulty: Normal / Roguelike\\\nCampaign: Maj'Eyal\\\nExploring level 1 of World of Eyal.\"\n",
+    "native_validity_game_world": true,
+    "sha256": {
+      "quick_hotkeys": "ba2fbfde884ce7a1f84d00259856c1bb2435c9d4cf9e2a76b7eb3d282e60e3e6",
+      "world.teaw": "c1b7643029929d77d88c98d4967b7ef496182f7c6be632b611cc6fae43178bab",
+      "mcp_campaign_play_01/last_log.txt": "44ad140709a2708d0f879bd4843efcefd2c7bc354a92f9598a679bea91553a72",
+      "mcp_campaign_play_01/desc.lua": "c7d212f1776302e51108d8970d2063d39a79b11eef4abb82b02b1fd209077c80",
+      "mcp_campaign_play_01/cur.png": "14fb70ce107da6ae4c160f1acca9a5ccec006d1b112aa9dabf897d2ef4dde787",
+      "mcp_campaign_play_01/zone-trollmire.teaz": "16e2ae134861cbac88defba7b7844a49282e7dbfdd208f66a20530b7ac577006",
+      "mcp_campaign_play_01/game.teag": "ae53d79a5634799a3e56bf2c183b551e26af52bec337a0ac0c98d6c4e5c2b395"
+    },
+    "gameplay_ui_escape_count": 0,
+    "diagnostic_keys": [
+      "Print",
+      "Escape"
+    ],
+    "save_key": "Control_L+s",
+    "stop_result": {
+      "stopped": true
+    },
+    "screenshot_guided_movement_commands": [
+      "play060-00045",
+      "play060-00046"
+    ],
+    "screenshot_guided_scope": "Adjacent visible-grass diagnostic step and return, after MCP returned no known world-map terrain.",
+    "driver_exit_code": 0,
+    "driver_exit_message": "CLOSED; original save hashes unchanged",
+    "final_save_reloaded": false
+  },
+  "history_checks": {
+    "campaign-play-01": {
+      "report_unchanged": true,
+      "evidence_files": {
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/play-mcp.jsonl": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/decisions.jsonl": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/input.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/candidate.zip": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/game.log": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/action-schema.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/play-summary.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/player-visible-combat.log": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/desc.lua": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/game.teag": true,
+        "documentation/mcp-campaign-trial-2026-09-15.png": true,
+        "tmp/mcp-play-support/play.py": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/rest-1789436756675916970-mcp.jsonl": true
+      },
+      "save_files": {
+        "mcp_campaign_play_01/cur.png": true,
+        "mcp_campaign_play_01/desc.lua": true,
+        "mcp_campaign_play_01/game.teag": true,
+        "mcp_campaign_play_01/last_log.txt": true,
+        "quick_hotkeys": true,
+        "world.teaw": true
+      }
+    },
+    "campaign-play-v030-01": {
+      "report_unchanged": true,
+      "evidence_files": {
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/input.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/candidate.zip": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/campaign-mcp.jsonl": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/decisions.jsonl": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/visible-log-events.jsonl": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/play-summary.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/game.log": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/player-visible-combat.log": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/escape-plan.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/escape-plan-02.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/quick_hotkeys": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/world.teaw": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/last_log.txt": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/desc.lua": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/cur.png": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/game.teag": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/mcp-server-src/tome_mcp/__init__.py": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/mcp-server-src/tome_mcp/__main__.py": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/mcp-server-src/tome_mcp/bridge.py": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/mcp-server-src/tome_mcp/server.py": true,
+        "tmp/mcp-play-support/continue.py": true,
+        "tmp/mcp-play-support/summarize-continuation.py": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/screenshots/tome-1.7.6-1789441714.png": true,
+        "documentation/mcp-campaign-continuation-0.3.0.png": true
+      },
+      "save_files": {
+        "mcp_campaign_play_01/cur.png": true,
+        "mcp_campaign_play_01/desc.lua": true,
+        "mcp_campaign_play_01/game.teag": true,
+        "mcp_campaign_play_01/last_log.txt": true,
+        "quick_hotkeys": true,
+        "world.teaw": true
+      }
+    },
+    "campaign-play-v050-01": {
+      "report_unchanged": true,
+      "evidence_files": {
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/input.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/candidate.zip": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/campaign-mcp.jsonl": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/decisions.jsonl": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/visible-log-events.jsonl": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/play-summary.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/game.log": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/player-visible-combat.log": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/ui-interventions.jsonl": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/interactions.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/pending.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/inspection-001.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/inspection-002.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/closure.json": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/quest-popup.png": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/loot-lore-popup.png": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/home/.t-engine/4.0/tome/save/quick_hotkeys": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/home/.t-engine/4.0/tome/save/world.teaw": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/last_log.txt": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/desc.lua": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/cur.png": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/game.teag": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/mcp-server-src/tome_mcp/__init__.py": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/mcp-server-src/tome_mcp/__main__.py": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/mcp-server-src/tome_mcp/bridge.py": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/mcp-server-src/tome_mcp/server.py": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/harness-source/campaign/runtime.py": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/harness-source/campaign/run.py": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/harness-source/native/runtime.py": true,
+        "tmp/mcp-play-support/continue-v050.py": true,
+        "tmp/mcp-play-support/capture-v050.py": true,
+        "tmp/mcp-play-support/summarize-v050.py": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/home/.t-engine/4.0/tome/screenshots/tome-1.7.6-1789453227.png": true,
+        "documentation/mcp-campaign-continuation-0.5.0.png": true,
+        "documentation/mcp-campaign-continuation-0.5.0-quest.png": true,
+        "documentation/mcp-campaign-continuation-0.5.0-loot-lore.png": true,
+        "tmp/tome-mcp-validation/sessions/campaign-play-v050-01/paseo-feedback.json": true,
+        "documentation/mcp-campaign-continuation-0.5.0.md": true
+      },
+      "save_files": {
+        "mcp_campaign_play_01/cur.png": true,
+        "mcp_campaign_play_01/desc.lua": true,
+        "mcp_campaign_play_01/game.teag": true,
+        "mcp_campaign_play_01/last_log.txt": true,
+        "quick_hotkeys": true,
+        "world.teaw": true
+      }
+    }
+  },
+  "v060_delivery_checks": {
+    "documentation/tome-mcp-native-notices-items-0.6.0.md": true,
+    "documentation/tome-mcp-v2-interactions.md": true,
+    "game/addons/tome-mcp-bridge/VALIDATION.md": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/summary.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/campaign-input.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/campaign-result.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/historical-check.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/items-cli-jit-diagnostic.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/kill-handoff-input.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/kill-handoff-result.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/lua-tests.log": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/manifest.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/pickup-recovery-input.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/pickup-recovery-result.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/python-tests.log": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/reload-input.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/reload-result.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/server-install.log": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/v1-input.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/v1-result.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/v2-input.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/v2-result.json": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/interaction-driver.py": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/notice-driver.py": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/recovery-driver.py": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/lua-runner.sh": true,
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-native-ui/paseo-handoff.json": true
+  },
+  "formal_archive_source_checks": {
+    "README.md": true,
+    "hooks/load.lua": true,
+    "init.lua": true,
+    "overload/mod/mcp_bridge/Actions.lua": true,
+    "overload/mod/mcp_bridge/Input.lua": true,
+    "overload/mod/mcp_bridge/Interactions.lua": true,
+    "overload/mod/mcp_bridge/InvocationTracker.lua": true,
+    "overload/mod/mcp_bridge/Items.lua": true,
+    "overload/mod/mcp_bridge/Journal.lua": true,
+    "overload/mod/mcp_bridge/Json.lua": true,
+    "overload/mod/mcp_bridge/NativeCompatibility.lua": true,
+    "overload/mod/mcp_bridge/NativeDialogSeams.lua": true,
+    "overload/mod/mcp_bridge/NativeGameSeams.lua": true,
+    "overload/mod/mcp_bridge/NativeItemSeams.lua": true,
+    "overload/mod/mcp_bridge/NativeManifest.lua": true,
+    "overload/mod/mcp_bridge/NativeTasks.lua": true,
+    "overload/mod/mcp_bridge/ObservationDetails.lua": true,
+    "overload/mod/mcp_bridge/Observer.lua": true,
+    "overload/mod/mcp_bridge/Progression.lua": true,
+    "overload/mod/mcp_bridge/Runtime.lua": true,
+    "overload/mod/mcp_bridge/TransportSocket.lua": true,
+    "superload/engine/GameTurnBased.lua": true,
+    "superload/engine/Target.lua": true,
+    "superload/engine/interface/ActorTalents.lua": true,
+    "superload/engine/interface/GameTargeting.lua": true,
+    "superload/engine/interface/PlayerRest.lua": true,
+    "superload/mod/class/Game.lua": true,
+    "superload/mod/class/Object.lua": true,
+    "superload/mod/class/Player.lua": true,
+    "superload/mod/dialogs/LorePopup.lua": true,
+    "superload/mod/dialogs/QuestPopup.lua": true,
+    "superload/mod/dialogs/ShowEquipInven.lua": true,
+    "superload/mod/dialogs/ShowInventory.lua": true,
+    "superload/mod/dialogs/ShowLore.lua": true
+  },
+  "frozen_python_checks": {
+    "tome_mcp/__init__.py": true,
+    "tome_mcp/__main__.py": true,
+    "tome_mcp/bridge.py": true,
+    "tome_mcp/server.py": true
+  },
+  "startup_notes": "Initial sandbox attempt could not create a local socket; its unstarted directory campaign-play-v060-01 remains. Retrying that name met exist_ok=False. Actual gameplay used new campaign-play-v060-02 under approved local-socket execution.",
+  "trace_file_bytes": 6477604,
+  "trace_size_scope": "Local JSONL including repeated snapshots, not token or network consumption.",
+  "sha256": {
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/input.json": "cd05a96cfc81d2f88437721afeffbab90c2548e2eee61b116cfabbb488871f95",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/candidate.zip": "503c37189b7cb7349bfdab73a78afdced06c5b258cb63c0eea2b06ebbb871038",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/campaign-mcp.jsonl": "faec47371376120fa482d4902bd6877718c7af659b41d6367374e9f09f39f5d9",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/decisions.jsonl": "f00ba0dad035e7023fb096bbe8cfc0bc38e2b955733f6847a4c1a1ffab91f21d",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/visible-log-events.jsonl": "ef6d3944d76b51552f96e6edcd0ecc4d567ea3d0ea9d2294d627d6347a178897",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/play-summary.json": "c281b581679a190346cc585cd54e9f74ff1ab39b195dc244b12bd0b80059282a",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/game.log": "e8d6074587e043089f1907773587d4296e795fde148df29047a876e9e5ba1cc0",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/player-visible-combat.log": "9932cd66c5558dce10fcf773d28a2e2013ab4d6e7159314371d01f72bcce7f66",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/load-verification.json": "b82db7b54765e7ec132fe41c5fd3d35f4ac1aeff465d4123149409562502ce4a",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/python-environment.json": "a86843ff6c4a840c0343b389e4279792faeb1fcabddae8112a0871e0bc6eddb0",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/interactions.json": "cb1c33dd778d6e379a22be7ab2bb702fd6749e5aa7ba1579523c49a4f9c4d489",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/pending.json": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/world-map-issue.json": "2d1583224a59c0c92ec347fa1135cf75cf026df8417922645aee9dd70682de02",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/world-map-after-move-observation.json": "b605f073a98e6413ae8d273a9a9fede5d0ed86923132e74ae0c875f2d6dc54c5",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/world-map-observation.png": "80e841ecd04628f04ab5a83d3d224b6e535ac96acc5d21ac07dac206ecd296ca",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/closure.json": "bf5d34b96655fca394d25fb0ea5fa93ae5a972609068f6e17c092823fc4ff43e",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/home/.t-engine/4.0/tome/save/quick_hotkeys": "ba2fbfde884ce7a1f84d00259856c1bb2435c9d4cf9e2a76b7eb3d282e60e3e6",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/home/.t-engine/4.0/tome/save/world.teaw": "c1b7643029929d77d88c98d4967b7ef496182f7c6be632b611cc6fae43178bab",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/last_log.txt": "44ad140709a2708d0f879bd4843efcefd2c7bc354a92f9598a679bea91553a72",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/desc.lua": "c7d212f1776302e51108d8970d2063d39a79b11eef4abb82b02b1fd209077c80",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/cur.png": "14fb70ce107da6ae4c160f1acca9a5ccec006d1b112aa9dabf897d2ef4dde787",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/zone-trollmire.teaz": "16e2ae134861cbac88defba7b7844a49282e7dbfdd208f66a20530b7ac577006",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/game.teag": "ae53d79a5634799a3e56bf2c183b551e26af52bec337a0ac0c98d6c4e5c2b395",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/mcp-server-src/tome_mcp/__init__.py": "96b299735fb0a79fd0ade5d0d545808ce0f099b0cb06ea9e149ca7367787475a",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/mcp-server-src/tome_mcp/__main__.py": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/mcp-server-src/tome_mcp/bridge.py": "cdabf8f5a0142d69dbbd2864f3430140836c5833a560645a76cc94e5aed45029",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/mcp-server-src/tome_mcp/server.py": "8820172959bb65322f47f22087b43665e5795134d57a3147c058c3867b6abdc2",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/harness-source/campaign/runtime-v060.py": "d70937db70a6be5bac0ce51326f99a566f2f7dc2a7a5e0ba7f440740bdc678f2",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/harness-source/native/runtime.py": "34a5ea4e82c2a214cacdb2391e9acf7678342e702f8fd1775a10c9dafdaa0627",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/diagnostic-source/Observer.lua": "a6d6a9eb91b31165a303ecc284655d2f7991e566243c7637ae91da310de062e4",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/diagnostic-source/Player.lua": "4878ab4818826c50b993dc8233dfc78b8ac389733093553564bbfe6b328fb80a",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/diagnostic-source/Map.lua": "6fdf0294ab835d06cf1186a47a2222b266bd71bfc53b3ba3a423cbb3e41ba315",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/diagnostic-source/ActorFOV.lua": "cabd28ee2a9c8a80986bef490b46257af618d4be1ee74ba339d07fe46c7db8d1",
+    "tmp/mcp-play-support/continue-v060.py": "3e3093827f41a882a42be30b83e6837d9a1447b14a67e2f7ce5a453073cfc2df",
+    "tmp/mcp-play-support/runtime-v060.py": "d70937db70a6be5bac0ce51326f99a566f2f7dc2a7a5e0ba7f440740bdc678f2",
+    "tmp/mcp-play-support/capture-v060.py": "ce5cdc41399d943fd37d912b61a7381c1b798e3d64044665745f443638337fa7",
+    "tmp/mcp-play-support/summarize-v060.py": "c814d40bf91ab7f169975f3505e02f0987177e02026028af9525d8dc46877daf",
+    "tmp/mcp-play-support/v060-delivery-baseline.json": "e173a1aab5e74cdc36e250565e8c99915f5441f1c2bbd57a907dc029b326bb9d",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/home/.t-engine/4.0/tome/screenshots/tome-1.7.6-1789457196.png": "fdbecd8fc2be2e2335cc8dddc8873e8fe40bbe774a6652f36a518fb547c860b8",
+    "documentation/mcp-campaign-continuation-0.6.0.png": "fdbecd8fc2be2e2335cc8dddc8873e8fe40bbe774a6652f36a518fb547c860b8",
+    "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/paseo-feedback.json": "77c7ddbd8c3d90002b7ad8bc4b0a56e7cc1b1942955c0ae288e55ffd05c4b2cb",
+    "documentation/mcp-campaign-continuation-0.6.0.md": "12f2cf5468fc9451eeb8bd0b43183eda4fd4d1b3f448070d06408badc14caff8"
+  },
+  "handoff": {
+    "agent_id": "31bbc9fd-4cd3-4714-afbb-b5fa198e0378",
+    "sent_at": "2026-09-15 07:33:40 UTC",
+    "background": true,
+    "notify_on_finish": true,
+    "success": true,
+    "tool_result": {
+      "success": true,
+      "status": "idle",
+      "lastMessage": null,
+      "permission": null,
+      "guidance": "You will get notified when the prompted agent finishes, errors, or needs permission. Do not poll for status; continue with other work until the notification arrives."
+    },
+    "receipt_file": "tmp/tome-mcp-validation/sessions/campaign-play-v060-02/paseo-feedback.json"
+  }
+}

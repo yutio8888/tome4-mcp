@@ -1,0 +1,43 @@
+{
+  "command": [
+    "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/chat-v1-package-final-01/runtime/t-engine",
+    "--no-steam",
+    "--no-web",
+    "--flush-stdout",
+    "--home",
+    "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/chat-v1-package-final-01/home",
+    "-Mtome",
+    "-n",
+    "-uMCP_chat-v1-package-fin",
+    "-Eset_addons={'mcp-bridge','mcp-probe'};no_birth_popup=true"
+  ],
+  "source": "/workspace/t-engine4/tmp/battle-companion-validation-20260914/runtime",
+  "dependencies": "/workspace/t-engine4/tmp/worktrees/yron-profile-20260912/tmp/profile/deps/root/usr",
+  "engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+  "candidate_sha256": "04d55dd8a342b76b87cd45cf0d42a5aa1fead3bc61f4fbaa35435b01ac036c0c",
+  "new_character": true,
+  "imported_save": false,
+  "display": ":112",
+  "port": 49805,
+  "interaction_probe": false,
+  "addon_archive": "/workspace/t-engine4/game/addons/tome-mcp-bridge/dist/tome-mcp-bridge.teaa",
+  "addon_archive_sha256": "23e34185c3be9c465079bf71626e072fd53f71faa8ea382dec3a5f71f8a9b196",
+  "extra_addons": {},
+  "addon_lua_sha256": {
+    "tome-mcp-probe/init.lua": "a5672d7f269392f64f9830e5ba8278f08e15b46dd6a3fd2807b4ad9813b7671f",
+    "tome-mcp-probe/hooks/load.lua": "805abd80e32479ed328f0674a765c9704eff2d643223e59ffa8ea0249d55e14f",
+    "tome-mcp-probe/superload/mod/dialogs/Birther.lua": "8a52a16416e4f169840bb25676fc0cadfe55985d90c5f72a9ca42bbc0d75ca4c",
+    "tome-mcp-probe/superload/mod/class/Game.lua": "4de1e9f5a78ba74b416d11ff2b312d932e89fadfa32ba95fbd49b0966b5d9d85",
+    "tome-mcp-probe/superload/mod/class/Player.lua": "686dc3eff9c50161b1168313680e817873383c94f2aa6ed12801140ef867d9b9",
+    "tome-mcp-probe/superload/mod/class/NPC.lua": "8788578409e477a4d0bd91741843c74622529f3861677655b934e1a43b46bff3",
+    "tome-mcp-probe/overload/data/zones/mcp-test/zone.lua": "e86f27ac5370dbcfc889c597115e2bd2f62d962c56714a8526386f01e54a1194",
+    "tome-mcp-probe/overload/data/zones/mcp-test/grids.lua": "b79b2db3579deec51110498ad9091af65d788a51e078439bffee0217e2431a63",
+    "tome-mcp-probe/overload/data/zones/mcp-test/npcs.lua": "d30515eb6e5ce4230ae3721bca6858f2ba2124af00da9f5a06b2722e0216b986",
+    "tome-mcp-probe/overload/data/zones/mcp-test/objects.lua": "495e06ce789946fc19d1377b310372e85bf1b095ec55c02e4a44f86ac3da6e13",
+    "tome-mcp-probe/overload/data/zones/mcp-test/traps.lua": "e0f31c66e366417e102c2d38e35035e346b0101344439eb5cc139c352851483d",
+    "tome-mcp-probe/overload/mod/MCPProbe.lua": "bbbe72f5043a8ec6cf481c4cf455daf33b195ed9ae5974550505c2a2697b7234",
+    "tome-mcp-probe/overload/mod/MCPInteractionProbe.lua": "ff2abc6d3c068761c25fdbc750ed7ce10f68eb9d40414b66fb402f0813925cbb",
+    "tome-mcp-probe/overload/mod/MCPVisibilityProbe.lua": "3b7c9c585c1635843ab2d14cea0010ff683dda7962ac23eaa77c6b394f09435d",
+    "tome-mcp-probe/overload/data-mcp-probe/chats/acceptance.lua": "c2010c9cd901a5babf5ef43ddfa640db1797d86f9edf45556ba961789d8f469b"
+  }
+}

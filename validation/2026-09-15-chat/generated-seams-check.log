@@ -1,0 +1,17 @@
+overload/mod/mcp_bridge/NativeManifest.lua
+overload/mod/mcp_bridge/NativeItemSeams.lua
+superload/mod/class/Object.lua
+superload/engine/interface/ActorTalents.lua
+superload/engine/interface/GameTargeting.lua
+superload/engine/Target.lua
+superload/engine/GameTurnBased.lua
+overload/mod/mcp_bridge/NativeGameSeams.lua
+overload/mod/mcp_bridge/NativeChatSeams.lua
+superload/mod/dialogs/Chat.lua
+overload/mod/mcp_bridge/NativeDialogSeams.lua
+superload/mod/dialogs/QuestPopup.lua
+superload/mod/dialogs/LorePopup.lua
+superload/mod/dialogs/ShowLore.lua
+superload/engine/interface/PlayerRest.lua
+superload/mod/dialogs/ShowInventory.lua
+superload/mod/dialogs/ShowEquipInven.lua

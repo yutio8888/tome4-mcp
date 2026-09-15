@@ -1,0 +1,278 @@
+{
+  "version": "0.6.1",
+  "date": "2026-09-15",
+  "archive_sha256": "7df97a9121ac75470436f48c136dbe366f12b083688f0c508d1c86e367e7af0e",
+  "production_files": 34,
+  "lua_checks": 876,
+  "python_tests": 25,
+  "history": {
+    "files": 101019,
+    "unchanged": true,
+    "changed": []
+  },
+  "runs": {
+    "v1": {
+      "session": "worldmap-v061-native-03",
+      "passed": true,
+      "checks": 100,
+      "archive_sha256": "7df97a9121ac75470436f48c136dbe366f12b083688f0c508d1c86e367e7af0e",
+      "native_visibility_checks": [
+        {
+          "name": "wilderness_perception_entrypoints_pass_full_source_audit",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_wilderness_cells_match_applyLite_without_infovs",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_unseen_world_entrance_not_disclosed",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "repeated_native_world_observations_are_identical",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_wilderness_blind_projection_does_not_learn_terrain",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_world_modified_perception_fails_closed",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_dungeon_esp_does_not_disclose_terrain",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_dungeon_ordinary_fov_still_reveals_terrain",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_dungeon_blind_projection_does_not_learn_terrain",
+          "passed": true,
+          "kind": "visibility_check"
+        }
+      ]
+    },
+    "v2": {
+      "session": "worldmap-v061-v2-final-01",
+      "passed": true,
+      "checks": 96,
+      "archive_sha256": "7df97a9121ac75470436f48c136dbe366f12b083688f0c508d1c86e367e7af0e",
+      "frozen_python_matches_delivered_source": true,
+      "native_visibility_checks": [
+        {
+          "name": "wilderness_perception_entrypoints_pass_full_source_audit",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_wilderness_cells_match_applyLite_without_infovs",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_unseen_world_entrance_not_disclosed",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "repeated_native_world_observations_are_identical",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_wilderness_blind_projection_does_not_learn_terrain",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_world_modified_perception_fails_closed",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_dungeon_esp_does_not_disclose_terrain",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_dungeon_ordinary_fov_still_reveals_terrain",
+          "passed": true,
+          "kind": "visibility_check"
+        },
+        {
+          "name": "native_dungeon_blind_projection_does_not_learn_terrain",
+          "passed": true,
+          "kind": "visibility_check"
+        }
+      ]
+    },
+    "campaign": {
+      "session": "worldmap-v061-final-03",
+      "passed": true,
+      "checks": 34,
+      "archive_sha256": "7df97a9121ac75470436f48c136dbe366f12b083688f0c508d1c86e367e7af0e",
+      "frozen_python_matches_delivered_source": true,
+      "actions": 12,
+      "all_actions_completed": true,
+      "direct_source": "campaign-play-v060-02",
+      "initial_visible": 39,
+      "initial_cells": 625,
+      "initial_unknown": 586,
+      "after_move_visible": 50,
+      "after_move_known": 51,
+      "reloaded_visible": 39,
+      "frozen_world_driver_matches_delivered_source": true
+    }
+  },
+  "scope": "World-map visibility fix; ordinary navigation and reload plus separate native fixtures. Not a completed campaign.",
+  "retained_attempts": [
+    {
+      "session": "worldmap-v061-01",
+      "passed": false,
+      "reason": "New KorPul escort chat after successful transition: needs_input/scene_changed with execution still held. Separate unsupported UI, no replay or manual bypass."
+    },
+    {
+      "session": "worldmap-v061-02",
+      "passed": true,
+      "reason": "34 checks; repeated after final Python rules text was added."
+    },
+    {
+      "session": "worldmap-v061-native-01",
+      "passed": false,
+      "reason": "Fixture did not enable ESP before invoking native applyESP."
+    },
+    {
+      "session": "worldmap-v061-native-02",
+      "passed": false,
+      "reason": "Fixture restored inherited computeFOV as an own field, which serialized a native function without its Map upvalue. Fixed by restoring rawget slot."
+    }
+  ],
+  "sha256": {
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/game.log": "ee941677092d97b93fb019de9640293e258a5eb3c33e03e5ff8cab5160d344b7",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/reload.log": "cdf6ef5205ea30a370feebde6b7894fac6e5d770967dbc27e73b3bbb42f0fea7",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/reload-input.json": "93c4f3e939da751f13a5b6c79b385e6d321f6bb45900e6858693e4398449b45d",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/candidate.zip": "f10a6d067536c81acdf4cae19ee56b6673f79d38f01d1a403cf51619d3660486",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/mcp.log": "a639e999509b106d6d6d2341ef788a958854b2b4c61d2c186cedada9b8cad3f8",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/home/.t-engine/4.0/tome/save/quick_hotkeys": "64403b7f054cdd0e2c89ba42ac1d1d606c0759cb042334fd97bd17ea22d25f26",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/home/.t-engine/4.0/tome/save/world.teaw": "9aea860822cf970234fb6d211d388ff3ad9e7c0e2a230e2401be070020b9f21c",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/home/.t-engine/4.0/tome/save/mcp_worldmap_v061_nativ/zone-trollmire.teaz": "a1ecbf30b835c2a1c9f4fcc0e97a46eb84fe167050d04fc353fe54e0fbde532d",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/home/.t-engine/4.0/tome/save/mcp_worldmap_v061_nativ/last_log.txt": "7df995d3349fbf5b58967c568103f159ec71f80c873c9fa75f6e9570b1e54c35",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/home/.t-engine/4.0/tome/save/mcp_worldmap_v061_nativ/desc.lua": "e91eda73adeb5020c7c89342c57b4ecca706c01062133034354453dc32a2e5f9",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/home/.t-engine/4.0/tome/save/mcp_worldmap_v061_nativ/cur.png": "f6bd8180e4112e7a7899497c2951e166f371747d2f15b22554b72c9f9f1c6dcf",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/home/.t-engine/4.0/tome/save/mcp_worldmap_v061_nativ/game.teag": "17e6b24db1e274f545594fb25f23023205f9eef6bbc0c0f45feefe31715f4da5",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/reload-home/.t-engine/4.0/tome/save/quick_hotkeys": "64403b7f054cdd0e2c89ba42ac1d1d606c0759cb042334fd97bd17ea22d25f26",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/reload-home/.t-engine/4.0/tome/save/world.teaw": "9aea860822cf970234fb6d211d388ff3ad9e7c0e2a230e2401be070020b9f21c",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/reload-home/.t-engine/4.0/tome/save/mcp_worldmap_v061_nativ/zone-trollmire.teaz": "a1ecbf30b835c2a1c9f4fcc0e97a46eb84fe167050d04fc353fe54e0fbde532d",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/reload-home/.t-engine/4.0/tome/save/mcp_worldmap_v061_nativ/last_log.txt": "7df995d3349fbf5b58967c568103f159ec71f80c873c9fa75f6e9570b1e54c35",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/reload-home/.t-engine/4.0/tome/save/mcp_worldmap_v061_nativ/desc.lua": "e91eda73adeb5020c7c89342c57b4ecca706c01062133034354453dc32a2e5f9",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/reload-home/.t-engine/4.0/tome/save/mcp_worldmap_v061_nativ/cur.png": "f6bd8180e4112e7a7899497c2951e166f371747d2f15b22554b72c9f9f1c6dcf",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-03/reload-home/.t-engine/4.0/tome/save/mcp_worldmap_v061_nativ/game.teag": "17e6b24db1e274f545594fb25f23023205f9eef6bbc0c0f45feefe31715f4da5",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/mcp.json": "4c1ed7cfefef7c7aa8bf069e2418879971ef1e9b8491a5d8ada7b294f0894f3f",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/game.log": "2c3e38a4c5de913ca66f9477004f532b46aa5277269596618d4a6dee323fd27f",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/reload.log": "4c90a60ffb28f66ae765036f28b26524f4666aa3912237f1ab148f2188c387f0",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/reload-input.json": "84cf17d0a4be3951bce8fd4864cce8039f67f280b8d808f4bf0a0cc9d7f7e6e0",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/candidate.zip": "e0da45ea0b4ea00a8c00fd0752c269452bd070d3e6f1fefc9fe176cdbb0b44a1",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/home/.t-engine/4.0/tome/save/quick_hotkeys": "2ec1f3371042202df1d99c82067c1bb0283b0dac6a7962812df5f3417a4c425f",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/home/.t-engine/4.0/tome/save/world.teaw": "0d7dd0a67cd60507754b2afd068c188260aedc6a3bb9e69d9296032f8ffbeb45",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/home/.t-engine/4.0/tome/save/mcp_worldmap_v061_v2_fi/zone-trollmire.teaz": "5154436c2d077ed12ea081f6b0ded418763e21573974fb9c8fc8684086bc20ec",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/home/.t-engine/4.0/tome/save/mcp_worldmap_v061_v2_fi/last_log.txt": "49ceb0adc3733f94f5ce63b1432ebb81a55cf30741ad361052c1a3ea55145c77",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/home/.t-engine/4.0/tome/save/mcp_worldmap_v061_v2_fi/desc.lua": "981b02a8a5ef06ea35bdbda210ccb627fa3a96108cff56b5fc9d87f8be2b159d",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/home/.t-engine/4.0/tome/save/mcp_worldmap_v061_v2_fi/cur.png": "a37973ca288716d496a54e8c685bb03a0c026c838f167261cd78fcf694a88727",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/home/.t-engine/4.0/tome/save/mcp_worldmap_v061_v2_fi/game.teag": "3fc3a58a05c76ce61b1c494b060b2a865baa140f121541ab9931fb753aa76649",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/reload-home/.t-engine/4.0/tome/save/quick_hotkeys": "2ec1f3371042202df1d99c82067c1bb0283b0dac6a7962812df5f3417a4c425f",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/reload-home/.t-engine/4.0/tome/save/world.teaw": "0d7dd0a67cd60507754b2afd068c188260aedc6a3bb9e69d9296032f8ffbeb45",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/reload-home/.t-engine/4.0/tome/save/mcp_worldmap_v061_v2_fi/zone-trollmire.teaz": "5154436c2d077ed12ea081f6b0ded418763e21573974fb9c8fc8684086bc20ec",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/reload-home/.t-engine/4.0/tome/save/mcp_worldmap_v061_v2_fi/last_log.txt": "49ceb0adc3733f94f5ce63b1432ebb81a55cf30741ad361052c1a3ea55145c77",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/reload-home/.t-engine/4.0/tome/save/mcp_worldmap_v061_v2_fi/desc.lua": "981b02a8a5ef06ea35bdbda210ccb627fa3a96108cff56b5fc9d87f8be2b159d",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/reload-home/.t-engine/4.0/tome/save/mcp_worldmap_v061_v2_fi/cur.png": "a37973ca288716d496a54e8c685bb03a0c026c838f167261cd78fcf694a88727",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-v2-final-01/reload-home/.t-engine/4.0/tome/save/mcp_worldmap_v061_v2_fi/game.teag": "3fc3a58a05c76ce61b1c494b060b2a865baa140f121541ab9931fb753aa76649",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/mcp.json": "7f21646f4568825bab203d1b6aa0345a1081ce3506a393c1f44128217a659d64",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/game.log": "f8d9189c2eb41be28aeca695b5d7db62edc962b0458bed4977768950bc4fa3f6",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/reload.log": "45c08243037ab51b92db70ced92f35845609803e1f865e7ae614b559c274735a",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/reload-input.json": "497eed19736a0077067cbfce50fc223d7347772ca386410e2b164820adf24f50",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/candidate.zip": "f96379d99a7a978c5796a7e31ed9adbc22e03a3df652dc66cc0e9b719d29a411",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/home/.t-engine/4.0/tome/save/quick_hotkeys": "f76c943cd48fa8d5c3b405eb114b9ea45dd0e83ac3c46bf4076e3473f497b755",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/home/.t-engine/4.0/tome/save/world.teaw": "be3511a13af28d408a80929acc110d8e298b2c1ccb5256ec4a04bf76bc266517",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/last_log.txt": "c3e9c27293018143caaa913d562fe960260c604261bec762d9ac2c1ddabb23bb",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/desc.lua": "bc40530a556881d44c850b8626f2e5bf412bb15ec9f5e6b56886f7bc6b9d357f",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/cur.png": "1c5409412e0cfa85ec09118ecaeb19b1ec3fffedb5a9eb0b2968bfa3521b72cd",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/zone-wilderness.teaz": "d6d92959aaa438edd378eb9aaee04db41beae7a9ee086a458c7327fc8b4506dc",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/zone-trollmire.teaz": "8085d397823f58d8bab63a64220980efaed276fc0652d94336d941031aeb62f8",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/game.teag": "da9dc7e85f3e8c8fd992474580d6fe0c561b0cad531d637dbb9dff36de513a9c",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/reload-home/.t-engine/4.0/tome/save/quick_hotkeys": "f76c943cd48fa8d5c3b405eb114b9ea45dd0e83ac3c46bf4076e3473f497b755",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/reload-home/.t-engine/4.0/tome/save/world.teaw": "be3511a13af28d408a80929acc110d8e298b2c1ccb5256ec4a04bf76bc266517",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/reload-home/.t-engine/4.0/tome/save/mcp_campaign_play_01/last_log.txt": "c3e9c27293018143caaa913d562fe960260c604261bec762d9ac2c1ddabb23bb",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/reload-home/.t-engine/4.0/tome/save/mcp_campaign_play_01/desc.lua": "bc40530a556881d44c850b8626f2e5bf412bb15ec9f5e6b56886f7bc6b9d357f",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/reload-home/.t-engine/4.0/tome/save/mcp_campaign_play_01/cur.png": "1c5409412e0cfa85ec09118ecaeb19b1ec3fffedb5a9eb0b2968bfa3521b72cd",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/reload-home/.t-engine/4.0/tome/save/mcp_campaign_play_01/zone-wilderness.teaz": "d6d92959aaa438edd378eb9aaee04db41beae7a9ee086a458c7327fc8b4506dc",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/reload-home/.t-engine/4.0/tome/save/mcp_campaign_play_01/zone-trollmire.teaz": "8085d397823f58d8bab63a64220980efaed276fc0652d94336d941031aeb62f8",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-final-03/reload-home/.t-engine/4.0/tome/save/mcp_campaign_play_01/game.teag": "da9dc7e85f3e8c8fd992474580d6fe0c561b0cad531d637dbb9dff36de513a9c",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-01/input.json": "3595288fb9122e14e1385d2fb72abff6cc4c50f6d100f413dc1e573ab573439d",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-01/result.json": "4e1f07c1cefaa7210180dc9e4d4b4b8ef58dc1d5982e81f8ba460c55d0f0fbe3",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-01/mcp.json": "104c7696190aed60a74bad509ece3ca7e1e9b69c93d16479217cc3ee573d7d4d",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-01/game.log": "2e15017ee97dc2e54658910419f027294f518c702b575a4c58477786ee61f5e6",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-02/input.json": "350248b34feec77203e9ad6a11abe6b44744a8f1f4adfe98cec7df038e90d800",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-02/result.json": "73e39656ad59975b9d6529239a894d675f5216c57297a6c735dadb5211922977",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-02/mcp.json": "6028e918b3dae237512b4cb4cabe936ca03dba1e5fee63c57cc91ea12f5ab9de",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-02/game.log": "6b03388912b6b0b093aa409fbffc178791795d30b5ca5926ae0f2350c9f2078e",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-02/reload.log": "b290b0a6bf0fe998187098f62371c1fbba050111fa6e7393b85006894de7700b",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-01/input.json": "70d911ccaac5a2801bd9d070db40156df4a85e314bac7f34de44ac5d18328488",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-01/result.json": "2f0183e6696688815ccd193a219e2282f77452ac6863db6d0e2ba836cc6fc4f6",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-01/game.log": "ec34be97a187bc3cdcfc3ffe8b9002f3c14c840427e0a63ed1d227975219c8d2",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-02/input.json": "f7b85770198203ed1ac0449095c3d5e907c221b53fd99cc3794206c8e9b35beb",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-02/result.json": "a9e3c7c1f4772675d642d380a88de72d7d35b8f593d0cf5a073497f909e0ea3f",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-02/game.log": "ffc3282cb5e3a377712538d939a3c342752bc1bba38a54e63f275df33f028f4c",
+    "tmp/tome-mcp-validation/sessions/worldmap-v061-native-02/reload.log": "8db9f097d00d8ca418ef0d5577ea00a5aee22c5854b5c84390a50faa5b32b2bf",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/tome-mcp-bridge.teaa": "7df97a9121ac75470436f48c136dbe366f12b083688f0c508d1c86e367e7af0e",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/manifest.json": "e1abb98363e457de23a323107b65a4b856d5dc79860edd452f2af6f9fad2ac75",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/lua-tests.log": "e42fb7c7e0c97db4179caa1d6ca750b4ac19d0c42b8d4efa6b75e8e75e4cd8ec",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/python-tests.log": "cb661117443c35dc949c6c8a4c9335b0db52d9a8491f1ab87c6d8cdfdda0c96e",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/server-install.log": "581e7de00bb610b53a7820d83d2999778291e233326d61ccd546f83f4418e068",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/historical-check.json": "7486873fe02989cdbff477392499dcd9bde462fbd41a121203a32cf081da76fb",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/v1-input.json": "dd9864e7f59965f1ed7c6a3adbb8e5d489bac28f69b1c9a2e1edf18fa52a9e29",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/v1-result.json": "62dc8ac348bf710f05597a00b75fe44e61ec26c11e0b71f7f1573c9f1d5012bb",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/v2-input.json": "052bf2c6dbb421594d664cc4a639ca41d9a004aa7e93656202786e8fb8270f1d",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/v2-result.json": "c4d019430d01b752a8e813ba05b1dcdfdb2ce202faeae081aa12e7ebfd0adbfc",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/campaign-input.json": "a3b305320348ab8f7d7e4237de863f7084ae3e1b176c34a162e8607a0b195305",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/campaign-result.json": "0002ca571cbb4283d46b74272ce23e2950b0f66d60adc9741f631af904515680",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/initial.json": "bf873ebbe48252b7a4c405c8026b730e20290aa91e54f9993bd9ec497d31d2bd",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/after-move.json": "05ccbe56f069401e456901191ec2d75960969a3dc2ea635334d9f6fbdee9c4a8",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/destination.json": "4fe4be9d27b72471087f281446d2bd7ac2b762a527cb218f31e7e3927bd19251",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/at-destination.json": "d62f2b1801f14b907d19f80391da7e6895ae301ffe04de97bf342ba9056bf4bf",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/entered-zone.json": "795aee831126e5120748e0bd50381061515a432e3515f6f14351606cb6687517",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/returned-world.json": "a723fb60d7decd599b2ad771c535eef38553e6fdb4baf81c47cd12b711cb8aed",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/reloaded-world.json": "d61002128ba200675ac20618dc8e572525ddbf9577cb01080fbaf459fbc3e707",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/worldmap-run.py": "d7fadaa5175d5f9e72d0cf6e5c37f88241dda432fabaa52268bc9a4a27f1f899",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/worldmap-runtime.py": "27bcdbaeba59c0f93932787d59cf47d297ad64cda3e974c090e72d39f71e9d10",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/MCPVisibilityProbe.lua": "3b7c9c585c1635843ab2d14cea0010ff683dda7962ac23eaa77c6b394f09435d",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/interaction-run.py": "aeb8b97c1b55c0053890d4f7533459f401e89bf012d3f682f3af3bbbbf7c5aae",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/native-run.py": "9616f7bebf86e552ac75160966ca5028868318a403079bb93714199aaba6becc",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/python-source/__init__.py": "8282c5bfbfe1b10ac1432e067196f282286d83d72a15025c333c995b333c0c26",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/python-source/__main__.py": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/python-source/bridge.py": "cdabf8f5a0142d69dbbd2864f3430140836c5833a560645a76cc94e5aed45029",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/python-source/server.py": "77afd3c2c3fb20d17fbcc2edc629d3a9010864b3e3566f52ef14627b7309a906",
+    "game/addons/tome-mcp-bridge/validation/2026-09-15-worldmap/paseo-handoff.json": "5dd5b40636ad1bac6d7de071946cb947624fcf5fec7ce6eefed83d2438923403"
+  },
+  "paseo_handoff": {
+    "version": "0.6.1",
+    "agent_id": "c5c1aed2-49b7-4d8c-92b2-143184e27c6c",
+    "success": true,
+    "background": true,
+    "notifyOnFinish": true,
+    "sent_at_utc": "2026-09-15T07:55:22.279143+00:00",
+    "archive_sha256": "7df97a9121ac75470436f48c136dbe366f12b083688f0c508d1c86e367e7af0e",
+    "purpose": "Continue the authorized ordinary campaign using the released world-map fix; preserve source lineage and report unsupported escort chat without replaying scene changes."
+  }
+}

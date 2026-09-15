@@ -1,0 +1,21 @@
+Obtaining file:///workspace/t-engine4/tools/tome-mcp-server
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Building wheels for collected packages: tome-mcp-server
+  Building editable for tome-mcp-server (pyproject.toml): started
+  Building editable for tome-mcp-server (pyproject.toml): finished with status 'done'
+  Created wheel for tome-mcp-server: filename=tome_mcp_server-0.7.0-0.editable-py3-none-any.whl size=1644 sha256=482ae1815fb0e088efd2cfef445be9c306a1809bb5a66a69dc0d3634d410d8c8
+  Stored in directory: /tmp/pip-ephem-wheel-cache-s2d2rjta/wheels/97/87/4e/b1179b428d9fecac65f99b38103bab16a753d49d12cb98cd02
+Successfully built tome-mcp-server
+Installing collected packages: tome-mcp-server
+  Attempting uninstall: tome-mcp-server
+    Found existing installation: tome-mcp-server 0.6.1
+    Uninstalling tome-mcp-server-0.6.1:
+      Successfully uninstalled tome-mcp-server-0.6.1
+Successfully installed tome-mcp-server-0.7.0

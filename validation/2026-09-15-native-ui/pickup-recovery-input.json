@@ -1,0 +1,113 @@
+{
+  "command": [
+    "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/native-ui-pickup-recovery-final-02/runtime/t-engine",
+    "--no-steam",
+    "--no-web",
+    "--flush-stdout",
+    "--home",
+    "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/native-ui-pickup-recovery-final-02/home",
+    "-Mtome",
+    "-uMCP_campaign-play-01",
+    "-Eno_birth_popup=true"
+  ],
+  "source": "/workspace/t-engine4/tmp/battle-companion-validation-20260914/runtime",
+  "dependencies": "/workspace/t-engine4/tmp/worktrees/yron-profile-20260912/tmp/profile/deps/root/usr",
+  "engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+  "candidate_sha256": "503c37189b7cb7349bfdab73a78afdced06c5b258cb63c0eea2b06ebbb871038",
+  "new_character": false,
+  "imported_save": true,
+  "display": ":110",
+  "port": 58139,
+  "interaction_probe": false,
+  "addon_archive": "/workspace/t-engine4/game/addons/tome-mcp-bridge/dist/tome-mcp-bridge.teaa",
+  "addon_archive_sha256": "a3bd05bd4968c51dabc25ab8602c5c188e779bbec05f735502d743e15b17a363",
+  "extra_addons": {
+    "battle-companion": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v030-01/runtime/game/addons/tome-battle-companion.teaa",
+    "danger-alert": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v030-01/runtime/game/addons/tome-danger-alert.teaa",
+    "mcp-play-birth": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v030-01/runtime/game/addons/tome-mcp-play-birth"
+  },
+  "addon_lua_sha256": {
+    "tome-mcp-play-birth/init.lua": "30325fdeb37eb6be737c2f0485f58b9a222a08f084013c1e91ffdf64fe50f774",
+    "tome-mcp-play-birth/superload/mod/dialogs/Birther.lua": "bcf2e5beef3ddb3df5522b163f7bfe8b649911f6fcd051a7edc3c859e74bf719",
+    "tome-mcp-play-birth/hooks/load.lua": "73c4c0789f527c852af0c88efd5aa7d0385138edd24c57cfc669b75d9bcc4e04"
+  },
+  "copied_recorded_test_save": true,
+  "source_session": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/campaign-play-v030-01",
+  "source_record": "campaign-play-v030-01",
+  "source_evidence": "/workspace/t-engine4/documentation/mcp-campaign-continuation-0.3.0.json",
+  "source_evidence_sha256": "e15575b6527ca763cab2c1fcb6e530d0dbc45ac2ec9b32ab5a76622f7a075e28",
+  "source_save_sha256": {
+    "mcp_campaign_play_01/cur.png": "0af2e50de12cce30d871e08f1509b247ff4a0f92976f0a7296941e539fa766ca",
+    "mcp_campaign_play_01/desc.lua": "639ca8613e78b314ca68f1a0ba23e003df35b831c47c98368c7c85fd8a6726d7",
+    "mcp_campaign_play_01/game.teag": "c38a69bda7e9547ff35720a838b2900e202998803425487d25c90be86af49097",
+    "mcp_campaign_play_01/last_log.txt": "7b2e61b43d6f7423a6cd6a481aa86598ef3d8a813390dd9dd6769ed7eaf2318e",
+    "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+    "world.teaw": "cdd0579e2bc04249d9c19bcfc21de06fd5dda479f55313ab189a2914a9b39157"
+  },
+  "recorded_save_sha256": {
+    "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+    "world.teaw": "cdd0579e2bc04249d9c19bcfc21de06fd5dda479f55313ab189a2914a9b39157",
+    "mcp_campaign_play_01/last_log.txt": "7b2e61b43d6f7423a6cd6a481aa86598ef3d8a813390dd9dd6769ed7eaf2318e",
+    "mcp_campaign_play_01/desc.lua": "639ca8613e78b314ca68f1a0ba23e003df35b831c47c98368c7c85fd8a6726d7",
+    "mcp_campaign_play_01/cur.png": "0af2e50de12cce30d871e08f1509b247ff4a0f92976f0a7296941e539fa766ca",
+    "mcp_campaign_play_01/game.teag": "c38a69bda7e9547ff35720a838b2900e202998803425487d25c90be86af49097"
+  },
+  "historical_source_save_sha256": {
+    "campaign-play-01": {
+      "mcp_campaign_play_01/cur.png": "557f0204a6bf553c258b44e335b564ab0cefecfe5f2a52e0765d79194ffe20b0",
+      "mcp_campaign_play_01/desc.lua": "68fa28462c855634855fc47183fb4c4aa28244d247c525b9fe667f789eb4d828",
+      "mcp_campaign_play_01/game.teag": "5050a3a46d2e68c5db255cecaa2e6a8227eabdcf67197f5e0b6af90e32f8d25a",
+      "mcp_campaign_play_01/last_log.txt": "c929a47707cd3119f29a2f3f087fba2027f44acbb4f8089db7539beaa86ec981",
+      "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+      "world.teaw": "be820b11513eef15a6ada6aa66611b4f31ca50b5dfa16f2ea56a0eb16259c1a7"
+    },
+    "campaign-play-v030-01": {
+      "mcp_campaign_play_01/cur.png": "0af2e50de12cce30d871e08f1509b247ff4a0f92976f0a7296941e539fa766ca",
+      "mcp_campaign_play_01/desc.lua": "639ca8613e78b314ca68f1a0ba23e003df35b831c47c98368c7c85fd8a6726d7",
+      "mcp_campaign_play_01/game.teag": "c38a69bda7e9547ff35720a838b2900e202998803425487d25c90be86af49097",
+      "mcp_campaign_play_01/last_log.txt": "7b2e61b43d6f7423a6cd6a481aa86598ef3d8a813390dd9dd6769ed7eaf2318e",
+      "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+      "world.teaw": "cdd0579e2bc04249d9c19bcfc21de06fd5dda479f55313ab189a2914a9b39157"
+    }
+  },
+  "historical_source_evidence_sha256": {
+    "campaign-play-01": "13afa726d30199dc7a89dc2bf6f26640bd5d63df6a5e836aff61891c25cb2b4a",
+    "campaign-play-v030-01": "e15575b6527ca763cab2c1fcb6e530d0dbc45ac2ec9b32ab5a76622f7a075e28"
+  },
+  "cheat": false,
+  "normal_campaign": true,
+  "gameplay_fixture": false,
+  "character_name": "MCP_campaign-play-01",
+  "supporting_addon_sha256": {
+    "battle-companion": "a771e3d99bb13fe4abd888478097f3b409f95935264c144ee103524a2895a988",
+    "danger-alert": "f1ffd214c72d3967589acb167a091e3a370985ef304f9099bae00390092314ef",
+    "mcp-play-birth": {
+      "hooks/load.lua": "73c4c0789f527c852af0c88efd5aa7d0385138edd24c57cfc669b75d9bcc4e04",
+      "init.lua": "30325fdeb37eb6be737c2f0485f58b9a222a08f084013c1e91ffdf64fe50f774",
+      "superload/mod/dialogs/Birther.lua": "bcf2e5beef3ddb3df5522b163f7bfe8b649911f6fcd051a7edc3c859e74bf719"
+    }
+  },
+  "source_engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+  "mcp_server_py_sha256": {
+    "tome_mcp/__init__.py": "96b299735fb0a79fd0ade5d0d545808ce0f099b0cb06ea9e149ca7367787475a",
+    "tome_mcp/__main__.py": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+    "tome_mcp/bridge.py": "cdabf8f5a0142d69dbbd2864f3430140836c5833a560645a76cc94e5aed45029",
+    "tome_mcp/server.py": "8820172959bb65322f47f22087b43665e5795134d57a3147c058c3867b6abdc2"
+  },
+  "runner_sha256": {
+    "runtime.py": "56081b5d9ac96f0cdba216cbf6ffff5d3e9d930133b7b96a484f69d882ea39e2",
+    "run.py": "99b06f2e2f8a28138a3d85fb8e7ddc04d01b5747fd09ad8bed1949f95d985c2b"
+  },
+  "derived_ordinary_source": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/native-ui-handoff-package-02",
+  "derived_source_result_sha256": "1206a638dfdbb6a993577a2480cdcc72172c91dd60b0c836a5adb0de6607bc3c",
+  "source_save_replaced_with_derived_copy": true,
+  "derived_source_save_sha256": {
+    "mcp_campaign_play_01/cur.png": "a9577bfec190b97f31b6a32130e58d62b00de142e42dce8846282e5addf6f441",
+    "mcp_campaign_play_01/desc.lua": "44ae606d4f16918ced08ef0691e66c1934134365a68278ec8302711e8f9b395b",
+    "mcp_campaign_play_01/game.teag": "25c7d2a48e178174d2edcd18ff151202bdb1f9572d4ea0410fc6c2d28ba45262",
+    "mcp_campaign_play_01/last_log.txt": "abe37698952a402eaadbe7311fc5a7bb19aae9cb3e05edf3aea77fda36d6b944",
+    "quick_hotkeys": "051bf837e16742db6448fc9220bda2bdfcb62bd17c40b58fa6740cef61194fff",
+    "world.teaw": "1f1d6ad40cc2d0be07f9eff980449dbe7e0b9fa0e8a18e93607655a4d845c854"
+  },
+  "recovery_driver_sha256": "47be7d9ec089748ac363cce948f01ab0c684c3854ea145d972dc073c53dd60a0"
+}

@@ -1,0 +1,675 @@
+{
+  "passed": true,
+  "error": null,
+  "checks": [
+    {
+      "name": "native_chat_owned",
+      "passed": true,
+      "record": {
+        "code": "awaiting_native_input",
+        "command_id": "interactive-1",
+        "energy_spent": 0,
+        "energy_spent_complete": true,
+        "execution_released": false,
+        "input_owner": "remote",
+        "interaction": {
+          "answer_types": [
+            "option"
+          ],
+          "consumed": false,
+          "interaction_id": "interaction-1",
+          "kind": "dialog.choice",
+          "native_ui": "Chat",
+          "options": [
+            {
+              "disabled": false,
+              "label": "Same label",
+              "option_id": "interaction-1:option-1"
+            },
+            {
+              "disabled": false,
+              "label": "Same label",
+              "option_id": "interaction-1:option-2"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 3",
+              "option_id": "interaction-1:option-3"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 4",
+              "option_id": "interaction-1:option-4"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 5",
+              "option_id": "interaction-1:option-5"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 6",
+              "option_id": "interaction-1:option-6"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 7",
+              "option_id": "interaction-1:option-7"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 8",
+              "option_id": "interaction-1:option-8"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 9",
+              "option_id": "interaction-1:option-9"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 10",
+              "option_id": "interaction-1:option-10"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 11",
+              "option_id": "interaction-1:option-11"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 12",
+              "option_id": "interaction-1:option-12"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 13",
+              "option_id": "interaction-1:option-13"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 14",
+              "option_id": "interaction-1:option-14"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 15",
+              "option_id": "interaction-1:option-15"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 16",
+              "option_id": "interaction-1:option-16"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 17",
+              "option_id": "interaction-1:option-17"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 18",
+              "option_id": "interaction-1:option-18"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 19",
+              "option_id": "interaction-1:option-19"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 20",
+              "option_id": "interaction-1:option-20"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 21",
+              "option_id": "interaction-1:option-21"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 22",
+              "option_id": "interaction-1:option-22"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 23",
+              "option_id": "interaction-1:option-23"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 24",
+              "option_id": "interaction-1:option-24"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 25",
+              "option_id": "interaction-1:option-25"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 26",
+              "option_id": "interaction-1:option-26"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 27",
+              "option_id": "interaction-1:option-27"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 28",
+              "option_id": "interaction-1:option-28"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 29",
+              "option_id": "interaction-1:option-29"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 30",
+              "option_id": "interaction-1:option-30"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 31",
+              "option_id": "interaction-1:option-31"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 32",
+              "option_id": "interaction-1:option-32"
+            }
+          ],
+          "options_next": 32,
+          "options_offset": 0,
+          "options_total": 40,
+          "prompt": "Conversation",
+          "revision": 21910,
+          "sequence": 1,
+          "text": "Native conversation with forty visible answers."
+        },
+        "native_return": true,
+        "revision": 21910,
+        "revision_before": 21903,
+        "status": "awaiting_input",
+        "world_tick_before": 0
+      }
+    },
+    {
+      "name": "only_visible_native_choices_no_synthetic_cancel",
+      "passed": true
+    },
+    {
+      "name": "chat_duplicate_labels_have_distinct_native_options",
+      "passed": true
+    },
+    {
+      "name": "chat_paging_does_not_evaluate_conditions_or_advance_world",
+      "passed": true
+    },
+    {
+      "name": "chat_cancel_without_native_choice_is_rejected",
+      "passed": true
+    },
+    {
+      "name": "reconnect_preserves_chat_page_and_command",
+      "passed": true
+    },
+    {
+      "name": "paged_native_choice_follows_automatic_page_to_reward",
+      "passed": true,
+      "record": {
+        "code": "awaiting_native_input",
+        "command_id": "interactive-1",
+        "energy_spent": 0,
+        "energy_spent_complete": true,
+        "execution_released": false,
+        "input_owner": "remote",
+        "interaction": {
+          "answer_types": [
+            "option"
+          ],
+          "consumed": false,
+          "interaction_id": "interaction-2",
+          "kind": "dialog.choice",
+          "native_ui": "Chat",
+          "options": [
+            {
+              "disabled": false,
+              "label": "Improve Willpower by 2",
+              "option_id": "interaction-2:option-1"
+            }
+          ],
+          "options_offset": 0,
+          "options_total": 1,
+          "prompt": "Conversation",
+          "revision": 21921,
+          "sequence": 2,
+          "text": "Choose a reward, then continue the same conversation."
+        },
+        "interruption": "control_replaced",
+        "native_return": true,
+        "response_receipt": {
+          "interaction_id": "interaction-1",
+          "response_id": "answer-2",
+          "state": "applied"
+        },
+        "revision": 21921,
+        "revision_before": 21903,
+        "status": "awaiting_input",
+        "world_tick_before": 0
+      }
+    },
+    {
+      "name": "native_choice_37_called_once",
+      "passed": true
+    },
+    {
+      "name": "duplicate_choice_does_not_replay_native_callback",
+      "passed": true
+    },
+    {
+      "name": "reward_native_notice_above_farewell",
+      "passed": true
+    },
+    {
+      "name": "reward_applied_once_before_farewell",
+      "passed": true
+    },
+    {
+      "name": "farewell_exposes_fresh_page_identity",
+      "passed": true
+    },
+    {
+      "name": "duplicate_reward_reply_cannot_award_twice",
+      "passed": true
+    },
+    {
+      "name": "farewell_finishes_original_invocation",
+      "passed": true
+    },
+    {
+      "name": "completed_duplicate_chat_move_and_reward_are_inert",
+      "passed": true
+    },
+    {
+      "name": "npc_chat_armed_without_time",
+      "passed": true
+    },
+    {
+      "name": "npc_settlement_owns_deferred_notice",
+      "passed": true,
+      "record": {
+        "code": "awaiting_native_input",
+        "command_id": "interactive-7",
+        "energy_spent": 1000,
+        "energy_spent_complete": true,
+        "execution_released": false,
+        "input_owner": "remote",
+        "interaction": {
+          "answer_types": [
+            "option",
+            "cancel"
+          ],
+          "consumed": false,
+          "interaction_id": "interaction-6",
+          "kind": "dialog.notice",
+          "native_ui": "QuestPopup",
+          "options": [
+            {
+              "disabled": false,
+              "label": "Close",
+              "option_id": "interaction-6:option-1"
+            }
+          ],
+          "options_offset": 0,
+          "options_total": 1,
+          "prompt": "QuestPopup",
+          "revision": 21953,
+          "sequence": 2,
+          "text": "#ANTIQUE_WHITE#Quest: #AQUAMARINE#NPC turn fixture\n#ANTIQUE_WHITE#(See your Journal for further details or click here)\n#cc9f33#Quest #AQUAMARINE#Updated!"
+        },
+        "native_return": true,
+        "revision": 21953,
+        "revision_before": 21944,
+        "status": "awaiting_input",
+        "world_tick_before": 0
+      }
+    },
+    {
+      "name": "native_chat_owned",
+      "passed": true,
+      "record": {
+        "code": "awaiting_native_input",
+        "command_id": "interactive-7",
+        "energy_spent": 1000,
+        "energy_spent_complete": true,
+        "execution_released": false,
+        "input_owner": "remote",
+        "interaction": {
+          "answer_types": [
+            "option"
+          ],
+          "consumed": false,
+          "interaction_id": "interaction-7",
+          "kind": "dialog.choice",
+          "native_ui": "Chat",
+          "options": [
+            {
+              "disabled": false,
+              "label": "Same label",
+              "option_id": "interaction-7:option-1"
+            },
+            {
+              "disabled": false,
+              "label": "Same label",
+              "option_id": "interaction-7:option-2"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 3",
+              "option_id": "interaction-7:option-3"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 4",
+              "option_id": "interaction-7:option-4"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 5",
+              "option_id": "interaction-7:option-5"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 6",
+              "option_id": "interaction-7:option-6"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 7",
+              "option_id": "interaction-7:option-7"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 8",
+              "option_id": "interaction-7:option-8"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 9",
+              "option_id": "interaction-7:option-9"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 10",
+              "option_id": "interaction-7:option-10"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 11",
+              "option_id": "interaction-7:option-11"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 12",
+              "option_id": "interaction-7:option-12"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 13",
+              "option_id": "interaction-7:option-13"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 14",
+              "option_id": "interaction-7:option-14"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 15",
+              "option_id": "interaction-7:option-15"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 16",
+              "option_id": "interaction-7:option-16"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 17",
+              "option_id": "interaction-7:option-17"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 18",
+              "option_id": "interaction-7:option-18"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 19",
+              "option_id": "interaction-7:option-19"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 20",
+              "option_id": "interaction-7:option-20"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 21",
+              "option_id": "interaction-7:option-21"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 22",
+              "option_id": "interaction-7:option-22"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 23",
+              "option_id": "interaction-7:option-23"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 24",
+              "option_id": "interaction-7:option-24"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 25",
+              "option_id": "interaction-7:option-25"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 26",
+              "option_id": "interaction-7:option-26"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 27",
+              "option_id": "interaction-7:option-27"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 28",
+              "option_id": "interaction-7:option-28"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 29",
+              "option_id": "interaction-7:option-29"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 30",
+              "option_id": "interaction-7:option-30"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 31",
+              "option_id": "interaction-7:option-31"
+            },
+            {
+              "disabled": false,
+              "label": "Visible choice 32",
+              "option_id": "interaction-7:option-32"
+            }
+          ],
+          "options_next": 32,
+          "options_offset": 0,
+          "options_total": 40,
+          "prompt": "Conversation",
+          "revision": 21959,
+          "sequence": 3,
+          "text": "Native conversation with forty visible answers."
+        },
+        "native_return": true,
+        "response_receipt": {
+          "interaction_id": "interaction-6",
+          "response_id": "answer-8",
+          "state": "applied"
+        },
+        "revision": 21959,
+        "revision_before": 21944,
+        "status": "awaiting_input",
+        "world_tick_before": 0
+      }
+    },
+    {
+      "name": "only_visible_native_choices_no_synthetic_cancel",
+      "passed": true
+    },
+    {
+      "name": "chat_duplicate_labels_have_distinct_native_options",
+      "passed": true
+    },
+    {
+      "name": "chat_paging_does_not_evaluate_conditions_or_advance_world",
+      "passed": true
+    },
+    {
+      "name": "chat_cancel_without_native_choice_is_rejected",
+      "passed": true
+    },
+    {
+      "name": "reconnect_preserves_chat_page_and_command",
+      "passed": true
+    },
+    {
+      "name": "paged_native_choice_follows_automatic_page_to_reward",
+      "passed": true,
+      "record": {
+        "code": "awaiting_native_input",
+        "command_id": "interactive-7",
+        "energy_spent": 1000,
+        "energy_spent_complete": true,
+        "execution_released": false,
+        "input_owner": "remote",
+        "interaction": {
+          "answer_types": [
+            "option"
+          ],
+          "consumed": false,
+          "interaction_id": "interaction-8",
+          "kind": "dialog.choice",
+          "native_ui": "Chat",
+          "options": [
+            {
+              "disabled": false,
+              "label": "Improve Willpower by 2",
+              "option_id": "interaction-8:option-1"
+            }
+          ],
+          "options_offset": 0,
+          "options_total": 1,
+          "prompt": "Conversation",
+          "revision": 21970,
+          "sequence": 4,
+          "text": "Choose a reward, then continue the same conversation."
+        },
+        "interruption": "control_replaced",
+        "native_return": true,
+        "response_receipt": {
+          "interaction_id": "interaction-7",
+          "response_id": "answer-9",
+          "state": "applied"
+        },
+        "revision": 21970,
+        "revision_before": 21944,
+        "status": "awaiting_input",
+        "world_tick_before": 0
+      }
+    },
+    {
+      "name": "native_choice_37_called_once",
+      "passed": true
+    },
+    {
+      "name": "duplicate_choice_does_not_replay_native_callback",
+      "passed": true
+    },
+    {
+      "name": "reward_native_notice_above_farewell",
+      "passed": true
+    },
+    {
+      "name": "reward_applied_once_before_farewell",
+      "passed": true
+    },
+    {
+      "name": "farewell_exposes_fresh_page_identity",
+      "passed": true
+    },
+    {
+      "name": "duplicate_reward_reply_cannot_award_twice",
+      "passed": true
+    },
+    {
+      "name": "farewell_finishes_original_invocation",
+      "passed": true
+    },
+    {
+      "name": "completed_duplicate_chat_move_and_reward_are_inert",
+      "passed": true
+    },
+    {
+      "name": "npc_chat_does_not_replay_already_spent_move",
+      "passed": true
+    },
+    {
+      "name": "stop_preserves_actual_native_chat_for_manual_input",
+      "passed": true
+    },
+    {
+      "name": "manual_chat_pages_release_barrier_and_reward_once",
+      "passed": true
+    },
+    {
+      "name": "actual_native_escort_reward_script_is_supported",
+      "passed": true
+    },
+    {
+      "name": "actual_native_escort_reward_regenerates_farewell",
+      "passed": true
+    },
+    {
+      "name": "actual_native_escort_stat_reward_applies_plus_five",
+      "passed": true
+    },
+    {
+      "name": "actual_native_escort_duplicate_reward_and_action_are_inert",
+      "passed": true
+    },
+    {
+      "name": "actual_native_escort_thank_you_finishes_original_command",
+      "passed": true
+    },
+    {
+      "name": "chat_read_only_observation_and_status_callback_purity",
+      "passed": true
+    }
+  ]
+}

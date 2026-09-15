@@ -1,0 +1,288 @@
+# MCP Bridge 验收记录
+
+## 0.8.0：协议 v3 技能查询/目标预填与原生洗点
+
+日期：2026-09-15。本版只保留协议 **v3**（v1/v2 已在测试阶段移除）：只读技能查询（射程、基础与实时消耗、冷却、条件/可用性提示）与一次性目标预填（actor/position）；新增原生 `unlearn_talent`（仅退还原生 `last_learnt_talents` 窗口内、非战斗、非 item 授予/保护的技能点）。核心游戏文件未修改，原生插入点未变。本版经独立 agent 验收，发现并修复预填绕过原生射程（F-1）与带魔像角色被拒绝成长（F-2），并补充实时消耗（`current_costs` + `base_costs`，F-3），随后复验通过。
+
+| 检查层 | 结果 | 证据 |
+| --- | --- | --- |
+| Lua 单元 | **896 项通过**（Actions 65、Talent query/prefill 46、Progression 231、Interactive Runtime 70） | `bash game/addons/tome-mcp-bridge/tests/run.sh` |
+| Python / 官方 SDK | **26 个测试通过** | `server/tests/` |
+| 原生 v3 查询（含实时消耗） | **通过（78 项，0 硬失败）**：动态 range/requires_target/target 标 `unknown`；纯度探针 0 次 RNG/preUseTalent/info/canSee；`distance`/`in_range`/冷却/可用性与实测一致；`current_costs` 为实时值（`T_LIGHTNING` mana 基础 10 → 实时 12.4，与实测扣费一致），`base_costs` 为基础值，`costs_complete` 标明完整性 | `tmp/tome-mcp-validation/sessions/mcp-v3only-02/result.json` |
+| 原生 v3 预填（含 F-1） | **通过**：静态越程在动作开始前拒绝（`target_out_of_range`，0 能量）；动态射程在第一次 `getTarget` 处校验，越程/自我警告回退原生目标提示；只在第一次 `getTarget` 消费一次并恢复；不使用 `target.forced` | 同上 |
+| 原生 `respond` 射程 | **通过**：`target.grid` 越程返回 `position_out_of_range`，射程内正常提交 | 同上 |
+| 原生 respec（含 F-2） | **通过**：窗口内学习/退还 1 点、点池与面板一致、保存副本重载保留；窗口外 `talent_not_recently_learnt`、战斗中 `respec_in_combat` 拒绝；单元覆盖带 `alchemy_golem` 角色不再被拒绝 | 同上 |
+| 原生 v3 套件 | **native 100/100、interactions 94/94**（均为协议 3，信封 `v=3`） | `tmp/tome-mcp-validation/sessions/mcp-v3only-native-03`、`mcp-v3only-interactions-01` |
+
+正式包 **36 个生产文件**，SHA-256：
+
+```text
+6936bf6865f74e55ab4a2ae515d6dd8a4692ca4015e08b1e782ce6c150d19499
+```
+
+已知限制：
+
+- **F-4（信息）**：未解析的 `target_id` 在命令记录生成后、原生体之前返回 `target_lost`（0 能量），功能正确。
+- `current_costs` 仅在基础消耗为静态数值且原生 `alterTalentCost`/`cost_factor` 未被改写时给出实时值；动态基础消耗对应项为 `unknown` 且 `costs_complete=false`。计算实时值会调用原生 `cost_factor`（可能读取只读疲劳 getter），不消耗 RNG、不改变状态。
+
+本版只保留协议 v3：移除了 v1 白名单适配与 v2/v3 分支（`atLeast`），TCP 信封 `v` 固定为 3，`tome.connect` 不再接受 `protocol_version`；同时对返回字段做了统一重命名（`current_costs`、`control_source`、顶层 `truncated`、`point_cost`、`readiness_reason`、`requirements_are_raw`、`combat_values_are_raw`、`speed_values_are_raw`、`required_level`；移除 `costs_are_final`、`query_is_final`、`readiness_is_final`、`map_omitted`、`observation_truncated`）。字段清单见 [API 字段](docs/tome-mcp-api-fields.md)。
+
+respec 原生验收使用隔离新角色，不是既有长期战役存档副本；未触碰用户原存档。以下为历史验收记录。
+
+## 0.7.0：原生 Chat、护送奖励与告别
+
+日期：2026-09-15。正式包 36 文件，SHA-256 `23e34185c3be9c465079bf71626e072fd53f71faa8ea382dec3a5f71f8a9b196`。Chat 沿实际可见选项和原生 `use` 继续；连续页、NPC 回合、换层租约恢复、加载窗口和自动保存纳入同一命令生命周期。
+
+| 验收层 | 最终结果 | 证据 |
+| --- | --- | --- |
+| Lua / Python | **912 / 25 项通过** | [Lua](validation/2026-09-15-chat/lua-tests.log)、[Python](validation/2026-09-15-chat/python-tests.log) |
+| 原生 v1 / v2 三插件组合 | **100 / 96 项通过** | [v1](validation/2026-09-15-chat/v1-result.json)、[v2](validation/2026-09-15-chat/v2-result.json) |
+| 原生 Chat 专项及未修改的先知奖励脚本 | **41 项通过** | [Chat](validation/2026-09-15-chat/fixture-result.json) |
+| 普通存档自然护送与重载 | **87 项，63 次动作全部 completed** | [自然护送](validation/2026-09-15-chat/natural-result.json) |
+| 最新 6 级存档升级加载与重载 | **5 项通过** | [6 级存档](validation/2026-09-15-chat/lv6-result.json) |
+
+五组最终原生运行均使用同一正式包。自然护送从已发布 0.6.0 的 Lv5 世界地图副本开始；lost warrior 的开场、Strength +5 奖励、Thank you 告别全部使用 MCP。奖励来自已经完成的向南移动，重复请求不重放移动或奖励，保存重载保留 +5。另用原生 `escort-quest.lua` / `EscortRewards` 的明确 fixture 验证先知 Willpower +5。最新 0.6.1 的 Lv6 Kor'Pul2 存档独立复制加载，原有意志奖励不重做。
+
+历史 **126,350 文件**哈希未变。早期生产缺陷、驱动错误、随机未触发护送和 NPC 战死等失败均保留；完整说明见 [0.7.0 交付](docs/tome-mcp-chat-0.7.0.md)、[冻结汇总](validation/2026-09-15-chat/summary.json) 和 [复现方法](tests/chat/README.md)。本轮没有完成整场战役，交付后按用户要求暂停。以下历史记录原文保留。
+
+## 0.6.1：世界地图可见地形与入口
+
+日期：2026-09-15。正式包 34 文件，SHA-256 `7df97a9121ac75470436f48c136dbe366f12b083688f0c508d1c86e367e7af0e`。沿经源码校验的原生世界地图 `applyLite` 可见缓存修复漏报；地牢 `infovs`、ESP 和失明保护保留，核心游戏代码未改。
+
+| 验收层 | 最终结果 | 证据 |
+| --- | --- | --- |
+| Lua / Python | **876 项 / 25 项通过** | [Lua](validation/2026-09-15-worldmap/lua-tests.log)、[Python](validation/2026-09-15-worldmap/python-tests.log) |
+| 原生 v1 与存档重载 | **100 项通过** | [结果](validation/2026-09-15-worldmap/v1-result.json) |
+| 原生 v2 三插件组合 | **96 项通过** | [结果](validation/2026-09-15-worldmap/v2-result.json) |
+| 普通世界地图存档、导航、实际断线重连与副本重载 | **34 项通过** | [结果](validation/2026-09-15-worldmap/campaign-result.json) |
+
+三组最终原生运行使用同一正式包。v1/v2 均包含九项独立的原生感知检查；fixture 不进入普通战役或生产包。普通运行直接复制已发布的 `campaign-play-v060-02` 5 级世界地图存档，七份存档文件及前序来源链均校验。初始 625 格中可见 39 格、未知 586 格；移动后可见 50 格、累计已知 51 格。仅凭 MCP 地图完成 10 次移动和 2 次原生换层，全部 completed；在 Trollmire 入口 `(28,13)` 满生命、满体力保存，复制重载后当前可见格仍为 39。未完成整场战役。
+
+首个普通尝试进入 Kor’Pul 后遇到不支持的护送聊天，换场已发生且执行占用仍保留；该失败保留，未重放或人工绕过。通过的往返验收改用已探索的 Trollmire；不据此宣称支持护送聊天。两个早期原生 fixture 设置错误及修复过程也保留在 [汇总](validation/2026-09-15-worldmap/summary.json)。
+
+历史 **101,019 文件**哈希未变。[本版冻结安装包](validation/2026-09-15-worldmap/tome-mcp-bridge.teaa)、[交付说明](docs/tome-mcp-worldmap-0.6.1.md)、[复现说明](tests/worldmap/README.md)。以下历史验收原文保留。
+
+## 0.6.0：原生剧情说明与通用物品激活
+
+日期：2026-09-15。Bridge / Python server **0.6.0**，ToME **1.7.6**。针对 [0.5.0 普通战役反馈](docs/mcp-campaign-continuation-0.5.0.md) 实现并验收；保留原生调用、执行占用与回执模型。核心游戏代码未修改。
+
+| 检查层 | 最终结果 | 冻结证据 |
+| --- | --- | --- |
+| Lua 回归，使用原生引擎相同的 JIT 优化等级 2 | **864 项通过** | [日志](validation/2026-09-15-native-ui/lua-tests.log) |
+| Python / 官方 MCP SDK | **25 个测试通过** | [日志](validation/2026-09-15-native-ui/python-tests.log) |
+| v2 正式包 + Battle Companion / Danger Alert | **95/95 项** | [结果](validation/2026-09-15-native-ui/v2-result.json) |
+| v1 正式包全部原生回归 | **99/99 项** | [结果](validation/2026-09-15-native-ui/v1-result.json) |
+| 原等级 3 普通存档副本，自然战斗与奖励 | **51/51 项，91 次 act 全部 completed，8 个说明窗口** | [结果](validation/2026-09-15-native-ui/campaign-result.json) |
+| 自然击杀后的人工接管恢复 | **10/10 项**，Prox QuestPopup，经验不重复 | [结果](validation/2026-09-15-native-ui/kill-handoff-result.json) |
+| 自然拾取后的人工接管恢复 | **10/10 项**，关闭后仍只有一根 Rod | [结果](validation/2026-09-15-native-ui/pickup-recovery-result.json) |
+| 原生保存的独立副本重载 | **5/5 项**，等级、经验、物品和 Recall 效果保留 | [结果](validation/2026-09-15-native-ui/reload-result.json) |
+
+以上六个原生运行均使用相同最终 `.teaa`，**34 个生产文件**，包内逐字节匹配当前源码：
+
+```text
+a3bd05bd4968c51dabc25ab8602c5c188e779bbec05f735502d743e15b17a363
+```
+
+见 [正式包](dist/tome-mcp-bridge.teaa)、[冻结 manifest](validation/2026-09-15-native-ui/manifest.json)、[输入、结果与哈希汇总](validation/2026-09-15-native-ui/summary.json) 和 [0.6.0 交付说明](docs/tome-mcp-native-notices-items-0.6.0.md)。Python 冻结源码与当前 0.6.0 相同；验证环境也已重新安装，代码版本与安装元数据均为 0.6.0。
+
+### 自然奖励的具体回归
+
+`native-ui-campaign-package-final-02` 从历史 `campaign-play-v030-01` 原始等级 3 存档的新副本开始。没有 gameplay probe、直接改属性、授予技能、生成奖励或全图观察。先通过 MCP 花费角色已有成长点，沿当前可见地图作战、取得并装备真实掉落的铁质巨锤，再原生击败 Prox，升至 5 级。
+
+| 原生触发 | 最终运行命令 | 原生窗口及处理 |
+| --- | --- | --- |
+| 普通攻击击杀 Prox | notice-82 | QuestPopup，奖励已生效，回答关闭后原命令完成 |
+| 移到掉落格 | notice-83 | Rod of Recall、Silk Current、Coral Spray 三个 LorePopup，按实际栈顶逐层关闭 |
+| 拾取纸条 | notice-84 | Hidden treasure 的 QuestPopup、simplePopup、LorePopup 三层，仍属一次拾取 |
+| 拾取 Rod of Recall | notice-85 | simplePopup，回答前 Rod 已在背包 |
+
+自然掉落类在实际源码中是 **LorePopup**；ShowLore 是收藏目录，其原生关闭另由专项场景覆盖。只暴露对应原生 EXIT 回调；不按文字猜测窗口、不清空窗口栈。动作内登记的原生回合末回调继承归属；无归属或未知 UI 仍移交玩家。
+
+每层检查重复 act 不重放奖励，重复 respond 不重复关闭，实际栈顶顺序和 sequence 单调递增。人工接管分支另在自然 Prox 击杀及真实 Rod 拾取后执行 stop、原生 Escape、显式重连；旧记录继续为 needs_input，执行占用释放，经验和物品没有重复增加。BC 始终 idle / actions=0。
+
+### 通用物品与原生边界
+
+专项场景使用明确的测试物品验证 use_power 两次目标输入、取消不扣充能、一次完整使用扣充能和 1000 能量、重复请求不重复消耗、未穿戴拒绝、use_simple 消耗品移除、use_talent 物品的原生目标和充能处理。此类 fixture 不进入生产包，也不代替自然物品证据。
+
+普通战役最终以通用 use_item 激活自然获得的 Rod of Recall，原生扣充能、耗能并产生 Recall 效果。安全保存时角色等级 5、生命 **209.75/209.75**，Trollmire 3 **(2,5)**；保存副本重载后仍保留 **39 回合 Recall**，新 session 没有旧调用，旧 command_id 返回 unknown_command。本轮验证激活及持久化，没有执行完后续 40 回合传送，也没有完成整场战役。技能本身连续多问由专项场景覆盖；普通战役的多层奖励窗口不等同于技能连续目标问题。
+
+原有目标、方向、确认、列表、库存、任务、取消、保存延期、接管、断线及错误隔离回归继续通过。专项场景末尾的 mcp-expected-after-resume-error 为预期故障注入；没有非预期原生 Lua 错误。UTF-8 长说明截断有边界测试；只读守卫继续验证无额外 RNG、感知、预检、动态说明或物品命名回调。
+
+### 证据保护与失败试验
+
+全部历史及 0.5.0 实战证据在修改前冻结；最后校验 **75,740 个文件全部不变**，包含三轮历史存档、报告与原始运行资料。见 [保护检查](validation/2026-09-15-native-ui/historical-check.json)。新增测试只操作各自独立副本；原生产 0.5.0 另完整备份在 tmp/tome-mcp-native-ui-implementation/baseline-0.5.0.zip。
+
+早期脚本失败及两次自然战斗死亡完整保留在 native-ui-campaign-01 至 -09；它们不算验收通过。修正内容包括读档后敌人／掉落位置变化、换层重连、原生方向回答及相邻纸条拾取。一次同时启动测试导致 Xvfb 显示号冲突，已改用错开启动；它不作为 MCP 断线恢复的产品证据。系统 LuaJIT 默认优化等级 3 下，反复替换虚拟类环境的物品单测出现间歇失败；对齐原生 pre-init 的等级 2 后诊断 **30/30** 通过，完整 Lua 回归通过。诊断原文见 [记录](validation/2026-09-15-native-ui/items-cli-jit-diagnostic.json)。
+
+复现：[自然奖励与接管](tests/notices/README.md)、[原生专项](tests/interactions/README.md)、[v2 契约](docs/tome-mcp-v2-interactions.md)。完整 MCP 调用、原生日志和存档仍在汇总列出的各 session；冻结目录保存精简的结果、输入、测试日志与校验值。
+
+以下保留历史交付记录；其中版本、哈希和限制适用于当时交付，dist 链接指向当前版本。
+
+## 0.5.0：通用原生技能交互
+
+日期：2026-09-15。Bridge / Python server **0.5.0**；ToME **1.7.6**。新增显式协议 v2，默认 v1 保持兼容。相关核心引擎文件未修改；生产 addon 内的生成插入点在打包前通过原生源码一致性检查。
+
+| 检查层 | 结果 | 证据 |
+| --- | --- | --- |
+| Lua 回归 | **849 项通过**，含调用生命周期 21 项及交互状态机 38 项 | [日志](validation/2026-09-15-interactions/lua-tests.log) |
+| Python / 官方 MCP SDK | **24 个测试通过**，含严格回答 schema、旧协议、超时回执与不重发 | [日志](validation/2026-09-15-interactions/python-tests.log) |
+| v2 真实游戏，冻结源码 | **73/73 项** | [结果](validation/2026-09-15-interactions/source-result.json) |
+| v2 真实游戏，正式包 | **73/73 项** | [结果](validation/2026-09-15-interactions/package-result.json) |
+| v2 + BC 0.1.1 + Danger Alert 1.3.1 正式包 | **77/77 项**，包含人工移交后的执行占用阻止助手启动 | [结果](validation/2026-09-15-interactions/three-addons-result.json) |
+| 正式包 v1 全部原生回归 | **99/99 项** | [结果](validation/2026-09-15-interactions/v1-result.json) |
+| 正式包自然 Lv3 存档成长、物品和重载 | **92/92 项，52 次动作请求**，两份历史存档保持不变 | [结果](validation/2026-09-15-interactions/growth-result.json) |
+
+v2 原生场景实测 Rush、高等级 Phase Door 两次选择、Precise Strikes 开／已开 no-op／关、Fearless Cleave 方向输入、自我目标警告、原生确认和分页列表、两类物品选择、嵌套调用及能量已消费后的挂起。Catapult Trap 第二问取消后仍保留已放置陷阱。Refit Golem 按原生计数等待 **21 步**、消耗 **15 颗宝石**并复活魔像；实测 Refit 等待中被新出现的敌人打断、不复活且不消耗宝石；另测停止、**1000 步**预算及任务结束回调继续提问。
+
+保存验收从挂起输入开始，证明文件在输入未解决前不变，完成原生人工取消后实际保存；加载该保存的独立副本建立新 session，旧协程和命令不恢复，新的交互仍可执行。只读守卫覆盖 observe / inspect、交互和任务描述，无额外 RNG、原生感知、预检或物品命名回调。
+
+验收中修复了 Dialog 提前缓存导致注册缺失、原生自我警告保留 target_co 的归属判断、延迟保存后缺少下一次调度、排队回答遇到死亡／场景变化的边界处理，以及挂起状态误报 native_rejected。取消、stop、断线、人工接管分别保留其语义；错误不声称回滚。
+
+原生场景使用隔离测试角色及 probe，最后一项有意在恢复后扣 5 mana 并抛 `mcp-expected-after-resume-error`，验证 uncertain、写隔离与已应用回执；对应 `##Use Talent Lua Error## T_MCP_TEST_ERROR` 为预期诊断。没有非预期 Lua 错误。自然成长回归使用原真实等级 3 存档副本，`cheat=false`、无 gameplay fixture；BC 保持 idle / actions=0。
+
+正式包：[dist/tome-mcp-bridge.teaa](dist/tome-mcp-bridge.teaa)，**28 个生产文件**，SHA-256：
+
+```text
+8e9bf95bc39761cdca28f19ee6a6ea8eabc51dc5bb2603a821585cf6dfa5ec1c
+```
+
+包内文件逐字节匹配源码验收候选及当前源码；各正式包运行的冻结副本均匹配该 SHA。见 [冻结 manifest](validation/2026-09-15-interactions/manifest.json)、[结果与证据哈希](validation/2026-09-15-interactions/summary.json)、[复现说明](tests/interactions/README.md) 和 [v2 契约](docs/tome-mcp-v2-interactions.md)。
+
+能力表示可尝试通用原生入口及已覆盖的输入提供方，不代表所有技能、自定义 UI 或任意插件组合都能全自动执行。库存选择限当前原生筛选／页签；其他界面和无可识别恢复入口的裸 yield 仍需人工处理或重新加载。单技能实例可有部分效果，后续错误与取消不会撤销它们。本轮没有完成整场战役。
+
+以下保留历史记录；旧版“当前包”与限制只适用于当时版本。
+
+## 0.4.0：角色成长、自然物品与存档重载
+
+日期：2026-09-15。Bridge 与 Python server 均为 **0.4.0**，配合 Battle Companion **0.1.1**、Danger Alert **1.3.1**；ToME 1.7.6、Linux/LuaJIT、Xvfb、软件 OpenGL。
+
+| 检查层 | 最终结果 | 证据 |
+| --- | --- | --- |
+| MCP Lua | **790 项通过** | [单元日志](validation/2026-09-15-growth/lua-tests.log) |
+| Python MCP | **19 个测试通过** | [单元日志](validation/2026-09-15-growth/python-tests.log) |
+| 成长驱动来源/保存比较 | **16 个测试通过** | [单元日志](validation/2026-09-15-growth/growth-driver-tests.log) |
+| 自然 Lv3 角色，冻结源码 | **91/91 项，76 个唯一动作请求** | [结果](../../../tmp/tome-mcp-validation/sessions/growth-source-final-01/result.json) |
+| 自然 Lv3 角色，正式包 | **92/92 项，73 个唯一动作请求** | [结果](../../../tmp/tome-mcp-validation/sessions/growth-package-final-01/result.json) |
+| 正式包完整原生回归 | **99/99 项通过** | [结果](../../../tmp/tome-mcp-validation/sessions/growth-native-package-final-01/result.json) |
+| 三插件正式包互操作 | **35/35 项通过** | [结果](../../../tmp/tome-mcp-validation/sessions/growth-control-package-final-01/companion-result.json) |
+
+两个成长验收都复制 `campaign-play-v030-01` 的原生等级 3 存档，`cheat=false`、无 gameplay fixture；全部成长、战斗、移动和物品操作通过官方 MCP SDK。实际花费 9 属性、5 职业、4 通用、1 类别点；力量达到 20、体质 17，Stunning Blow/Warshout 各 3、Rush 1、Heavy Armour Training 2、Vitality 3。源码解锁 Dirty Fighting 树，包运行将双手武器攻击树掌握度由 1.3 提升至 1.5，均在各自独立副本中执行。
+
+两轮均拾取自然铁质巨锤，替换原双手剑、卸下、重穿，并用真实 Ctrl+S 保存后加载新存档的副本。成长与装备状态保留，新 session 拒绝旧 session，首份新保存副本未被重载改写。非法/未知、点数不足、前提不符和重复命令均有检查；请求数包含预期失败命令。BC 全程 idle/actions=0，无 Lua 错误。
+
+两份历史存档各 6 文件及原报告证据完整保留。只读查询通过动态学习条件/说明、RNG、感知、物品命名/鉴定守卫。完整原生 99 项与互操作 35 项使用隔离测试角色/场景，特殊回调及多物品拾取分支另由单元差分覆盖。
+
+当前包：[dist/tome-mcp-bridge.teaa](dist/tome-mcp-bridge.teaa)，**15 个生产文件**，SHA-256：
+
+```text
+ff627dd0a9c686b27da034e86db0a5b3bc3ce075e1feeb7858aa1dc16e2c9a74
+```
+
+包与冻结源码一致；Python 源码及成长驱动在最终两轮间一致。见 [manifest](dist/manifest.json)、[成长汇总](validation/2026-09-15-growth/growth-summary.json)、[回归与文件校验](validation/2026-09-15-growth/regressions.json)、[详细验收](tests/growth/VALIDATION.md)、[复现说明](tests/growth/README.md) 和 [0.4.0 交付报告](docs/tome-mcp-growth-items-0.4.0.md)。
+
+本版成长执行限审核过的标准 Berserker 类别，支持与技能激活范围分开判断；传奇点、洗点、铭文槽、复杂装备和任意对话未适配。raw 字段不是最终面板值。未改变战斗平衡，未以接口验收代替完整战役。
+
+以下保留历史记录，其中“当前包”和限制描述指各版记录当时的状态；本页首节描述现行产物。
+
+## 0.3.0：普通战役技能、恢复与换层（历史）
+
+日期：2026-09-15。Bridge 与 Python server 均为 **0.3.0**；Battle Companion **0.1.1** 与 Danger Alert **1.3.1** 保持原版本。环境为 ToME 1.7.6、Linux、LuaJIT、LuaSocket、Xvfb 与软件 OpenGL。
+
+| 检查层 | 最终结果 | 证据 |
+| --- | --- | --- |
+| MCP Lua | **457 项通过**：62 JSON + 28 TCP + 159 Actions + 29 Journal + 72 Observer + 62 Tasks + 45 Runtime | [独立审阅](docs/tome-mcp-campaign-review.md) |
+| Python MCP | **17 个测试通过**，含真实官方 SDK stdio 和动作 schema／紧凑轮询 | `server/tests/` |
+| 普通战役，冻结源码 | **40 项通过，202 次 MCP 动作，4 次原生日志击杀** | [结果](../../../tmp/tome-mcp-validation/sessions/campaign-source-final-01/result.json) |
+| 普通战役，正式安装包 | **36 项通过，69 次 MCP 动作，4 次原生日志击杀** | [结果](../../../tmp/tome-mcp-validation/sessions/campaign-package-final-01/result.json) |
+| 正式包原有完整原生回归 | **92/92 项通过**，包含只读纯度、去重、手动接管、保存／重载 | [结果](../../../tmp/tome-mcp-validation/sessions/campaign-mcp-release-01/result.json) |
+| 三插件正式包互操作 | **35/35 项通过**，旁观／控制、助手暂停、键盘接管、保存／重载 | [结果](../../../tmp/tome-mcp-validation/sessions/campaign-control-release-01/companion-result.json) |
+| 其他插件单元回归 | BC **486 项**、Danger Alert **1540 项**通过 | 各 addon 的 `tests/run.sh` |
+
+两次普通战役运行都从原试玩存档的全新隔离 HOME 副本出发：保留出生辅助 addon、原有技能装备与属性，`cheat=false`，没有加入战斗 fixture。所有战斗、恢复、移动与换层都经官方 MCP SDK；原存档全部文件 SHA-256 在运行前后不变。
+
+两次均实际从 Trollmire 1 进入 **Trollmire 2**，验证换层撤销租约、原命令去重、显式 reconnect 后普通等待，以及五个原有核心技能的原生冷却／资源／能量或效果。休息均精确执行 **5/5 回合**上限；自然敌人在场时 0 步停止，源码运行另遇到休息 4 步／1 步后的敌人中断。两次均完成原生恢复，最终 **HP 132/132、stamina 100/100、五技能冷却 0**，无当前可见敌人，BC idle/actions=0，无 Lua 错误。增量日志分别采集 74／79 项，无游标缺口。
+
+当前生产包：[dist/tome-mcp-bridge.teaa](dist/tome-mcp-bridge.teaa)，**13 个生产文件**，SHA-256：
+
+```text
+e88a46a8888f9a0d9ae2ddbb5642dae5010e0830b7a45c7114cf103036035a8d
+```
+
+包内文件与最终源码候选逐字节一致；两次普通战役使用的 Python 源码和验收驱动哈希一致。见 [manifest.json](dist/manifest.json)、[普通战役汇总](validation/2026-09-15-campaign/campaign-summary.json)、[回归摘要](validation/2026-09-15-campaign/regressions.json)。完整行为说明、反馈处理与证据目录见 [0.3.0 交付报告](docs/tome-mcp-campaign-improvements.md)。
+
+复现普通战役见 [执行器说明](tests/campaign/README.md)。本轮验证了第二层的普通战斗、恢复与继续行动；没有完成整场战役。Wild 已验证原生瞬发防御效果，未证明对特定缴械状态的解除；升级选项、拾取／穿戴／加点、任意对话和其他技能仍未自动化。伤害／断线等休息生命周期专项由隔离测试补充，不能当作普通战役都实际触发过这些场景。
+
+以下保留旧版历史记录；旧哈希与旧能力范围不代表当前包。
+
+## 0.2.0：旁观连接与自动战斗交接（历史）
+
+日期：2026-09-15。Bridge 和 Python server 均为 0.2.0；组合使用 Battle Companion 0.1.1 与 Danger Alert 1.3.1。
+
+- Lua 回归 **135 项**（JSON 62 + TCP 28 + Runtime 45）、Python **16 个测试**通过。
+- 更新后的正式 MCP 包通过原有完整 **92/92 项**真实游戏验收：[结果](../tome-battle-companion/validation/2026-09-15/mcp-regression-result.json)。
+- 三插件组合分别用源码和正式 `.teaa` 通过 **35/35 项**官方 SDK MCP 验证：[源码](../tome-battle-companion/validation/2026-09-15/source-result.json)、[安装包](../tome-battle-companion/validation/2026-09-15/package-result.json)。
+- 只读旁观不获取 token、不停止助手，观察能显示连续战斗与敌方损血；显式控制接管后取消助手队列。原生键盘接管、保存、复制新测试角色存档后重载均不恢复自动动作；原存档和副本哈希不变。
+- 源码／包组合各 36 次受监测的观察／检查均保持纯度。没有 Lua 错误。
+
+0.2.0 历史生产包有 11 个生产文件，SHA-256：`5badcb410662b0a36f0638418fb179464813544b2cc84bf0233de51a0e877bc8`。当时归档与被测文件一致。详细证据和适用范围见 [组合验收](../tome-battle-companion/VALIDATION.md) 和 [文件哈希](../tome-battle-companion/validation/2026-09-15/sha256.json)。
+
+以下保留 0.1.0 首版历史验收，旧哈希不代表当前安装包。
+
+## 0.1.0 首版验收
+
+日期：2026-09-15。适用范围：ToME / T-Engine 1.7.6，Linux、LuaJIT、LuaSocket、Xvfb 与软件 OpenGL；联网能力已启用。
+
+## 结果
+
+首版源码与正式安装包均通过验收，可以作为后续自动战斗插件开发的基础。
+
+| 检查层 | 结果 | 证据 |
+| --- | --- | --- |
+| Lua JSON / 非阻塞 TCP / Runtime | **120 项通过**（62 + 28 + 30） | `bash game/addons/tome-mcp-bridge/tests/run.sh` |
+| Python TCP client / MCP schema / stdio | **14 个测试通过** | `server/tests/`；包括当前及 initialize 模式的官方客户端 |
+| 独立审阅 | 未处理的审阅发现为 0 | [审阅记录](docs/tome-mcp-review.md) |
+| 真实游戏源码安装 | **92 项通过** | [native-06/result.json](../../../tmp/tome-mcp-validation/sessions/native-06/result.json) |
+| 真实游戏 `.teaa` 安装 | **92 项通过** | [package-01/result.json](../../../tmp/tome-mcp-validation/sessions/package-01/result.json)；与交付归档哈希一致 |
+
+JSON 与 transport 另经 Lua 5.1 / LuaJIT 检查；500 个随机 JSON 样本与 Python 往返一致，见独立审阅记录。
+
+## 原生验收内容
+
+- 创建独立新 Cornac 测试角色及固定竞技场，没有导入用户存档。
+- 半包、多包 TCP；重复观察和检查不改变位置、生命、资源、能量、冷却或世界 tick。探针检测到的 RNG、`canSee` 和技能预检调用数为 0；真实隐藏角色不可检查。
+- 等待、移动、普通近战、Lightning、自疗、瞬发 Adrenaline Surge 经过原生入口。能量、资源、冷却、效果和敌方回合按原生机制结算，最终返回玩家可行动边界。
+- 命令重复、参数冲突、旧版本拒绝；断线重连查询原结果；queued 动作被 stop 取消。
+- XTest 真实键盘事件在游戏和原生 Escape 菜单中均撤销控制；菜单期间返回 `needs_input`，拒绝世界动作。
+- 官方 MCP 客户端通过 stdio 启动外部服务，经 TCP 调用全部六个工具和规则资源，完成真实等待、结果查询、去重与 stop。
+- 真实 Ctrl+S 保存；复制本次测试 HOME 后重载同一角色，复用端口。新 session 拒绝旧 session 和旧 command history，闲置不恢复自动行动；重载后可重新连接并执行等待。原始和复制的测试存档均未被重载过程改写。
+
+Runtime 专项用受控异常检查嵌套 tick、保存、切图失败的清理及错误传播，保证已开始动作标记不确定、后续写入隔离、只读仍可用，读档后恢复。另覆盖普通视觉 fallback、特殊视觉保守拒绝、T_ATTACK 原生拒绝耗能的分类、对话输入及旧 Game 内存回收。这些专项是单元证据，不冒充真实引擎异常注入场景。
+
+## 可复现安装包
+
+0.1.0 历史生产包 SHA-256（当前包见上方 0.3.0 记录）：
+
+```text
+023f67a1b5762e9c1acba858b5ed0bdac3b68e2669e54ed0aaeace09b91bff1a
+```
+
+历史包内共 11 个文件（运行 Lua 与 README），没有测试 probe；当时已验证归档内容与 0.1.0 生产文件一致。当前包的逐文件 SHA-256 见 [manifest.json](dist/manifest.json)。Python MCP server 单独安装，见 [README](README.md)。
+
+原生执行器 SHA-256：`5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7`。每个验收目录的 `input.json` / `candidate.zip` 固定引擎、Lua 候选与配置，`result.json` / `wire.json` / `game.log` / `mcp.log` / `reload.log` 保留结果。源码和包验收分别位于 `tmp/tome-mcp-validation/sessions/native-06/` 与 `tmp/tome-mcp-validation/sessions/package-01/`。两次完整验收均未发现 Lua 错误。
+
+复现步骤与依赖见 [原生测试说明](tests/native/README.md)。本工作区运行：
+
+```sh
+PYTHONPATH=server/src tmp/tome-mcp-venv/bin/python -m unittest discover -s server/tests -v
+python3 game/addons/tome-mcp-bridge/tests/native/run.py release-check-01 \
+  --mcp-python /workspace/t-engine4/tmp/tome-mcp-venv/bin/python \
+  --addon-archive /workspace/t-engine4/game/addons/tome-mcp-bridge/dist/tome-mcp-bridge.teaa
+```
+
+每次使用新的运行名；运行器会清理自己启动的进程。
+
+## 已知范围
+
+本次是受控真实游戏场景，测试 probe 仅用于布置角色/场景及记录原生调用。没有验证完整战役、全部职业、Windows/macOS、窗口最小化节流或与全部第三方 addon 的组合。真实切图中的中断、鼠标接管和复杂多段目标操作尚无本轮完整原生场景覆盖；相关边界依靠已有实现与专项检查，不能据此宣称全流程自动游玩。
+
+首版仅支持 README 列出的三种技能和基本动作。特殊感知缺少可信缓存时保守省略；地形采用有限玩家视角记录，可能少报火炬照明下角色脚下的地形。失败动作可能已经消耗能量，超时必须查询原 command_id；这些是接口语义，调用方必须处理。

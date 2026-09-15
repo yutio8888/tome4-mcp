@@ -1,0 +1,543 @@
+{
+  "version": "0.3.0",
+  "date": "2026-09-15",
+  "archive_sha256": "e88a46a8888f9a0d9ae2ddbb5642dae5010e0830b7a45c7114cf103036035a8d",
+  "archive_files": 13,
+  "scope": "Linux ToME 1.7.6; original fixture regressions are separate from ordinary campaign evidence",
+  "unit_checks": {
+    "mcp_lua": 457,
+    "mcp_python": 17,
+    "battle_companion": 486,
+    "danger_alert": 1540
+  },
+  "native": [
+    {
+      "session": "campaign-mcp-release-01",
+      "passed": true,
+      "checks": 92,
+      "result": "tmp/tome-mcp-validation/sessions/campaign-mcp-release-01/result.json",
+      "result_sha256": "37a7d6e4ef273914e99287e8d0fa67d2bb3cc30329a0f3bdad15e7706bdfecda",
+      "input_sha256": "1e58a5da0eb815d50fa42c75e48feb0591a5cb1c80e3249cbed94586310edb20",
+      "check_results": [
+        {
+          "name": "fresh_native_birth_no_imported_save",
+          "passed": true
+        },
+        {
+          "name": "fragmented_tcp_connect_returns_ready",
+          "passed": true
+        },
+        {
+          "name": "multiple_tcp_packets_repeat_identical_observation",
+          "passed": true
+        },
+        {
+          "name": "inspect_native_lightning",
+          "passed": true
+        },
+        {
+          "name": "observe_inspect_preserve_native_state",
+          "passed": true
+        },
+        {
+          "name": "native_observer_calls_no_rng_perception_or_talent_prechecks",
+          "passed": true
+        },
+        {
+          "name": "inspect_unknown_actor_rejected",
+          "passed": true
+        },
+        {
+          "name": "observer_includes_perceived_enemy_and_excludes_hidden_fixture",
+          "passed": true
+        },
+        {
+          "name": "native_actor_id_is_fixture_reference",
+          "passed": true
+        },
+        {
+          "name": "inspect_real_hidden_actor_by_guessed_id_rejected",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "wait_consumes_native_energy_and_advances_world",
+          "passed": true
+        },
+        {
+          "name": "native_enemy_scheduler_runs",
+          "passed": true
+        },
+        {
+          "name": "completed_command_id_returns_existing_result",
+          "passed": true
+        },
+        {
+          "name": "duplicate_does_not_repeat_native_action",
+          "passed": true
+        },
+        {
+          "name": "command_id_conflict_rejected",
+          "passed": true
+        },
+        {
+          "name": "stale_revision_rejected",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_move_changes_requested_coordinate",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_instant_talent_updates_effect_cooldown_revision_without_world_tick",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_heal_changes_life_and_mana",
+          "passed": true
+        },
+        {
+          "name": "native_perceived_enemy_available",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_lightning_damage_resource_cooldown",
+          "passed": true
+        },
+        {
+          "name": "native_cooldown_rejection_does_not_consume_turn",
+          "passed": true
+        },
+        {
+          "name": "unadapted_talent_rejected_before_execution",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_melee_entry_invoked",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "disconnect_status_recovers_without_replaying_action",
+          "passed": true
+        },
+        {
+          "name": "reconnect_duplicate_cannot_replay_action",
+          "passed": true
+        },
+        {
+          "name": "queued_action_and_stop_accepted",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "stop_cancels_unstarted_native_action",
+          "passed": true
+        },
+        {
+          "name": "real_x11_key_disconnects_existing_controller",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "real_x11_key_revokes_old_control_and_revision",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "native_escape_menu_reports_needs_input",
+          "passed": true
+        },
+        {
+          "name": "real_dialog_key_disconnects_existing_controller",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "native_dialog_blocks_world_action",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "native_dialog_close_restores_ready",
+          "passed": true
+        },
+        {
+          "name": "official_mcp_stdio_native_integration",
+          "passed": true
+        },
+        {
+          "name": "official_mcp_all_checks_passed",
+          "passed": true
+        },
+        {
+          "name": "official_mcp_initialize_and_list_tools",
+          "passed": true
+        },
+        {
+          "name": "official_mcp_rules_resource",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.connect",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.observe",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_game_ready",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.inspect",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.act",
+          "passed": true
+        },
+        {
+          "name": "mcp_tcp_native_wait_completed",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_wait_returns_stable_snapshot",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.status",
+          "passed": true
+        },
+        {
+          "name": "mcp_status_recovers_completed_command",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.act",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.observe",
+          "passed": true
+        },
+        {
+          "name": "mcp_duplicate_does_not_advance_game",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.stop",
+          "passed": true
+        },
+        {
+          "name": "mcp_stop_returns_manual_control",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "native_ctrl_s_save_revokes_control",
+          "passed": true
+        },
+        {
+          "name": "native_ctrl_s_produces_game_save",
+          "passed": true
+        },
+        {
+          "name": "native_reload_does_not_restore_automatic_commands",
+          "passed": true
+        },
+        {
+          "name": "reload_uses_own_saved_character_without_new_birth",
+          "passed": true
+        },
+        {
+          "name": "native_reload_creates_new_session_and_rebinds_same_port",
+          "passed": true
+        },
+        {
+          "name": "old_session_rejected_after_native_load",
+          "passed": true
+        },
+        {
+          "name": "old_command_history_not_serialized",
+          "passed": true
+        },
+        {
+          "name": "original_fixture_save_unchanged_by_reload",
+          "passed": true
+        },
+        {
+          "name": "reload_does_not_rewrite_copied_fixture_save",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "session": "campaign-control-release-01",
+      "passed": true,
+      "checks": 35,
+      "result": "tmp/tome-mcp-validation/sessions/campaign-control-release-01/companion-result.json",
+      "result_sha256": "b27b2c42f7e54eeed3aba5c1b3201d6603a9b696e8dad275ef811b002fcfec63",
+      "input_sha256": "9fc9713458e8698b4e67b84267324ba38d7f791640dd5a77088d99ba83d61885",
+      "check_results": [
+        {
+          "name": "official_sdk_six_tools",
+          "passed": true
+        },
+        {
+          "name": "official_sdk_rules",
+          "passed": true
+        },
+        {
+          "name": "native_approach-one",
+          "passed": true
+        },
+        {
+          "name": "native_approach-two",
+          "passed": true
+        },
+        {
+          "name": "native_shortcut_started_companion",
+          "passed": true
+        },
+        {
+          "name": "observer_connect_has_no_lease",
+          "passed": true
+        },
+        {
+          "name": "mcp_reports_local_combat_owner",
+          "passed": true
+        },
+        {
+          "name": "observer_allows_continuous_native_combat",
+          "passed": true
+        },
+        {
+          "name": "mcp_observes_real_enemy_damage",
+          "passed": true
+        },
+        {
+          "name": "rejected_read_only_connection",
+          "passed": true
+        },
+        {
+          "name": "rejected_read_only_connection",
+          "passed": true
+        },
+        {
+          "name": "explicit_remote_takeover_pauses_companion",
+          "passed": true
+        },
+        {
+          "name": "remote_owner_has_no_queued_or_followup_companion_actions",
+          "passed": true
+        },
+        {
+          "name": "native_remote-wait",
+          "passed": true
+        },
+        {
+          "name": "remote_wait_spends_native_turn_without_companion_action",
+          "passed": true
+        },
+        {
+          "name": "mcp_recovers_original_remote_command",
+          "passed": true
+        },
+        {
+          "name": "mcp_duplicate_cannot_repeat_action",
+          "passed": true
+        },
+        {
+          "name": "observer_downgrade_does_not_restart_combat",
+          "passed": true
+        },
+        {
+          "name": "explicit_shortcut_restarts_local_combat",
+          "passed": true
+        },
+        {
+          "name": "native_keyboard_menu_takes_over_both_controllers",
+          "passed": true
+        },
+        {
+          "name": "closing_menu_does_not_resume_combat",
+          "passed": true
+        },
+        {
+          "name": "combat_running_before_native_save",
+          "passed": true
+        },
+        {
+          "name": "native_save_stops_local_combat",
+          "passed": true
+        },
+        {
+          "name": "saved_only_fresh_fixture_character",
+          "passed": true
+        },
+        {
+          "name": "reload_starts_new_observer_session",
+          "passed": true
+        },
+        {
+          "name": "reload_never_restores_local_or_remote_actions",
+          "passed": true
+        },
+        {
+          "name": "rejected_session_mismatch",
+          "passed": true
+        },
+        {
+          "name": "rejected_unknown_command",
+          "passed": true
+        },
+        {
+          "name": "existing_preferences_survive_reload",
+          "passed": true
+        },
+        {
+          "name": "original_save_unchanged_by_reload",
+          "passed": true
+        },
+        {
+          "name": "loaded_copy_not_rewritten",
+          "passed": true
+        },
+        {
+          "name": "native_after-reload-wait",
+          "passed": true
+        },
+        {
+          "name": "mcp_stop_after_reload",
+          "passed": true
+        },
+        {
+          "name": "native_observation_purity",
+          "passed": true
+        },
+        {
+          "name": "no_native_lua_errors",
+          "passed": true
+        }
+      ]
+    }
+  ]
+}

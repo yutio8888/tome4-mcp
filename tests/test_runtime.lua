@@ -1,0 +1,231 @@
+local root=(arg[0]:match('^(.*)/tests/[^/]+$') or 'game/addons/tome-mcp-bridge')
+package.path=root..'/overload/?.lua;'..package.path
+local count,channel=0
+local function check(value,message) count=count+1;assert(value,message) end
+package.loaded['mod.mcp_bridge.TransportSocket']={new=function(options)
+    channel={options=options,messages={},polls=0,
+        send=function(self,value) self.messages[#self.messages+1]=value;return true end,
+        poll=function(self) self.polls=self.polls+1 end,
+        disconnectClient=function(self,reason) self.disconnected=reason;self.options.onDisconnect(reason) end,
+        close=function() end}
+    return channel
+end}
+config={settings={tome_mcp_bridge={token='unit-test-token'}}}
+core={game={getTime=function() return 123 end}}
+local Runtime=require 'mod.mcp_bridge.Runtime'
+local forbidden=assert(loadstring('return function() error("observer invoked native callback") end','@/mod/class/Actor.lua'))()
+local attr=assert(loadstring('return function() error("observer invoked attr") end','@/engine/Entity.lua'))()
+local base={
+    display=function() end,
+    tick=function(g)
+        if g.nested_error and not g.nesting then g.nesting=true;return g:tick() end
+        local queued=g.queue;g.queue={};for _,fn in ipairs(queued) do fn() end
+        if g.tick_failure then error('native failure sentinel') end
+    end,
+    loaded=function(g) g.tick_failure=false;g.nested_error=false;g.nesting=false;g.player.energy.value=1000;g.paused=true end,
+    onRegisterDialog=function() end,onUnregisterDialog=function() end,
+    changeLevelReal=function(g) if g.change_failure then error('change failure sentinel') end end,
+    saveGame=function(g) if g.save_failure then error('save failure sentinel') end end,
+}
+loadPrevious=function() return base end
+local Game=dofile(root..'/superload/mod/class/Game.lua')
+local function fixture()
+    local p={uid=1,name='player',__is_actor=true,player=true,x=2,y=2,life=100,max_life=100,energy={value=1000},
+        talents={},tmp={},canSee=forbidden,canSeeNoCache=forbidden,attr=attr}
+    local enemy={uid=2,name='dummy',__is_actor=true,x=3,y=2,life=100,max_life=100,attr=attr}
+    local map={w=5,h=5,ACTOR=3,TERRAIN=1,map={},seens={},infovs={},lites={}}
+    for i=0,24 do
+        map.map[i]={[1]={name='floor',display='.',block_move=false}}
+        map.seens[i]=true;map.infovs[i]=true;map.lites[i]=true
+    end
+    map.map[12][3]=p;map.map[13][3]=enemy
+    local g=setmetatable({player=p,level={map=map,entities={[1]=p,[2]=enemy}},paused=true,turn=1,
+        energy_to_act=1000,dialogs={},queue={},key={receiveKey=function() end},mouse={receiveMouse=function() end}}, {__index=Game})
+    function g:onTickEnd(fn) self.queue[#self.queue+1]=fn end
+    function g:onTickEndExists() return #self.queue>0 end
+    function p:moveDir() self.x=self.x-1;self.energy.value=0;g.paused=false;return true end
+    function p:waitTurn() self.energy.value=0;g.paused=false end
+    Runtime.reset(g);g:display()
+    local seq=0
+    local function request(op,args)
+        seq=seq+1;channel.options.onRequest{v=3,id=tostring(seq),op=op,args=args}
+        return channel.messages[#channel.messages]
+    end
+    local hello=request('connect',{token='unit-test-token'}).result
+    local function observe() return request('observe',{session_id=hello.session_id}).result end
+    local function act(id,action,revision)
+        return request('act',{session_id=hello.session_id,control_token=hello.control_token,
+            command_id=id,expected_revision=revision or observe().revision,action=action})
+    end
+    local function status(id) return request('status',{session_id=hello.session_id,command_id=id}).result end
+    local function ready()
+        Runtime.beforeTick(g);g.turn=g.turn+10;p.energy.value=1000;g.paused=true
+        Runtime.onReady(p);Runtime.afterTick(g);g:display()
+    end
+    local function reconnect() local fresh=request('connect',{token='unit-test-token'}).result
+        for k in pairs(hello) do hello[k]=nil end;for k,v in pairs(fresh) do hello[k]=v end;return hello end
+    return g,p,enemy,hello,request,observe,act,status,ready,reconnect
+end
+
+local g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+local original=observe()
+check(original.phase=='ready' and #original.actors==1,'ordinary native perception fallback without callbacks')
+check(observe().revision==original.revision and g.turn==1 and p.energy.value==1000,'repeated observe changes neither game nor revision')
+check(original.map.cells[1].blocked==false,'explicit passable boolean preserved')
+p.can_see_cache={[enemy]={['nil/nil']={false}}}
+check(#observe().actors==0,'negative cache takes priority')
+p.can_see_cache=nil;enemy.invisible=10
+check(#observe().actors==0,'uncached invisibility hidden')
+enemy.invisible=nil;p.attr=function() return nil end
+check(#observe().actors==0,'modified perception disables fallback')
+p.attr=attr
+local rev=observe().revision
+check(act('move',{type='move',direction=4},rev).result.status=='queued','single action queued')
+check(act('move',{type='move',direction=4},rev).result.status=='queued','queued duplicate returns record')
+g:tick();g:display()
+check(status('move').status=='settling' and p.x==1,'action awaits native settlement')
+ready()
+local result=status('move')
+check(result.status=='completed' and result.energy_spent==1000 and result.snapshot.phase=='ready','completed next-ready snapshot')
+check(act('move',{type='move',direction=4},rev).result.status=='completed' and p.x==1,'completed duplicate cannot move twice')
+check(act('move',{type='wait'},rev).error.code=='command_conflict','conflicting command rejected')
+check(act('stale',{type='wait'},rev).error.code=='stale_revision','stale revision rejected')
+check(act('manual',{type='wait'}).result.status=='queued','queued before manual takeover')
+g.key:receiveKey(1,false,false,false,false,'',false)
+check(channel.disconnected=='manual_input','key disconnects before native input')
+reconnect()
+check(status('manual').status=='cancelled','cancelled record survives reconnect')
+g:tick();g:display()
+
+g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+Runtime.MAX_COMMANDS=1
+act('retained',{type='wait'});g:tick();ready()
+check(act('overflow',{type='wait'}).error.code=='command_history_full','capacity rejects new writes without eviction')
+Runtime.MAX_COMMANDS=4096
+local dialog={key={receiveKey=function() end},mouse={receiveMouse=function() end}}
+g.dialogs={dialog};g:onRegisterDialog(dialog)
+reconnect()
+check(observe().phase=='needs_input','dialog prevents world actions')
+dialog.key:receiveKey(1,false,false,false,false,'',false)
+check(channel.disconnected=='manual_input','dialog input revokes and disconnects')
+
+g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+act('error',{type='wait'})
+g.tick_failure=true;g.nested_error=true
+local ok,err=pcall(g.tick,g)
+check(not ok and tostring(err):find('native failure sentinel',1,true),'nested native error rethrown')
+local polls=channel.polls;g:display()
+check(channel.polls>polls,'nested error balances tick depth and leaves transport alive')
+local failed=status('error')
+check(failed.status=='failed' and failed.uncertain and failed.code=='native_tick_error','partial action reports uncertain native error')
+reconnect()
+check(observe().phase=='unavailable','native error remains read-only after reconnect')
+check(act('after_error',{type='wait'}).error.code=='not_ready','native error forbids writes')
+local old_session=hello.session_id
+g:loaded();g:display();reconnect()
+check(hello.session_id~=old_session and observe().phase=='ready','reload creates usable new session')
+check(request('status',{session_id=old_session,command_id='error'}).error.code=='session_mismatch','old session rejected')
+g.save_failure=true;ok=pcall(g.saveGame,g);g:display()
+check(not ok and observe().phase=='unavailable','save exception keeps frame access and quarantines writes')
+g:loaded();g:display();reconnect()
+g.change_failure=true;ok=pcall(g.changeLevelReal,g);g:display()
+check(not ok and observe().phase=='unavailable','change exception keeps frame access and quarantines writes')
+local old_game=setmetatable({}, {__mode='v'})
+do
+    local previous={key={receiveKey=function() end},mouse={receiveMouse=function() end},dialogs={}}
+    old_game[1]=previous
+    require('mod.mcp_bridge.Input').attach(previous)
+end
+collectgarbage('collect');collectgarbage('collect')
+check(old_game[1]==nil,'input handler registry does not retain old game')
+local native_attack=assert(loadstring('return function() end','@/data/talents/misc/misc.lua'))()
+local attacker={x=1,y=1,T_ATTACK='T_ATTACK',energy={value=1000},talents_def={T_ATTACK={action=native_attack,target=native_attack}},
+    useTalent=function(self) self.energy.value=0;return false end}
+local rejected=require('mod.mcp_bridge.Actions').execute({player=attacker},{type='attack',target_id='target'},{x=2,y=1})
+check(not rejected.ok and rejected.native_return==false and rejected.energy_spent==1000,'native attack pre-use failure retains false and energy cost')
+local running,stops=false,0
+package.loaded['mod.battle_companion.Controller']={
+    isRunning=function() return running end,
+    observation=function() return {state=running and 'running' or 'paused',actions=3} end,
+    remoteTakeover=function() running=false;stops=stops+1 end,
+}
+g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+running=true
+local watched=request('connect_observer',{token='unit-test-token'}).result
+check(watched.mode=='observe' and watched.control_token==require('mod.mcp_bridge.Json').null,'observer receives no control lease')
+check(not Runtime.hasControl(p) and running and stops==0,'observer preserves local combat')
+check(watched.snapshot.control_source=='battle_companion' and watched.snapshot.phase=='unavailable','local combat is the reported action owner')
+check(watched.snapshot.battle_companion.actions==3,'snapshot exposes a small controller summary')
+local watched_revision=observe().revision
+check(request('connect_observer',{token='unit-test-token'}).result.revision==watched_revision,'repeated observer connect does not invalidate a snapshot')
+check(act('observer-write',{type='wait'}).error.code=='read_only_connection','observer cannot act even with a former lease')
+check(request('stop',{session_id=hello.session_id,control_token=hello.control_token}).error.code=='read_only_connection','observer cannot stop local combat')
+check(#g.queue==0 and p.energy.value==1000,'observer writes queue no action and spend no energy')
+check(request('connect',{token='wrong'}).error.code=='authentication_failed' and running,'failed authentication never stops local combat')
+reconnect()
+check(not running and stops==1 and Runtime.hasControl(p),'explicit control pauses local combat before granting lease')
+check(observe().control_source=='remote' and observe().phase=='ready','remote lease is the only owner after takeover')
+act('downgrade',{type='wait'})
+request('connect_observer',{token='unit-test-token'})
+check(status('downgrade').status=='cancelled','downgrading to observation cancels an unstarted remote action')
+g:tick();g:display()
+check(p.energy.value==1000 and not running,'downgrade never executes or restarts local combat')
+check(observe().control_source=='manual' and not Runtime.hasControl(p),'observer leaves manual ownership when no assistant runs')
+g.key:receiveKey(1,false,false,false,false,'',false)
+check(channel.disconnected=='manual_input','manual input still disconnects observer sessions')
+package.loaded['mod.battle_companion.Controller']=nil
+
+-- Exercise new irreversible point/inventory mutations through the real command
+-- queue. These handlers are controlled unit stand-ins; ordinary native growth
+-- and equipment evidence is supplied by the saved-campaign acceptance runner.
+local Actions=require 'mod.mcp_bridge.Actions'
+local original_execute=Actions.execute
+local executed=0
+local uncertain=false
+Actions.execute=function(game,action,target,metadata)
+    executed=executed+1
+    check(metadata.session_id~=nil and metadata.level_instance_id~=nil,'item execution receives current ID scope')
+    game.player.unused_stats=(game.player.unused_stats or 9)-1
+    if uncertain then return {ok=false,code='native_growth_error',energy_spent=0,uncertain=true,native_message='partial native change'} end
+    return {ok=true,code='action_complete',energy_spent=0,
+        points_spent=action.type=='spend_stat' and 1 or nil,
+        point_pool=action.type=='spend_stat' and 'stats' or nil,
+        previous_value=action.type=='spend_stat' and 15 or nil,
+        new_value=action.type=='spend_stat' and 16 or nil}
+end
+g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+p.unused_stats=9
+rev=observe().revision
+local stat_action={type='spend_stat',stat='str'}
+check(act('point',stat_action,rev).result.status=='queued','single point mutation queued')
+check(act('point',stat_action,rev).result.status=='queued' and p.unused_stats==9,'queued duplicate consumes no points')
+g:tick();g:display()
+local learned=status('point')
+check(learned.status=='completed' and p.unused_stats==8 and executed==1,'instant point change settles once')
+check(learned.points_spent==1 and learned.point_pool=='stats' and learned.previous_value==15 and learned.new_value==16,
+    'completed growth retains scalar cost and value evidence in command status')
+check(learned.snapshot.revision>rev and learned.snapshot.world_tick==1,'zero-energy growth still changes revision')
+check(act('point',stat_action,rev).result.status=='completed' and p.unused_stats==8,'completed duplicate consumes no second point')
+check(act('point',{type='spend_stat',stat='dex'},rev).error.code=='command_conflict','different stat cannot share command id')
+reconnect()
+check(act('point',stat_action,rev).result.status=='completed' and executed==1,'reconnected duplicate recovers committed growth')
+local inventory_action={type='equip',item_id=hello.session_id..':object-42'}
+rev=observe().revision
+act('equipment',inventory_action,rev);g:tick();g:display()
+check(status('equipment').status=='completed' and executed==2,'inventory mutation settles through ordinary queue')
+check(act('equipment',{type='equip',item_id=hello.session_id..':object-43'},rev).error.code=='command_conflict','different item id cannot share command id')
+check(act('equipment',inventory_action,rev).result.status=='completed' and executed==2,'equipment duplicate does not call native operation twice')
+act('cancelled-growth',{type='learn_talent',talent_id='T_WEAPONS_MASTERY'})
+request('stop',{session_id=hello.session_id,control_token=hello.control_token})
+g:tick();g:display()
+check(status('cancelled-growth').status=='cancelled' and executed==2,'stop cancels queued learning before point use')
+reconnect();uncertain=true
+act('partial-growth',stat_action);g:tick();g:display()
+local partial=status('partial-growth')
+check(partial.status=='failed' and partial.uncertain and partial.native_message=='partial native change','partial native growth failure preserves uncertainty')
+check(observe().phase=='unavailable' and observe().control_source=='manual','partial mutation revokes lease and preserves read-only state')
+reconnect()
+check(act('after-partial',stat_action).error.code=='not_ready','reconnect cannot bypass failed mutation quarantine')
+check(executed==3 and p.unused_stats==6,'failed partial mutation is not rolled back or repeated')
+Actions.execute=original_execute
+print('Runtime: '..count..' checks passed')

@@ -1,0 +1,21 @@
+test_lost_or_unequipped_item_is_rejected (test_persistence.PersistenceComparison.test_lost_or_unequipped_item_is_rejected) ... ok
+test_lost_talent_level_is_rejected (test_persistence.PersistenceComparison.test_lost_talent_level_is_rejected) ... ok
+test_material_experience_difference_is_rejected (test_persistence.PersistenceComparison.test_material_experience_difference_is_rejected) ... ok
+test_native_float_serialization_roundoff_is_accepted (test_persistence.PersistenceComparison.test_native_float_serialization_roundoff_is_accepted) ... ok
+test_point_consumption_difference_is_rejected (test_persistence.PersistenceComparison.test_point_consumption_difference_is_rejected) ... ok
+test_both_recorded_paths_require_all_six_save_files (test_sources.SourceRecords.test_both_recorded_paths_require_all_six_save_files) ... ok
+test_disagreement_between_original_reports_is_rejected (test_sources.SourceRecords.test_disagreement_between_original_reports_is_rejected) ... ok
+test_existing_lv1_copy_argument_keeps_lv1_meaning (test_sources.SourceRecords.test_existing_lv1_copy_argument_keeps_lv1_meaning) ... ok
+test_explicitly_linked_lv3_copy_is_accepted (test_sources.SourceRecords.test_explicitly_linked_lv3_copy_is_accepted) ... ok
+test_extra_save_file_is_rejected (test_sources.SourceRecords.test_extra_save_file_is_rejected) ... ok
+test_known_source_path_cannot_select_the_other_record (test_sources.SourceRecords.test_known_source_path_cannot_select_the_other_record) ... ok
+test_missing_save_file_is_rejected (test_sources.SourceRecords.test_missing_save_file_is_rejected) ... ok
+test_published_continuation_must_cover_all_six_files (test_sources.SourceRecords.test_published_continuation_must_cover_all_six_files) ... ok
+test_tampering_with_auxiliary_save_is_rejected (test_sources.SourceRecords.test_tampering_with_auxiliary_save_is_rejected) ... ok
+test_unlinked_lv3_copy_cannot_bypass_lv1_validation (test_sources.SourceRecords.test_unlinked_lv3_copy_cannot_bypass_lv1_validation) ... ok
+test_unrelated_continuation_parent_is_rejected (test_sources.SourceRecords.test_unrelated_continuation_parent_is_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.018s
+
+OK

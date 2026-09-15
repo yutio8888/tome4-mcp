@@ -1,0 +1,2216 @@
+{
+  "passed": true,
+  "error": null,
+  "checks": [
+    {
+      "name": "native_reload_preserves_natural_reward_and_effects",
+      "passed": true
+    },
+    {
+      "name": "native_reload_preserves_inventory_once",
+      "passed": true
+    },
+    {
+      "name": "native_reload_has_new_session_without_serialized_invocation",
+      "passed": true
+    },
+    {
+      "name": "old_command_is_not_restored_as_new_action",
+      "passed": true
+    },
+    {
+      "name": "natural_rod_pickup_awaits_native_tutorial",
+      "passed": true
+    },
+    {
+      "name": "rod_is_already_owned_before_tutorial_close",
+      "passed": true
+    },
+    {
+      "name": "pickup_manual_handoff_retains_execution_barrier",
+      "passed": true
+    },
+    {
+      "name": "manual_pickup_close_releases_original_command",
+      "passed": true
+    },
+    {
+      "name": "completed_pickup_handoff_dedup_cannot_grant_a_second_rod",
+      "passed": true
+    },
+    {
+      "name": "recovery_keeps_battle_companion_idle",
+      "passed": true
+    }
+  ],
+  "final": {
+    "actors": [],
+    "battle_companion": {
+      "actions": 0,
+      "state": "idle"
+    },
+    "control": "remote",
+    "dialogs": [],
+    "dialogs_truncated": false,
+    "events": {
+      "cursor": 15,
+      "cursor_ahead": false,
+      "entries": [
+        {
+          "cursor": 4,
+          "line_id": 4,
+          "observed_world_tick": 19489,
+          "op": "append",
+          "text": "There is an item here: #00FF80##UID:2606:0#cruel elm magestaff of fate (10-12 power, 2 apr, arcane element)#LAST#",
+          "text_truncated": false
+        },
+        {
+          "cursor": 5,
+          "line_id": 5,
+          "observed_world_tick": 19489,
+          "op": "append",
+          "text": "There is an item here: #00FF80##UID:2601:0#flaming iron mace of massacre (17-24 power, 2 apr)#LAST#",
+          "text_truncated": false
+        },
+        {
+          "cursor": 6,
+          "line_id": 6,
+          "observed_world_tick": 19489,
+          "op": "append",
+          "text": "There is an item here: #FFD700##UID:2607:0#Kor's Fall (10-12 power, 0 apr, darkness element)#LAST#",
+          "text_truncated": false
+        },
+        {
+          "cursor": 7,
+          "line_id": 7,
+          "observed_world_tick": 19489,
+          "op": "append",
+          "text": "There is an item here: #FFD700##UID:2602:0#Silk Current (12 def, 0 armour)#LAST#",
+          "text_truncated": false
+        },
+        {
+          "cursor": 8,
+          "line_id": 8,
+          "observed_world_tick": 19489,
+          "op": "append",
+          "text": "There is an item here: #FFD700##UID:2608:0#Rod of Recall (1/1)#LAST#",
+          "text_truncated": false
+        },
+        {
+          "cursor": 9,
+          "line_id": 9,
+          "observed_world_tick": 19489,
+          "op": "append",
+          "text": "Lore found: #0080FF#Kor's Fall",
+          "text_truncated": false
+        },
+        {
+          "cursor": 10,
+          "line_id": 10,
+          "observed_world_tick": 19489,
+          "op": "append",
+          "text": "You can read all your collected lore in the game menu, by pressing Escape.",
+          "text_truncated": false
+        },
+        {
+          "cursor": 11,
+          "line_id": 11,
+          "observed_world_tick": 19489,
+          "op": "append",
+          "text": "Lore found: #0080FF#Silk Current",
+          "text_truncated": false
+        },
+        {
+          "cursor": 12,
+          "line_id": 12,
+          "observed_world_tick": 19489,
+          "op": "append",
+          "text": "You can read all your collected lore in the game menu, by pressing Escape.",
+          "text_truncated": false
+        },
+        {
+          "cursor": 13,
+          "line_id": 13,
+          "observed_world_tick": 19489,
+          "op": "append",
+          "text": "Lore found: #0080FF#Rod of Recall",
+          "text_truncated": false
+        },
+        {
+          "cursor": 14,
+          "line_id": 14,
+          "observed_world_tick": 19489,
+          "op": "append",
+          "text": "You can read all your collected lore in the game menu, by pressing Escape.",
+          "text_truncated": false
+        },
+        {
+          "cursor": 15,
+          "line_id": 15,
+          "observed_world_tick": 19489,
+          "op": "append",
+          "text": "MCP_campaign-play-01 picks up (c.): #FFD700##UID:2608:0#Rod of Recall (1/1)#LAST#.",
+          "text_truncated": false
+        }
+      ],
+      "gap": false,
+      "has_more": false,
+      "head_cursor": 15,
+      "oldest_cursor": 1,
+      "semantics": "Log changes only; remove means rollback, clearing, or history eviction, not game rollback.",
+      "source": "player_visible_log"
+    },
+    "ground": {
+      "items": [
+        {
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          },
+          "add_name": " (#ARMOR#)",
+          "combat": {},
+          "combat_values_are_final": false,
+          "count": 1,
+          "encumbrance": 2,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "BODY",
+          "id": "tome-1789456177-1661-4-table0x42fc1578:level-1:ground-1,5:object-2602",
+          "identified": true,
+          "location": "ground",
+          "material_level": 1,
+          "name": "Silk Current",
+          "name_is_raw": true,
+          "pile_size": 4,
+          "pile_truncated": false,
+          "requirements": {},
+          "requirements_are_final": false,
+          "subtype": "cloth",
+          "type": "armor",
+          "underfoot": true,
+          "wielder": {
+            "combat_def": 12,
+            "combat_spellpower": 5
+          },
+          "x": 1,
+          "y": 5
+        },
+        {
+          "activation": {
+            "max_power": 6,
+            "power": 6,
+            "present": true,
+            "recharge_per_turn": 1,
+            "runtime_checked": true,
+            "use_no_wear": false
+          },
+          "add_name": " (#COMBAT_ELEMENT#)",
+          "combat": {
+            "apr": 0,
+            "dam": 10,
+            "damrange": 1.2,
+            "physcrit": 1.5,
+            "physspeed": 1
+          },
+          "combat_values_are_final": false,
+          "count": 1,
+          "encumbrance": 5,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "MAINHAND",
+          "id": "tome-1789456177-1661-4-table0x42fc1578:level-1:ground-1,5:object-2607",
+          "identified": true,
+          "location": "ground",
+          "material_level": 1,
+          "name": "Kor's Fall",
+          "name_is_raw": true,
+          "pile_size": 4,
+          "pile_truncated": false,
+          "requirements": {
+            "flags": [],
+            "stats": {
+              "mag": 25
+            },
+            "talents": []
+          },
+          "requirements_are_final": false,
+          "subtype": "staff",
+          "type": "weapon",
+          "underfoot": true,
+          "wielder": {
+            "combat_spellpower": 7
+          },
+          "x": 1,
+          "y": 5
+        },
+        {
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          },
+          "add_name": " (#COMBAT#)",
+          "combat": {
+            "apr": 2,
+            "dam": 17.5,
+            "damrange": 1.4,
+            "physcrit": 0.5,
+            "physspeed": 1
+          },
+          "combat_values_are_final": false,
+          "count": 1,
+          "encumbrance": 3,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "MAINHAND",
+          "id": "tome-1789456177-1661-4-table0x42fc1578:level-1:ground-1,5:object-2601",
+          "identified": true,
+          "location": "ground",
+          "material_level": 1,
+          "name": "flaming iron mace of massacre",
+          "name_is_raw": true,
+          "pile_size": 4,
+          "pile_truncated": false,
+          "requirements": {
+            "flags": [],
+            "stats": {
+              "str": 11
+            },
+            "talents": []
+          },
+          "requirements_are_final": false,
+          "subtype": "mace",
+          "type": "weapon",
+          "underfoot": true,
+          "wielder": {},
+          "x": 1,
+          "y": 5
+        },
+        {
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          },
+          "add_name": " (#COMBAT_ELEMENT#)",
+          "combat": {
+            "apr": 2,
+            "dam": 10,
+            "damrange": 1.2,
+            "physcrit": 2.5,
+            "physspeed": 1
+          },
+          "combat_values_are_final": false,
+          "count": 1,
+          "encumbrance": 5,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "MAINHAND",
+          "id": "tome-1789456177-1661-4-table0x42fc1578:level-1:ground-1,5:object-2606",
+          "identified": true,
+          "location": "ground",
+          "material_level": 1,
+          "name": "cruel elm magestaff of fate",
+          "name_is_raw": true,
+          "pile_size": 4,
+          "pile_truncated": false,
+          "requirements": {
+            "flags": [],
+            "stats": {
+              "mag": 11
+            },
+            "talents": []
+          },
+          "requirements_are_final": false,
+          "subtype": "staff",
+          "type": "weapon",
+          "underfoot": true,
+          "wielder": {
+            "combat_mentalresist": 6,
+            "combat_physresist": 6,
+            "combat_spellpower": 3,
+            "combat_spellresist": 6
+          },
+          "x": 1,
+          "y": 5
+        },
+        {
+          "activation": {
+            "present": true,
+            "runtime_checked": true,
+            "use_no_wear": false
+          },
+          "combat": {},
+          "combat_values_are_final": false,
+          "count": 1,
+          "encumbrance": 0,
+          "encumbrance_is_per_item": true,
+          "id": "tome-1789456177-1661-4-table0x42fc1578:level-1:ground-2,6:object-2610",
+          "identified": true,
+          "location": "ground",
+          "name": "tattered paper scrap",
+          "name_is_raw": true,
+          "pile_size": 1,
+          "pile_truncated": false,
+          "requirements": {},
+          "requirements_are_final": false,
+          "subtype": "lore",
+          "type": "lore",
+          "underfoot": false,
+          "wielder": {},
+          "x": 2,
+          "y": 6
+        }
+      ],
+      "pickup_scope": "current_tile_only",
+      "radius": 8,
+      "scope": "current visible objects; distant piles reveal their top object and count; underfoot piles reveal their pickup list",
+      "truncated": false
+    },
+    "level_instance_id": "level-1",
+    "map": {
+      "block_scope": "terrain only, recorded for player state at last observation; excludes actors, objects, map attributes and movement callbacks",
+      "cells": [
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 0
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 1,
+          "y": 0
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 2,
+          "y": 0
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 0
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 4,
+          "y": 0
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 5,
+          "y": 0
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 6,
+          "y": 0
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 7,
+          "y": 0
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 8,
+          "y": 0
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 0
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 1
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 1,
+          "y": 1
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 2,
+          "y": 1
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 3,
+          "y": 1
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 4,
+          "y": 1
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 5,
+          "y": 1
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 6,
+          "y": 1
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 7,
+          "y": 1
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 1
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 1
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 0,
+          "y": 2
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 1,
+          "y": 2
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 2,
+          "y": 2
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 3,
+          "y": 2
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 4,
+          "y": 2
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 5,
+          "y": 2
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 6,
+          "y": 2
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 2
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 2
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 2
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ";",
+          "known": true,
+          "name": "flower",
+          "visible": true,
+          "x": 0,
+          "y": 3
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 1,
+          "y": 3
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 2,
+          "y": 3
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 3,
+          "y": 3
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 4,
+          "y": 3
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 5,
+          "y": 3
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 3
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 3
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 3
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 3
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 0,
+          "y": 4
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 1,
+          "y": 4
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": "=",
+          "known": true,
+          "name": "old road",
+          "visible": true,
+          "x": 2,
+          "y": 4
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 3,
+          "y": 4
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 4,
+          "y": 4
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 5,
+          "y": 4
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 4
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 4
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 4
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 4
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": "<",
+          "is_exit": true,
+          "known": true,
+          "name": "way to the previous level",
+          "visible": true,
+          "x": 0,
+          "y": 5
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 1,
+          "y": 5
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 2,
+          "y": 5
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 3,
+          "y": 5
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 4,
+          "y": 5
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": false,
+          "x": 5,
+          "y": 5
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": false,
+          "x": 6,
+          "y": 5
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 5
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 5
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 5
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 0,
+          "y": 6
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 1,
+          "y": 6
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 2,
+          "y": 6
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 3,
+          "y": 6
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 4,
+          "y": 6
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 5,
+          "y": 6
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 6
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 6
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 6
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 6
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 0,
+          "y": 7
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 1,
+          "y": 7
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 2,
+          "y": 7
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 3,
+          "y": 7
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 4,
+          "y": 7
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 5,
+          "y": 7
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 6,
+          "y": 7
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 7
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 7
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 7
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 8
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 1,
+          "y": 8
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 2,
+          "y": 8
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 3,
+          "y": 8
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 8
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 5,
+          "y": 8
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 6,
+          "y": 8
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 8
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 8
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 8
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 9
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 1,
+          "y": 9
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 2,
+          "y": 9
+        },
+        {
+          "block_status": "passable",
+          "blocked": false,
+          "char": ".",
+          "known": true,
+          "name": "grass",
+          "visible": true,
+          "x": 3,
+          "y": 9
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 9
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 9
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 9
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 9
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 9
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 9
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 10
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 1,
+          "y": 10
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 2,
+          "y": 10
+        },
+        {
+          "block_status": "blocked",
+          "blocked": true,
+          "char": "#",
+          "known": true,
+          "name": "tree",
+          "visible": true,
+          "x": 3,
+          "y": 10
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 10
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 10
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 10
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 10
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 10
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 10
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 11
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 1,
+          "y": 11
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 2,
+          "y": 11
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 11
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 11
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 11
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 11
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 11
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 11
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 11
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 12
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 1,
+          "y": 12
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 2,
+          "y": 12
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 12
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 12
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 12
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 12
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 12
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 12
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 12
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 0,
+          "y": 13
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 1,
+          "y": 13
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 2,
+          "y": 13
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 3,
+          "y": 13
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 4,
+          "y": 13
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 5,
+          "y": 13
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 6,
+          "y": 13
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 7,
+          "y": 13
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 8,
+          "y": 13
+        },
+        {
+          "char": "?",
+          "known": false,
+          "visible": false,
+          "x": 9,
+          "y": 13
+        }
+      ],
+      "height": 14,
+      "legend": {
+        "?": "unknown",
+        "@": "player",
+        "A": "perceived actor"
+      },
+      "memory_scope": "terrain observed by this bridge in this session",
+      "merge_scope": "merge this window only within the same session_id and level_instance_id; outside cells are omitted",
+      "radius": 8,
+      "rows": [
+        "?..?...#.?",
+        "?.##====??",
+        "#.===.#???",
+        ";#=..#????",
+        "===..#????",
+        "<@..#.#???",
+        ".....#????",
+        "##.#..#???",
+        "??.#?.#???",
+        "??#.??????",
+        "???#??????",
+        "??????????",
+        "??????????",
+        "??????????"
+      ],
+      "width": 10,
+      "window": {
+        "x_max": 9,
+        "x_min": 0,
+        "y_max": 13,
+        "y_min": 0
+      },
+      "x": 0,
+      "y": 0
+    },
+    "map_omitted": false,
+    "phase": "ready",
+    "player": {
+      "descriptor": {
+        "class": "Warrior",
+        "difficulty": "Normal",
+        "race": "Human",
+        "sex": "Female",
+        "subclass": "Berserker",
+        "subrace": "Cornac"
+      },
+      "die_at": 0,
+      "effect_duration_is_raw": true,
+      "effects": [
+        {
+          "duration": 8,
+          "id": "EFF_INFUSION_COOLDOWN",
+          "name": "Infusion Saturation",
+          "status": "detrimental",
+          "type": "other"
+        },
+        {
+          "duration": 3,
+          "id": "EFF_REGENERATION",
+          "name": "Regeneration",
+          "status": "beneficial",
+          "type": "physical"
+        }
+      ],
+      "effects_truncated": false,
+      "energy": 1000,
+      "equipment": [
+        {
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          },
+          "add_name": " (#COMBAT#)",
+          "combat": {
+            "apr": 1,
+            "dam": 18,
+            "damrange": 1.5,
+            "physcrit": 0.5,
+            "physspeed": 1
+          },
+          "combat_values_are_final": false,
+          "container": "MAINHAND",
+          "count": 1,
+          "encumbrance": 5,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "MAINHAND",
+          "equipped": true,
+          "id": "tome-1789456177-1661-4-table0x42fc1578:object-2464",
+          "identified": true,
+          "inventory_id": 2,
+          "material_level": 1,
+          "name": "iron greatmaul",
+          "name_is_raw": true,
+          "requirements": {
+            "flags": [],
+            "stats": {
+              "str": 11
+            },
+            "talents": []
+          },
+          "requirements_are_final": false,
+          "slot": 1,
+          "subtype": "greatmaul",
+          "transmogrification_pending": false,
+          "type": "weapon",
+          "wielder": {}
+        },
+        {
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          },
+          "combat": {},
+          "combat_values_are_final": false,
+          "container": "LITE",
+          "count": 1,
+          "encumbrance": 2,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "LITE",
+          "equipped": true,
+          "id": "tome-1789456177-1661-4-table0x42fc1578:object-2465",
+          "identified": true,
+          "inventory_id": 7,
+          "material_level": 1,
+          "name": "brass lantern",
+          "name_is_raw": true,
+          "requirements": {},
+          "requirements_are_final": false,
+          "slot": 1,
+          "subtype": "lite",
+          "transmogrification_pending": false,
+          "type": "lite",
+          "wielder": {}
+        },
+        {
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          },
+          "add_name": " (#ARMOR#)",
+          "combat": {},
+          "combat_values_are_final": false,
+          "container": "BODY",
+          "count": 1,
+          "encumbrance": 14,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "BODY",
+          "equipped": true,
+          "id": "tome-1789456177-1661-4-table0x42fc1578:object-2466",
+          "identified": true,
+          "inventory_id": 8,
+          "material_level": 1,
+          "name": "iron mail armour",
+          "name_is_raw": true,
+          "requirements": {
+            "flags": [
+              {
+                "id": "allow_wear_heavy",
+                "level": 1
+              }
+            ],
+            "stats": {
+              "str": 14
+            },
+            "talents": []
+          },
+          "requirements_are_final": false,
+          "slot": 1,
+          "subtype": "heavy",
+          "transmogrification_pending": false,
+          "type": "armor",
+          "wielder": {
+            "combat_armor": 4,
+            "combat_def": 2
+          }
+        }
+      ],
+      "equipment_truncated": false,
+      "exp": 77.18,
+      "exp_next": 254,
+      "exp_scope": "progress within current level; exp_next is the next-level threshold",
+      "faction": "allied-kingdoms",
+      "id": "tome-1789456177-1661-4-table0x42fc1578:level-1:actor-2467",
+      "inventory": [
+        {
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          },
+          "add_name": " (#COMBAT#)",
+          "combat": {
+            "apr": 1,
+            "dam": 17,
+            "damrange": 1.6,
+            "physcrit": 2.5,
+            "physspeed": 1
+          },
+          "combat_values_are_final": false,
+          "container": "INVEN",
+          "count": 1,
+          "encumbrance": 3,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "MAINHAND",
+          "equipped": false,
+          "id": "tome-1789456177-1661-4-table0x42fc1578:object-2462",
+          "identified": true,
+          "inventory_id": 1,
+          "material_level": 1,
+          "name": "iron greatsword",
+          "name_is_raw": true,
+          "requirements": {
+            "flags": [],
+            "stats": {
+              "str": 11
+            },
+            "talents": []
+          },
+          "requirements_are_final": false,
+          "slot": 1,
+          "subtype": "greatsword",
+          "transmogrification_pending": false,
+          "type": "weapon",
+          "wielder": {}
+        },
+        {
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": false
+          },
+          "combat": {},
+          "combat_values_are_final": false,
+          "container": "INVEN",
+          "count": 1,
+          "encumbrance": 1,
+          "encumbrance_is_per_item": true,
+          "equipped": false,
+          "id": "tome-1789456177-1661-4-table0x42fc1578:object-2463",
+          "identified": true,
+          "inventory_id": 1,
+          "name": "Scrying Orb",
+          "name_is_raw": true,
+          "requirements": {},
+          "requirements_are_final": false,
+          "slot": 2,
+          "subtype": "orb",
+          "transmogrification_pending": false,
+          "type": "orb",
+          "wielder": {}
+        },
+        {
+          "activation": {
+            "max_power": 400,
+            "power": 400,
+            "present": true,
+            "recharge_per_turn": 1,
+            "runtime_checked": true,
+            "use_no_wear": false
+          },
+          "add_name": "#CHARGES#",
+          "combat": {},
+          "combat_values_are_final": false,
+          "container": "INVEN",
+          "count": 1,
+          "encumbrance": 2,
+          "encumbrance_is_per_item": true,
+          "equipped": false,
+          "id": "tome-1789456177-1661-4-table0x42fc1578:object-2608",
+          "identified": true,
+          "inventory_id": 1,
+          "name": "Rod of Recall",
+          "name_is_raw": true,
+          "requirements": {},
+          "requirements_are_final": false,
+          "slot": 3,
+          "subtype": "rod",
+          "transmogrification_pending": false,
+          "type": "charm",
+          "wielder": {}
+        },
+        {
+          "activation": {
+            "present": false,
+            "runtime_checked": true,
+            "use_no_wear": true
+          },
+          "combat": {},
+          "combat_values_are_final": false,
+          "container": "INVEN",
+          "count": 1,
+          "encumbrance": 0,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "GEM",
+          "equipped": false,
+          "id": "tome-1789456177-1661-4-table0x42fc1578:object-2609",
+          "identified": true,
+          "inventory_id": 1,
+          "material_level": 1,
+          "name": "zircon",
+          "name_is_raw": true,
+          "requirements": {},
+          "requirements_are_final": false,
+          "slot": 4,
+          "subtype": "yellow",
+          "transmogrification_pending": false,
+          "type": "gem",
+          "wielder": {
+            "combat_armor": 1
+          }
+        }
+      ],
+      "inventory_scope": "owned items; raw known names and identified scalar properties only",
+      "inventory_truncated": false,
+      "level": 5,
+      "life": 209.75,
+      "life_regen": 20.25,
+      "max_life": 209.75,
+      "name": "MCP_campaign-play-01",
+      "rank": 3,
+      "regeneration_is_raw": true,
+      "resources": {
+        "air": {
+          "max": 100,
+          "min": 0,
+          "regen": 3,
+          "value": 100
+        },
+        "equilibrium": {
+          "min": 0,
+          "regen": 0,
+          "value": 0
+        },
+        "hate": {
+          "max": 100,
+          "min": 0,
+          "regen": 0,
+          "value": 0
+        },
+        "mana": {
+          "max": 124,
+          "min": 0,
+          "regen": 0,
+          "value": 0
+        },
+        "negative": {
+          "max": 62,
+          "min": 0,
+          "regen": 0.5,
+          "value": 0
+        },
+        "paradox": {
+          "min": 0,
+          "regen": 0,
+          "value": 300
+        },
+        "positive": {
+          "max": 62,
+          "min": 0,
+          "regen": 0.5,
+          "value": 0
+        },
+        "psi": {
+          "max": 100,
+          "min": 0,
+          "regen": 0.2,
+          "value": 0
+        },
+        "stamina": {
+          "max": 112,
+          "min": 0,
+          "regen": 0.3,
+          "value": 103.34
+        },
+        "vim": {
+          "max": 116,
+          "min": 0,
+          "regen": 0,
+          "value": 0
+        }
+      },
+      "stats": {
+        "con": {
+          "base": 17,
+          "bonus": 0
+        },
+        "cun": {
+          "base": 10,
+          "bonus": 0
+        },
+        "dex": {
+          "base": 11,
+          "bonus": 0
+        },
+        "mag": {
+          "base": 10,
+          "bonus": 0
+        },
+        "str": {
+          "base": 20,
+          "bonus": 0
+        },
+        "wil": {
+          "base": 10,
+          "bonus": 0
+        }
+      },
+      "stats_are_raw": true,
+      "subtype": "human",
+      "type": "humanoid",
+      "unused_generics": 1,
+      "unused_prodigies": 0,
+      "unused_stats": 6,
+      "unused_talents": 3,
+      "unused_talents_types": 0,
+      "x": 1,
+      "y": 5
+    },
+    "revision": 43,
+    "scene": {
+      "level": 3,
+      "zone_id": "trollmire",
+      "zone_name": "Trollmire"
+    },
+    "session_id": "tome-1789456177-1661-4-table0x42fc1578",
+    "talents": [
+      {
+        "activation": {
+          "admitted": false,
+          "entrypoint": "use_talent",
+          "interaction_coverage": "runtime_checked",
+          "reason": "talent_mode_unsupported"
+        },
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "Runs through native talent rules; input requests are discovered during execution.",
+        "id": "T_ARMOUR_TRAINING",
+        "instant": false,
+        "level": 2,
+        "mode": "passive",
+        "name": "Heavy Armour Training",
+        "supported": false,
+        "sustained_active": false,
+        "target": "runtime",
+        "unsupported_reason": "talent_mode_unsupported"
+      },
+      {
+        "action_adapter": "attack",
+        "activation": {
+          "admitted": true,
+          "entrypoint": "use_talent",
+          "interaction_coverage": "runtime_checked"
+        },
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "Runs through native talent rules; input requests are discovered during execution.",
+        "id": "T_ATTACK",
+        "instant": false,
+        "level": 1,
+        "mode": "activated",
+        "name": "Attack",
+        "supported": true,
+        "sustained_active": false,
+        "target": "runtime"
+      },
+      {
+        "activation": {
+          "admitted": true,
+          "entrypoint": "use_talent",
+          "interaction_coverage": "runtime_checked"
+        },
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "Runs through native talent rules; input requests are discovered during execution.",
+        "id": "T_INFUSION:_HEALING_3",
+        "instant": true,
+        "level": 1,
+        "mode": "activated",
+        "name": "Infusion: Healing",
+        "supported": true,
+        "sustained_active": false,
+        "target": "runtime"
+      },
+      {
+        "activation": {
+          "admitted": true,
+          "entrypoint": "use_talent",
+          "interaction_coverage": "runtime_checked"
+        },
+        "base_costs": {},
+        "cooldown": 9,
+        "costs_are_final": false,
+        "description": "Runs through native talent rules; input requests are discovered during execution.",
+        "id": "T_INFUSION:_REGENERATION_1",
+        "instant": false,
+        "level": 1,
+        "mode": "activated",
+        "name": "Infusion: Regeneration",
+        "supported": true,
+        "sustained_active": false,
+        "target": "runtime"
+      },
+      {
+        "activation": {
+          "admitted": true,
+          "entrypoint": "use_talent",
+          "interaction_coverage": "runtime_checked"
+        },
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "Runs through native talent rules; input requests are discovered during execution.",
+        "id": "T_INFUSION:_WILD_2",
+        "instant": true,
+        "level": 1,
+        "mode": "activated",
+        "name": "Infusion: Wild",
+        "supported": true,
+        "sustained_active": false,
+        "target": "runtime"
+      },
+      {
+        "activation": {
+          "admitted": true,
+          "entrypoint": "use_talent",
+          "interaction_coverage": "runtime_checked"
+        },
+        "base_costs": {
+          "hate": "unknown",
+          "stamina": "unknown"
+        },
+        "cooldown": 9,
+        "costs_are_final": false,
+        "description": "Runs through native talent rules; input requests are discovered during execution.",
+        "id": "T_RUSH",
+        "instant": false,
+        "level": 1,
+        "mode": "activated",
+        "name": "Rush",
+        "supported": true,
+        "sustained_active": false,
+        "target": "runtime"
+      },
+      {
+        "activation": {
+          "admitted": false,
+          "entrypoint": "use_talent",
+          "interaction_coverage": "runtime_checked",
+          "reason": "talent_mode_unsupported"
+        },
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "Runs through native talent rules; input requests are discovered during execution.",
+        "id": "T_STAMINA_POOL",
+        "instant": false,
+        "level": 1,
+        "mode": "passive",
+        "name": "Stamina Pool",
+        "supported": false,
+        "sustained_active": false,
+        "target": "runtime",
+        "unsupported_reason": "talent_mode_unsupported"
+      },
+      {
+        "activation": {
+          "admitted": true,
+          "entrypoint": "use_talent",
+          "interaction_coverage": "runtime_checked"
+        },
+        "base_costs": {
+          "stamina": 8
+        },
+        "cooldown": 7,
+        "costs_are_final": false,
+        "description": "Runs through native talent rules; input requests are discovered during execution.",
+        "id": "T_STUNNING_BLOW_ASSAULT",
+        "instant": false,
+        "level": 3,
+        "mode": "activated",
+        "name": "Stunning Blow",
+        "supported": true,
+        "sustained_active": false,
+        "target": "runtime"
+      },
+      {
+        "activation": {
+          "admitted": false,
+          "entrypoint": "use_talent",
+          "interaction_coverage": "runtime_checked",
+          "reason": "talent_mode_unsupported"
+        },
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "Runs through native talent rules; input requests are discovered during execution.",
+        "id": "T_VITALITY",
+        "instant": false,
+        "level": 3,
+        "mode": "passive",
+        "name": "Vitality",
+        "supported": false,
+        "sustained_active": false,
+        "target": "runtime",
+        "unsupported_reason": "talent_mode_unsupported"
+      },
+      {
+        "activation": {
+          "admitted": true,
+          "entrypoint": "use_talent",
+          "interaction_coverage": "runtime_checked"
+        },
+        "base_costs": {
+          "stamina": 30
+        },
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "Runs through native talent rules; input requests are discovered during execution.",
+        "id": "T_WARSHOUT_BERSERKER",
+        "instant": false,
+        "level": 3,
+        "mode": "activated",
+        "name": "Warshout",
+        "supported": true,
+        "sustained_active": false,
+        "target": "runtime"
+      },
+      {
+        "activation": {
+          "admitted": false,
+          "entrypoint": "use_talent",
+          "interaction_coverage": "runtime_checked",
+          "reason": "talent_mode_unsupported"
+        },
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "Runs through native talent rules; input requests are discovered during execution.",
+        "id": "T_WEAPONS_MASTERY",
+        "instant": false,
+        "level": 1,
+        "mode": "passive",
+        "name": "Weapons Mastery",
+        "supported": false,
+        "sustained_active": false,
+        "target": "runtime",
+        "unsupported_reason": "talent_mode_unsupported"
+      },
+      {
+        "activation": {
+          "admitted": false,
+          "entrypoint": "use_talent",
+          "interaction_coverage": "runtime_checked",
+          "reason": "talent_mode_unsupported"
+        },
+        "base_costs": {},
+        "cooldown": 0,
+        "costs_are_final": false,
+        "description": "Runs through native talent rules; input requests are discovered during execution.",
+        "id": "T_WEAPON_COMBAT",
+        "instant": false,
+        "level": 1,
+        "mode": "passive",
+        "name": "Combat Accuracy",
+        "supported": false,
+        "sustained_active": false,
+        "target": "runtime",
+        "unsupported_reason": "talent_mode_unsupported"
+      }
+    ],
+    "talents_truncated": false,
+    "world_tick": 19489
+  },
+  "derived_source_unchanged": true,
+  "normal_campaign": true,
+  "gameplay_fixture": false,
+  "cheat": false
+}

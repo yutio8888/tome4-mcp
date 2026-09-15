@@ -1,0 +1,5493 @@
+{
+  "actors": [],
+  "battle_companion": {
+    "actions": 0,
+    "state": "idle"
+  },
+  "control": "remote",
+  "dialogs": [],
+  "dialogs_truncated": false,
+  "events": {
+    "cursor": 2,
+    "cursor_ahead": false,
+    "entries": [
+      {
+        "cursor": 1,
+        "line_id": 1,
+        "observed_world_tick": 59818,
+        "op": "append",
+        "text": "#LIGHT_RED#Online profile disabled(switching to offline profile) due to no online profile active.",
+        "text_truncated": false
+      },
+      {
+        "cursor": 2,
+        "line_id": 2,
+        "observed_world_tick": 59818,
+        "op": "append",
+        "text": "#YELLOW#Connection to online server established.",
+        "text_truncated": false
+      }
+    ],
+    "gap": false,
+    "has_more": false,
+    "head_cursor": 2,
+    "oldest_cursor": 1,
+    "semantics": "Log changes only; remove means rollback, clearing, or history eviction, not game rollback.",
+    "source": "player_visible_log"
+  },
+  "ground": {
+    "items": [
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#MONEY#)",
+        "combat": {},
+        "combat_values_are_final": false,
+        "count": 1,
+        "encumbrance": 0,
+        "encumbrance_is_per_item": true,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:level-1:ground-10,18:object-3021",
+        "identified": true,
+        "location": "ground",
+        "name": "gold pieces",
+        "name_is_raw": true,
+        "pile_size": 1,
+        "pile_truncated": false,
+        "requirements": {},
+        "requirements_are_final": false,
+        "subtype": "money",
+        "type": "money",
+        "underfoot": false,
+        "wielder": {},
+        "x": 10,
+        "y": 18
+      }
+    ],
+    "pickup_scope": "current_tile_only",
+    "radius": 12,
+    "scope": "current visible objects; distant piles reveal their top object and count; underfoot piles reveal their pickup list",
+    "truncated": false
+  },
+  "level_instance_id": "level-1",
+  "map": {
+    "block_scope": "terrain only, recorded for player state at last observation; excludes actors, objects, map attributes and movement callbacks",
+    "cells": [
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 4
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 5
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 6
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 7
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 8
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 9
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 10
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 11
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 12
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 4,
+        "y": 12
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 5,
+        "y": 12
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": "<",
+        "is_exit": true,
+        "known": true,
+        "name": "previous level",
+        "visible": true,
+        "x": 6,
+        "y": 12
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 7,
+        "y": 12
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "can_open": true,
+        "char": "+",
+        "door": true,
+        "known": true,
+        "name": "door",
+        "visible": true,
+        "x": 8,
+        "y": 12
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 9,
+        "y": 12
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 10,
+        "y": 12
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "can_open": true,
+        "char": "+",
+        "door": true,
+        "known": true,
+        "name": "door",
+        "visible": true,
+        "x": 11,
+        "y": 12
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 12,
+        "y": 12
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 13,
+        "y": 12
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 14,
+        "y": 12
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 15,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 12
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 13
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 4,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 5,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 6,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 7,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 8,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 9,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 10,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 11,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 12,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 13,
+        "y": 13
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 14,
+        "y": 13
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 15,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 13
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 14
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 4,
+        "y": 14
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 5,
+        "y": 14
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 6,
+        "y": 14
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 7,
+        "y": 14
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 8,
+        "y": 14
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 9,
+        "y": 14
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 10,
+        "y": 14
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 11,
+        "y": 14
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 12,
+        "y": 14
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 13,
+        "y": 14
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 14,
+        "y": 14
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 15,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 14
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 15
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 4,
+        "y": 15
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 5,
+        "y": 15
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 6,
+        "y": 15
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 7,
+        "y": 15
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 8,
+        "y": 15
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 9,
+        "y": 15
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 10,
+        "y": 15
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 11,
+        "y": 15
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 12,
+        "y": 15
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 13,
+        "y": 15
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 14,
+        "y": 15
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 15,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 15
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 16
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 4,
+        "y": 16
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 5,
+        "y": 16
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 6,
+        "y": 16
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 7,
+        "y": 16
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 8,
+        "y": 16
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 9,
+        "y": 16
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 10,
+        "y": 16
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 11,
+        "y": 16
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 12,
+        "y": 16
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 13,
+        "y": 16
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 14,
+        "y": 16
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 15,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 16
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 17
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 4,
+        "y": 17
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 5,
+        "y": 17
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 6,
+        "y": 17
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 7,
+        "y": 17
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 8,
+        "y": 17
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 9,
+        "y": 17
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 10,
+        "y": 17
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 11,
+        "y": 17
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 12,
+        "y": 17
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 13,
+        "y": 17
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 14,
+        "y": 17
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 15,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 17
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 18
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 4,
+        "y": 18
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 5,
+        "y": 18
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 6,
+        "y": 18
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 7,
+        "y": 18
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 8,
+        "y": 18
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 9,
+        "y": 18
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 10,
+        "y": 18
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 11,
+        "y": 18
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 12,
+        "y": 18
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 13,
+        "y": 18
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 14,
+        "y": 18
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "can_open": true,
+        "char": "+",
+        "door": true,
+        "known": true,
+        "name": "door",
+        "visible": true,
+        "x": 15,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 18
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 19
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 4,
+        "y": 19
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 5,
+        "y": 19
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 6,
+        "y": 19
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 7,
+        "y": 19
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 8,
+        "y": 19
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 9,
+        "y": 19
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 10,
+        "y": 19
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 11,
+        "y": 19
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 12,
+        "y": 19
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 13,
+        "y": 19
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 14,
+        "y": 19
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 15,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 19
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 20
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 4,
+        "y": 20
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 5,
+        "y": 20
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 6,
+        "y": 20
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 7,
+        "y": 20
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 8,
+        "y": 20
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 9,
+        "y": 20
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 10,
+        "y": 20
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 11,
+        "y": 20
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 12,
+        "y": 20
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 13,
+        "y": 20
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 14,
+        "y": 20
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 15,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 20
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 21
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 4,
+        "y": 21
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 5,
+        "y": 21
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "can_open": true,
+        "char": "+",
+        "door": true,
+        "known": true,
+        "name": "door",
+        "visible": true,
+        "x": 6,
+        "y": 21
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 7,
+        "y": 21
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "can_open": true,
+        "char": "+",
+        "door": true,
+        "known": true,
+        "name": "door",
+        "visible": true,
+        "x": 8,
+        "y": 21
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 9,
+        "y": 21
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 10,
+        "y": 21
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 11,
+        "y": 21
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 12,
+        "y": 21
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 13,
+        "y": 21
+      },
+      {
+        "block_status": "passable",
+        "blocked": false,
+        "char": ".",
+        "known": true,
+        "name": "floor",
+        "visible": true,
+        "x": 14,
+        "y": 21
+      },
+      {
+        "block_status": "blocked",
+        "blocked": true,
+        "char": "#",
+        "known": true,
+        "name": "wall",
+        "visible": true,
+        "x": 15,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 21
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 22
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 23
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 24
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 25
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 26
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 27
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 0,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 1,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 2,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 3,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 4,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 5,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 6,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 7,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 8,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 9,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 10,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 11,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 12,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 13,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 14,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 15,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 16,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 17,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 18,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 19,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 20,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 21,
+        "y": 28
+      },
+      {
+        "char": "?",
+        "known": false,
+        "visible": false,
+        "x": 22,
+        "y": 28
+      }
+    ],
+    "height": 25,
+    "legend": {
+      "?": "unknown",
+      "@": "player",
+      "A": "perceived actor"
+    },
+    "memory_scope": "terrain observed by this bridge in this session",
+    "merge_scope": "merge this window only within the same session_id and level_instance_id; outside cells are omitted",
+    "radius": 12,
+    "rows": [
+      "???????????????????????",
+      "???????????????????????",
+      "???????????????????????",
+      "???????????????????????",
+      "???????????????????????",
+      "???????????????????????",
+      "???????????????????????",
+      "???????????????????????",
+      "????##<#+##+###.???????",
+      "????#..........#???????",
+      "????#..........#???????",
+      "????#..........#???????",
+      "????#.....@....#???????",
+      "????#..........#???????",
+      "????...........+???????",
+      "????#..........#???????",
+      "????#..........#???????",
+      "????##+#+###.#.#???????",
+      "???????????????????????",
+      "???????????????????????",
+      "???????????????????????",
+      "???????????????????????",
+      "???????????????????????",
+      "???????????????????????",
+      "???????????????????????"
+    ],
+    "width": 23,
+    "window": {
+      "x_max": 22,
+      "x_min": 0,
+      "y_max": 28,
+      "y_min": 4
+    },
+    "x": 0,
+    "y": 4
+  },
+  "map_omitted": false,
+  "phase": "ready",
+  "player": {
+    "descriptor": {
+      "class": "Warrior",
+      "difficulty": "Normal",
+      "race": "Human",
+      "sex": "Female",
+      "subclass": "Berserker",
+      "subrace": "Cornac"
+    },
+    "die_at": 0,
+    "effect_duration_is_raw": true,
+    "effects": [],
+    "effects_truncated": false,
+    "energy": 1066.6666666666,
+    "equipment": [
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#COMBAT#)",
+        "combat": {
+          "apr": 1,
+          "dam": 18,
+          "damrange": 1.5,
+          "physcrit": 0.5,
+          "physspeed": 1
+        },
+        "combat_values_are_final": false,
+        "container": "MAINHAND",
+        "count": 1,
+        "encumbrance": 5,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "MAINHAND",
+        "equipped": true,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2411",
+        "identified": true,
+        "inventory_id": 2,
+        "material_level": 1,
+        "name": "iron greatmaul",
+        "name_is_raw": true,
+        "requirements": {
+          "flags": [],
+          "stats": {
+            "str": 11
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 1,
+        "subtype": "greatmaul",
+        "transmogrification_pending": false,
+        "type": "weapon",
+        "wielder": {}
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "LITE",
+        "count": 1,
+        "encumbrance": 2,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "LITE",
+        "equipped": true,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2412",
+        "identified": true,
+        "inventory_id": 7,
+        "material_level": 1,
+        "name": "brass lantern",
+        "name_is_raw": true,
+        "requirements": {},
+        "requirements_are_final": false,
+        "slot": 1,
+        "subtype": "lite",
+        "transmogrification_pending": false,
+        "type": "lite",
+        "wielder": {}
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#ARMOR#)",
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "BODY",
+        "count": 1,
+        "encumbrance": 14,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "BODY",
+        "equipped": true,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2413",
+        "identified": true,
+        "inventory_id": 8,
+        "material_level": 1,
+        "name": "iron mail armour",
+        "name_is_raw": true,
+        "requirements": {
+          "flags": [
+            {
+              "id": "allow_wear_heavy",
+              "level": 1
+            }
+          ],
+          "stats": {
+            "str": 14
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 1,
+        "subtype": "heavy",
+        "transmogrification_pending": false,
+        "type": "armor",
+        "wielder": {
+          "combat_armor": 4,
+          "combat_def": 2
+        }
+      },
+      {
+        "activation": {
+          "max_power": 10,
+          "power": 10,
+          "present": true,
+          "recharge_per_turn": 1,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "TOOL",
+        "count": 1,
+        "encumbrance": 2,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "TOOL",
+        "equipped": true,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2392",
+        "identified": true,
+        "inventory_id": 14,
+        "material_level": 1,
+        "name": "Prox's Lucky Halfling Foot",
+        "name_is_raw": true,
+        "requirements": {},
+        "requirements_are_final": false,
+        "slot": 1,
+        "subtype": "misc",
+        "transmogrification_pending": false,
+        "type": "tool",
+        "wielder": {
+          "combat_def": 5
+        }
+      }
+    ],
+    "equipment_truncated": false,
+    "exp": 296.54,
+    "exp_next": 346,
+    "exp_scope": "progress within current level; exp_next is the next-level threshold",
+    "faction": "allied-kingdoms",
+    "id": "tome-1789464870-1926-4-table0x4287dc70:level-1:actor-2414",
+    "inventory": [
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#COMBAT#)",
+        "combat": {
+          "apr": 1,
+          "dam": 17,
+          "damrange": 1.6,
+          "physcrit": 2.5,
+          "physspeed": 1
+        },
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 3,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "MAINHAND",
+        "equipped": false,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2394",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "iron greatsword",
+        "name_is_raw": true,
+        "requirements": {
+          "flags": [],
+          "stats": {
+            "str": 11
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 1,
+        "subtype": "greatsword",
+        "transmogrification_pending": false,
+        "type": "weapon",
+        "wielder": {}
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#COMBAT#)",
+        "combat": {
+          "apr": 2,
+          "dam": 17.5,
+          "damrange": 1.4,
+          "physcrit": 0.5,
+          "physspeed": 1
+        },
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 3,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "MAINHAND",
+        "equipped": false,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2398",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "flaming iron mace of massacre",
+        "name_is_raw": true,
+        "requirements": {
+          "flags": [],
+          "stats": {
+            "str": 11
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 2,
+        "subtype": "mace",
+        "transmogrification_pending": false,
+        "type": "weapon",
+        "wielder": {}
+      },
+      {
+        "activation": {
+          "max_power": 8,
+          "power": 8,
+          "present": true,
+          "recharge_per_turn": 1,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#COMBAT_DAMTYPE#)",
+        "combat": {
+          "apr": 15,
+          "dam": 7,
+          "damrange": 1.1,
+          "physcrit": 7,
+          "physspeed": 1
+        },
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 3,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "MAINHAND",
+        "equipped": false,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2399",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "Serpent's Glare",
+        "name_is_raw": true,
+        "offslot": "OFFHAND",
+        "requirements": {
+          "flags": [],
+          "stats": {
+            "wil": 12
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 3,
+        "subtype": "mindstar",
+        "transmogrification_pending": false,
+        "type": "weapon",
+        "wielder": {
+          "combat_mindpower": 4
+        }
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#COMBAT_DAMTYPE#)",
+        "combat": {
+          "apr": 12,
+          "dam": 2.5,
+          "damrange": 1.1,
+          "physcrit": 2.5,
+          "physspeed": 1
+        },
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 3,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "MAINHAND",
+        "equipped": false,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2402",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "horrifying mossy mindstar",
+        "name_is_raw": true,
+        "offslot": "OFFHAND",
+        "requirements": {
+          "flags": [],
+          "stats": {
+            "wil": 11
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 4,
+        "subtype": "mindstar",
+        "transmogrification_pending": false,
+        "type": "weapon",
+        "wielder": {
+          "combat_mindpower": 2
+        }
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#COMBAT_ELEMENT#)",
+        "combat": {
+          "apr": 2,
+          "dam": 10,
+          "damrange": 1.2,
+          "physcrit": 2.5,
+          "physspeed": 1
+        },
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 5,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "MAINHAND",
+        "equipped": false,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2406",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "cruel elm magestaff of fate",
+        "name_is_raw": true,
+        "requirements": {
+          "flags": [],
+          "stats": {
+            "mag": 11
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 5,
+        "subtype": "staff",
+        "transmogrification_pending": false,
+        "type": "weapon",
+        "wielder": {
+          "combat_mentalresist": 6,
+          "combat_physresist": 6,
+          "combat_spellpower": 3,
+          "combat_spellresist": 6
+        }
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#ARMOR#)",
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 2,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "BODY",
+        "equipped": false,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2407",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "Silk Current",
+        "name_is_raw": true,
+        "requirements": {},
+        "requirements_are_final": false,
+        "slot": 6,
+        "subtype": "cloth",
+        "transmogrification_pending": false,
+        "type": "armor",
+        "wielder": {
+          "combat_def": 12,
+          "combat_spellpower": 5
+        }
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": " (#ARMOR#)",
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 17,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "BODY",
+        "equipped": false,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2408",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "iron plate armour",
+        "name_is_raw": true,
+        "requirements": {
+          "flags": [
+            {
+              "id": "allow_wear_massive",
+              "level": 1
+            }
+          ],
+          "stats": {
+            "str": 22
+          },
+          "talents": []
+        },
+        "requirements_are_final": false,
+        "slot": 7,
+        "subtype": "massive",
+        "transmogrification_pending": false,
+        "type": "armor",
+        "wielder": {
+          "combat_armor": 7
+        }
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 1,
+        "encumbrance_is_per_item": true,
+        "equipped": false,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2409",
+        "identified": true,
+        "inventory_id": 1,
+        "name": "Scrying Orb",
+        "name_is_raw": true,
+        "requirements": {},
+        "requirements_are_final": false,
+        "slot": 8,
+        "subtype": "orb",
+        "transmogrification_pending": false,
+        "type": "orb",
+        "wielder": {}
+      },
+      {
+        "activation": {
+          "max_power": 400,
+          "power": 400,
+          "present": true,
+          "recharge_per_turn": 1,
+          "runtime_checked": true,
+          "use_no_wear": false
+        },
+        "add_name": "#CHARGES#",
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 2,
+        "encumbrance_is_per_item": true,
+        "equipped": false,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2393",
+        "identified": true,
+        "inventory_id": 1,
+        "name": "Rod of Recall",
+        "name_is_raw": true,
+        "requirements": {},
+        "requirements_are_final": false,
+        "slot": 9,
+        "subtype": "rod",
+        "transmogrification_pending": false,
+        "type": "charm",
+        "wielder": {}
+      },
+      {
+        "activation": {
+          "present": false,
+          "runtime_checked": true,
+          "use_no_wear": true
+        },
+        "combat": {},
+        "combat_values_are_final": false,
+        "container": "INVEN",
+        "count": 1,
+        "encumbrance": 0,
+        "encumbrance_is_per_item": true,
+        "equipment_slot": "GEM",
+        "equipped": false,
+        "id": "tome-1789464870-1926-4-table0x4287dc70:object-2410",
+        "identified": true,
+        "inventory_id": 1,
+        "material_level": 1,
+        "name": "zircon",
+        "name_is_raw": true,
+        "requirements": {},
+        "requirements_are_final": false,
+        "slot": 10,
+        "subtype": "yellow",
+        "transmogrification_pending": false,
+        "type": "gem",
+        "wielder": {
+          "combat_armor": 1
+        }
+      }
+    ],
+    "inventory_scope": "owned items; raw known names and identified scalar properties only",
+    "inventory_truncated": false,
+    "level": 6,
+    "life": 234,
+    "life_regen": 0.25,
+    "max_life": 234,
+    "name": "MCP_campaign-play-01",
+    "rank": 3,
+    "regeneration_is_raw": true,
+    "resources": {
+      "air": {
+        "max": 100,
+        "min": 0,
+        "regen": 3,
+        "value": 100
+      },
+      "equilibrium": {
+        "min": 0,
+        "regen": 0,
+        "value": 0
+      },
+      "hate": {
+        "max": 100,
+        "min": 0,
+        "regen": 0,
+        "value": 0
+      },
+      "mana": {
+        "max": 155,
+        "min": 0,
+        "regen": 0,
+        "value": 0
+      },
+      "negative": {
+        "max": 65,
+        "min": 0,
+        "regen": 0.5,
+        "value": 65
+      },
+      "paradox": {
+        "min": 0,
+        "regen": 0,
+        "value": 300
+      },
+      "positive": {
+        "max": 65,
+        "min": 0,
+        "regen": 0.5,
+        "value": 65
+      },
+      "psi": {
+        "max": 105,
+        "min": 0,
+        "regen": 0.2,
+        "value": 105
+      },
+      "stamina": {
+        "max": 127.5,
+        "min": 0,
+        "regen": 0.3,
+        "value": 127.5
+      },
+      "vim": {
+        "max": 120,
+        "min": 0,
+        "regen": 0,
+        "value": 0
+      }
+    },
+    "stats": {
+      "con": {
+        "base": 19,
+        "bonus": 0
+      },
+      "cun": {
+        "base": 10,
+        "bonus": 0
+      },
+      "dex": {
+        "base": 11,
+        "bonus": 0
+      },
+      "mag": {
+        "base": 10,
+        "bonus": 0
+      },
+      "str": {
+        "base": 27,
+        "bonus": 0
+      },
+      "wil": {
+        "base": 10,
+        "bonus": 5
+      }
+    },
+    "stats_are_raw": true,
+    "subtype": "human",
+    "type": "humanoid",
+    "unused_generics": 0,
+    "unused_prodigies": 0,
+    "unused_stats": 0,
+    "unused_talents": 0,
+    "unused_talents_types": 0,
+    "x": 10,
+    "y": 16
+  },
+  "revision": 3,
+  "scene": {
+    "level": 2,
+    "zone_id": "ruins-kor-pul",
+    "zone_name": "Ruins of Kor'Pul"
+  },
+  "session_id": "tome-1789464870-1926-4-table0x4287dc70",
+  "talents": [
+    {
+      "activation": {
+        "admitted": false,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked",
+        "reason": "talent_mode_unsupported"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_ARMOUR_TRAINING",
+      "instant": false,
+      "level": 2,
+      "mode": "passive",
+      "name": "Heavy Armour Training",
+      "supported": false,
+      "sustained_active": false,
+      "target": "runtime",
+      "unsupported_reason": "talent_mode_unsupported"
+    },
+    {
+      "action_adapter": "attack",
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_ATTACK",
+      "instant": false,
+      "level": 1,
+      "mode": "activated",
+      "name": "Attack",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "set_sustain",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_BERSERKER_RAGE",
+      "instant": true,
+      "level": 1,
+      "mode": "sustained",
+      "name": "Berserker Rage",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {
+        "stamina": 20
+      },
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_FEARLESS_CLEAVE",
+      "instant": false,
+      "level": 1,
+      "mode": "activated",
+      "name": "Fearless Cleave",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_INFUSION:_HEALING_3",
+      "instant": true,
+      "level": 1,
+      "mode": "activated",
+      "name": "Infusion: Healing",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_INFUSION:_REGENERATION_1",
+      "instant": false,
+      "level": 1,
+      "mode": "activated",
+      "name": "Infusion: Regeneration",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_INFUSION:_WILD_2",
+      "instant": true,
+      "level": 1,
+      "mode": "activated",
+      "name": "Infusion: Wild",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "set_sustain",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_PRECISE_STRIKES",
+      "instant": false,
+      "level": 1,
+      "mode": "sustained",
+      "name": "Precise Strikes",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {
+        "hate": "unknown",
+        "stamina": "unknown"
+      },
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_RUSH",
+      "instant": false,
+      "level": 1,
+      "mode": "activated",
+      "name": "Rush",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": false,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked",
+        "reason": "talent_mode_unsupported"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_STAMINA_POOL",
+      "instant": false,
+      "level": 1,
+      "mode": "passive",
+      "name": "Stamina Pool",
+      "supported": false,
+      "sustained_active": false,
+      "target": "runtime",
+      "unsupported_reason": "talent_mode_unsupported"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {
+        "stamina": 8
+      },
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_STUNNING_BLOW_ASSAULT",
+      "instant": false,
+      "level": 4,
+      "mode": "activated",
+      "name": "Stunning Blow",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": false,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked",
+        "reason": "talent_mode_unsupported"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_VITALITY",
+      "instant": false,
+      "level": 3,
+      "mode": "passive",
+      "name": "Vitality",
+      "supported": false,
+      "sustained_active": false,
+      "target": "runtime",
+      "unsupported_reason": "talent_mode_unsupported"
+    },
+    {
+      "activation": {
+        "admitted": true,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked"
+      },
+      "base_costs": {
+        "stamina": 30
+      },
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_WARSHOUT_BERSERKER",
+      "instant": false,
+      "level": 3,
+      "mode": "activated",
+      "name": "Warshout",
+      "supported": true,
+      "sustained_active": false,
+      "target": "runtime"
+    },
+    {
+      "activation": {
+        "admitted": false,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked",
+        "reason": "talent_mode_unsupported"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_WEAPONS_MASTERY",
+      "instant": false,
+      "level": 2,
+      "mode": "passive",
+      "name": "Weapons Mastery",
+      "supported": false,
+      "sustained_active": false,
+      "target": "runtime",
+      "unsupported_reason": "talent_mode_unsupported"
+    },
+    {
+      "activation": {
+        "admitted": false,
+        "entrypoint": "use_talent",
+        "interaction_coverage": "runtime_checked",
+        "reason": "talent_mode_unsupported"
+      },
+      "base_costs": {},
+      "cooldown": 0,
+      "costs_are_final": false,
+      "description": "Runs through native talent rules; input requests are discovered during execution.",
+      "id": "T_WEAPON_COMBAT",
+      "instant": false,
+      "level": 2,
+      "mode": "passive",
+      "name": "Combat Accuracy",
+      "supported": false,
+      "sustained_active": false,
+      "target": "runtime",
+      "unsupported_reason": "talent_mode_unsupported"
+    }
+  ],
+  "talents_truncated": false,
+  "world_tick": 59818
+}

@@ -1,0 +1,1200 @@
+{
+  "version": "0.4.0",
+  "date": "2026-09-15",
+  "normal_campaign": true,
+  "cheat": false,
+  "gameplay_fixture": false,
+  "gameplay_path": "Official Python MCP SDK -> stdio server -> native addon operations; native Ctrl+S used only to save.",
+  "formal_archive": "game/addons/tome-mcp-bridge/dist/tome-mcp-bridge.teaa",
+  "formal_archive_sha256": "ff627dd0a9c686b27da034e86db0a5b3bc3ce075e1feeb7858aa1dc16e2c9a74",
+  "formal_archive_files": 15,
+  "formal_archive_equals_frozen_source": true,
+  "frozen_driver_equal": true,
+  "frozen_python_equal": true,
+  "source_save_sha256": {
+    "campaign-play-01": {
+      "mcp_campaign_play_01/cur.png": "557f0204a6bf553c258b44e335b564ab0cefecfe5f2a52e0765d79194ffe20b0",
+      "mcp_campaign_play_01/desc.lua": "68fa28462c855634855fc47183fb4c4aa28244d247c525b9fe667f789eb4d828",
+      "mcp_campaign_play_01/game.teag": "5050a3a46d2e68c5db255cecaa2e6a8227eabdcf67197f5e0b6af90e32f8d25a",
+      "mcp_campaign_play_01/last_log.txt": "c929a47707cd3119f29a2f3f087fba2027f44acbb4f8089db7539beaa86ec981",
+      "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+      "world.teaw": "be820b11513eef15a6ada6aa66611b4f31ca50b5dfa16f2ea56a0eb16259c1a7"
+    },
+    "campaign-play-v030-01": {
+      "mcp_campaign_play_01/cur.png": "0af2e50de12cce30d871e08f1509b247ff4a0f92976f0a7296941e539fa766ca",
+      "mcp_campaign_play_01/desc.lua": "639ca8613e78b314ca68f1a0ba23e003df35b831c47c98368c7c85fd8a6726d7",
+      "mcp_campaign_play_01/game.teag": "c38a69bda7e9547ff35720a838b2900e202998803425487d25c90be86af49097",
+      "mcp_campaign_play_01/last_log.txt": "7b2e61b43d6f7423a6cd6a481aa86598ef3d8a813390dd9dd6769ed7eaf2318e",
+      "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+      "world.teaw": "cdd0579e2bc04249d9c19bcfc21de06fd5dda479f55313ab189a2914a9b39157"
+    }
+  },
+  "historical_evidence_audit": {
+    "mcp-campaign-trial-2026-09-15.json": {
+      "evidence_file_count": 13,
+      "mismatches": [],
+      "all_match": true,
+      "report_sha256": "13afa726d30199dc7a89dc2bf6f26640bd5d63df6a5e836aff61891c25cb2b4a",
+      "reported_sha256": {
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/play-mcp.jsonl": "90fb2a032068b1b28676d2a8e9118b3b101a8b799b4fbe7e15a778a6ecde3724",
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/decisions.jsonl": "a1716b4ff69f5479cebade6d3a2951b67c25a2708189767da0f38c0f5cc3337a",
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/input.json": "83f7c35b48b592eaf3e3411cfac124a95fcae47916106d6191d240e960a1ef67",
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/candidate.zip": "d02a12477059162e21e79e6788686a3ce103cd8b62a777175cd3ed7d78338695",
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/game.log": "40735b91a6a2714f6ac1fc3fea4908ab4a64696a205d4c5073782a8687d455cc",
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/action-schema.json": "710c53b4ea4245a18cbf543dda0849e279d75fc25e836f14d441b126dfa2a22d",
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/play-summary.json": "88cc9d9e989326fecb080bd232420f97193fa4a9ec1b88d94a19ffae24608f7c",
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/player-visible-combat.log": "773e84f89283229765f39bce273c9bf478077d4695e06b24c117c6e3d220c03b",
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/desc.lua": "68fa28462c855634855fc47183fb4c4aa28244d247c525b9fe667f789eb4d828",
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/game.teag": "5050a3a46d2e68c5db255cecaa2e6a8227eabdcf67197f5e0b6af90e32f8d25a",
+        "documentation/mcp-campaign-trial-2026-09-15.png": "1f39b92a520ad19d4f20a12a364c462ef12c75cb00f5608a56959a40faa386a6",
+        "tmp/mcp-play-support/play.py": "87604f2f86e3fbf441be884eb4632d93e90409a3bf64af0d083c1f2548b1db7c",
+        "tmp/tome-mcp-validation/sessions/campaign-play-01/rest-1789436756675916970-mcp.jsonl": "fec53162d98f9850202867f8854fa5eb59ed796223bf0d28af253e32af052550"
+      }
+    },
+    "mcp-campaign-continuation-0.3.0.json": {
+      "evidence_file_count": 24,
+      "mismatches": [],
+      "all_match": true,
+      "report_sha256": "e15575b6527ca763cab2c1fcb6e530d0dbc45ac2ec9b32ab5a76622f7a075e28",
+      "reported_sha256": {
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/input.json": "d23a0686fba333370d7423b921341416e7665fbe50b826a5aa43b4f33ed32e92",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/candidate.zip": "c09b3198718b6bb0ebf41a2fcdc8e5ba17bd9b7a7fdf37e04344debfe085314f",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/campaign-mcp.jsonl": "c86681cd316b5402ca2d07ec8f4c7d95987f451e659f95a27229c631354e39fe",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/decisions.jsonl": "926fa4e7ca43bc11aaecd1cb9bde636f7d0d9324f247cce647a8b78ac62c187b",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/visible-log-events.jsonl": "511fe8c9e5d0f0a927b3d86f6c6e59b63ac71a4c46aa7bc62fc6369c09d9bf2b",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/play-summary.json": "c768da12f2a7836bec81f8fd3f57e1c6636dac673a7b16bd8ca3a8464c6ab4ed",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/game.log": "7f40150ba8a554c0d8a7e544aeaf22240cd051afef2f285fa2651cb7fd91836c",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/player-visible-combat.log": "c43c1ce82decc902fde113934781c2a985a26c20ccbd302bcdb9ddf2cae9a191",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/escape-plan.json": "0d3f83bfa2fecde95d7717a6f9525e89137b26e6cbf26be27d35fddb5312f8ac",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/escape-plan-02.json": "de5905fece7048923f3772ff7c7acd0e326e4f415dd33fb21e4e5a219ed7e665",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/world.teaw": "cdd0579e2bc04249d9c19bcfc21de06fd5dda479f55313ab189a2914a9b39157",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/last_log.txt": "7b2e61b43d6f7423a6cd6a481aa86598ef3d8a813390dd9dd6769ed7eaf2318e",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/desc.lua": "639ca8613e78b314ca68f1a0ba23e003df35b831c47c98368c7c85fd8a6726d7",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/cur.png": "0af2e50de12cce30d871e08f1509b247ff4a0f92976f0a7296941e539fa766ca",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/save/mcp_campaign_play_01/game.teag": "c38a69bda7e9547ff35720a838b2900e202998803425487d25c90be86af49097",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/mcp-server-src/tome_mcp/__init__.py": "f36dd10b430c8341656ca9c57c0bbeffabc43895d9566a5477e97f3dc36f4b04",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/mcp-server-src/tome_mcp/__main__.py": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/mcp-server-src/tome_mcp/bridge.py": "756c8cafb9431345a6213ccee93e5a918d7b6dedc8a3a7e457f7e8e40e25077a",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/mcp-server-src/tome_mcp/server.py": "38ec4c7b215dd29d6ae5029961af4df89ab02e8372620055d25d9d1c0b733b10",
+        "tmp/mcp-play-support/continue.py": "e75066030bb5ce0b0df222efd0e53cf425b329b686428728083c284c5237361e",
+        "tmp/mcp-play-support/summarize-continuation.py": "9dfb2aed8944b2e3860b8fffe076a2b9fbc3d775dbbede147469abd8044acd9f",
+        "tmp/tome-mcp-validation/sessions/campaign-play-v030-01/home/.t-engine/4.0/tome/screenshots/tome-1.7.6-1789441714.png": "ea2ed2019659559a779877353cb0bf4c19765ba63385913d092022941a8e2623",
+        "documentation/mcp-campaign-continuation-0.3.0.png": "ea2ed2019659559a779877353cb0bf4c19765ba63385913d092022941a8e2623"
+      }
+    }
+  },
+  "saved_float_comparison": {
+    "absolute_tolerance": 1e-09,
+    "relative_tolerance": 1e-12,
+    "discrete_state": "exact",
+    "raw_snapshots_preserved": true
+  },
+  "driver_regressions": {
+    "source_provenance": 11,
+    "persistence_comparison": 5
+  },
+  "runs": [
+    {
+      "session": "growth-source-final-01",
+      "evidence": "tmp/tome-mcp-validation/sessions/growth-source-final-01",
+      "passed": true,
+      "checks": 91,
+      "unique_action_commands": 76,
+      "mcp_act_calls": 83,
+      "duplicate_act_calls": 7,
+      "command_status_counts": {
+        "failed": 13,
+        "completed": 63
+      },
+      "action_counts": {
+        "learn_talent": 14,
+        "learn_category": 4,
+        "spend_stat": 10,
+        "pickup": 3,
+        "equip": 3,
+        "unequip": 2,
+        "rest": 2,
+        "move": 19,
+        "wait": 14,
+        "use_talent": 3,
+        "attack": 2
+      },
+      "expected_rejections": [
+        {
+          "command_id": "growth-00001",
+          "action": {
+            "type": "learn_talent",
+            "talent_id": "T_MCP_NONEXISTENT_GROWTH_TALENT"
+          },
+          "code": "talent_not_in_growth_tree"
+        },
+        {
+          "command_id": "growth-00002",
+          "action": {
+            "type": "learn_category",
+            "category_id": "mcp/nonexistent-growth-category"
+          },
+          "code": "category_not_in_growth_tree"
+        },
+        {
+          "command_id": "growth-00003",
+          "action": {
+            "type": "learn_talent",
+            "talent_id": "T_DEATH_DANCE_ASSAULT"
+          },
+          "code": "talent_level_requirement"
+        },
+        {
+          "command_id": "growth-00004",
+          "action": {
+            "type": "learn_talent",
+            "talent_id": "T_ARMOUR_TRAINING"
+          },
+          "code": "talent_stat_requirement"
+        },
+        {
+          "command_id": "growth-00005",
+          "action": {
+            "type": "learn_category",
+            "category_id": "technique/bloodthirst"
+          },
+          "code": "category_level_requirement"
+        },
+        {
+          "command_id": "growth-00015",
+          "action": {
+            "type": "spend_stat",
+            "stat": "str"
+          },
+          "code": "insufficient_stat_points"
+        },
+        {
+          "command_id": "growth-00025",
+          "action": {
+            "type": "learn_talent",
+            "talent_id": "T_RUSH"
+          },
+          "code": "insufficient_class_points"
+        },
+        {
+          "command_id": "growth-00026",
+          "action": {
+            "type": "learn_talent",
+            "talent_id": "T_VITALITY"
+          },
+          "code": "insufficient_generic_points"
+        },
+        {
+          "command_id": "growth-00028",
+          "action": {
+            "type": "learn_category",
+            "category_id": "technique/combat-techniques-active"
+          },
+          "code": "insufficient_category_points"
+        },
+        {
+          "command_id": "growth-00029",
+          "action": {
+            "type": "pickup",
+            "item_id": "nonexistent-ground-item"
+          },
+          "code": "item_not_visible_or_owned"
+        },
+        {
+          "command_id": "growth-00030",
+          "action": {
+            "type": "equip",
+            "item_id": "tome-1789443792-1743-4-table0x42f36058:object-2463"
+          },
+          "code": "item_not_in_backpack"
+        },
+        {
+          "command_id": "growth-00031",
+          "action": {
+            "type": "unequip",
+            "item_id": "tome-1789443792-1743-4-table0x42f36058:object-2462"
+          },
+          "code": "item_not_equipped"
+        },
+        {
+          "command_id": "growth-00071",
+          "action": {
+            "type": "pickup",
+            "item_id": "tome-1789443792-1743-4-table0x42f36058:level-1:ground-59,37:object-2482"
+          },
+          "code": "item_not_underfoot"
+        }
+      ],
+      "point_pools_before": {
+        "category": 1,
+        "class": 5,
+        "generic": 4,
+        "prodigy": 0,
+        "stats": 9
+      },
+      "point_pools_after": {
+        "category": 0,
+        "class": 0,
+        "generic": 0,
+        "prodigy": 0,
+        "stats": 0
+      },
+      "stat_changes": {
+        "str": {
+          "before": 15,
+          "after": 20
+        },
+        "con": {
+          "before": 13,
+          "after": 17
+        }
+      },
+      "talent_changes": {
+        "T_STUNNING_BLOW_ASSAULT": {
+          "before": 1,
+          "after": 3
+        },
+        "T_RUSH": {
+          "before": 0,
+          "after": 1
+        },
+        "T_ARMOUR_TRAINING": {
+          "before": 1,
+          "after": 2
+        },
+        "T_VITALITY": {
+          "before": 0,
+          "after": 3
+        },
+        "T_WARSHOUT_BERSERKER": {
+          "before": 1,
+          "after": 3
+        }
+      },
+      "category_mode": "unlock",
+      "category_changes": {
+        "cunning/dirty": {
+          "known": {
+            "before": false,
+            "after": true
+          },
+          "mastery_base": {
+            "before": 1,
+            "after": 1
+          },
+          "improvements_used": {
+            "before": 0,
+            "after": 0
+          }
+        }
+      },
+      "natural_item": {
+        "first_observed": {
+          "count": 1,
+          "id": "tome-1789443792-1743-4-table0x42f36058:level-1:ground-59,37:object-2482",
+          "identified": false,
+          "location": "ground",
+          "name": "iron greatmaul",
+          "name_is_raw": true,
+          "pile_size": 1,
+          "pile_truncated": false,
+          "underfoot": false,
+          "x": 59,
+          "y": 37
+        },
+        "ground": {
+          "add_name": " (#COMBAT#)",
+          "combat": {
+            "apr": 1,
+            "dam": 18,
+            "damrange": 1.5,
+            "physcrit": 0.5,
+            "physspeed": 1
+          },
+          "combat_values_are_final": false,
+          "count": 1,
+          "encumbrance": 5,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "MAINHAND",
+          "id": "tome-1789443792-1743-4-table0x42f36058:level-1:ground-59,37:object-2482",
+          "identified": true,
+          "location": "ground",
+          "material_level": 1,
+          "name": "iron greatmaul",
+          "name_is_raw": true,
+          "pile_size": 1,
+          "pile_truncated": false,
+          "requirements": {
+            "flags": [],
+            "stats": {
+              "str": 11
+            },
+            "talents": []
+          },
+          "requirements_are_final": false,
+          "subtype": "greatmaul",
+          "type": "weapon",
+          "underfoot": true,
+          "wielder": {},
+          "x": 59,
+          "y": 37
+        },
+        "picked_up": {
+          "add_name": " (#COMBAT#)",
+          "combat": {
+            "apr": 1,
+            "dam": 18,
+            "damrange": 1.5,
+            "physcrit": 0.5,
+            "physspeed": 1
+          },
+          "combat_values_are_final": false,
+          "container": "INVEN",
+          "count": 1,
+          "encumbrance": 5,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "MAINHAND",
+          "equipped": false,
+          "id": "tome-1789443792-1743-4-table0x42f36058:object-2482",
+          "identified": true,
+          "inventory_id": 1,
+          "location": "inventory",
+          "material_level": 1,
+          "name": "iron greatmaul",
+          "name_is_raw": true,
+          "requirements": {
+            "flags": [],
+            "stats": {
+              "str": 11
+            },
+            "talents": []
+          },
+          "requirements_are_final": false,
+          "slot": 1,
+          "subtype": "greatmaul",
+          "transmogrification_pending": false,
+          "type": "weapon",
+          "wielder": {}
+        },
+        "equipped": {
+          "add_name": " (#COMBAT#)",
+          "combat": {
+            "apr": 1,
+            "dam": 18,
+            "damrange": 1.5,
+            "physcrit": 0.5,
+            "physspeed": 1
+          },
+          "combat_values_are_final": false,
+          "container": "MAINHAND",
+          "count": 1,
+          "encumbrance": 5,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "MAINHAND",
+          "equipped": true,
+          "id": "tome-1789443792-1743-4-table0x42f36058:object-2482",
+          "identified": true,
+          "inventory_id": 2,
+          "material_level": 1,
+          "name": "iron greatmaul",
+          "name_is_raw": true,
+          "requirements": {
+            "flags": [],
+            "stats": {
+              "str": 11
+            },
+            "talents": []
+          },
+          "requirements_are_final": false,
+          "slot": 1,
+          "subtype": "greatmaul",
+          "transmogrification_pending": false,
+          "type": "weapon",
+          "wielder": {}
+        }
+      },
+      "item_actions": [
+        {
+          "command_id": "growth-00029",
+          "action": {
+            "type": "pickup",
+            "item_id": "nonexistent-ground-item"
+          },
+          "status": "failed",
+          "code": "item_not_visible_or_owned",
+          "energy_spent": 0
+        },
+        {
+          "command_id": "growth-00030",
+          "action": {
+            "type": "equip",
+            "item_id": "tome-1789443792-1743-4-table0x42f36058:object-2463"
+          },
+          "status": "failed",
+          "code": "item_not_in_backpack",
+          "energy_spent": 0
+        },
+        {
+          "command_id": "growth-00031",
+          "action": {
+            "type": "unequip",
+            "item_id": "tome-1789443792-1743-4-table0x42f36058:object-2462"
+          },
+          "status": "failed",
+          "code": "item_not_equipped",
+          "energy_spent": 0
+        },
+        {
+          "command_id": "growth-00071",
+          "action": {
+            "type": "pickup",
+            "item_id": "tome-1789443792-1743-4-table0x42f36058:level-1:ground-59,37:object-2482"
+          },
+          "status": "failed",
+          "code": "item_not_underfoot",
+          "energy_spent": 0
+        },
+        {
+          "command_id": "growth-00073",
+          "action": {
+            "type": "pickup",
+            "item_id": "tome-1789443792-1743-4-table0x42f36058:level-1:ground-59,37:object-2482"
+          },
+          "status": "completed",
+          "code": "item_action_complete",
+          "energy_spent": 1000
+        },
+        {
+          "command_id": "growth-00074",
+          "action": {
+            "type": "equip",
+            "item_id": "tome-1789443792-1743-4-table0x42f36058:object-2482"
+          },
+          "status": "completed",
+          "code": "item_action_complete",
+          "energy_spent": 1000
+        },
+        {
+          "command_id": "growth-00075",
+          "action": {
+            "type": "unequip",
+            "item_id": "tome-1789443792-1743-4-table0x42f36058:object-2482"
+          },
+          "status": "completed",
+          "code": "item_action_complete",
+          "energy_spent": 1000
+        },
+        {
+          "command_id": "growth-00076",
+          "action": {
+            "type": "equip",
+            "item_id": "tome-1789443792-1743-4-table0x42f36058:object-2482"
+          },
+          "status": "completed",
+          "code": "item_action_complete",
+          "energy_spent": 1000
+        }
+      ],
+      "final_scene": {
+        "level": 2,
+        "zone_id": "trollmire",
+        "zone_name": "Trollmire"
+      },
+      "final_player": {
+        "name": "MCP_campaign-play-01",
+        "x": 59,
+        "y": 37,
+        "level": 3,
+        "exp": 12.38,
+        "life": 178.225,
+        "max_life": 178.225,
+        "stats": {
+          "con": {
+            "base": 17,
+            "bonus": 0
+          },
+          "cun": {
+            "base": 10,
+            "bonus": 0
+          },
+          "dex": {
+            "base": 11,
+            "bonus": 0
+          },
+          "mag": {
+            "base": 10,
+            "bonus": 0
+          },
+          "str": {
+            "base": 20,
+            "bonus": 0
+          },
+          "wil": {
+            "base": 10,
+            "bonus": 0
+          }
+        },
+        "unused_stats": 0,
+        "unused_talents": 0,
+        "unused_generics": 0,
+        "unused_talents_types": 0
+      },
+      "final_stamina": {
+        "max": 106,
+        "min": 0,
+        "regen": 0.3,
+        "value": 106
+      },
+      "battle_companion": {
+        "actions": 0,
+        "state": "idle"
+      },
+      "final_equipment": [
+        {
+          "name": "iron greatmaul",
+          "container": "MAINHAND",
+          "count": 1
+        },
+        {
+          "name": "brass lantern",
+          "container": "LITE",
+          "count": 1
+        },
+        {
+          "name": "iron mail armour",
+          "container": "BODY",
+          "count": 1
+        }
+      ],
+      "native_log_kills": 3,
+      "native_save_completed": true,
+      "reloaded_own_saved_copy": true,
+      "first_saved_test_copy_unchanged": true,
+      "native_session_changed": true,
+      "historical_sources_unchanged": {
+        "campaign-play-01": true,
+        "campaign-play-v030-01": true
+      },
+      "historical_save_hashes_rechecked": true,
+      "lua_error": false,
+      "elapsed_seconds": 34.33278661995428,
+      "tool_calls": {
+        "tome.connect": 4,
+        "tome.observe": 146,
+        "tome.inspect": 59,
+        "tome.act": 83,
+        "tome.stop": 1
+      },
+      "engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+      "addon_archive_sha256": null,
+      "candidate_sha256": "6c5161e7bd4350aeb8f6af95082fa491eefac02e20b47f38bf24585d2fe1412a",
+      "mcp_server_py_sha256": {
+        "tome_mcp/__init__.py": "fcd87357c975b5c54c9320451428cab3014bc054b47cbd2eed11276e398d1466",
+        "tome_mcp/__main__.py": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+        "tome_mcp/bridge.py": "756c8cafb9431345a6213ccee93e5a918d7b6dedc8a3a7e457f7e8e40e25077a",
+        "tome_mcp/server.py": "2f1a771b817c2b2e2e9fd763cf2c3625d8a64eb51f80830e52115298a7cafa97"
+      },
+      "campaign_driver_sha256": {
+        "runtime.py": "56081b5d9ac96f0cdba216cbf6ffff5d3e9d930133b7b96a484f69d882ea39e2",
+        "run.py": "99b06f2e2f8a28138a3d85fb8e7ddc04d01b5747fd09ad8bed1949f95d985c2b"
+      },
+      "growth_driver_sha256": {
+        "test_sources.py": "8863751bd68440b961e7f82e407dce4f65ebb7a2eecb68e116e04386173bdc20",
+        "run.py": "b52b1495167b3f780a7368d0861d66195b4aab130c1b2563a043f7635b826d9a",
+        "test_persistence.py": "055279be8600084232ae8b6269c57cfe686f7a463ac2391f161318ff516a0c82"
+      },
+      "harness_source_sha256": {
+        "campaign/run.py": "99b06f2e2f8a28138a3d85fb8e7ddc04d01b5747fd09ad8bed1949f95d985c2b",
+        "campaign/runtime.py": "56081b5d9ac96f0cdba216cbf6ffff5d3e9d930133b7b96a484f69d882ea39e2",
+        "growth/run.py": "b52b1495167b3f780a7368d0861d66195b4aab130c1b2563a043f7635b826d9a",
+        "growth/test_persistence.py": "055279be8600084232ae8b6269c57cfe686f7a463ac2391f161318ff516a0c82",
+        "growth/test_sources.py": "8863751bd68440b961e7f82e407dce4f65ebb7a2eecb68e116e04386173bdc20",
+        "native/runtime.py": "5b3b14d9d023bdb6f2236032e1d057f7123751e47b14b3dbc00a3db1f758ed05"
+      },
+      "evidence_sha256": {
+        "input.json": "879e1805091f89e6a213c09670cfdfda2e258c6eac0b44688b43558df57e1555",
+        "result.json": "283cea83bce97642505886053aaade3e9d2ec193e578cad0d215964f05438af4",
+        "candidate.zip": "6c5161e7bd4350aeb8f6af95082fa491eefac02e20b47f38bf24585d2fe1412a",
+        "campaign-mcp.jsonl": "29fe067eb41c98e0cfd8dffb3e1a8da0745a0d6303505aa2db51d87150928eb6",
+        "decisions.jsonl": "bf9670f757c6277459e075d8887c661230685b2a806971303085e3fd62d64fee",
+        "growth-before.json": "fde7c758fd482c73337c7c1383b8269f810bba78bbada4c66fd26630c775af28",
+        "growth-after.json": "0760f3656a95f4480d020913bb17b0b5eb3cc3c296224808b641f3661359aeea",
+        "natural-item.json": "d76ba62e8a3aa228dcdef3a827586156dd7763bca333508cd3ef88617feab012",
+        "saved-state.json": "ef010d252d853c1e8e9250af5a74dddb04f0775d10975b534e252e963ead82d9",
+        "reloaded-state.json": "93ce68af229293583e8df828221e1d60ad0f31e0da4bedcce287b02e781dfbdd",
+        "reload-input.json": "dbdc004496f7174b4577d39c295760e07624b162377bf6f983d2a670931f35b0",
+        "game.log": "739e4686f7a52b1d9411930a3cb43a8a51612323d87b658bcf60a4fe406654ce",
+        "reload.log": "6d23104d421b146d273e99d1c35beff28ca1afa8b33cf6c7b372426a633d3362",
+        "visible-log-events-before-reload.jsonl": "b81934ba20a6673aa1fb2ffd9906091e2a31450b71a0dd310aebd820871a8087",
+        "visible-log-events.jsonl": "7af672ab421e52a02f6d2054c17b1870fa805c187d80d99a26ef808efbb58496"
+      }
+    },
+    {
+      "session": "growth-package-final-01",
+      "evidence": "tmp/tome-mcp-validation/sessions/growth-package-final-01",
+      "passed": true,
+      "checks": 92,
+      "unique_action_commands": 73,
+      "mcp_act_calls": 80,
+      "duplicate_act_calls": 7,
+      "command_status_counts": {
+        "failed": 14,
+        "completed": 59
+      },
+      "action_counts": {
+        "learn_talent": 14,
+        "learn_category": 5,
+        "spend_stat": 10,
+        "pickup": 3,
+        "equip": 3,
+        "unequip": 2,
+        "rest": 3,
+        "move": 17,
+        "wait": 10,
+        "use_talent": 2,
+        "attack": 4
+      },
+      "expected_rejections": [
+        {
+          "command_id": "growth-00001",
+          "action": {
+            "type": "learn_talent",
+            "talent_id": "T_MCP_NONEXISTENT_GROWTH_TALENT"
+          },
+          "code": "talent_not_in_growth_tree"
+        },
+        {
+          "command_id": "growth-00002",
+          "action": {
+            "type": "learn_category",
+            "category_id": "mcp/nonexistent-growth-category"
+          },
+          "code": "category_not_in_growth_tree"
+        },
+        {
+          "command_id": "growth-00003",
+          "action": {
+            "type": "learn_talent",
+            "talent_id": "T_DEATH_DANCE_ASSAULT"
+          },
+          "code": "talent_level_requirement"
+        },
+        {
+          "command_id": "growth-00004",
+          "action": {
+            "type": "learn_talent",
+            "talent_id": "T_ARMOUR_TRAINING"
+          },
+          "code": "talent_stat_requirement"
+        },
+        {
+          "command_id": "growth-00005",
+          "action": {
+            "type": "learn_category",
+            "category_id": "technique/bloodthirst"
+          },
+          "code": "category_level_requirement"
+        },
+        {
+          "command_id": "growth-00015",
+          "action": {
+            "type": "spend_stat",
+            "stat": "str"
+          },
+          "code": "insufficient_stat_points"
+        },
+        {
+          "command_id": "growth-00025",
+          "action": {
+            "type": "learn_talent",
+            "talent_id": "T_RUSH"
+          },
+          "code": "insufficient_class_points"
+        },
+        {
+          "command_id": "growth-00026",
+          "action": {
+            "type": "learn_talent",
+            "talent_id": "T_VITALITY"
+          },
+          "code": "insufficient_generic_points"
+        },
+        {
+          "command_id": "growth-00028",
+          "action": {
+            "type": "learn_category",
+            "category_id": "technique/combat-techniques-active"
+          },
+          "code": "insufficient_category_points"
+        },
+        {
+          "command_id": "growth-00029",
+          "action": {
+            "type": "learn_category",
+            "category_id": "technique/2hweapon-assault"
+          },
+          "code": "category_already_improved"
+        },
+        {
+          "command_id": "growth-00030",
+          "action": {
+            "type": "pickup",
+            "item_id": "nonexistent-ground-item"
+          },
+          "code": "item_not_visible_or_owned"
+        },
+        {
+          "command_id": "growth-00031",
+          "action": {
+            "type": "equip",
+            "item_id": "tome-1789443853-1875-4-table0x42ade870:object-2463"
+          },
+          "code": "item_not_in_backpack"
+        },
+        {
+          "command_id": "growth-00032",
+          "action": {
+            "type": "unequip",
+            "item_id": "tome-1789443853-1875-4-table0x42ade870:object-2462"
+          },
+          "code": "item_not_equipped"
+        },
+        {
+          "command_id": "growth-00068",
+          "action": {
+            "type": "pickup",
+            "item_id": "tome-1789443853-1875-4-table0x42ade870:level-1:ground-61,36:object-2482"
+          },
+          "code": "item_not_underfoot"
+        }
+      ],
+      "point_pools_before": {
+        "category": 1,
+        "class": 5,
+        "generic": 4,
+        "prodigy": 0,
+        "stats": 9
+      },
+      "point_pools_after": {
+        "category": 0,
+        "class": 0,
+        "generic": 0,
+        "prodigy": 0,
+        "stats": 0
+      },
+      "stat_changes": {
+        "str": {
+          "before": 15,
+          "after": 20
+        },
+        "con": {
+          "before": 13,
+          "after": 17
+        }
+      },
+      "talent_changes": {
+        "T_STUNNING_BLOW_ASSAULT": {
+          "before": 1,
+          "after": 3
+        },
+        "T_RUSH": {
+          "before": 0,
+          "after": 1
+        },
+        "T_ARMOUR_TRAINING": {
+          "before": 1,
+          "after": 2
+        },
+        "T_VITALITY": {
+          "before": 0,
+          "after": 3
+        },
+        "T_WARSHOUT_BERSERKER": {
+          "before": 1,
+          "after": 3
+        }
+      },
+      "category_mode": "mastery",
+      "category_changes": {
+        "technique/2hweapon-assault": {
+          "known": {
+            "before": true,
+            "after": true
+          },
+          "mastery_base": {
+            "before": 1.3,
+            "after": 1.5
+          },
+          "improvements_used": {
+            "before": 0,
+            "after": 1
+          }
+        }
+      },
+      "natural_item": {
+        "first_observed": {
+          "count": 1,
+          "id": "tome-1789443853-1875-4-table0x42ade870:level-1:ground-61,36:object-2482",
+          "identified": false,
+          "location": "ground",
+          "name": "iron greatmaul",
+          "name_is_raw": true,
+          "pile_size": 1,
+          "pile_truncated": false,
+          "underfoot": false,
+          "x": 61,
+          "y": 36
+        },
+        "ground": {
+          "add_name": " (#COMBAT#)",
+          "combat": {
+            "apr": 1,
+            "dam": 18,
+            "damrange": 1.5,
+            "physcrit": 0.5,
+            "physspeed": 1
+          },
+          "combat_values_are_final": false,
+          "count": 1,
+          "encumbrance": 5,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "MAINHAND",
+          "id": "tome-1789443853-1875-4-table0x42ade870:level-1:ground-61,36:object-2482",
+          "identified": true,
+          "location": "ground",
+          "material_level": 1,
+          "name": "iron greatmaul",
+          "name_is_raw": true,
+          "pile_size": 1,
+          "pile_truncated": false,
+          "requirements": {
+            "flags": [],
+            "stats": {
+              "str": 11
+            },
+            "talents": []
+          },
+          "requirements_are_final": false,
+          "subtype": "greatmaul",
+          "type": "weapon",
+          "underfoot": true,
+          "wielder": {},
+          "x": 61,
+          "y": 36
+        },
+        "picked_up": {
+          "add_name": " (#COMBAT#)",
+          "combat": {
+            "apr": 1,
+            "dam": 18,
+            "damrange": 1.5,
+            "physcrit": 0.5,
+            "physspeed": 1
+          },
+          "combat_values_are_final": false,
+          "container": "INVEN",
+          "count": 1,
+          "encumbrance": 5,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "MAINHAND",
+          "equipped": false,
+          "id": "tome-1789443853-1875-4-table0x42ade870:object-2482",
+          "identified": true,
+          "inventory_id": 1,
+          "location": "inventory",
+          "material_level": 1,
+          "name": "iron greatmaul",
+          "name_is_raw": true,
+          "requirements": {
+            "flags": [],
+            "stats": {
+              "str": 11
+            },
+            "talents": []
+          },
+          "requirements_are_final": false,
+          "slot": 1,
+          "subtype": "greatmaul",
+          "transmogrification_pending": false,
+          "type": "weapon",
+          "wielder": {}
+        },
+        "equipped": {
+          "add_name": " (#COMBAT#)",
+          "combat": {
+            "apr": 1,
+            "dam": 18,
+            "damrange": 1.5,
+            "physcrit": 0.5,
+            "physspeed": 1
+          },
+          "combat_values_are_final": false,
+          "container": "MAINHAND",
+          "count": 1,
+          "encumbrance": 5,
+          "encumbrance_is_per_item": true,
+          "equipment_slot": "MAINHAND",
+          "equipped": true,
+          "id": "tome-1789443853-1875-4-table0x42ade870:object-2482",
+          "identified": true,
+          "inventory_id": 2,
+          "material_level": 1,
+          "name": "iron greatmaul",
+          "name_is_raw": true,
+          "requirements": {
+            "flags": [],
+            "stats": {
+              "str": 11
+            },
+            "talents": []
+          },
+          "requirements_are_final": false,
+          "slot": 1,
+          "subtype": "greatmaul",
+          "transmogrification_pending": false,
+          "type": "weapon",
+          "wielder": {}
+        }
+      },
+      "item_actions": [
+        {
+          "command_id": "growth-00030",
+          "action": {
+            "type": "pickup",
+            "item_id": "nonexistent-ground-item"
+          },
+          "status": "failed",
+          "code": "item_not_visible_or_owned",
+          "energy_spent": 0
+        },
+        {
+          "command_id": "growth-00031",
+          "action": {
+            "type": "equip",
+            "item_id": "tome-1789443853-1875-4-table0x42ade870:object-2463"
+          },
+          "status": "failed",
+          "code": "item_not_in_backpack",
+          "energy_spent": 0
+        },
+        {
+          "command_id": "growth-00032",
+          "action": {
+            "type": "unequip",
+            "item_id": "tome-1789443853-1875-4-table0x42ade870:object-2462"
+          },
+          "status": "failed",
+          "code": "item_not_equipped",
+          "energy_spent": 0
+        },
+        {
+          "command_id": "growth-00068",
+          "action": {
+            "type": "pickup",
+            "item_id": "tome-1789443853-1875-4-table0x42ade870:level-1:ground-61,36:object-2482"
+          },
+          "status": "failed",
+          "code": "item_not_underfoot",
+          "energy_spent": 0
+        },
+        {
+          "command_id": "growth-00070",
+          "action": {
+            "type": "pickup",
+            "item_id": "tome-1789443853-1875-4-table0x42ade870:level-1:ground-61,36:object-2482"
+          },
+          "status": "completed",
+          "code": "item_action_complete",
+          "energy_spent": 1000
+        },
+        {
+          "command_id": "growth-00071",
+          "action": {
+            "type": "equip",
+            "item_id": "tome-1789443853-1875-4-table0x42ade870:object-2482"
+          },
+          "status": "completed",
+          "code": "item_action_complete",
+          "energy_spent": 1000
+        },
+        {
+          "command_id": "growth-00072",
+          "action": {
+            "type": "unequip",
+            "item_id": "tome-1789443853-1875-4-table0x42ade870:object-2482"
+          },
+          "status": "completed",
+          "code": "item_action_complete",
+          "energy_spent": 1000
+        },
+        {
+          "command_id": "growth-00073",
+          "action": {
+            "type": "equip",
+            "item_id": "tome-1789443853-1875-4-table0x42ade870:object-2482"
+          },
+          "status": "completed",
+          "code": "item_action_complete",
+          "energy_spent": 1000
+        }
+      ],
+      "final_scene": {
+        "level": 2,
+        "zone_id": "trollmire",
+        "zone_name": "Trollmire"
+      },
+      "final_player": {
+        "name": "MCP_campaign-play-01",
+        "x": 61,
+        "y": 36,
+        "level": 3,
+        "exp": 12.38,
+        "life": 178.225,
+        "max_life": 178.225,
+        "stats": {
+          "con": {
+            "base": 17,
+            "bonus": 0
+          },
+          "cun": {
+            "base": 10,
+            "bonus": 0
+          },
+          "dex": {
+            "base": 11,
+            "bonus": 0
+          },
+          "mag": {
+            "base": 10,
+            "bonus": 0
+          },
+          "str": {
+            "base": 20,
+            "bonus": 0
+          },
+          "wil": {
+            "base": 10,
+            "bonus": 0
+          }
+        },
+        "unused_stats": 0,
+        "unused_talents": 0,
+        "unused_generics": 0,
+        "unused_talents_types": 0
+      },
+      "final_stamina": {
+        "max": 106,
+        "min": 0,
+        "regen": 0.3,
+        "value": 106
+      },
+      "battle_companion": {
+        "actions": 0,
+        "state": "idle"
+      },
+      "final_equipment": [
+        {
+          "name": "iron greatmaul",
+          "container": "MAINHAND",
+          "count": 1
+        },
+        {
+          "name": "brass lantern",
+          "container": "LITE",
+          "count": 1
+        },
+        {
+          "name": "iron mail armour",
+          "container": "BODY",
+          "count": 1
+        }
+      ],
+      "native_log_kills": 3,
+      "native_save_completed": true,
+      "reloaded_own_saved_copy": true,
+      "first_saved_test_copy_unchanged": true,
+      "native_session_changed": true,
+      "historical_sources_unchanged": {
+        "campaign-play-01": true,
+        "campaign-play-v030-01": true
+      },
+      "historical_save_hashes_rechecked": true,
+      "lua_error": false,
+      "elapsed_seconds": 33.95438686199486,
+      "tool_calls": {
+        "tome.connect": 4,
+        "tome.observe": 144,
+        "tome.inspect": 59,
+        "tome.act": 80,
+        "tome.stop": 1
+      },
+      "engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+      "addon_archive_sha256": "ff627dd0a9c686b27da034e86db0a5b3bc3ce075e1feeb7858aa1dc16e2c9a74",
+      "candidate_sha256": "11c7101228d142b2f1bf61e448ea670edd793e97ebe1bbdce9500996991c2302",
+      "mcp_server_py_sha256": {
+        "tome_mcp/__init__.py": "fcd87357c975b5c54c9320451428cab3014bc054b47cbd2eed11276e398d1466",
+        "tome_mcp/__main__.py": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+        "tome_mcp/bridge.py": "756c8cafb9431345a6213ccee93e5a918d7b6dedc8a3a7e457f7e8e40e25077a",
+        "tome_mcp/server.py": "2f1a771b817c2b2e2e9fd763cf2c3625d8a64eb51f80830e52115298a7cafa97"
+      },
+      "campaign_driver_sha256": {
+        "runtime.py": "56081b5d9ac96f0cdba216cbf6ffff5d3e9d930133b7b96a484f69d882ea39e2",
+        "run.py": "99b06f2e2f8a28138a3d85fb8e7ddc04d01b5747fd09ad8bed1949f95d985c2b"
+      },
+      "growth_driver_sha256": {
+        "test_sources.py": "8863751bd68440b961e7f82e407dce4f65ebb7a2eecb68e116e04386173bdc20",
+        "run.py": "b52b1495167b3f780a7368d0861d66195b4aab130c1b2563a043f7635b826d9a",
+        "test_persistence.py": "055279be8600084232ae8b6269c57cfe686f7a463ac2391f161318ff516a0c82"
+      },
+      "harness_source_sha256": {
+        "campaign/run.py": "99b06f2e2f8a28138a3d85fb8e7ddc04d01b5747fd09ad8bed1949f95d985c2b",
+        "campaign/runtime.py": "56081b5d9ac96f0cdba216cbf6ffff5d3e9d930133b7b96a484f69d882ea39e2",
+        "growth/run.py": "b52b1495167b3f780a7368d0861d66195b4aab130c1b2563a043f7635b826d9a",
+        "growth/test_persistence.py": "055279be8600084232ae8b6269c57cfe686f7a463ac2391f161318ff516a0c82",
+        "growth/test_sources.py": "8863751bd68440b961e7f82e407dce4f65ebb7a2eecb68e116e04386173bdc20",
+        "native/runtime.py": "5b3b14d9d023bdb6f2236032e1d057f7123751e47b14b3dbc00a3db1f758ed05"
+      },
+      "evidence_sha256": {
+        "input.json": "e76be1b802956696564bd5b1abd9dd5ced6be0e2032195afe49a5a0769c0a8ed",
+        "result.json": "2a3669fa75ea922dd424e71a5baf3b458a4aad600961296e729973a820087911",
+        "candidate.zip": "11c7101228d142b2f1bf61e448ea670edd793e97ebe1bbdce9500996991c2302",
+        "campaign-mcp.jsonl": "04aaeb52677a073523001b0c3bee5b1d18f06ceb63ac31ec9727a18756ee6668",
+        "decisions.jsonl": "3dc67a404d7a172c47bc3b75b060de716b4d01322c6e2ca9eaceb73ed8cd47a0",
+        "growth-before.json": "fde7c758fd482c73337c7c1383b8269f810bba78bbada4c66fd26630c775af28",
+        "growth-after.json": "e7667620a650f885530abb38a053573878d2d92cf12df2a8f838678f054fab14",
+        "natural-item.json": "f7d4e0a605799ac4a9af826ffbef09dc14e8f5e18b82153258d3ae985d78b551",
+        "saved-state.json": "521bd0a9a81f0aa90fb7818034dc9da977f234e3d4a98731f5d75f6988c300eb",
+        "reloaded-state.json": "74e58a32b4989e7f4645d2ccf33971ac842ec79f29f44d3d998ec077320ac926",
+        "reload-input.json": "c4a2bdd7a467508507b21d9896e717ae6cb9d8eae2d066c8a086468a16d02749",
+        "game.log": "d6d0d7f1f43b8664e605084d860e5152dd7840f635406f488db7c54eb034bdb7",
+        "reload.log": "a6c309073378f2ac70536229acfd6f72ea005b45a2c3f48abc7bf2004f14a7c0",
+        "visible-log-events-before-reload.jsonl": "9bf693a4f8d9289042bf8a1aea6cc216a35b17c08904270ca8229b1cab41c65d",
+        "visible-log-events.jsonl": "fb2f1b48c4aa962aeed3c5ac7a55d00ce24cf5b03f9c0087cd44ee5d99a9b37d"
+      }
+    }
+  ],
+  "earlier_candidates": [
+    {
+      "session": "growth-source-candidate-01",
+      "passed": false,
+      "reason": "Harness reused a revision from before intentional distant-pickup rejection; bridge correctly rejected stale_revision. Fixed by observing again."
+    },
+    {
+      "session": "growth-source-candidate-02",
+      "passed": false,
+      "reason": "Gameplay and native save/reload succeeded; exact float comparison rejected exp 12.379999999999999 -> 12.38 from native serialization. Added bounded float tolerance and discrete-state regressions."
+    },
+    {
+      "session": "growth-source-candidate-03",
+      "passed": true,
+      "checks": 91,
+      "unique_action_commands": 66
+    }
+  ],
+  "limits": [
+    "Ordinary runs test single-object pickup; multiple-object zero-energy native behavior is covered separately by item regressions.",
+    "The natural iron greatmaul was initially unidentified and identified during ordinary approach/actions before its underfoot pickup inspect; these records do not attribute identification specifically to pickup.",
+    "This is bounded growth and inventory acceptance on copies of the recorded character, not a full campaign or a recommended player build."
+  ]
+}

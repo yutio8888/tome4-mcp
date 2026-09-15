@@ -1,0 +1,10 @@
+{
+  "version": "0.4.0",
+  "date": "2026-09-15",
+  "channel": "Paseo",
+  "recipient_agent_id": "c5c1aed2-49b7-4d8c-92b2-143184e27c6c",
+  "sent": true,
+  "tool_success": true,
+  "report": "documentation/tome-mcp-growth-items-0.4.0.md",
+  "report_sha256": "ed629ca67b2b396a2b0f02b407d67e1d50aa4c33db5b88ddc6df6da139fd2782"
+}

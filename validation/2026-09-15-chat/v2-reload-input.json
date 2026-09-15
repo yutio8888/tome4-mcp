@@ -1,0 +1,17 @@
+{
+  "command": [
+    "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/chat-v2-package-final-01/runtime/t-engine",
+    "--no-steam",
+    "--no-web",
+    "--flush-stdout",
+    "--home",
+    "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/chat-v2-package-final-01/reload-home",
+    "-Mtome",
+    "-uMCP_chat-v2-package-fin",
+    "-Emcp_probe_reload=true;no_birth_popup=true;mcp_probe_interactions=true"
+  ],
+  "source_home": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/chat-v2-package-final-01/home",
+  "reloaded_own_test_save": true,
+  "port": 59755,
+  "engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7"
+}

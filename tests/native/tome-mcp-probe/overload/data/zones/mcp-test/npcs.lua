@@ -1,0 +1,1 @@
+-- Only explicit test fixtures are placed in this arena.

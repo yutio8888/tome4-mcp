@@ -1,0 +1,139 @@
+{
+  "release": "0.5.0",
+  "engine": "ToME 1.7.6",
+  "protocols": [
+    1,
+    2
+  ],
+  "archive_sha256": "8e9bf95bc39761cdca28f19ee6a6ea8eabc51dc5bb2603a821585cf6dfa5ec1c",
+  "production_files": 28,
+  "unit_checks": {
+    "lua": 849,
+    "python": 24
+  },
+  "runs": {
+    "source": {
+      "session": "interaction-source-final-01",
+      "passed": true,
+      "checks": 73,
+      "elapsed_seconds": 24.633399624959566,
+      "evidence_sha256": {
+        "candidate.zip": "d5fe89a8d94f8ed6ea642c37365d4172b0e789b2c4213fafa5760e44f6223781",
+        "input.json": "064c27cb5bb103460fcaf1fc237afcf242f5e98cb8d109c2d236d2dacfa8fdaf",
+        "xvfb.log": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+        "game.log": "bd104d67b810bafc95032ba2c8e6efefd5991afb47d226101a6dc6220091612c",
+        "reload-input.json": "fccda459317254eb2b5c594d9ea1351679e899bdade2af16160d542e9f4ca45f",
+        "reload.log": "ee74d49904748b8c97f7a041cb03a834138b36e9180a7d52131c42ace498878f",
+        "result.json": "e51925e0a5258fba16bed6780b2c75438fa0dea8e30bc0ce9b7bc778854436aa",
+        "mcp.json": "8bd1616822e6eb3d2037c0d810eb3eca7ddf47c74dfa484d033c9d5f859d581b"
+      },
+      "fixture": true,
+      "expected_fault_injection": true
+    },
+    "package": {
+      "session": "interaction-package-final-01",
+      "passed": true,
+      "checks": 73,
+      "elapsed_seconds": 26.848540092993062,
+      "evidence_sha256": {
+        "candidate.zip": "8ac89c67fec1b9ead32c231879011aa59f4ab21c44ba47b1af00df84527ec28a",
+        "input.json": "74d097a9c29cd8c1313a39d995c6936fb9f881586a22baad1b0820f1b510214f",
+        "xvfb.log": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+        "game.log": "83c5c326252a1fc02240bd5b60dd5f0db946be7e488c25328f8f7953eed09d94",
+        "reload-input.json": "483ddcf5a851bc6a0a94c572c1dee274c88a1323055b67f5c03299ec562cdae2",
+        "reload.log": "70279d29928ab361e578d07ff61ce108764b860f951d0a8c8d24beffc582de8d",
+        "result.json": "16f2ba236d3a4d602553ba481d6c67fa7ae9a1d6bc5febdc4ea428b8a7a5a3ee",
+        "mcp.json": "ace0b6dc781ae75249fecc0eb26b926b539cea5ead023ef7290925f65749eb6d"
+      },
+      "fixture": true,
+      "expected_fault_injection": true
+    },
+    "three-addons": {
+      "session": "interaction-combo-package-final-02",
+      "passed": true,
+      "checks": 77,
+      "elapsed_seconds": 26.324445024016313,
+      "fixture": true,
+      "expected_fault_injection": true,
+      "evidence_sha256": {
+        "candidate.zip": "05ee3354d07f4a77013bd97ed589e0e32ffb134c30cf2c13cf1931d4da4009cc",
+        "input.json": "41c0c7f11b95d92c143d79a4166121bfb78fd954e0cc21d4f711d4b044fc9a8c",
+        "xvfb.log": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+        "game.log": "c8b5293129cf0b96e151174e382f769c022b4840c8eb2508ab849aa7cccea903",
+        "reload-input.json": "b3ef12f7fa36265a0cbfaff3969a65168b5922ff5276744e7a55e240245e2940",
+        "reload.log": "3307c434d99b7f7f198b2c0bd84bae61b83ab4645faf321f27c0f26e837b3cb3",
+        "result.json": "48a06075c24c521b4dfab2ee43f0fa9f8241c8bb6eaac4049051fabaf8c675d2",
+        "mcp.json": "f96f9d54aaa28b3caab5020076d18889b6a909b9c0023a43eb3a81a54c8c105c"
+      }
+    },
+    "v1": {
+      "session": "interaction-v1-package-final-01",
+      "passed": true,
+      "checks": 99,
+      "elapsed_seconds": 22.946471795032267,
+      "evidence_sha256": {
+        "candidate.zip": "754234e575d32822061b9af3c3fd3c05dbebbb1cb2e5b23428d960547b93f814",
+        "input.json": "3caa7f1d0f1015a89f11471096a4d878339558e523c6ac603bb1e7fb8da60845",
+        "xvfb.log": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+        "game.log": "f293924bca810cbb23b3ea6b1f245c7a65a6f8389e4a5f4b7cf28b7fec54ed64",
+        "mcp.log": "a639e999509b106d6d6d2341ef788a958854b2b4c61d2c186cedada9b8cad3f8",
+        "reload-input.json": "34d5dd762690e64a627f871352ffd3a774081252cd525b23c188b0a53a15312e",
+        "reload.log": "fe6d0a7aa8a4e2b1ac4da41f29bf42259eaaf9a586ebd0a9ab57dff785e87bc9",
+        "result.json": "b4fe56b0dae4e38c96a1fa6558e4d94ec1d14c129c9e2744929b41e78204913f",
+        "wire.json": "3a12b7fa34701c8a2c4c64bcf86985f6f3491f21f1e1efce24c5aea427100334"
+      },
+      "fixture": true,
+      "expected_fault_injection": false
+    },
+    "growth": {
+      "session": "interaction-growth-package-01",
+      "passed": true,
+      "checks": 92,
+      "elapsed_seconds": 30.708342072030064,
+      "evidence_sha256": {
+        "candidate.zip": "a2977cf0e3afc98dc0807b3678587e8ccfac09779ece40a7c95de8b7adffcf06",
+        "input.json": "f973b6ae07894e390f35c8b7b5dbd6023903599efafeb651331d6d6857827c2e",
+        "xvfb.log": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+        "game.log": "9856d6dc9823c48d36ab1cbecdce63d7fa7c4952897f42220eb6d59448419907",
+        "observed.json": "ffa74057fbdd25cf33907ab816d29165d42cf79696cfb4ade12d71f206d0984c",
+        "progression.json": "e7667620a650f885530abb38a053573878d2d92cf12df2a8f838678f054fab14",
+        "growth-before.json": "fde7c758fd482c73337c7c1383b8269f810bba78bbada4c66fd26630c775af28",
+        "growth-after.json": "e7667620a650f885530abb38a053573878d2d92cf12df2a8f838678f054fab14",
+        "natural-item.json": "662b4f0fddb5601e887c740bc209944bb5932d79f466fc21fe52294e628e588a",
+        "saved-state.json": "0a86a13219cab04d9b6883edb988bb9d46774bc63df3bec517ed919a2b672291",
+        "reload-input.json": "d88a61612e9a0b4a7600ea564bb7003bcb655895e4f2838c741986a7a8124e7a",
+        "reload.log": "af9a579398a53d53daf19a67e5374e54d1e84bb3e877bd468725262ac1d44ab5",
+        "reloaded-state.json": "62e95e19c1283135c4a2de1f7d71b9bd0086d177ebb630806fb9199db2ac8301",
+        "result.json": "366915fbd5397c346fb411a058177720167401bf203a0eb1492a7d0080318acd"
+      },
+      "fixture": false,
+      "expected_fault_injection": false,
+      "submitted_actions": 52,
+      "historical_sources_unchanged": {
+        "campaign-play-01": true,
+        "campaign-play-v030-01": true
+      },
+      "source_save_unchanged": true,
+      "source_record": "campaign-play-v030-01",
+      "cheat": false,
+      "gameplay_fixture": false
+    }
+  },
+  "production_source_matches_tested_source": true,
+  "all_package_candidates_match_archive": true,
+  "files_sha256": {
+    "lua-tests.log": "bafd6012f43d8814846de879506379c96746960bb1ea058d471686d5cc334760",
+    "python-tests.log": "82811031670cc1270c9fc8faf300486c5bcb88d1eaf02adff97f6ce190e9ddd3",
+    "manifest.json": "c1d7afb8e60427c8a778f90a83dc6cc3146ed5953a1f435996580d25d9f192ad",
+    "source-result.json": "e51925e0a5258fba16bed6780b2c75438fa0dea8e30bc0ce9b7bc778854436aa",
+    "source-input.json": "064c27cb5bb103460fcaf1fc237afcf242f5e98cb8d109c2d236d2dacfa8fdaf",
+    "package-result.json": "16f2ba236d3a4d602553ba481d6c67fa7ae9a1d6bc5febdc4ea428b8a7a5a3ee",
+    "package-input.json": "74d097a9c29cd8c1313a39d995c6936fb9f881586a22baad1b0820f1b510214f",
+    "three-addons-result.json": "48a06075c24c521b4dfab2ee43f0fa9f8241c8bb6eaac4049051fabaf8c675d2",
+    "three-addons-input.json": "41c0c7f11b95d92c143d79a4166121bfb78fd954e0cc21d4f711d4b044fc9a8c",
+    "v1-result.json": "b4fe56b0dae4e38c96a1fa6558e4d94ec1d14c129c9e2744929b41e78204913f",
+    "v1-input.json": "3caa7f1d0f1015a89f11471096a4d878339558e523c6ac603bb1e7fb8da60845",
+    "growth-result.json": "366915fbd5397c346fb411a058177720167401bf203a0eb1492a7d0080318acd",
+    "growth-input.json": "f973b6ae07894e390f35c8b7b5dbd6023903599efafeb651331d6d6857827c2e"
+  }
+}

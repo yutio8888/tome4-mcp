@@ -1,0 +1,72 @@
+{
+  "command": [
+    "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/chat-lv6-package-final-02/runtime/t-engine",
+    "--no-steam",
+    "--no-web",
+    "--flush-stdout",
+    "--home",
+    "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/chat-lv6-package-final-02/reload-home",
+    "-Mtome",
+    "-uMCP_campaign-play-01",
+    "-Eno_birth_popup=true"
+  ],
+  "source_home": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/chat-lv6-package-final-02/home",
+  "reloaded_own_test_save": true,
+  "source_save_sha256": {
+    "mcp_campaign_play_01/cur.png": "c9d20dd6add00bbc62fc9b9d6ed608360e5b70aa1a0eeadaabeba810b4ecdab8",
+    "mcp_campaign_play_01/desc.lua": "43edb06bb9343f8014fa4bee4c71fe8985386fd73ee14544b27a13ac4ea14062",
+    "mcp_campaign_play_01/game.teag": "9b67b1dc1707c789bd5e197d1c60f0d4c6f199a6bed3160a4361c981b39dac23",
+    "mcp_campaign_play_01/last_log.txt": "2a5e9eb33c1fbd8583d46f8dae95fbe8120ee77f75ed99a8344ecfe78c497ecf",
+    "mcp_campaign_play_01/zone-trollmire.teaz": "16e2ae134861cbac88defba7b7844a49282e7dbfdd208f66a20530b7ac577006",
+    "mcp_campaign_play_01/zone-wilderness.teaz": "a4a41e057c476709a44a5289b6f3a22b2af201d32dc0d2efd51e9259558e2f40",
+    "quick_hotkeys": "6e3d88cc3e9731de37d7aa509a81118ae35809124589ca09a35e36eea26a5d64",
+    "world.teaw": "858fc4140b43b043872ebd931e1bb2d41921108e3248c79cf87722b8f058fcef"
+  },
+  "historical_source_save_sha256": {
+    "campaign-play-01": {
+      "mcp_campaign_play_01/cur.png": "557f0204a6bf553c258b44e335b564ab0cefecfe5f2a52e0765d79194ffe20b0",
+      "mcp_campaign_play_01/desc.lua": "68fa28462c855634855fc47183fb4c4aa28244d247c525b9fe667f789eb4d828",
+      "mcp_campaign_play_01/game.teag": "5050a3a46d2e68c5db255cecaa2e6a8227eabdcf67197f5e0b6af90e32f8d25a",
+      "mcp_campaign_play_01/last_log.txt": "c929a47707cd3119f29a2f3f087fba2027f44acbb4f8089db7539beaa86ec981",
+      "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+      "world.teaw": "be820b11513eef15a6ada6aa66611b4f31ca50b5dfa16f2ea56a0eb16259c1a7"
+    },
+    "campaign-play-v030-01": {
+      "mcp_campaign_play_01/cur.png": "0af2e50de12cce30d871e08f1509b247ff4a0f92976f0a7296941e539fa766ca",
+      "mcp_campaign_play_01/desc.lua": "639ca8613e78b314ca68f1a0ba23e003df35b831c47c98368c7c85fd8a6726d7",
+      "mcp_campaign_play_01/game.teag": "c38a69bda7e9547ff35720a838b2900e202998803425487d25c90be86af49097",
+      "mcp_campaign_play_01/last_log.txt": "7b2e61b43d6f7423a6cd6a481aa86598ef3d8a813390dd9dd6769ed7eaf2318e",
+      "quick_hotkeys": "c4bb9798511449e1b152503a0ab43e86d9c64886f05c11a47e7fe04ae0beae1f",
+      "world.teaw": "cdd0579e2bc04249d9c19bcfc21de06fd5dda479f55313ab189a2914a9b39157"
+    },
+    "campaign-play-v050-01": {
+      "mcp_campaign_play_01/cur.png": "7a1be56d560e01d40435dcdda06fc8e8da9433ccacf1785f0c9858ac9bfeaee1",
+      "mcp_campaign_play_01/desc.lua": "7bc124f04cec90b754057318cbf8090d115c5f68b3bf0a8582cd121b3f964aa1",
+      "mcp_campaign_play_01/game.teag": "b988a4b1b515c57ecaf2527ca263c54911e68ee5ca6b54d729cf5ae9962fdb51",
+      "mcp_campaign_play_01/last_log.txt": "2ac14d1feda6d156aed54aae98e8e1aa4cfc459f2b7ad95556036ebff96c485a",
+      "quick_hotkeys": "a5097aea35914779f7754860fea283add9f99c6e6b05e61ea992ef90fdf48127",
+      "world.teaw": "05768bf864922656b4c82d208bd8e7606c6fe94572c40619a7d4299d7dbadd23"
+    },
+    "campaign-play-v060-02": {
+      "mcp_campaign_play_01/cur.png": "14fb70ce107da6ae4c160f1acca9a5ccec006d1b112aa9dabf897d2ef4dde787",
+      "mcp_campaign_play_01/desc.lua": "c7d212f1776302e51108d8970d2063d39a79b11eef4abb82b02b1fd209077c80",
+      "mcp_campaign_play_01/game.teag": "ae53d79a5634799a3e56bf2c183b551e26af52bec337a0ac0c98d6c4e5c2b395",
+      "mcp_campaign_play_01/last_log.txt": "44ad140709a2708d0f879bd4843efcefd2c7bc354a92f9598a679bea91553a72",
+      "mcp_campaign_play_01/zone-trollmire.teaz": "16e2ae134861cbac88defba7b7844a49282e7dbfdd208f66a20530b7ac577006",
+      "quick_hotkeys": "ba2fbfde884ce7a1f84d00259856c1bb2435c9d4cf9e2a76b7eb3d282e60e3e6",
+      "world.teaw": "c1b7643029929d77d88c98d4967b7ef496182f7c6be632b611cc6fae43178bab"
+    },
+    "campaign-play-v061-01": {
+      "mcp_campaign_play_01/cur.png": "9bb025f5ad354085071726cbc2ed4ea435cbc277aee8d0fc93b286d1f170a841",
+      "mcp_campaign_play_01/desc.lua": "0cbf68e11e3f4d6772d550cae7ad92df2509809b9c333732d5d7eca2106f6944",
+      "mcp_campaign_play_01/game.teag": "ba8b530e89206a4f792c704f54dd09d3c64261655cff207c34e186ee2a1f662f",
+      "mcp_campaign_play_01/last_log.txt": "c6708e1684e4b4b72b10fa7e016f05d00e98da7892b29a28713be87566e091f2",
+      "mcp_campaign_play_01/zone-trollmire.teaz": "16e2ae134861cbac88defba7b7844a49282e7dbfdd208f66a20530b7ac577006",
+      "mcp_campaign_play_01/zone-wilderness.teaz": "a4a41e057c476709a44a5289b6f3a22b2af201d32dc0d2efd51e9259558e2f40",
+      "quick_hotkeys": "f76c943cd48fa8d5c3b405eb114b9ea45dd0e83ac3c46bf4076e3473f497b755",
+      "world.teaw": "b2febffee9cf6c506e7ab31875c2467f29a23931c235cb5ef0a783df336bb38e"
+    }
+  },
+  "port": 44329,
+  "engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7"
+}
