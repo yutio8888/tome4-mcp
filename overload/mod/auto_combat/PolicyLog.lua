@@ -14,7 +14,7 @@ end
 function M.add(log,event)
     if type(event)~='table' then return nil end
     local entry={seq=log.next_seq,kind=event.kind or 'event',reason=event.reason,
-        rule=event.rule,talent=event.talent,target=event.target,
+        rule=event.rule,talent=event.talent,target=event.target,native_result=event.native_result,
         generation=event.generation,policy_hash=event.policy_hash}
     log.next_seq=log.next_seq+1
     log.total=log.total+1

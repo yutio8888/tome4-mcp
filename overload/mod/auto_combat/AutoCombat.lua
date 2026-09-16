@@ -19,7 +19,7 @@ function M.new(policy,host,options)
     options=options or {}
     return setmetatable({
         policy=policy,host=host,state='stopped',reason=nil,generation=0,
-        attempts=0,instant_attempts=0,opportunity=0,opportunity_id=nil,
+        attempts=0,instant_attempts=0,opportunity=0,opportunity_id=nil,actions=0,
         strict=options.strict~=false,denied={},known_enemies=nil,
         max_attempts=(policy.limits and policy.limits.max_actions_per_tick) or 1,
         notify=options.notify or (host and host.notify),
@@ -183,6 +183,7 @@ function M:step()
             return {action='wait_native',rule='sustain:'..sustain.talent,state=self.state,generation=generation}
         end
         if outcome.status=='ok' then
+            self.actions=self.actions+1
             return {action='acted',rule='sustain:'..sustain.talent,talent=sustain.talent,
                 outcome=outcome,state=self.state,generation=generation}
         end
@@ -219,6 +220,7 @@ function M:step()
                 return {action='wait_native',rule=decision.rule,state=self.state,generation=generation}
             end
             if outcome.status=='ok' then
+                self.actions=self.actions+1
                 return {action='acted',rule=decision.rule,talent=decision.talent,bound_target=bound.bound_target,
                     outcome=outcome,state=self.state,generation=generation}
             end
@@ -268,6 +270,6 @@ end
 function M:status()
     local hashes=self.policy and require('mod.auto_combat.PolicySchema').hash(self.policy) or nil
     return {state=self.state,reason=self.reason,generation=self.generation,
-        attempts=self.attempts,opportunity=self.opportunity,policy_hash=hashes}
+        attempts=self.attempts,actions=self.actions,opportunity=self.opportunity,policy_hash=hashes}
 end
 return M

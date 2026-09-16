@@ -80,6 +80,8 @@ do
     check(stepped.ok and stepped.step.action=='acted','the pump advances one opportunity')
     local log=Service.handle(svc,'log',{limit=4})
     check(log.ok and #log.events>=1 and log.events[1].kind=='acted','the service log records the step')
+    check(log.events[1].native_result=='ok','the action log records the native result')
+    check(Service.status(svc).run.actions==1,'the run exposes a cumulative action count')
     Service.handle(svc,'stop',{})
     check(svc.arbiter.owner=='manual','stop releases the lease')
 end

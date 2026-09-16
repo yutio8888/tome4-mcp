@@ -153,6 +153,7 @@ function M.step(svc)
     if step.action=='acted' then
         Log.add(svc.log,{kind=step.action,reason=step.reason,rule=step.rule,talent=step.talent,
             target=step.bound_target,generation=step.generation,
+            native_result=step.outcome and step.outcome.status or nil,
             policy_hash=Schema.hash(svc.store.running)})
     elseif step.action=='stopped' then
         -- The controller ended itself (no visible enemy): return control.

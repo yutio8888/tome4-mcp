@@ -151,6 +151,18 @@ local function snapshot(s,radius,options)
     result.lua_heap_kb=m.lua_heap_kb
     result.native_activity=m.native_activity
     result.cancelled_native_activity=m.cancelled_native_activity
+    -- Bounded auto-combat summary (design 11.2); the decision ring stays in
+    -- tome.policy_log so a plain observe stays cheap and deterministic.
+    if s.auto_combat then
+        local ac=AutoCombat.status(s.auto_combat)
+        local run=ac.run
+        result.auto_combat={enabled=s.auto_combat.host_factory~=nil,active=ac.active==true,
+            policy_id=s.auto_combat.store.running and s.auto_combat.store.running.id or nil,
+            policy_hash=ac.running_hash,state=run and run.state or 'stopped',
+            actions=run and run.actions or 0,
+            paused_reason=run and run.state=='paused' and run.reason or nil,
+            generation=run and run.generation or nil}
+    end
     if s.session_root then
         local h=Interactions.current(s.session_root)
         if h then result.interaction=Interactions.describe(s.session_root,m) end
@@ -167,6 +179,7 @@ local function snapshot(s,radius,options)
         end
         local identity={session_id=true,level_instance_id=true,revision=true,world_tick=true,phase=true,
             actionable=true,control_lease=true,needs_reconnect=true,control_source=true,battle_companion=true,
+            auto_combat=true,
             release_reason=true,release_hint=true,actor_id_scope=true,lua_heap_kb=true,
             native_activity=true,cancelled_native_activity=true,
             history=true,collection_refs=true,pending_command=true,interaction=true,interaction_scope=true,scene=true}

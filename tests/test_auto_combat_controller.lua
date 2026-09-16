@@ -254,4 +254,13 @@ do
         'no visible enemy stops the run')
 end
 
+do
+    -- A successful action increments the cumulative action total.
+    local host=makeHost()
+    local c=AutoCombat.new(policy(),host)
+    c:start()
+    c:onOpportunity()
+    check(c:status().actions==1,'a successful action counts in the cumulative total')
+end
+
 print('Auto-combat controller: '..checks..' checks passed')

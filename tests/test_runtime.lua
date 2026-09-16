@@ -416,6 +416,9 @@ do
     -- Owner exclusivity: a remote act is refused while auto-combat owns the
     -- lease, and reconnecting control takes it back atomically.
     for k,v in pairs(h2) do hello[k]=v end
+    local observed_auto=observe().auto_combat
+    check(observed_auto and observed_auto.enabled==true and observed_auto.state~=nil,
+        'observe exposes a bounded auto-combat summary')
     local blocked=act('auto-blocked',{type='wait'})
     check(blocked.error and blocked.error.code=='control_conflict',
         'a remote act during auto-combat is refused with control_conflict')
