@@ -1191,7 +1191,7 @@ local function dispatch(s,request)
                     selectors=Json.array(AUTO_SELECTORS),
                     change_level='opt_in',
                     policy_ops=Json.array{'status','validate','dry_run','set_draft','approve','activate','deactivate',
-                        'start','stop','pause','resume','log','replay','presets','preset','export','import'}}},snapshot=snap}
+                        'start','stop','pause','resume','log','replay','presets','preset','export','import','import_assistant'}}},snapshot=snap}
         local ok,reason=Compat.check(s.game)
         result.capabilities.native_compatibility={compatible=ok==true,reason=reason,providers='runtime_checked'}
         if not ok then result.capabilities.talents=Json.array() end
@@ -1259,7 +1259,13 @@ local function dispatch(s,request)
     elseif op=='policy' then
         if type(a.policy_op)~='string' then return fail('invalid_argument','policy_op is required') end
         if s.access_mode~='control' and a.policy_op~='status' and a.policy_op~='log'
-            and a.policy_op~='dry_run' and a.policy_op~='replay' then
+            and a.policy_op~='dry_run' and a.policy_op~='replay'
+            and a.policy_op~='import_assistant' then
+            return fail('read_only_connection')
+        end
+        -- Assistant import may generate (read) on an observe connection, but
+        -- storing the generated draft is a control-only write.
+        if a.policy_op=='import_assistant' and a.store==true and s.access_mode~='control' then
             return fail('read_only_connection')
         end
         local result=AutoCombat.handle(s.auto_combat,a.policy_op,a)
@@ -1271,7 +1277,8 @@ local function dispatch(s,request)
         -- Persist the character-facing policy after a write; never the running
         -- state or control.
         if a.policy_op=='set_draft' or a.policy_op=='approve' or a.policy_op=='activate'
-            or a.policy_op=='deactivate' or a.policy_op=='import' then
+            or a.policy_op=='deactivate' or a.policy_op=='import'
+            or (a.policy_op=='import_assistant' and a.store==true) then
             if s.game and s.game.player then
                 s.game.player.auto_combat_policy=AutoCombat.saveState(s.auto_combat)
             end
@@ -1587,7 +1594,8 @@ function M.autoCombatHandle(g,op,args)
     if not s or s.game~=g then return {ok=false,error={code='no_session'}} end
     local result=AutoCombat.handle(s.auto_combat,op,args)
     if result.ok and (op=='set_draft' or op=='approve' or op=='activate'
-        or op=='deactivate' or op=='import') then
+        or op=='deactivate' or op=='import'
+        or (op=='import_assistant' and args and args.store==true)) then
         persistAutoCombat(s)
     end
     return result

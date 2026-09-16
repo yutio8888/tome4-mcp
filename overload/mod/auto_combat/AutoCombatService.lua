@@ -13,6 +13,7 @@ local Evaluator=require 'mod.auto_combat.PolicyEvaluator'
 local Json=require 'mod.mcp_bridge.Json'
 local Presets=require 'mod.auto_combat.PolicyPresets'
 local PolicyIO=require 'mod.auto_combat.PolicyIO'
+local AssistantAdapter=require 'mod.auto_combat.AssistantAdapter'
 local M={}
 M.SOURCE='auto_combat'
 
@@ -337,6 +338,36 @@ function M.import(svc,document)
     return ok({policy=policy,hash=info.hash})
 end
 
+-- Generation-only import of a pinned legacy-assistant export. Produces a policy
+-- draft (+ warnings/unsupported) and, only when `args.store==true`, stores it as
+-- the draft. It never approves, activates or starts a run.
+function M.importAssistant(svc,args)
+    args=args or {}
+    local config=args.config
+    if config==nil then
+        if type(args.document)~='string' then
+            return fail('invalid_argument',{details='config or document is required'})
+        end
+        local decoded_ok,decoded=pcall(Json.decode,args.document)
+        if not decoded_ok or type(decoded)~='table' then
+            return fail('invalid_document',{details='document is not valid JSON'})
+        end
+        config=decoded
+    end
+    if type(config)~='table' then return fail('invalid_argument',{details='config must be an object'}) end
+    local result=AssistantAdapter.translate(config)
+    if not result.ok then return fail(result.error.code,result.error) end
+    local stored=nil
+    if args.store==true then
+        local saved,err=Store.setDraft(svc.store,result.draft,args.expected_hash)
+        if not saved then return fail(err.code,err) end
+        svc.revision=svc.revision+1
+        stored=saved
+    end
+    return ok({imported=true,draft=result.draft,hash=result.hash,warnings=result.warnings,
+        unsupported=result.unsupported,version=result.version,stored=stored})
+end
+
 -- Character persistence: draft/approved follow the character, running state and
 -- control do not (reading a character never resumes automatic action).
 function M.saveState(svc)
@@ -376,6 +407,7 @@ function M.handle(svc,op,args)
     if op=='preset' then return M.preset(svc,args.name) end
     if op=='export' then return M.export(svc) end
     if op=='import' then return M.import(svc,args.document) end
+    if op=='import_assistant' then return M.importAssistant(svc,args) end
     return fail('invalid_argument',{details='unknown policy op'})
 end
 return M

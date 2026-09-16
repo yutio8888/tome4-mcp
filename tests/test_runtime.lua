@@ -419,6 +419,50 @@ do
     local blocked=request('policy',{session_id=obs.session_id,policy_op='set_draft',policy=pl})
     check(blocked.error and blocked.error.code=='read_only_connection',
         'observe mode still refuses policy writes')
+    local assist={format='tome-auto-combat-assistant-export/v1',
+        assistant={addon='auto_talent_assistant',addon_version={2,3,9},tome_version={1,7,4}},
+        class='celestial/anorithil',settings={min_hp_pct=35},
+        talents={{talent='T_HEALING_LIGHT',enabled=true,priority=100,emergency=true,
+            when={hp_pct={lt=50}}}}}
+    local draft_before=Runtime.autoCombatStatus(g).draft_hash
+    local generated=request('policy',{session_id=obs.session_id,policy_op='import_assistant',config=assist})
+    check(generated.result and generated.result.imported==true and generated.result.draft~=nil,
+        'assistant generation is a read available on an observe connection')
+    check(Runtime.autoCombatStatus(g).draft_hash==draft_before,'observe generation does not store a draft')
+    local store_blocked=request('policy',{session_id=obs.session_id,policy_op='import_assistant',
+        config=assist,store=true})
+    check(store_blocked.error and store_blocked.error.code=='read_only_connection',
+        'storing an imported draft is control-only')
+    reconnect()
+end
+-- P3: assistant import generates a draft (and stores it only on request).
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+    Runtime.reset(g);g:display()
+    local h=request('connect',{token='unit-test-token'}).result
+    local assist={format='tome-auto-combat-assistant-export/v1',
+        assistant={addon='auto_talent_assistant',addon_version={2,3,9},tome_version={1,7,4}},
+        class='celestial/anorithil',settings={min_hp_pct=35},
+        talents={{talent='T_HEALING_LIGHT',enabled=true,priority=100,emergency=true,
+            when={hp_pct={lt=50}}}},
+        sustains={{talent='T_CHANT_OF_FORTRESS',enabled=true,priority=20}}}
+    local generated=request('policy',{session_id=h.session_id,policy_op='import_assistant',config=assist})
+    check(generated.result and generated.result.imported==true and generated.result.stored==nil,
+        'import_assistant generates a draft without storing it')
+    local approved_before=Runtime.autoCombatStatus(g).approved_hash
+    local stored=request('policy',{session_id=h.session_id,policy_op='import_assistant',
+        config=assist,store=true})
+    check(stored.result and stored.result.stored and stored.result.stored.draft_hash,
+        'import_assistant stores the draft on explicit request')
+    check(g.player.auto_combat_policy and g.player.auto_combat_policy.draft~=nil,
+        'the stored import is persisted on the character')
+    check(Runtime.autoCombatStatus(g).approved_hash==approved_before,'import_assistant never approves')
+    local wrong=request('policy',{session_id=h.session_id,policy_op='import_assistant',
+        config={format='tome-auto-combat-assistant-export/v1',
+            assistant={addon='auto_talent_assistant',addon_version={9,9,9}},
+            talents={{talent='T_HEALING_LIGHT',enabled=true,priority=1,when={always={}}}}}})
+    check(wrong.error and wrong.error.code=='assistant_version_mismatch',
+        'import_assistant refuses a wrong assistant version')
     reconnect()
 end
 -- P1a: reading a character restores the policy but never the run.

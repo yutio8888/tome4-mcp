@@ -1,0 +1,46 @@
+{
+  "format": "tome-auto-combat-assistant-export/v1",
+  "assistant": {
+    "addon": "auto_talent_assistant",
+    "addon_version": [2, 3, 9],
+    "tome_version": [1, 7, 4]
+  },
+  "class": "celestial/anorithil",
+  "id": "anorithil-assistant-import",
+  "name": "Anorithil (from assistant)",
+  "legacyScreen": true,
+  "settings": {
+    "max_actions_per_tick": 2,
+    "min_hp_pct": 35,
+    "flee_below_hp_pct": 25,
+    "pause_on_new_enemy": true,
+    "pause_on_unknown_safety": true,
+    "max_selffire_risk": 0,
+    "default_target": "nearest_hostile",
+    "legacyFlag": true
+  },
+  "sustains": [
+    {"talent": "T_CHANT_OF_FORTRESS", "enabled": true, "priority": 20},
+    {"talent": "T_HYMN_OF_SHADOWS", "enabled": true, "priority": 10},
+    {"talent": "T_NOT_A_TALENT", "enabled": true, "priority": 5}
+  ],
+  "talents": [
+    {"talent": "T_HEALING_LIGHT", "enabled": true, "priority": 100, "emergency": true,
+     "when": {"hp_pct": {"lt": 50}}},
+    {"talent": "T_BARRIER", "enabled": true, "priority": 90,
+     "when": {"all": [{"hp_pct": {"lt": 70}}, {"cooldown_ready": {"talent": "T_BARRIER"}}]}},
+    {"talent": "T_ATTACK", "enabled": true, "priority": 50,
+     "when": {"enemy_in_melee": {}}, "target": "nearest_hostile"},
+    {"talent": "T_MOONLIGHT_RAY", "enabled": true, "priority": 40,
+     "when": {"all": [{"enemy_count": {"ge": 1}}, {"nearest_enemy_distance": {"le": 10}},
+                      {"cooldown_ready": {"talent": "T_MOONLIGHT_RAY"}}]},
+     "target": "nearest_hostile"},
+    {"talent": "T_TWILIGHT", "enabled": true, "priority": 30,
+     "when": {"all": [{"resource_pct": {"resource": "negative", "lt": 25}},
+                      {"has_effect": {"effect": "EFF_TEST"}}]}},
+    {"talent": "T_UNSUPPORTED_LEGACY", "enabled": true, "priority": 20,
+     "when": {"hp_pct": {"lt": 80}}},
+    {"talent": "T_SEARING_LIGHT", "enabled": true, "priority": 10, "action": "summon_ally",
+     "when": {"always": {}}}
+  ]
+}

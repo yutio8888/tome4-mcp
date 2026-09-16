@@ -1,0 +1,15 @@
+{
+  "format": "tome-auto-combat-assistant-export/v2",
+  "assistant": {
+    "addon": "auto_talent_assistant",
+    "addon_version": [2, 3, 9],
+    "tome_version": [1, 7, 4]
+  },
+  "class": "celestial/anorithil",
+  "settings": {"min_hp_pct": 35},
+  "sustains": [],
+  "talents": [
+    {"talent": "T_HEALING_LIGHT", "enabled": true, "priority": 100,
+     "when": {"hp_pct": {"lt": 50}}}
+  ]
+}

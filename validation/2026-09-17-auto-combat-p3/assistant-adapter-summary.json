@@ -1,0 +1,19 @@
+{
+  "date": "2026-09-17",
+  "module": "overload/mod/auto_combat/AssistantAdapter.lua",
+  "pinned": {
+    "addon": "auto_talent_assistant",
+    "addon_version": "2.3.9",
+    "tome_version": "1.7.4",
+    "format": "tome-auto-combat-assistant-export/v1"
+  },
+  "fixtures": {
+    "anorithil_pinned.json": "accept + warnings/unsupported report",
+    "wrong_version.json": "assistant_version_mismatch",
+    "wrong_format.json": "unsupported_format",
+    "unsupported_only.json": "no_supported_rules"
+  },
+  "tests": "tests/test_auto_combat_assistant.lua (44 checks)",
+  "native_scenario": "assistant-import",
+  "dist_sha256": "d16433cbc93b38fa20df37da8e0b6d232473c06b17e9e2e838caf0579bc66bfb"
+}
