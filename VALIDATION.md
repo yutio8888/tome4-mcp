@@ -11,15 +11,19 @@
 | 实机 playtest（Insane Anorithil） | **通过**：94 条决策（melee/ray/finish/heal/sustain 均真实原生生效），暂停仅 `new_enemy`/`no_emergency_action`，无 bridge `native_error`、无租约丢失、无卡 `settling` | `tmp/mcp-play-support/agent-ham-insane-27-report.md`、`validation/2026-09-16-auto-combat/playtest-round27-summary.json` |
 | playtest 修复复验（引擎内） | **通过**：auto_combat 持租约时远程 `act` 返回 `control_conflict`；`connect control` 原子接管后 `act` 恢复；无规则命中的 hold 变为 `no_available_action` 停止并记日志 | `validation/2026-09-16-auto-combat/fix-verification-round28.json` |
 | 实机 playtest round 2 | **通过**：两个 P0 均复验通过（`no_available_action` 停止交还 manual；`control_conflict`+`connect_explicitly` 互斥生效）；新增预设显式 `recover` wait 规则解决冷却期频繁停止 | `tmp/mcp-play-support/agent-ham-insane-32-report.md`、`validation/2026-09-16-auto-combat/playtest-round32-summary.json` |
-| 既有套件 | Lua **29 套通过**、Python **32 通过**、`generate_protocol.py --check` 与 `generate_native_seams.py --check` 绿、原生套件 **100 通过** | `bash game/addons/tome-mcp-bridge/tests/run.sh` 等 |
+| `dry_run` 规划级求值（本次收尾） | **通过**：`tome.policy policy_op=dry_run` 返回 decision/rule/action/talent/bound_target/critical/layer/`results` 轨迹/暂停原因与 snapshot 元数据；`executed=false`、`side_effects=none`，执行器零调用；执行默认关闭时可用，observe 连接可用，写策略仍被拒 | `test_auto_combat_service.lua`（52）、`test_runtime.lua`（135）、`server/tests/test_server.py`（33） |
+| 既有套件 | Lua **29 套通过**、Python **33 通过**、`generate_protocol.py --check` 与 `generate_native_seams.py --check` 绿、原生套件 **100 通过** | `bash game/addons/tome-mcp-bridge/tests/run.sh` 等 |
 
-正式包 **57 个生产文件**，SHA-256：
+正式包 **57 个生产文件**，SHA-256（dry-run 收尾包）：
 
 ```text
-ea15541bdefb8c565f8a9afaaca4ac70cd211c398d3bfe0f9c193f3c418ae30e
+ea3c9f71ae6c6b8039445cce5d9bfda2889df0a3c7a68c484033a567a18a9487
 ```
 
-设计正文见 [自动战斗插件设计](docs/tome-mcp-auto-combat-plugin-design.md)；反馈与未修项见 [round1](docs/tome-mcp-0.9.0-auto-combat-round1-feedback.md)、[round2](docs/tome-mcp-0.9.0-auto-combat-round2-feedback.md) 与 [TODO](docs/tome-mcp-0.9.0-auto-combat-todo.md)。执行仍由 `allow_auto_combat_execution` 门控（默认关）。
+> 上一版（P1a 首包，rounds 1–2）SHA-256：
+> `ea15541bdefb8c565f8a9afaaca4ac70cd211c398d3bfe0f9c193f3c418ae30e`。
+
+设计正文见 [自动战斗插件设计](docs/tome-mcp-auto-combat-plugin-design.md)；反馈与未修项见 [round1](docs/tome-mcp-0.9.0-auto-combat-round1-feedback.md)、[round2](docs/tome-mcp-0.9.0-auto-combat-round2-feedback.md) 与 [TODO](docs/tome-mcp-0.9.0-auto-combat-todo.md)；dry-run 收尾与 §15/§15.1 审计见 [P1a 收尾](docs/tome-mcp-0.9.0-p1a-dry-run.md)。执行仍由 `allow_auto_combat_execution` 门控（默认关）。
 
 ## 0.8.0：协议 v3 技能查询/目标预填与原生洗点
 

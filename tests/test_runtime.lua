@@ -373,6 +373,17 @@ do
     local activated=request('policy',{session_id=hello.session_id,policy_op='activate',expected_hash=approved.approved_hash}).result
     check(activated and activated.running_hash,'policy activate promotes the approved policy')
     check(g.player.auto_combat_policy.approved~=nil,'the approved policy is persisted on the character')
+    -- Planning-level dry run is a read: it evaluates the running policy against
+    -- the audited snapshot without executing anything.
+    local dry=request('policy',{session_id=hello.session_id,policy_op='dry_run'})
+    check(dry.result and dry.result.dry_run==true and dry.result.executed==false
+        and dry.result.side_effects=='none','dry_run is a read that runs nothing')
+    check(dry.result.decision=='act' or dry.result.decision=='hold' or dry.result.decision=='pause',
+        'dry_run returns a decision')
+    check(type(dry.result.results)=='table','dry_run returns the per-rule trace')
+    check(dry.result.snapshot and dry.result.snapshot.level_instance_id~=nil,
+        'dry_run carries snapshot metadata')
+    check(dry.result.policy_source=='running','dry_run defaults to the running policy')
     local start=request('policy',{session_id=hello.session_id,policy_op='start'})
     check(not start.result and start.error.code=='execution_not_available','execution is not wired yet')
     local policy_status=request('policy',{session_id=hello.session_id,policy_op='status'}).result
@@ -382,6 +393,27 @@ do
     Runtime.manualInput(g,'unit')
     local after=request('policy',{session_id=hello.session_id,policy_op='status'})
     check(after.error and after.error.code=='not_connected','a manual input returns control and closes the session')
+end
+-- P1a: dry_run is a read, so it is allowed on an observe connection even when
+-- live execution is disabled.
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+    Runtime.reset(g);g:display()
+    local h=request('connect',{token='unit-test-token'}).result
+    local pl={schema='tome-auto-combat/v1',id='p1',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35},targeting={default='nearest_hostile'},
+        rules={{id='beam',priority=1,when={enemy_count={ge=1}},
+            ['then']={action='use_talent',talent='T_MOONLIGHT_RAY',target='nearest_hostile'}}}}
+    request('policy',{session_id=h.session_id,policy_op='set_draft',policy=pl})
+    local obs=request('connect_observer',{token='unit-test-token'}).result
+    local dry=request('policy',{session_id=obs.session_id,policy_op='dry_run'})
+    check(dry.result and dry.result.dry_run==true and dry.result.executed==false
+        and dry.result.policy_source~=nil,
+        'dry_run is allowed on an observe connection with execution disabled')
+    local blocked=request('policy',{session_id=obs.session_id,policy_op='set_draft',policy=pl})
+    check(blocked.error and blocked.error.code=='read_only_connection',
+        'observe mode still refuses policy writes')
+    reconnect()
 end
 -- P1a: reading a character restores the policy but never the run.
 do

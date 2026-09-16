@@ -39,6 +39,8 @@ function M.new(opts)
     host.sustain_on=opts.sustain_on
     host.resources=opts.resources
     host.talent_known=opts.talent_known
+    -- Optional {revision, level_instance_id} metadata for dry-run diagnostics.
+    host.snapshot_meta=opts.snapshot_meta
     host.snapshot=function(selector) return Snapshot.build(opts,opts.policy,selector) end
     host.request=function(attempt)
         local execute=opts.execute
