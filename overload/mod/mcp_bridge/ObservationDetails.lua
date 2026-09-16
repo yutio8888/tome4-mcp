@@ -251,6 +251,7 @@ function M.player(g,p,meta,result)
     end
     result.life_regen=M.number(p.life_regen);result.regeneration_is_raw=true
     result.gold=M.number(p.money)
+    result.gold_scope='gold is the stored money field'
     if M.finite(p.max_encumber) then
         result.encumbrance={max_bonus=M.number(p.max_encumber),
             scope='stored strength bonus only; current/max encumbrance are engine-computed and not evaluated'}
