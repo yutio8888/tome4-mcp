@@ -5,6 +5,7 @@
 -- so a stale client can never silently overwrite another writer's policy. The
 -- content hash comes from PolicySchema and ignores editable metadata.
 local Schema=require 'mod.auto_combat.PolicySchema'
+local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
 local M={}
 
 function M.new()
@@ -16,6 +17,8 @@ local function hashOf(policy) return policy and Schema.hash(policy) or nil end
 function M.setDraft(store,policy,expected_hash)
     local ok,errors=Schema.validate(policy)
     if not ok then return nil,{code='invalid_policy',errors=errors} end
+    local compatible,semantic=Catalog.verify(policy)
+    if not compatible then return nil,{code='invalid_policy',errors=semantic} end
     if expected_hash~=nil and hashOf(store.draft)~=expected_hash then
         return nil,{code='policy_conflict',current_draft_hash=hashOf(store.draft)}
     end
