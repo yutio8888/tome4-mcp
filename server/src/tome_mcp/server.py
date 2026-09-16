@@ -552,11 +552,14 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     @server.tool(name="tome.policy", annotations=write)
     async def policy(session_id: Identifier,
                      policy_op: Literal["status", "validate", "set_draft", "approve", "activate",
-                                        "deactivate", "start", "stop", "pause", "resume", "log"],
+                                        "deactivate", "start", "stop", "pause", "resume", "log",
+                                        "presets", "preset", "export", "import"],
                      policy: dict[str, Any] | None = None,
                      expected_hash: str | None = None,
                      reason: str | None = None,
-                     limit: Annotated[int, Field(ge=1, le=256)] | None = None) -> ToolReply:
+                     limit: Annotated[int, Field(ge=1, le=256)] | None = None,
+                     name: str | None = None,
+                     document: str | None = None) -> ToolReply:
         """Author, certify and run an auto-combat policy. policy_op=validate/set_draft take a policy document; set_draft/approve/activate compare expected_hash against the draft (writes) or the approved version (approve/activate) and return policy_conflict on a mismatch. Certification (approve) is separate from control: activate promotes the approved policy and requests the auto_combat lease. start/pause/resume/stop control the local run; execution is only available once the host adapter is wired. status and log are read-only."""
         args: dict[str, Any] = {"session_id": session_id, "policy_op": policy_op}
         if policy is not None:
@@ -567,6 +570,10 @@ def create_server(bridge: BridgeClient) -> MCPServer:
             args["reason"] = reason
         if limit is not None:
             args["limit"] = limit
+        if name is not None:
+            args["name"] = name
+        if document is not None:
+            args["document"] = document
         return reply_result(await call("policy", args))
 
     @server.tool(name="tome.policy_log", annotations=read)

@@ -84,4 +84,29 @@ do
     check(svc.arbiter.owner=='manual','stop releases the lease')
 end
 
+-- Presets, import/export and character persistence.
+do
+    local svc=Service.new()
+    local presets=Service.handle(svc,'presets',{})
+    check(presets.ok and #presets.names>=1,'the service lists the built-in presets')
+    local preset=Service.handle(svc,'preset',{name='anorithil_p1a'})
+    check(preset.ok and preset.policy,'a preset can be fetched as a policy')
+    check(Service.handle(svc,'preset',{name='missing'}).error.code=='unknown_preset','an unknown preset is refused')
+    local set=Service.handle(svc,'set_draft',{policy=preset.policy})
+    check(set.ok,'a preset can become the draft')
+    local document=Service.handle(svc,'export',{}).document
+    check(type(document)=='string','the draft exports to a document')
+    local imported=Service.handle(Service.new(),'import',{document=document})
+    check(imported.ok and imported.hash==set.draft_hash,'the document imports to the same hash')
+    Service.handle(svc,'approve',{})
+    Service.handle(svc,'activate',{})
+    local state=Service.saveState(svc)
+    check(state.draft~=nil and state.approved~=nil,'the save state carries the policy')
+    local restored=Service.new()
+    check(Service.loadState(restored,state),'loading a character restores its policy')
+    check(restored.store.approved~=nil and restored.store.running==nil and restored.arbiter.owner=='manual',
+        'loading never restores the running state or control')
+    check(Service.loadState(restored,{approved={schema='bad'}})==true and restored.store.approved~=nil,
+        'an invalid stored policy is ignored')
+end
 print('Auto-combat service: '..checks..' checks passed')

@@ -9,6 +9,8 @@ local Store=require 'mod.auto_combat.PolicyStore'
 local Arbiter=require 'mod.auto_combat.ControlArbiter'
 local Log=require 'mod.auto_combat.PolicyLog'
 local Combat=require 'mod.auto_combat.AutoCombat'
+local Presets=require 'mod.auto_combat.PolicyPresets'
+local PolicyIO=require 'mod.auto_combat.PolicyIO'
 local M={}
 M.SOURCE='auto_combat'
 
@@ -157,6 +159,50 @@ function M.log(svc,limit)
     return ok({events=Log.tail(svc.log,limit or 32),status=Log.status(svc.log)})
 end
 
+-- Built-in presets and import/export -----------------------------------------
+function M.presets(svc)
+    return ok({names=Presets.names(),presets=Presets.summaries()})
+end
+
+function M.preset(svc,name)
+    local policy=Presets.copy(name)
+    if not policy then return fail('unknown_preset',{name=name}) end
+    return ok({policy=policy,hash=Schema.hash(policy)})
+end
+
+function M.export(svc)
+    local source=svc.store.draft or svc.store.approved
+    if not source then return fail('no_policy') end
+    local document,err=PolicyIO.export(source)
+    if not document then return fail(err.code,err) end
+    return ok({document=document,hash=Schema.hash(source)})
+end
+
+function M.import(svc,document)
+    local policy,info=PolicyIO.import(document)
+    if not policy then return fail(info.code,info) end
+    return ok({policy=policy,hash=info.hash})
+end
+
+-- Character persistence: draft/approved follow the character, running state and
+-- control do not (reading a character never resumes automatic action).
+function M.saveState(svc)
+    return {format=1,draft=svc.store.draft,approved=svc.store.approved}
+end
+
+function M.loadState(svc,data)
+    if type(data)~='table' then return false end
+    local function valid(policy)
+        if type(policy)~='table' then return false end
+        return Schema.validate(policy)==true and Catalog.verify(policy)==true
+    end
+    if valid(data.draft) then svc.store.draft=data.draft end
+    if valid(data.approved) then svc.store.approved=data.approved end
+    svc.store.running=nil; svc.store.active=false
+    svc.controller=nil
+    return true
+end
+
 -- Dispatch a tome.policy op. `args` is the request's policy object.
 function M.handle(svc,op,args)
     args=args or {}
@@ -171,6 +217,10 @@ function M.handle(svc,op,args)
     if op=='pause' then return M.pause(svc,args.reason) end
     if op=='resume' then return M.resume(svc) end
     if op=='log' then return M.log(svc,args.limit) end
+    if op=='presets' then return M.presets(svc) end
+    if op=='preset' then return M.preset(svc,args.name) end
+    if op=='export' then return M.export(svc) end
+    if op=='import' then return M.import(svc,args.document) end
     return fail('invalid_argument',{details='unknown policy op'})
 end
 return M

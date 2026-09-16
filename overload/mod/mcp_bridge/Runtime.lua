@@ -432,6 +432,11 @@ function M.reset(g)
     -- Policy authoring/certification surface. Execution is wired separately;
     -- the service reports execution_not_available until the host adapter lands.
     s.auto_combat=AutoCombat.new{}
+    -- A character carries its draft/approved policy; reading a character never
+    -- resumes automatic action.
+    if g.player and type(g.player.auto_combat_policy)=='table' then
+        AutoCombat.loadState(s.auto_combat,g.player.auto_combat_policy)
+    end
     -- Live execution is opt-in and experimental: the executor reuses
     -- Actions.execute under a synthetic command whose root must not hijack the
     -- remote command slot (the changed() guard below skips it).
@@ -1231,7 +1236,8 @@ local function dispatch(s,request)
                     execution=(config and config.settings and config.settings.tome_mcp_bridge
                         and config.settings.tome_mcp_bridge.allow_auto_combat_execution==true) or false,
                     source='auto_combat',baseline='p1a',
-                    policy_ops=Json.array{'status','validate','set_draft','approve','activate','deactivate','start','stop','pause','resume','log'}}},snapshot=snap}
+                    policy_ops=Json.array{'status','validate','set_draft','approve','activate','deactivate',
+                        'start','stop','pause','resume','log','presets','preset','export','import'}}},snapshot=snap}
         local ok,reason=Compat.check(s.game)
         result.capabilities.native_compatibility={compatible=ok==true,reason=reason,providers='runtime_checked'}
         if not ok then result.capabilities.talents=Json.array() end
@@ -1306,6 +1312,14 @@ local function dispatch(s,request)
             local details=result.error and result.error.details
             if type(details)~='table' then details=details and {details=details} or nil end
             return fail(result.error.code,nil,details)
+        end
+        -- Persist the character-facing policy after a write; never the running
+        -- state or control.
+        if a.policy_op=='set_draft' or a.policy_op=='approve' or a.policy_op=='activate'
+            or a.policy_op=='deactivate' or a.policy_op=='import' then
+            if s.game and s.game.player then
+                s.game.player.auto_combat_policy=AutoCombat.saveState(s.auto_combat)
+            end
         end
         result.ok=nil
         return result

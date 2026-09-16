@@ -364,12 +364,15 @@ do
     check(valid.result and valid.result.hash,'policy validate accepts a valid policy')
     local draft=request('policy',{session_id=hello.session_id,policy_op='set_draft',policy=policy}).result
     check(draft and draft.draft_hash,'policy set_draft stores a valid policy')
+    check(type(g.player.auto_combat_policy)=='table' and g.player.auto_combat_policy.draft~=nil,
+        'a policy write is persisted on the character')
     local conflict=request('policy',{session_id=hello.session_id,policy_op='set_draft',policy=policy,expected_hash='deadbeef'})
     check(not conflict.result and conflict.error.code=='policy_conflict','a stale policy write conflicts')
     local approved=request('policy',{session_id=hello.session_id,policy_op='approve',expected_hash=draft.draft_hash}).result
     check(approved and approved.approved_hash,'policy approve certifies the draft')
     local activated=request('policy',{session_id=hello.session_id,policy_op='activate',expected_hash=approved.approved_hash}).result
     check(activated and activated.running_hash,'policy activate promotes the approved policy')
+    check(g.player.auto_combat_policy.approved~=nil,'the approved policy is persisted on the character')
     local start=request('policy',{session_id=hello.session_id,policy_op='start'})
     check(not start.result and start.error.code=='execution_not_available','execution is not wired yet')
     local policy_status=request('policy',{session_id=hello.session_id,policy_op='status'}).result
@@ -379,6 +382,17 @@ do
     Runtime.manualInput(g,'unit')
     local after=request('policy',{session_id=hello.session_id,policy_op='status'})
     check(after.error and after.error.code=='not_connected','a manual input returns control and closes the session')
+end
+-- P1a: reading a character restores the policy but never the run.
+do
+    check(type(g.player.auto_combat_policy)=='table' and g.player.auto_combat_policy.approved~=nil,
+        'the character carries an approved policy')
+    Runtime.reset(g);g:display()
+    local h3=request('connect',{token='unit-test-token'}).result
+    local restored=request('policy',{session_id=h3.session_id,policy_op='status'}).result
+    check(restored.approved_hash~=nil and restored.active==false,
+        'reading a character restores the policy but not the run')
+    check(restored.control_owner=='manual','control stays with the player on load')
 end
 -- P1a: live execution is opt-in; when enabled the pump is wired and fails safe.
 do
