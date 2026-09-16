@@ -180,6 +180,20 @@ g.level.no_autoexplore=true
 act('explore-forbidden',{type='auto_explore'});g:tick();g:display()
 check(status('explore-forbidden').code=='no_autoexplore','a no_autoexplore level refuses auto-explore')
 g.level.no_autoexplore=nil
+-- The native "Running..." popup belongs to the owned run; it must not be
+-- treated as an unanswered interaction that aborts the run.
+g.level.entities={p}
+g.dialogs={}
+p.running=nil
+p.autoExplore=nativeAt('/mod/class/interface/PlayerExplore.lua',
+    'function(self) self.running={explore="unseen",cnt=0} '
+    ..'self.running.dialog={title="Running...",key={virtuals={}},uis={}} '
+    ..'g.dialogs={self.running.dialog} g:onRegisterDialog(self.running.dialog) return true end')
+act('explore-owned',{type='auto_explore'});g:tick();g:display()
+check(status('explore-owned').code~='explore_interrupted','the Running popup does not abort auto-explore')
+check(observe().phase~='needs_input','the Running popup keeps the run settling, not needs_input')
+p.running=nil;g.dialogs={}
+g:tick();g:display()
 local old_session=hello.session_id
 g:loaded();g:display();reconnect()
 check(hello.session_id~=old_session and observe().phase=='ready','reload creates usable new session')

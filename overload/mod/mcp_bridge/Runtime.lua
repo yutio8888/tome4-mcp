@@ -31,8 +31,13 @@ local function bump(s) s.revision=s.revision+1 end
 local function invocation(s) return s.execution or s.active and s.active.invocation end
 local function busy(g,s)
     if g.target_co or g.target and g.target.active then return true end
+    -- The native rest and run activities own their own popup (the rest dialog
+    -- and the "Running..." auto-explore dialog); they are not a request for the
+    -- agent to answer.
+    local rest=s and s.active and s.active.rest_dialog
+    local run=s and s.active and s.active.run_dialog
     for _,dialog in ipairs(g.dialogs or {}) do
-        if not s or not s.active or dialog~=s.active.rest_dialog then return true end
+        if not s or not s.active or (dialog~=rest and dialog~=run) then return true end
     end
     return false
 end
@@ -94,6 +99,7 @@ local COMMAND_HINTS={native_rejected='the native action refused; see native_mess
     no_autoexplore='this zone or level forbids auto-explore',
     nothing_left='native auto-explore found no reachable unexplored tile',
     target_out_of_range='the target is outside the talent range',
+    target_lost='the target id is stale or no longer visible on this level; re-observe actors and retry with the new id',
     target_not_adjacent='the target is not adjacent',
     insufficient_class_points='no class talent points remain',
     insufficient_generic_points='no generic talent points remain',
@@ -211,6 +217,19 @@ local function commandView(command,include_map,response_id,options_offset)
     elseif command.status=='failed' then out.action_ok=false
     else out.action_ok=nil end
     out.hint=command.hint or (command.code and COMMAND_HINTS[command.code]) or nil
+    if type(command.missing)=='table' and #command.missing>0 then
+        local parts={}
+        for i=1,math.min(#command.missing,3) do
+            local m=command.missing[i]
+            if type(m)=='table' then
+                if m.kind=='stat' then parts[#parts+1]='stat '..tostring(m.stat)..'>='..tostring(m.required)
+                elseif m.kind=='level' then parts[#parts+1]='level>='..tostring(m.required)
+                elseif m.kind=='talent' then parts[#parts+1]='talent '..tostring(m.talent)..'>='..tostring(m.required)
+                elseif m.kind=='special' then parts[#parts+1]='native special requirement' end
+            end
+        end
+        if #parts>0 then out.hint=(out.hint and (out.hint..'; ') or '')..'unmet: '..table.concat(parts,', ') end
+    end
     if command.protocol then
         out.revision=state.revision;out.input_owner=command.input_owner
         out.accepted=true;out.seq=command.seq
@@ -662,6 +681,20 @@ function M.boundary(g,reason,enter,detail)
             Interactions.exposeTop(root)
             return
         end
+        -- The native auto-explore popup ("Running...") belongs to the owned
+        -- run, not to the agent. Claim it as a passive dialog before the generic
+        -- notice adoption, otherwise it looks like an unanswered popup and
+        -- aborts the run.
+        local command=s.active
+        if enter and command and command.action.type=='auto_explore' then
+            local run=s.game.player and s.game.player.running
+            if run and run.dialog==detail then
+                command.run_dialog=detail
+                Interactions.adoptPassiveDialog(detail,{root=command.invocation})
+                return
+            end
+        end
+        if detail and command and command.action.type=='auto_explore' and detail==command.run_dialog then return end
         -- An unowned closeable popup raised while an owned remote action is
         -- settling is adopted as a dialog.notice so the agent can answer it
         -- instead of being forced into manual control (round-5 report 3.8).
@@ -754,6 +787,10 @@ local function settle(s)
     elseif phase=='terminal' then
         revoke(s,'terminal');finish(s,command,'failed','terminal')
     elseif s.level~=command.level or s.player~=command.player then
+        -- The command crossed a scene boundary: any popup it owned (for example
+        -- the escort chat on the new level) belongs to the session now and must
+        -- stay answerable after the command is released.
+        if s.session_root and command.invocation then Interactions.reownAll(command.invocation,s.session_root) end
         revoke(s,'scene_changed')
         if command.action.type=='change_level' and s.player==command.player then
             command.level_changed=true
@@ -818,6 +855,7 @@ local function autoExploreStart(s,command,p)
             native_message=Details.text(tostring(started),512),energy_spent=0}
     end
     command.native_run=p.running
+    command.run_dialog=p.running and p.running.dialog or nil
     if not command.native_run then
         return {ok=false,code='nothing_left',native_message='There is nowhere left to explore.',
             energy_spent=math.max(0,energy-p.energy.value)}
@@ -1172,16 +1210,15 @@ local function dispatch(s,request)
         -- Recovery for an isolated session, or for a pending command stuck in a
         -- manual handoff with no native task/dialog left to answer.
         local stuck_root=s.active and s.active.invocation
-        local stuck=s.active~=nil and (s.active.input_owner=='manual' or s.active.status=='needs_input')
+        local stuck=s.active~=nil and s.active.status~='executing'
             and not NativeTasks.current(stuck_root) and #(s.game.dialogs or {})==0
             and not Interactions.current(s.session_root)
         if not s.native_error and not stuck then
             return fail('not_isolated',nil,{details={hint='the session is not isolated; observe/act work normally'}})
         end
-        -- Explicit recovery: discard the failed invocation and clear isolation.
-        -- This is not a rollback; the native state is left as it is and re-synced.
         local dropped=s.active and s.active.command_id or nil
         if s.active then
+            stopRun(s,s.active,'abandoned');stopRest(s,s.active,'abandoned')
             s.active.status='failed';s.active.code='abandoned';s.active.snapshot=nil
             s.active.snapshot_availability='evicted'
         end
