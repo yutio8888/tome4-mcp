@@ -1,5 +1,26 @@
 # MCP Bridge 验收记录
 
+## 0.9.0：自动战斗插件 P2（调优）
+
+日期：2026-09-17。在审计过的只读字段上增加一批谓词/选择器、可回放的决策追踪、A/B 调参器与第二个职业 pilot。仍为 data-only；执行与 `change_level` 默认关闭。
+
+| 检查层 | 结果 | 证据 |
+| --- | --- | --- |
+| 新谓词/选择器 | **通过**：`enemy_rank`/`enemy_level`/`enemy_type`/`enemy_is_elite`/`enemy_is_boss`/`enemy_distance` + `highest_rank_hostile`/`most_dangerous_hostile`；schema+catalogue+evaluator+snapshot 均有测试；目标相关条件按 action selector 求值 | `test_auto_combat_policy.lua`（52）、`test_auto_combat_snapshot.lua`（21）、`test_auto_combat_catalog.lua`（33） |
+| 决策回放 | **通过**：新增只读 `tome.policy policy_op=replay`（`after_seq`/`limit`）按旧→新分页返回 §10 追踪 + run header；observe 仍有限，日志仍为内存运行态 | `test_auto_combat_service.lua`（61）、`test_runtime.lua`（137）、`server/tests` |
+| A/B 调参 | **通过**：`tests/auto_combat_ab.lua` 固定 4 场景对比 baseline（`anorithil_p1a`）与 tuned（+boss 规则）；仅 `boss-visible` 分歧（`ray/nearest` → `boss/most_dangerous`），安全路径不变 | `validation/2026-09-17-auto-combat-p2/ab-report.json` |
+| 第二职业 pilot | **通过**：半身人/太阳圣骑士 `sun_paladin_p2`（`T_SUN_BEAM`/`T_WEAPON_OF_LIGHT` 新 adapter）；原生 probe 新增 `sun-paladin-preset`（schema+目录+真实快照 dry_run） | `test_auto_combat_io.lua`（20）、`tests/native/...` |
+| 原生 fixture | **通过（21/21，source 与 `dist/*.teaa` 各一次）** | `tmp/tome-mcp-validation/sessions/p2-check-01/`、`p2-teaa-01/` |
+| 既有套件 | Lua **31 套 / 101,849 checks**、Python **33 通过**、两个 `--check` 生成器绿 | `bash game/addons/tome-mcp-bridge/tests/run.sh` 等 |
+
+正式包 **58 个生产文件**，SHA-256：
+
+```text
+44b16985c1646e924fbd4b7b7e2e13b53e50e943130d8108c4091fb87b97c4df
+```
+
+P2 范围决定（含显式排除项）见 [P2 设计/状态](docs/tome-mcp-0.9.0-p2-tuning.md)；未修项见 [TODO](docs/tome-mcp-0.9.0-auto-combat-todo.md)。
+
 ## 0.9.0：自动战斗插件 P1b（原生活动）
 
 日期：2026-09-17。把 `rest` / `auto_explore` 变为数据策略的一等动作，抽出通用 `NativeActivity`；`change_level` 仍为显式 opt-in 且默认关闭。执行仍由 `allow_auto_combat_execution` 门控（默认关）。

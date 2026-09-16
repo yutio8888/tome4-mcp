@@ -17,14 +17,21 @@ M.ACTIVITY_ACTIONS={rest=true,auto_explore=true,change_level=true}
 -- Actions that count as self-preservation for an `emergency:true` rule (§5.4).
 M.SELF_PRESERVATION_ACTIONS={use_talent=true,attack=true}
 M.PERMISSIONS={change_level=true}
-M.SELECTORS={self=true,nearest_hostile=true,lowest_hp_hostile=true}
+-- P2 adds target-selection predicates built only from audited reads (rank,
+-- level, type, bound-target distance). `has_effect`/`computed`-based predicates
+-- stay out: they need a dynamic getter the bridge does not audit yet.
+M.SELECTORS={self=true,nearest_hostile=true,lowest_hp_hostile=true,
+    highest_rank_hostile=true,most_dangerous_hostile=true}
 M.PREDICATES={always=true,hp_pct=true,resource_pct=true,resource_value=true,
     cooldown_ready=true,talent_known=true,has_effect=true,enemy_count=true,
-    nearest_enemy_distance=true,enemy_in_melee=true,enemy_hp_pct=true,computed=true}
+    nearest_enemy_distance=true,enemy_in_melee=true,enemy_hp_pct=true,computed=true,
+    enemy_rank=true,enemy_level=true,enemy_type=true,enemy_is_elite=true,
+    enemy_is_boss=true,enemy_distance=true}
 M.SAFETY_PREDICATES={hp_pct=true,resource_pct=true,resource_value=true,enemy_in_melee=true}
 M.TALENTS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_HEALING_LIGHT=true,
-    T_BARRIER=true,T_TWILIGHT=true,T_MOONLIGHT_RAY=true,T_SEARING_LIGHT=true,T_ATTACK=true}
-M.SUSTAINS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true}
+    T_BARRIER=true,T_TWILIGHT=true,T_MOONLIGHT_RAY=true,T_SEARING_LIGHT=true,T_ATTACK=true,
+    T_SUN_BEAM=true,T_WEAPON_OF_LIGHT=true}
+M.SUSTAINS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_WEAPON_OF_LIGHT=true}
 -- Compile-time hard caps; a policy may only lower these.
 M.HARD={max_actions_per_tick=4,max_instant_per_tick=3,max_consecutive_actions=200,
     max_rules=64,max_depth=8,max_candidates=32}
@@ -78,7 +85,17 @@ local function validateCondition(cond,path,depth,errors)
         if type(value.effect)~='string' then errors[#errors+1]={path=path,code='invalid_effect'} end
         return
     end
-    if name=='enemy_in_melee' then return end
+    if name=='enemy_in_melee' or name=='enemy_is_elite' or name=='enemy_is_boss' then
+        onlyKeys(value,{},path,errors)
+        return
+    end
+    if name=='enemy_type' then
+        if type(value.eq)~='string' or #value.eq==0 then
+            errors[#errors+1]={path=path,code='invalid_enemy_type'}
+        end
+        onlyKeys(value,{eq=true},path,errors)
+        return
+    end
     if name=='computed' then
         if type(value.field)~='string' then errors[#errors+1]={path=path,code='invalid_computed_field'} end
         return
@@ -93,10 +110,12 @@ local function validateCondition(cond,path,depth,errors)
         if value['cmp_'..cmp]~=nil then errors[#errors+1]={path=path,code='unknown_field',field='cmp_'..cmp} end
     end
     if keys~=1 then errors[#errors+1]={path=path,code='one_comparison_required'} end
+    local allowed={lt=true,le=true,eq=true,ge=true,gt=true}
     if name=='resource_pct' or name=='resource_value' then
         if type(value.resource)~='string' then errors[#errors+1]={path=path,code='invalid_resource'} end
+        allowed.resource=true
     end
-    onlyKeys(value,{lt=true,le=true,eq=true,ge=true,gt=true,resource=true},path,errors)
+    onlyKeys(value,allowed,path,errors)
 end
 
 function M.validate(policy)

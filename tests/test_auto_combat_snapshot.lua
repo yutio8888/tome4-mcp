@@ -18,6 +18,27 @@ check(Snapshot.select('lowest_hp_hostile',hostiles,origin).id=='low','lowest_hp_
 check(Snapshot.select('self',hostiles,origin)==nil,'self binds no hostile')
 check(Snapshot.nearestDistance(origin,hostiles)==1,'nearest distance uses the documented metric')
 
+-- P2 rank/type selectors ----------------------------------------------------
+do
+    local ranked={
+        {id='norm',x=11,y=10,hp_pct=90,rank=2,level=10,type='animal'},
+        {id='elite',x=12,y=10,hp_pct=80,rank=3,level=12,type='humanoid'},
+        {id='boss',x=15,y=10,hp_pct=70,rank=4,level=20,type='undead'},
+    }
+    check(Snapshot.select('highest_rank_hostile',ranked,origin).id=='boss',
+        'highest_rank_hostile picks the highest rank')
+    check(Snapshot.select('most_dangerous_hostile',ranked,origin).id=='boss',
+        'most_dangerous_hostile picks the highest rank')
+    local tied={
+        {id='a',x=12,y=10,hp_pct=80,rank=3},
+        {id='b',x=13,y=10,hp_pct=20,rank=3},
+    }
+    check(Snapshot.select('highest_rank_hostile',tied,origin).id=='a',
+        'highest_rank_hostile ties break on distance')
+    check(Snapshot.select('most_dangerous_hostile',tied,origin).id=='b',
+        'most_dangerous_hostile ties break on lowest hp')
+end
+
 -- Deterministic tie-break: equal distance prefers lower y then lower x.
 do
     local tied={{id='b',x=12,y=12,hp_pct=50},{id='a',x=12,y=11,hp_pct=50}}
@@ -83,6 +104,16 @@ do
         return {{id='far',x=16,y=10,hp_pct=50}}
     end}),policy)
     check(far.enemy_in_melee==false,'visible enemies outside melee are known false')
+end
+
+do
+    -- The bound target exposes the P2 audited rank/level/type/distance reads.
+    local ranked={{id='boss',x=12,y=10,hp_pct=70,rank=4,level=20,type='undead'}}
+    local p2={targeting={default='most_dangerous_hostile'},rules={}}
+    local ctx=Snapshot.build(host({hostiles=function() return ranked end}),p2)
+    check(ctx.bound_target=='boss' and ctx.enemy_rank==4 and ctx.enemy_level==20
+        and ctx.enemy_type=='undead','the bound target exposes rank/level/type')
+    check(ctx.enemy_distance==2,'the bound target exposes its own distance')
 end
 
 print('Auto-combat snapshot: '..checks..' checks passed')

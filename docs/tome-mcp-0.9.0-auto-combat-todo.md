@@ -100,3 +100,29 @@ The three §16 open items are resolved:
 Items 12–13 remain the only deferred tuning decisions (sustain
 `min_resource_pct`, `flee_below_hp_pct`); the P1b `NativeActivity` work did not
 change their semantics.
+
+## P2 close-out (tuning)
+
+P2 ships the bounded tuning slice documented in
+[docs/tome-mcp-0.9.0-p2-tuning.md](tome-mcp-0.9.0-p2-tuning.md):
+
+19. **New predicates/selectors** built only from audited reads:
+    `enemy_rank`, `enemy_level`, `enemy_type`, `enemy_is_elite`,
+    `enemy_is_boss`, `enemy_distance`, and the `highest_rank_hostile` /
+    `most_dangerous_hostile` selectors. Target-related conditions are evaluated
+    against the action's selector (`opts.context_for`).
+20. **Explicitly excluded**: `has_effect` / `computed` (need an unaudited
+    dynamic getter), `most_dangerous`-by-`computed` (replaced by the audited
+    rank/hp/distance heuristic), `cluster_center`/AoE selffire, and
+    `ally_count`/`map_frontier`/`turn_parity` (reads not assembled in the
+    auto-combat host). Documented rather than silently dropped.
+21. **Decision replay**: read-only `tome.policy` op `replay` pages the bounded
+    §10 trace oldest-first with a run header; the log stays in-memory runtime
+    state and `observe` stays bounded.
+22. **A/B harness + second class**: `tests/auto_combat_ab.lua` (fixed
+    scenarios, baseline vs tuned) and the Halfling/Sun Paladin pilot
+    (`sun_paladin_p2`, `T_SUN_BEAM`/`T_WEAPON_OF_LIGHT` adapters).
+
+Items 12–13 (sustain `min_resource_pct`, `flee_below_hp_pct`) remain deferred:
+both are execution-tuning that interacts with native resource/retreat semantics
+and stay out of the bounded P2 slice.

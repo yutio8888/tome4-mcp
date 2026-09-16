@@ -96,6 +96,28 @@ function M.evalCondition(cond,ctx)
     if name=='enemy_hp_pct' then
         local op,rhs=comparison(value); return compare(ctx.enemy_hp_pct,op,rhs)
     end
+    if name=='enemy_rank' then
+        local op,rhs=comparison(value); return compare(ctx.enemy_rank,op,rhs)
+    end
+    if name=='enemy_level' then
+        local op,rhs=comparison(value); return compare(ctx.enemy_level,op,rhs)
+    end
+    if name=='enemy_distance' then
+        local op,rhs=comparison(value); return compare(ctx.enemy_distance,op,rhs)
+    end
+    if name=='enemy_type' then
+        if ctx.enemy_type==nil then return UNKNOWN end
+        return ctx.enemy_type==value.eq and TRUE or FALSE
+    end
+    -- ToME rank bands: normal 2, elite 3/3.2, unique/boss >=3.5, boss 4+.
+    if name=='enemy_is_elite' then
+        if ctx.enemy_rank==nil then return UNKNOWN end
+        return ctx.enemy_rank>=3 and TRUE or FALSE
+    end
+    if name=='enemy_is_boss' then
+        if ctx.enemy_rank==nil then return UNKNOWN end
+        return ctx.enemy_rank>=4 and TRUE or FALSE
+    end
     if name=='computed' then
         local computed=ctx.computed and ctx.computed(value.field)
         return computed==nil and UNKNOWN or (computed and TRUE or FALSE)
@@ -131,13 +153,34 @@ end
 --   {decision='hold',reason,results}
 -- `results` is an ordered array of {rule, result='true'|'false'|'unknown'|'denied',
 -- emergency=bool} for the rules considered in this layer, bounded by the rule cap.
-function M.evaluate(policy,ctx)
+function M.evaluate(policy,ctx,opts)
     ctx=ctx or {}
+    opts=opts or {}
     local limits=policy.limits or {}
     local maxActions=limits.max_actions_per_tick or 1
     local attempts=ctx.attempts or 0
     local safety=policy.safety or {}
     local critical=M.critical(policy,ctx.hp_pct)
+    -- Target-related conditions must be evaluated against the same selector the
+    -- action will bind (§5.3). `opts.context_for(selector)` lets the caller (the
+    -- controller / dry run) supply a per-selector context; without it the single
+    -- `ctx` is used, preserving the P1 behaviour for unit tests.
+    local default_selector=policy.targeting and policy.targeting.default
+    local context_for=opts.context_for
+    local selector_cache={}
+    local function ctx_for(rule)
+        if not context_for then return ctx end
+        local selector=rule['then'].target or default_selector
+        if selector==nil then return ctx end
+        local cached=selector_cache[selector]
+        if cached==nil then
+            cached=context_for(selector) or ctx
+            cached.attempts=ctx.attempts
+            cached.denied=ctx.denied
+            selector_cache[selector]=cached
+        end
+        return cached
+    end
     local eligible={}
     for _,rule in ipairs(policy.rules or {}) do
         local emergency=rule.emergency==true
@@ -166,7 +209,8 @@ function M.evaluate(policy,ctx)
         if ctx.denied and ctx.denied[rule.id] then
             results[#results+1]={rule=rule.id,result='denied',emergency=rule.emergency==true}
         else
-            local value=M.evalCondition(rule.when,ctx)
+            local rule_ctx=ctx_for(rule)
+            local value=M.evalCondition(rule.when,rule_ctx)
             results[#results+1]={rule=rule.id,result=value,emergency=rule.emergency==true}
             if value==TRUE then
                 local target=rule['then'].target or (policy.targeting and policy.targeting.default)

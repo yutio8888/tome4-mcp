@@ -390,6 +390,9 @@ do
     check(policy_status and policy_status.control_owner=='auto_combat','policy status reports the lease owner')
     local log=request('policy_log',{session_id=hello.session_id,limit=5}).result
     check(log and log.events~=nil,'policy_log returns the event ring')
+    local replay=request('policy',{session_id=hello.session_id,policy_op='replay',limit=8}).result
+    check(replay and replay.replay==true and replay.executed==false and replay.header~=nil,
+        'replay returns an ordered decision history with a header')
     Runtime.manualInput(g,'unit')
     local after=request('policy',{session_id=hello.session_id,policy_op='status'})
     check(after.error and after.error.code=='not_connected','a manual input returns control and closes the session')
@@ -410,6 +413,9 @@ do
     check(dry.result and dry.result.dry_run==true and dry.result.executed==false
         and dry.result.policy_source~=nil,
         'dry_run is allowed on an observe connection with execution disabled')
+    local replay=request('policy',{session_id=obs.session_id,policy_op='replay',limit=4})
+    check(replay.result and replay.result.replay==true and replay.result.executed==false,
+        'replay is a read available on an observe connection')
     local blocked=request('policy',{session_id=obs.session_id,policy_op='set_draft',policy=pl})
     check(blocked.error and blocked.error.code=='read_only_connection',
         'observe mode still refuses policy writes')

@@ -9,6 +9,9 @@
 local Runtime=require 'mod.mcp_bridge.Runtime'
 local AutoCombat=require 'mod.auto_combat.AutoCombat'
 local NativeActivity=require 'mod.mcp_bridge.NativeActivity'
+local Presets=require 'mod.auto_combat.PolicyPresets'
+local Schema=require 'mod.auto_combat.PolicySchema'
+local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
 local M={pending=false,checks={},failures=0,solo_frames=0}
 
 local function encode(value)
@@ -44,6 +47,7 @@ M.EXPECTED={
     ['strict-resume']={'new_enemy','new_enemy'},
     ['rest-policy']={'wait_native','stopped'},
     ['explore-policy']={'wait_native','stopped'},
+    ['sun-paladin-preset']={'valid','compatible','dry_run'},
     ['solo-pump']={},
 }
 
@@ -266,6 +270,24 @@ local function explorePolicy()
     return compare('explore-policy',{r1.action,r2.action})
 end
 
+-- 8: the P2 second-class preset validates, is catalogue-compatible, and
+-- dry-runs against the real engine snapshot through the production service.
+local function sunPaladinPreset()
+    local preset=Presets.get('sun_paladin_p2')
+    local signals={}
+    local schema_ok=preset~=nil and Schema.validate(preset)==true
+    signals[#signals+1]=schema_ok and 'valid' or 'invalid_schema'
+    check('sun-paladin-preset:schema',schema_ok,{})
+    local catalog_ok=schema_ok and Catalog.verify(preset)==true
+    signals[#signals+1]=catalog_ok and 'compatible' or 'incompatible'
+    check('sun-paladin-preset:catalog',catalog_ok,{})
+    local dry=Runtime.autoCombatHandle(game,'dry_run',{policy=preset})
+    local dry_ok=dry and dry.ok==true and dry.dry_run==true and dry.executed==false
+    signals[#signals+1]=dry_ok and 'dry_run' or 'dry_run_failed'
+    check('sun-paladin-preset:dry-run',dry_ok,dry)
+    return compare('sun-paladin-preset',signals)
+end
+
 -- 6: with no MCP client, local authorization installs the live pump and the
 -- production executor performs a real native wait action.
 local function soloPumpSetup()
@@ -317,6 +339,7 @@ local function runAll()
         strictResume()
         restPolicy()
         explorePolicy()
+        sunPaladinPreset()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok

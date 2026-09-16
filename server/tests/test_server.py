@@ -116,6 +116,8 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             tools = (await client.list_tools()).tools
             policy_tool = next(tool for tool in tools if tool.name == "tome.policy")
             self.assertIn("dry_run", policy_tool.input_schema["properties"]["policy_op"]["enum"])
+            self.assertIn("replay", policy_tool.input_schema["properties"]["policy_op"]["enum"])
+            self.assertIn("after_seq", policy_tool.input_schema["properties"])
             await client.call_tool("tome.connect")
             before = len(self.game.requests)
             rejected = await client.call_tool(
@@ -130,6 +132,13 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             sent = [r for r in self.game.requests if r["op"] == "policy"][-1]
             self.assertEqual(sent["args"]["policy_op"], "dry_run")
             self.assertEqual(sent["args"]["policy"], document)
+            replayed = await client.call_tool(
+                "tome.policy", {"session_id": "s1", "policy_op": "replay",
+                                "limit": 5, "after_seq": 3})
+            self.assertTrue(replayed.structured_content["ok"])
+            sent = [r for r in self.game.requests if r["op"] == "policy"][-1]
+            self.assertEqual(sent["args"]["policy_op"], "replay")
+            self.assertEqual(sent["args"]["after_seq"], 3)
 
     async def test_answers_are_strict_and_reach_native_protocol_once(self):
         self.game.interaction_steps=2
