@@ -262,9 +262,10 @@ local list_badfilter=request('list_collection',{session_id=hello.session_id,requ
 check(list_badfilter.error and list_badfilter.error.code=='invalid_filter','an unknown filter is rejected')
 -- M4: capability diagnostics (CMP-05/06).
 check(hello.capabilities and hello.capabilities.action_support
-    and hello.capabilities.action_support.learn_talent.implementation=='limited'
+    and hello.capabilities.action_support.learn_talent.implementation=='supported'
+    and hello.capabilities.action_support.learn_talent.requirements=='native_checked'
     and hello.capabilities.action_support.use_talent.implementation=='supported',
-    'capabilities expose an action_support matrix with the growth limit')
+    'capabilities expose an action_support matrix with native-checked growth')
 local compat_inspect=request('inspect',{session_id=hello.session_id,kind='compatibility',id='runtime'}).result
 check(compat_inspect and type(compat_inspect.scope)=='string' and type(compat_inspect.providers)=='table',
     'inspect compatibility returns an audited provider summary')
@@ -283,4 +284,11 @@ check(old_snapshot.snapshot_availability=='evicted' and old_snapshot.snapshot==n
 local new_snapshot=status('snap-17')
 check(new_snapshot.snapshot_availability=='retained' and new_snapshot.snapshot~=nil,
     'the newest snapshot is retained')
+-- Round-2 report 3.a/3.f: native target geometry and blocked moves.
+local ActionsMod=require 'mod.mcp_bridge.Actions'
+local wall=setmetatable({x=1,y=1,energy={value=1000},moveDir=function(self) return true end},
+    {__index={}})
+local blocked_move=ActionsMod.execute({player=wall},{type='move',direction=4},nil)
+check(not blocked_move.ok and blocked_move.code=='blocked' and blocked_move.energy_spent==0,
+    'a move that neither moves nor spends energy reports blocked')
 print('Runtime: '..count..' checks passed')

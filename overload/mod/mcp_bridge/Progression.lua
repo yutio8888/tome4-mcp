@@ -352,7 +352,7 @@ function M.describe(g,p)
     p=p or g and g.player
     local result={points={},stats=Json.array(),categories=Json.array(),readiness_is_advisory=true,
         scope='player-owned visible growth trees; one point per action or refund; native requirements rechecked during execution',
-        execution_scope='reviewed standard Berserker categories and recently learnt talent respec; no stat/category respec, prodigies, inscription slots or special evolutions'}
+        execution_scope='visible talents in categories the player knows are learnt through the native LevelupDialog (audited trees only add exact requirement hints); recently learnt talent respec; no stat/category respec, prodigies, inscription slots or special evolutions'}
     if type(p)~='table' then result.readiness_reason='no_player';return result end
     result.respec={unlearnable=unlearnableSummary(g,p),
         scope='recently learnt talents only, inside the native last-learnt window and out of combat; stats and unlocked categories are not refundable outside an open native level-up dialog'}

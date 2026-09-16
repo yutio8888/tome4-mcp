@@ -59,6 +59,7 @@
         "max_turns": { "type": ["integer", "null"] },
         "stop_reason": { "type": ["string", "null"] },
         "native_message": { "type": ["string", "null"] },
+        "target_geometry": { "anyOf": [{ "type": "object" }, { "type": "null" }] },
         "level_changed": { "type": "boolean" },
         "points_spent": { "type": ["integer", "null"] },
         "points_returned": { "type": ["integer", "null"] },

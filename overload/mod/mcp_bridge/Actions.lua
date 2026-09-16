@@ -137,6 +137,8 @@ function M.execute(g, action, target, meta, command)
     local normalized,invalid=M.validate(action)
     if not normalized then return {ok=false,code=invalid,energy_spent=0} end
     action=normalized
+    -- Each command records its own native target geometry; clear any previous run.
+    if type(command)=='table' then command.target_geometry=nil end
     if Progression.isAction(action.type) then return Progression.execute(g,action) end
     if Items.isAction(action.type) then return Items.execute(g,action,meta) end
     if action.type=='rest' then return {ok=false,code='runtime_managed_action',energy_spent=0} end
@@ -181,6 +183,7 @@ function M.execute(g, action, target, meta, command)
         end
     end
     local before = p.energy.value
+    local before_x,before_y=p.x,p.y
     if not finite(before) then return {ok=false,code='invalid_native_energy',uncertain=true} end
     local ok, ret = pcall(function()
         if interactive then
@@ -218,6 +221,16 @@ function M.execute(g, action, target, meta, command)
                         if consumed then return original(self,typ,...) end
                         consumed=true
                         rawset(p,'getTarget',prior)
+                        -- Record the native target geometry once, for the agent
+                        -- (beam/ball radius/self-fire). This is the spec the
+                        -- native talent itself built, not a speculative run.
+                        if command and type(typ)=='table' and not command.target_geometry then
+                            command.target_geometry={shape=type(typ.type)=='string' and typ.type or 'unknown',
+                                radius=finite(typ.radius) and typ.radius or nil,
+                                range=finite(typ.range) and typ.range or nil,
+                                selffire=typ.selffire==true or nil,
+                                piercing=typ.type=='beam' or nil}
+                        end
                         local x,y,entity=resolve()
                         if allowed(typ,x,y) then return x,y,entity end
                         -- Out of bounds/range or a native self-warning: fall back
@@ -250,6 +263,11 @@ function M.execute(g, action, target, meta, command)
     local success = ret and true or false
     local result={ok=success,code=success and 'action_complete' or 'native_rejected',energy_spent=spent}
     if type(ret)=='boolean' then result.native_return=ret end
+    -- A move that neither changed position nor spent energy was blocked by
+    -- terrain; report it distinctly instead of a silent success.
+    if success and action.type=='move' and spent==0 and p.x==before_x and p.y==before_y then
+        return {ok=false,code='blocked',energy_spent=0,native_return=ret}
+    end
     return result
 end
 return M

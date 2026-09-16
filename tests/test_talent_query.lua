@@ -157,6 +157,31 @@ local f4b=assert(Actions.query(nilAttrP,'T_COST'))
 check(f4b.current_costs.mana=='unknown' and f4b.resource_checks.mana.reason=='suppression_unverified',
     'F4: a missing suppression getter is unknown, never a confirmed cost')
 
+-- Round-2 report 3.a/3.b: static targeting hints and signed resource costs.
+local geoP={x=1,y=1,level=10,talents={T_BALL=1,T_FUNC=1},talents_cd={},
+    talents_def={
+        T_BALL={id='T_BALL',mode='activated',range=7,radius=3,requires_target=true,direct_hit=true,reflectable=true,target={type='ball'}},
+        T_FUNC={id='T_FUNC',mode='activated',range=10,requires_target=true,target=function() return {type='beam'} end}}}
+Compat.resetDependencies()
+local qball=assert(Actions.query(geoP,'T_BALL'))
+check(qball.radius==3 and qball.direct_hit==true and qball.reflectable==true and qball.target_shape=='ball',
+    'static radius/direct_hit/reflectable/target_shape are reported')
+check(qball.target_type=='table','a table target keeps target_type=table')
+local qbeam=assert(Actions.query(geoP,'T_FUNC'))
+check(qbeam.target_shape=='unknown' and qbeam.target_type=='unknown' and qbeam.range==10,
+    'a dynamic target stays unknown and is never evaluated')
+local creditP={x=1,y=1,level=10,talents={T_CREDIT=1},talents_cd={},positive=20,
+    talents_def={T_CREDIT={id='T_CREDIT',mode='activated',range=5,target='self',positive=-15}},
+    resources_def={},
+    alterTalentCost=mk('/mod/class/Actor.lua','return function(self,t,r,c) return c end'),
+    attr=mk('/engine/Entity.lua','return function(self,name) return nil end')}
+creditP.resources_def.positive={short_name='positive',min=0,cost_factor=mk('data/resources.lua','return function() return 1 end')}
+resetAndTrust(creditP)
+local qcredit=assert(Actions.query(creditP,'T_CREDIT'))
+check(qcredit.base_costs.positive==-15 and qcredit.resource_checks.positive.operation=='credit'
+    and qcredit.resource_checks.positive.pool_delta==15,
+    'a negative stored cost is a credit against the pool, not a debit')
+
 -- --- One-shot target prefill -------------------------------------------------
 -- Replace the native seam and compatibility gate with controlled doubles so the
 -- prefill wrapper can be exercised without a running engine.
@@ -166,11 +191,12 @@ local prefillDef={id='T_PREFILL',mode='activated',action=function() end}
 local rangeDef={id='T_PREFILL_RANGE',mode='activated',action=function() end,range=5}
 local dynamicDef={id='T_PREFILL_DYNAMIC',mode='activated',action=function() end,test_range=2}
 local warnDef={id='T_PREFILL_WARN',mode='activated',action=function() end,test_warn=true}
-local p={x=1,y=1,energy={value=1000},talents={T_PREFILL=1,T_PREFILL_RANGE=1,T_PREFILL_DYNAMIC=1,T_PREFILL_WARN=1},
-    talents_def={T_PREFILL=prefillDef,T_PREFILL_RANGE=rangeDef,T_PREFILL_DYNAMIC=dynamicDef,T_PREFILL_WARN=warnDef}}
+local beamDef={id='T_PREFILL_BEAM',mode='activated',action=function() end,test_type='beam'}
+local p={x=1,y=1,energy={value=1000},talents={T_PREFILL=1,T_PREFILL_RANGE=1,T_PREFILL_DYNAMIC=1,T_PREFILL_WARN=1,T_PREFILL_BEAM=1},
+    talents_def={T_PREFILL=prefillDef,T_PREFILL_RANGE=rangeDef,T_PREFILL_DYNAMIC=dynamicDef,T_PREFILL_WARN=warnDef,T_PREFILL_BEAM=beamDef}}
 p.useTalent=function(self,id)
     local def=self.talents_def[id] or {}
-    local spec={range=def.test_range,talent=def.test_warn and def or nil,nowarning=def.test_nowarning}
+    local spec={range=def.test_range,type=def.test_type,talent=def.test_warn and def or nil,nowarning=def.test_nowarning}
     local x,y,t=self:getTarget(spec)
     seen[#seen+1]={x,y,t}
     x,y,t=self:getTarget(spec)
@@ -222,6 +248,11 @@ check(result.ok and seen[1][1]==99 and nativeCalls>=1,
 result=run({type='use_talent',talent_id='T_PREFILL_WARN',x=1,y=1})
 check(result.ok and seen[1][1]==99 and nativeCalls>=1,
     'self-target warning prefill falls back to native targeting')
+result=run({type='use_talent',talent_id='T_PREFILL_BEAM',x=7,y=8})
+check(result.ok and command.target_geometry and command.target_geometry.shape=='beam'
+    and command.target_geometry.piercing==true,
+    'the native target geometry (beam/piercing) is recorded on the command')
+
 Tracker.start,Compat.check,Compat.matches=realStart,realCheck,realMatches
 
 -- Grid answers must enforce the same native talent range.

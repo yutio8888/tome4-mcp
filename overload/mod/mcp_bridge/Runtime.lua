@@ -102,7 +102,7 @@ local function commandView(command,include_map,response_id,options_offset)
     local out={}
     for _,key in ipairs{'command_id','seq','status','code','energy_spent','native_return','world_tick_before',
         'world_tick_after','revision_before','revision_after','snapshot','snapshot_availability','interruption','uncertain',
-        'turns_executed','max_turns','stop_reason','native_message','level_changed',
+        'turns_executed','max_turns','stop_reason','native_message','level_changed','target_geometry',
         'points_spent','points_returned','point_pool','previous_value','new_value'} do out[key]=command[key] end
     if command.protocol then
         out.revision=state.revision;out.input_owner=command.input_owner
@@ -596,9 +596,24 @@ local function execute(s,command)
         end
     else
         local root
+        Journal.update(s.game)
+        local journal_cursor=Journal.capture(s.game).head_cursor
         root,result=Tracker.startAction(s.game,command,function()
             return Actions.execute(s.game,command.action,target,meta(s),command)
         end)
+        -- A native rejection writes its reason to the player log. Surface the
+        -- new lines so the agent does not have to scan the event delta (3.c).
+        if result and result.code=='native_rejected' and not result.native_message then
+            local page=Journal.capture(s.game,journal_cursor)
+            local parts={}
+            for _,entry in ipairs(page.entries or {}) do
+                if entry.op=='append' and type(entry.text)=='string' and entry.text~='' then
+                    parts[#parts+1]=entry.text
+                    if #parts>=3 then break end
+                end
+            end
+            if #parts>0 then result.native_message=table.concat(parts,' | ') end
+        end
     end
     if not command.energy_measured then command.energy_spent=result.energy_spent or 0 end
     command.native_return=result.native_return;command.action_ok=result.ok;command.code=result.code
@@ -731,8 +746,8 @@ local function dispatch(s,request)
                     change_level={implementation='supported',scope='native_exit_command'},
                     rest={implementation='supported',scope='native_rest'},
                     spend_stat={implementation='supported',scope='native_levelup'},
-                    learn_talent={implementation='limited',scope='audited_growth_trees',reason='not_all_classes_supported',detail_collection='progression_categories'},
-                    learn_category={implementation='limited',scope='audited_growth_trees',reason='not_all_classes_supported',detail_collection='progression_categories'},
+                    learn_talent={implementation='supported',scope='visible_known_categories',requirements='native_checked',detail_collection='progression_categories'},
+                    learn_category={implementation='supported',scope='visible_known_or_lockable_categories',requirements='native_checked',detail_collection='progression_categories'},
                     unlearn_talent={implementation='limited',scope='native_last_learnt_window',reason='recent_window_only'},
                     pickup={implementation='supported',scope='player_tile'},
                     equip={implementation='supported',scope='native_inventory_rules'},

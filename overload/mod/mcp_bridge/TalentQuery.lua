@@ -132,9 +132,15 @@ local function resourceChecks(player,base,costs,reasons)
         local available=player[name]
         local def=resourceDef(player,name)
         local minimum=def and def.min
-        local entry={operation='debit',amount='unknown',available='unknown',minimum='unknown',
+        local entry={operation='unknown',amount='unknown',available='unknown',minimum='unknown',
             affordable='unknown',reason='cost_dependency_unverified'}
-        if finite(amount) then entry.amount=amount end
+        if finite(amount) then
+            entry.amount=amount
+            -- Native stored costs are signed: positive spends the pool, negative
+            -- adds to it. pool_delta is the effect on the pool (-amount).
+            entry.operation=amount>0 and 'debit' or amount<0 and 'credit' or 'none'
+            entry.pool_delta=-amount
+        end
         if finite(available) then entry.available=available end
         if finite(minimum) then entry.minimum=minimum end
         if not finite(amount) then
@@ -172,6 +178,15 @@ function M.query(player,id,target,x,y)
     if type(t.target)=='string' then q.target_type=t.target
     elseif type(t.target)=='table' then q.target_type='table'
     elseif type(t.target)=='function' then q.target_type='unknown' end
+    -- Static targeting hints only. A function target is never evaluated here;
+    -- the authoritative shape/radius/piercing arrives from the native getTarget
+    -- at execution time (Actions.execute -> target_geometry).
+    if finite(t.radius) then q.radius=t.radius end
+    if type(t.direct_hit)=='boolean' then q.direct_hit=t.direct_hit end
+    if type(t.reflectable)=='boolean' then q.reflectable=t.reflectable end
+    if type(t.target)=='string' then q.target_shape=t.target
+    elseif type(t.target)=='table' and type(t.target.type)=='string' then q.target_shape=t.target.type
+    else q.target_shape='unknown' end
     local cd=player.talents_cd and player.talents_cd[id]
     q.cooldown_remaining=finite(cd) and cd or (cd==nil and 0 or 'unknown')
     local base={}

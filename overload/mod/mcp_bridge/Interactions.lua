@@ -60,6 +60,7 @@ function M.openTarget(g,typ)
             or 'Choose a target',
         origin={x=Details.number(origin.start_x) or g.player.x,y=Details.number(origin.start_y) or g.player.y},
         range=Details.number(origin.range),radius=Details.number(origin.radius),
+        shape=Details.text(origin.type,32),selffire=origin.selffire==true or nil,
         direction_source=direction and g.player or nil}
     targets[g]=h
 end
@@ -257,6 +258,7 @@ function M.describe(root,meta,offset)
     if h.chat then result.native_ui='Chat' end
     if h.target then
         result.origin=h.origin;result.range=h.range;result.radius=h.radius
+        result.shape=h.shape;result.selffire=h.selffire
         if h.kind=='target.direction' then result.answer_types=Json.array{'direction','cancel'}
         else
             result.answer_types=Json.array{'actor','position','cancel'}
