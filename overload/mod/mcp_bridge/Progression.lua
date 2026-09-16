@@ -66,6 +66,38 @@ local function rawLevel(p,tid)
     if value==nil then return 0 end
     return integer(value) and value or nil
 end
+-- Static, read-only list of unmet require fields. This never runs a talent's
+-- `special` function; that is reported as checked natively.
+local function staticMissing(p,t)
+    local out={}
+    local req=type(t)=='table' and t.require or nil
+    if type(req)=='table' then
+        if D.finite(req.level) and (D.number(p.level) or 0)<req.level then
+            out[#out+1]={kind='level',required=req.level,current=D.number(p.level)}
+        end
+        if type(req.stat)=='table' and D.finite(req.stat[2]) then
+            local def=p.stats_def and p.stats_def[req.stat[1]]
+            local id=type(def)=='table' and def.id or req.stat[1]
+            local cur=type(p.stats)=='table' and D.number(p.stats[id]) or nil
+            if cur==nil or cur<req.stat[2] then
+                out[#out+1]={kind='stat',stat=D.text(req.stat[1],32),required=req.stat[2],current=cur}
+            end
+        end
+        if type(req.talent)=='table' and D.finite(req.talent[2]) then
+            local known=rawLevel(p,req.talent[1])
+            if (known or 0)<req.talent[2] then
+                out[#out+1]={kind='talent',talent=D.text(req.talent[1],64),required=req.talent[2],current=known}
+            end
+        end
+        if req.special~=nil then out[#out+1]={kind='special',checked='native'} end
+    end
+    return out
+end
+local function rejectionFields(p,aid)
+    local t=aid and p.talents_def and p.talents_def[aid] or nil
+    return {missing=staticMissing(p,t),
+        missing_scope='static require fields only; special/lua prerequisites are checked natively'}
+end
 local function sourceLine(fn,source,line)
     if not D.native(fn,source) then return false end
     return debug.getinfo(fn,'S').linedefined==line
@@ -249,9 +281,22 @@ local function talentSummary(p,t)
     local level=rawLevel(p,t.id)
     local result={id=t.id,name=D.text(t.name) or t.id,raw_level=level or 'unknown',max_points=maxPoints(p,t) or 'unknown',
         mode=D.text(t.mode,32) or 'unknown',point_cost={pool=t.generic and 'generic' or 'class',amount=1},
-        supported=spec~=nil and native==true,description_status='dynamic_description_not_evaluated',
-        requirements=requirementSummary(p,t,spec)}
-    if not result.supported then return readiness(result,false,reason or native_reason,true) end
+        supported=native==true and (spec~=nil or reason=='unsupported_progression_talent'),
+        coverage=spec and 'audited' or 'native_generic',
+        description_status='dynamic_description_not_evaluated',requirements=requirementSummary(p,t,spec)}
+    if not native then return readiness(result,false,native_reason,true) end
+    if not spec then
+        -- Visible but not in the reviewed list: the native LevelupDialog is the
+        -- judge of requirements, caps and points. A tampered reviewed talent is
+        -- still rejected by the reason check above.
+        if reason~='unsupported_progression_talent' then return readiness(result,false,reason,true) end
+        local points=p[pools[result.point_cost.pool]]
+        if not integer(points) then return readiness(result,false,'progression_state_unknown',true) end
+        if points<1 then return readiness(result,false,'insufficient_'..result.point_cost.pool..'_points') end
+        -- The requirement function of an unlisted talent is dynamic and is not
+        -- evaluated by a read query; never claim availability here.
+        return readiness(result,false,'native_precheck_not_run',true)
+    end
     local points=p[pools[result.point_cost.pool]]
     local req=result.requirements
     if not integer(points) or not level or result.max_points=='unknown' or req.status=='unknown' then
@@ -277,10 +322,13 @@ local function categorySummary(p,c)
     local result={id=c.type,name=D.text(c.name),known=known(p,c.type),generic=c.generic==true,
         mastery_base=mastery==nil and 1 or D.finite(mastery) and mastery+1 or 'unknown',
         improvements_used=integer(improved) and improved or 'unknown',minimum_level=D.number(c.min_lev) or 0,
-        point_cost={pool='category',amount=1},supported=spec~=nil and native==true,talents=Json.array()}
+        point_cost={pool='category',amount=1},
+        supported=native==true and (spec~=nil or reason=='unsupported_progression_category'),
+        coverage=spec and 'audited' or 'native_generic',talents=Json.array()}
     result.operation=result.known and 'improve_mastery' or 'unlock'
     result.mastery_increase=result.known and 0.2 or nil
-    if not result.supported then return readiness(result,false,reason or native_reason,true) end
+    if not native then return readiness(result,false,native_reason,true) end
+    if not spec and reason~='unsupported_progression_category' then return readiness(result,false,reason,true) end
     if not integer(p.unused_talents_types) or not integer(improved) or result.mastery_base=='unknown' then
         return readiness(result,false,'progression_state_unknown',true)
     end
@@ -338,7 +386,7 @@ function M.describe(g,p)
     p=p or g and g.player
     local result={points={},stats=Json.array(),categories=Json.array(),readiness_is_advisory=true,
         scope='player-owned visible growth trees; one point per action or refund; native requirements rechecked during execution',
-        execution_scope='reviewed standard Berserker categories and recently learnt talent respec; no stat/category respec, prodigies, inscription slots or special evolutions'}
+        execution_scope='visible talents in categories the player knows are learnt through the native LevelupDialog (audited trees only add exact requirement hints); recently learnt talent respec; no stat/category respec, prodigies, inscription slots or special evolutions'}
     if type(p)~='table' then result.readiness_reason='no_player';return result end
     result.respec={unlearnable=unlearnableSummary(g,p),
         scope='recently learnt talents only, inside the native last-learnt window and out of combat; stats and unlocked categories are not refundable outside an open native level-up dialog'}
@@ -408,7 +456,8 @@ local function executeUnlearn(g,p,a)
         local refunded=p[pools[pool]]==before_points+1
         if not refunded or not D.finite(after_value) or after_value~=before_value-1 then
             local mutated=p[pools[pool]]~=before_points or after_value~=before_value
-            return {ok=false,code=refunded and 'native_progression_mismatch' or 'native_progression_rejected',uncertain=mutated or nil}
+            return {ok=false,code=refunded and 'native_progression_mismatch' or 'native_progression_rejected',uncertain=mutated or nil,
+                missing=staticMissing(p,p.talents_def and p.talents_def[a.talent_id])}
         end
         if not dialog.finish(host) then return {ok=false,code='native_progression_finish_failed',uncertain=true} end
         return {ok=true,code='progression_applied',points_returned=1,point_pool=pool,
@@ -443,7 +492,14 @@ function M.execute(g,action)
     if busy(g,p) then return {ok=false,code='player_busy',energy_spent=0} end
     local supported,audit_reason=playerAudit(p)
     if not supported then return {ok=false,code=audit_reason,energy_spent=0} end
-    if a.type=='unlearn_talent' then return executeUnlearn(g,p,a) end
+    if a.type=='unlearn_talent' then
+        -- Native respec bypasses the normal respec item/cost, so it is opt-in.
+        local settings=config and config.settings and config.settings.tome_mcp_bridge
+        if not (type(settings)=='table' and settings.allow_respec==true) then
+            return {ok=false,code='respec_not_enabled',energy_spent=0}
+        end
+        return executeUnlearn(g,p,a)
+    end
     local description,target,before_value
     if a.type=='spend_stat' then
         description=statSummary(p,a.stat)
@@ -453,11 +509,43 @@ function M.execute(g,action)
     elseif a.type=='learn_talent' then
         target=field(p,'talents_def',a.talent_id)
         if not visibleTalent(p,target) then return {ok=false,code='talent_not_in_growth_tree',energy_spent=0} end
-        description=talentSummary(p,target);before_value=rawLevel(p,a.talent_id)
+        local spec,audit_reason=auditTalent(p,target)
+        if spec then
+            description=talentSummary(p,target);before_value=rawLevel(p,a.talent_id)
+        elseif audit_reason=='unsupported_progression_talent' then
+            -- Generic native path: the talent is visible in a category the player
+            -- already knows but is outside the reviewed list. The native dialog
+            -- validates requirements, caps and the point cost.
+            local pool=target.generic and 'generic' or 'class'
+            if not integer(p[pools[pool]]) then return {ok=false,code='progression_state_unknown',energy_spent=0} end
+            if p[pools[pool]]<1 then return {ok=false,code='insufficient_'..pool..'_points',energy_spent=0} end
+            description={readiness='available',point_cost={pool=pool},native_generic=true}
+            before_value=rawLevel(p,a.talent_id)
+        else
+            return {ok=false,code=audit_reason or 'progression_talent_modified',energy_spent=0}
+        end
     else
         target=visibleCategory(p,a.category_id)
         if not target then return {ok=false,code='category_not_in_growth_tree',energy_spent=0} end
-        description=categorySummary(p,target);before_value=description.known and description.mastery_base or false
+        local spec,audit_reason=auditCategory(p,target)
+        if spec then
+            description=categorySummary(p,target);before_value=description.known and description.mastery_base or false
+        elseif audit_reason=='unsupported_progression_category' then
+            if not integer(p.unused_talents_types) then return {ok=false,code='progression_state_unknown',energy_spent=0} end
+            if p.unused_talents_types<1 then return {ok=false,code='insufficient_category_points',energy_spent=0} end
+            if p.level<(target.min_lev or 0) then return {ok=false,code='category_level_requirement',energy_spent=0} end
+            local mastery=field(p,'talents_types_mastery',target.type)
+            local base=false
+            if known(p,target.type) then
+                if mastery==nil then base=1
+                elseif D.finite(mastery) then base=mastery+1
+                else return {ok=false,code='progression_state_unknown',energy_spent=0} end
+            end
+            description={readiness='available',point_cost={pool='category'},native_generic=true,known=known(p,target.type)}
+            before_value=base
+        else
+            return {ok=false,code=audit_reason or 'progression_category_modified',energy_spent=0}
+        end
     end
     if description.readiness~='available' then return {ok=false,code=description.readiness_reason,energy_spent=0} end
     local loaded,dialog=pcall(require,'mod.dialogs.LevelupDialog')
@@ -489,7 +577,8 @@ function M.execute(g,action)
         elseif a.type=='learn_talent' then after_value=rawLevel(p,a.talent_id)
         else after_value=known(p,a.category_id) and ((field(p,'talents_types_mastery',a.category_id) or 0)+1) or false end
         mutated=p[pool]~=before_points or after_value~=before_value
-        if p[pool]~=before_points-1 then return {ok=false,code='native_progression_rejected',uncertain=mutated or nil} end
+        if p[pool]~=before_points-1 then return {ok=false,code='native_progression_rejected',uncertain=mutated or nil,
+            missing=staticMissing(p,a.talent_id and p.talents_def and p.talents_def[a.talent_id])} end
         local expected=a.type=='learn_category' and (before_value==false and 1+(field(backup,'talents_types_mastery',a.category_id) or 0) or before_value+0.2)
             or before_value+1
         if not D.finite(after_value) or math.abs(after_value-expected)>0.000001 then

@@ -1,0 +1,56 @@
+json: 62 checks passed
+Command ledger: 100288 checks passed
+Observation views: 120 checks passed
+transport: 31 checks passed
+Actions: 65 checks passed
+Talent query/prefill: 52 checks passed
+Query purity: 13 checks passed
+Journal: 29 checks passed
+Observer: 87 checks passed; stress snapshot 193620 bytes
+Progression: 231 checks passed
+Items: 97 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Tasks: 62 checks passed
+Invocations: 29 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Runtime: 78 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Interactive Runtime: 85 checks passed
+[CHAT] selected	Rendered answer	function: 0x7f2b46d16678	done
+Chat: 20 checks passed
+Native compatibility: 6 checks passed

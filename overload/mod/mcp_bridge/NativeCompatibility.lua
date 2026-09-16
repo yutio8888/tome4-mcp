@@ -24,7 +24,7 @@ function M.register(name,fn,previous,path,digest,wrapper)
         end
     end
     local ok=audited(previous,path,digest)
-    entries[name]={fn=fn,ok=ok,reason=ok and nil or 'native_entrypoint_modified'}
+    entries[name]={fn=fn,ok=ok,reason=ok and nil or 'native_entrypoint_modified',path=path}
 end
 
 function M.matches(name,fn)
@@ -46,8 +46,145 @@ function M.check(g)
 end
 
 function M.available(name) return entries[name] and entries[name].ok or false end
+
+-- Read-only dependency registry (spec QRY-02). Query helpers such as a cost
+-- factor or an attribute getter are registered once with their intended
+-- provider id and source. A later replacement of the same key fails closed:
+-- the query field becomes unknown and the replacement is never called.
+-- File-digest unification with the entrypoint audit above is M4 (CMP-01/03).
+local dependencies={}
+-- A line of a source text, 1-indexed; nil when out of range.
+local function lineAt(text, line)
+    if type(line)~='number' or line<1 then return nil end
+    local n=0
+    for value in (text..'\n'):gmatch('([^\n]*)\n') do
+        n=n+1
+        if n==line then return value end
+    end
+end
+-- A read-only dependency must come from the audited file (source path + full
+-- file digest) and, when a declaration is given, be defined on the expected
+-- line of that file. A runtime function that merely reuses the source tag is
+-- rejected, so a first-seen override is never trusted (spec QRY-02, F1).
+local function auditedMethod(fn,path,digest,declaration)
+    local info=type(fn)=='function' and debug.getinfo(fn,'S')
+    if not info or info.source~='@'..path then return false,'dependency_source_unverified' end
+    local read_ok,data=pcall(function() return fs.readAll(path) end)
+    if not read_ok or type(data)~='string' then return false,'dependency_source_unreadable' end
+    local hash_ok,hash=pcall(function() return require('md5').sumhexa(data) end)
+    if not hash_ok or hash~=digest then return false,'dependency_source_modified' end
+    if declaration then
+        local source_line=lineAt(data,info.linedefined)
+        if not source_line or not source_line:find(declaration,1,true) then
+            return false,'dependency_body_unverified'
+        end
+    end
+    return true
+end
+function M.registerDependency(id,domain,fn,path,purpose,digest,declaration,depends_on)
+    if type(fn)~='function' then
+        dependencies[id]={ok=false,reason='dependency_missing',domain=domain,path=path,depends_on=depends_on or {}}
+        return false
+    end
+    local existing=dependencies[id]
+    if existing and existing.fn and existing.fn~=fn then
+        dependencies[id]={fn=fn,ok=false,reason='dependency_replaced',domain=domain,path=path,depends_on=depends_on or {}}
+        return false
+    end
+    -- No digest means the dependency was not audited: fail closed instead of
+    -- marking an arbitrary current function as trusted.
+    local ok,reason=false,'dependency_not_audited'
+    if type(digest)=='string' and #digest>0 then
+        ok,reason=auditedMethod(fn,path,digest,declaration)
+    end
+    dependencies[id]={fn=fn,ok=ok,reason=ok and nil or reason,domain=domain,path=path,purpose=purpose,depends_on=depends_on or {}}
+    return ok
+end
+function M.dependency(id,fn)
+    if type(fn)~='function' then return nil,'dependency_not_registered' end
+    local entry=dependencies[id]
+    if not entry or not entry.ok then return nil,entry and entry.reason or 'dependency_not_registered' end
+    if fn~=entry.fn then
+        entry.ok=false;entry.reason='dependency_replaced'
+        return nil,'dependency_replaced'
+    end
+    -- Indirect closure: a transitive dependency that is missing or replaced
+    -- makes this query field unknown instead of silently trusting it.
+    for _,dep in ipairs(entry.depends_on or {}) do
+        local child=dependencies[dep]
+        if not child or not child.ok then
+            entry.ok=false;entry.reason='dependency_closure_broken'
+            return nil,'dependency_closure_broken'
+        end
+    end
+    return fn,entry.reason
+end
+function M.hasDependency(id) return dependencies[id]~=nil end
+function M.resetDependencies() dependencies={} end
+local function closureOf(id,seen)
+    if seen[id] then return seen[id] end
+    local entry=dependencies[id]
+    local node={ok=entry~=nil and entry.ok==true or false,reason=entry and entry.reason,domain=entry and entry.domain,
+        path=entry and entry.path,purpose=entry and entry.purpose,depends_on={}}
+    seen[id]=node
+    if entry then
+        for _,dep in ipairs(entry.depends_on or {}) do node.depends_on[#node.depends_on+1]=closureOf(dep,seen) end
+    end
+    return node
+end
+function M.closureSummary()
+    local out={}
+    for id,_ in pairs(dependencies) do out[id]=closureOf(id,{}) end
+    return out
+end
+function M.dependencySummary()
+    local out={}
+    for id,entry in pairs(dependencies) do
+        out[id]={ok=entry.ok==true,reason=entry.reason,domain=entry.domain,
+            path=entry.path,purpose=entry.purpose}
+    end
+    return out
+end
 function M.alias(name,fn,parent,previous)
     local entry=entries[parent]
     entries[name]={fn=fn,ok=entry and entry.ok and previous==entry.fn or false}
+end
+local domainFor
+function M.providerSummary()
+    local out={}
+    for name,entry in pairs(entries) do
+        out[#out+1]={provider_id=name,domain=domainFor(name),state=entry.ok and 'verified' or 'unverified',
+            reason=entry.reason,source=entry.path,
+            effect=entry.ok and nil or (name..' capability unavailable')}
+    end
+    for name,entry in pairs(dependencies) do
+        out[#out+1]={provider_id=name,domain=entry.domain or domainFor(name),
+            state=entry.ok and 'verified' or 'unverified',reason=entry.reason,source=entry.path,
+            effect=entry.ok and nil or (name..' query field becomes unknown')}
+    end
+    table.sort(out,function(a,b) return a.provider_id<b.provider_id end)
+    return out,true
+end
+-- Domain classification for diagnostics (CMP-01/02). Not a security boundary.
+local DOMAINS = {
+    useTalent='talent_execution', targetGetForPlayer='interactions', targetMode='interactions',
+    playerGetTarget='talent_execution', playerUseEnergy='scheduler', turnBasedTick='scheduler',
+    playerFOV='observation', computeFOV='observation', restInit='native_tasks', restStop='native_tasks',
+    restStopAlias='native_tasks', yesnoPopup='interactions', yesnoLongPopup='interactions',
+    listPopup='interactions', ['TomeChat.init']='interactions', ['TomeChat.makeUI']='interactions',
+    changeLevelReal='scheduler',
+}
+function domainFor(name)
+    if DOMAINS[name] then return DOMAINS[name] end
+    if name:match('^map%.') then return 'observation' end
+    if name:match('^object%.') or name:match('^ShowInventory%.') or name:match('^ShowEquipInven%.') then return 'items' end
+    if name:match('Popup%.') or name:match('Lore') or name:match('Quest') then return 'interactions' end
+    if name:match('^actor%.') or name:match('^resource%.') or name:match('^query%.') then return 'talent_query' end
+    return 'native'
+end
+function M.summary()
+    local providers=select(1,M.providerSummary())
+    return {scope='runtime audit: full file summary and function identity for entrypoints; source, digest, definition line, identity and indirect dependency closure for query dependencies',
+        capture_complete=true,providers=providers,dependencies=M.dependencySummary(),closures=M.closureSummary()}
 end
 return M

@@ -74,11 +74,11 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
         error = raised.exception
         self.assertEqual(error.code, "bridge_timeout")
         self.assertTrue(error.uncertain)
-        self.assertEqual(error.command_id, "cmd1")
+        self.assertEqual(error.command_id, "cmd-1")
         with self.assertRaises(BridgeError):
-            await self.bridge.request("status", {"session_id": "s1", "command_id": "cmd1"})
+            await self.bridge.request("status", {"session_id": "s1", "command_id": "cmd-1"})
         await self.bridge.connect()
-        record = await self.bridge.request("status", {"session_id": "s1", "command_id": "cmd1"})
+        record = await self.bridge.request("status", {"session_id": "s1", "command_id": "cmd-1"})
         self.assertEqual(record["status"], "completed")
         self.assertEqual(sum(r["op"] == "act" for r in self.game.requests), 1)
 
@@ -124,7 +124,7 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['interaction']['interaction_id'],'i2')
         self.assertEqual(result['response_receipt']['state'],'applied')
         self.assertEqual(sum(r['op']=='respond' for r in self.game.requests),1)
-        self.assertTrue(all(r["v"]==3 for r in self.game.requests))
+        self.assertTrue(all(r["v"]==4 for r in self.game.requests))
         self.assertEqual(self.game.requests[-1]['args']['response_id'],'answer1')
 
     async def test_response_timeout_preserves_both_ids_and_does_not_retry(self):
@@ -139,19 +139,59 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
             await self.bridge.respond(args)
         error=raised.exception
         self.assertTrue(error.uncertain)
-        self.assertEqual((error.command_id,error.response_id),('cmd1','answer1'))
+        self.assertEqual((error.command_id,error.response_id),('cmd-1','answer1'))
         self.assertEqual(error.as_dict()['response_id'],'answer1')
         await self.bridge.connect()
-        result=await self.bridge.request('status',{'session_id':'s1','command_id':'cmd1','response_id':'answer1'})
+        result=await self.bridge.request('status',{'session_id':'s1','command_id':'cmd-1','response_id':'answer1'})
         self.assertEqual(result['status'],'completed')
         self.assertEqual(sum(r['op']=='respond' for r in self.game.requests),1)
+
+    async def test_command_error_preserves_recovery_metadata(self):
+        await self.bridge.connect()
+        self.game.status_error = {
+            "code": "command_history_expired", "message": "gone", "accepted": True,
+            "uncertain": True, "acceptance_scope": "command", "recovery": "do_not_replay",
+            "details": {"evicted_through_seq": 100, "last_accepted_seq": 356},
+        }
+        with self.assertRaises(BridgeError) as raised:
+            await self.bridge.request("status", {"session_id": "s1", "command_id": "cmd-1"})
+        payload = raised.exception.as_dict()
+        self.assertEqual(payload["code"], "command_history_expired")
+        self.assertTrue(payload["accepted"])
+        self.assertTrue(payload["uncertain"])
+        self.assertEqual(payload["acceptance_scope"], "command")
+        self.assertEqual(payload["recovery"], "do_not_replay")
+        self.assertEqual(payload["details"]["evicted_through_seq"], 100)
+
+    async def test_command_gap_error_keeps_next_command_id(self):
+        await self.bridge.connect()
+        self.game.status_error = {
+            "code": "command_sequence_gap", "message": "gap", "accepted": False,
+            "uncertain": False, "recovery": "refresh_history",
+            "details": {"next_command_id": "cmd-2"},
+        }
+        with self.assertRaises(BridgeError) as raised:
+            await self.bridge.request("status", {"session_id": "s1", "command_id": "cmd-3"})
+        payload = raised.exception.as_dict()
+        self.assertFalse(payload["accepted"])
+        self.assertEqual(payload["recovery"], "refresh_history")
+        self.assertEqual(payload["details"]["next_command_id"], "cmd-2")
+
+    async def test_transport_uncertainty_is_not_flattened(self):
+        await self.bridge.connect()
+        self.game.drop_act_reply = True
+        with self.assertRaises(BridgeError) as raised:
+            await self.bridge.act(action_args())
+        payload = raised.exception.as_dict()
+        self.assertTrue(payload["uncertain"])
+        self.assertEqual(payload["recovery"], "query_original_after_reconnect")
 
     async def test_old_bridge_rejection_never_falls_back(self):
         self.game.legacy_bridge=True
         with self.assertRaises(BridgeError):
             await self.bridge.connect()
         self.assertEqual(len(self.game.requests),1)
-        self.assertEqual(self.game.requests[0]['v'],3)
+        self.assertEqual(self.game.requests[0]['v'],4)
 
 
 if __name__ == "__main__":

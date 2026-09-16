@@ -1,5 +1,26 @@
 # MCP Bridge 验收记录
 
+## 0.9.0：自动战斗插件 P1a（首个可用闭环）
+
+日期：2026-09-16。数据-only 战斗策略由原生执行器逐回合本地执行；MCP 只观察/校验/仲裁。人类可用游戏内编辑器独立使用（无需 MCP 客户端）。
+
+| 检查层 | 结果 | 证据 |
+| --- | --- | --- |
+| 游戏内 UI（无 MCP） | **通过**：Ctrl+G 打开 `Auto-combat policy` 对话框、Esc 关闭；Ctrl+Shift+G 在未加载预设时优雅返回 `not_activated`；无 Lua 错误 | `tmp/tome-mcp-validation/sessions/agent-ham-insane-31/`、`validation/2026-09-16-auto-combat/ui-verification-round31.json` |
+| 原生 §14 fixture（预声明暂停原因） | **通过（13/13）**：start-when-ready、pause→resume 丢弃旧决策、native_pending 不重提、危急态不输出普通规则、strict resume、无 MCP 单机 pump 执行真实原生动作 | `validation/2026-09-16-auto-combat/native-fixture-summary.json` |
+| 实机 playtest（Insane Anorithil） | **通过**：94 条决策（melee/ray/finish/heal/sustain 均真实原生生效），暂停仅 `new_enemy`/`no_emergency_action`，无 bridge `native_error`、无租约丢失、无卡 `settling` | `tmp/mcp-play-support/agent-ham-insane-27-report.md`、`validation/2026-09-16-auto-combat/playtest-round27-summary.json` |
+| playtest 修复复验（引擎内） | **通过**：auto_combat 持租约时远程 `act` 返回 `control_conflict`；`connect control` 原子接管后 `act` 恢复；无规则命中的 hold 变为 `no_available_action` 停止并记日志 | `validation/2026-09-16-auto-combat/fix-verification-round28.json` |
+| 实机 playtest round 2 | **通过**：两个 P0 均复验通过（`no_available_action` 停止交还 manual；`control_conflict`+`connect_explicitly` 互斥生效）；新增预设显式 `recover` wait 规则解决冷却期频繁停止 | `tmp/mcp-play-support/agent-ham-insane-32-report.md`、`validation/2026-09-16-auto-combat/playtest-round32-summary.json` |
+| 既有套件 | Lua **29 套通过**、Python **32 通过**、`generate_protocol.py --check` 与 `generate_native_seams.py --check` 绿、原生套件 **100 通过** | `bash game/addons/tome-mcp-bridge/tests/run.sh` 等 |
+
+正式包 **57 个生产文件**，SHA-256：
+
+```text
+ea15541bdefb8c565f8a9afaaca4ac70cd211c398d3bfe0f9c193f3c418ae30e
+```
+
+设计正文见 [自动战斗插件设计](docs/tome-mcp-auto-combat-plugin-design.md)；反馈与未修项见 [round1](docs/tome-mcp-0.9.0-auto-combat-round1-feedback.md)、[round2](docs/tome-mcp-0.9.0-auto-combat-round2-feedback.md) 与 [TODO](docs/tome-mcp-0.9.0-auto-combat-todo.md)。执行仍由 `allow_auto_combat_execution` 门控（默认关）。
+
 ## 0.8.0：协议 v3 技能查询/目标预填与原生洗点
 
 日期：2026-09-15。本版只保留协议 **v3**（v1/v2 已在测试阶段移除）：只读技能查询（射程、基础与实时消耗、冷却、条件/可用性提示）与一次性目标预填（actor/position）；新增原生 `unlearn_talent`（仅退还原生 `last_learnt_talents` 窗口内、非战斗、非 item 授予/保护的技能点）。核心游戏文件未修改，原生插入点未变。本版经独立 agent 验收，发现并修复预填绕过原生射程（F-1）与带魔像角色被拒绝成长（F-2），并补充实时消耗（`current_costs` + `base_costs`，F-3），随后复验通过。

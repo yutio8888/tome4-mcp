@@ -28,4 +28,18 @@ Compat.register('method',exposed,bad,'/native.lua','native bytes',spec)
 check(not Compat.available('method'),'known wrapper cannot hide unrecognized captured native entrypoint')
 Compat.register('method',exposed,native,'/native.lua','native bytes',spec)
 check(Compat.matches('method',exposed),'direct native entrypoint works without companion installed')
+-- Indirect dependency closure (CMP-01/03).
+Compat.resetDependencies()
+files['/dep.lua']='return function() return 2 end'
+local dep_digest=files['/dep.lua']
+local child=assert(loadstring('return function() return 2 end','@/dep.lua'))()
+local parent=assert(loadstring('return function() return 3 end','@/dep.lua'))()
+check(Compat.registerDependency('dep.child','test',child,'/dep.lua','child',dep_digest,'function'),'audited dependency registered')
+check(Compat.registerDependency('dep.parent','test',parent,'/dep.lua','parent',dep_digest,'function',{'dep.child'})~=nil,'parent dependency registered')
+check(Compat.dependency('dep.parent',parent)~=nil,'an intact indirect closure resolves')
+check(Compat.registerDependency('dep.orphan','test',parent,'/dep.lua','orphan',dep_digest,'function',{'dep.missing'})~=nil,'orphan dependency registered')
+check(select(2,Compat.dependency('dep.orphan',parent))=='dependency_closure_broken','a missing transitive dependency makes the field unknown')
+local summary=Compat.closureSummary()
+check(summary['dep.parent'] and #summary['dep.parent'].depends_on==1 and summary['dep.orphan'].depends_on[1].ok==false,
+    'closure summary exposes the edges and their status')
 print('Native compatibility: '..count..' checks passed')

@@ -1,0 +1,104 @@
+{
+  "date": "2026-09-16",
+  "fixture": "tests/native/auto_combat_run.py",
+  "archive": "dist/tome-mcp-bridge.teaa",
+  "archive_sha256": "ea15541bdefb8c565f8a9afaaca4ac70cd211c398d3bfe0f9c193f3c418ae30e",
+  "expected_pause_reasons": {
+    "start-when-ready": [
+      "schedule_pump"
+    ],
+    "pause-resume": [
+      "paused",
+      "schedule_pump"
+    ],
+    "native-pending": [
+      "wait_native",
+      "wait_native",
+      "wait_native",
+      "acted"
+    ],
+    "critical": [
+      "no_emergency_action"
+    ],
+    "strict-resume": [
+      "new_enemy",
+      "new_enemy"
+    ],
+    "solo-pump": []
+  },
+  "runs": [
+    {
+      "mode": "archive",
+      "session": "auto-combat-native-pkg-05",
+      "passed": true,
+      "checks": [
+        {
+          "name": "start-when-ready",
+          "passed": true
+        },
+        {
+          "name": "pause-resume:stale-discarded",
+          "passed": true
+        },
+        {
+          "name": "pause-resume:reason",
+          "passed": true
+        },
+        {
+          "name": "pause-resume",
+          "passed": true
+        },
+        {
+          "name": "native-pending:no-resubmit",
+          "passed": true
+        },
+        {
+          "name": "native-pending",
+          "passed": true
+        },
+        {
+          "name": "critical:no-normal-output",
+          "passed": true
+        },
+        {
+          "name": "critical",
+          "passed": true
+        },
+        {
+          "name": "strict-resume:reasons",
+          "passed": true
+        },
+        {
+          "name": "strict-resume",
+          "passed": true
+        },
+        {
+          "name": "solo-pump:ran",
+          "passed": true
+        },
+        {
+          "name": "solo-pump:stopped",
+          "passed": true
+        },
+        {
+          "name": "solo-pump",
+          "passed": true
+        }
+      ],
+      "done": {
+        "checks": 13,
+        "failures": 0,
+        "passed": true,
+        "kind": "auto_combat_done"
+      },
+      "game_log_sha256": "69422639b6956dab471f971e4c6e42882d412829ad29e42db66495e72916f475",
+      "candidate_sha256": "a8e9edb98baaa9d240452c054b82203f46b4ee345ea7030ac06ee4902f166ee3"
+    },
+    {
+      "mode": "existing-native-suite",
+      "session": "native-regress-ac-05",
+      "passed": true,
+      "checks": 100
+    }
+  ]
+}

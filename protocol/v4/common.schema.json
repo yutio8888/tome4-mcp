@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tome://protocol/v4/common.schema.json",
+  "title": "ToME MCP Bridge v4 shared types",
+  "$comment": "Spec v1.0 section 2.2. Byte-length limits are declared with x-max-utf8-bytes because JSON Schema maxLength counts code points, not UTF-8 bytes (PRO-04).",
+  "$defs": {
+    "SessionId": { "type": "string", "minLength": 1, "x-max-utf8-bytes": 256, "pattern": "^[^\\u0000-\\u001f]*$" },
+    "ControlToken": { "type": "string", "minLength": 1, "x-max-utf8-bytes": 256, "pattern": "^[^\\u0000-\\u001f]*$" },
+    "EntityId": { "type": "string", "minLength": 1, "x-max-utf8-bytes": 256, "pattern": "^[^\\u0000-\\u001f]*$" },
+    "ResponseId": { "type": "string", "minLength": 1, "x-max-utf8-bytes": 256, "pattern": "^[^\\u0000-\\u001f]*$" },
+    "TalentId": { "type": "string", "minLength": 1, "x-max-utf8-bytes": 256, "pattern": "^[^\\u0000-\\u001f]*$" },
+    "CategoryId": { "type": "string", "minLength": 1, "x-max-utf8-bytes": 256, "pattern": "^[^\\u0000-\\u001f]*$" },
+    "OptionId": { "type": "string", "minLength": 1, "x-max-utf8-bytes": 512, "pattern": "^[^\\u0000-\\u001f]*$" },
+    "Cursor": { "type": "string", "minLength": 1, "x-max-utf8-bytes": 256, "pattern": "^[\\x20-\\x7e]+$" },
+    "CommandId": { "type": "string", "pattern": "^cmd-[1-9][0-9]*$", "x-max-sequence": 9007199254740991 },
+    "Revision": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "EventCursor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "Coordinate": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+    "Direction": { "type": "integer", "enum": [1, 2, 3, 4, 6, 7, 8, 9] },
+    "FiniteNumber": { "type": "number" },
+    "SnapshotAvailability": { "type": "string", "enum": ["retained", "evicted", "not_captured"] },
+    "CommandStatus": {
+      "type": "string",
+      "enum": ["queued", "executing", "settling", "awaiting_input", "running_native_task", "completed", "failed", "cancelled", "needs_input"]
+    },
+    "InputOwner": { "type": ["string", "null"], "enum": ["remote", "manual", "orphaned", null] },
+    "AcceptanceScope": { "type": "string", "enum": ["command", "response", "not_applicable"] }
+  }
+}

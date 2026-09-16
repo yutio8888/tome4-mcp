@@ -1,0 +1,42 @@
+{
+  "source": "tests/campaign/run.py m5-campaign-01 --max-actions 520 (raw result.json is 10.1 MB and is not committed; sha256 recorded in manifest.raw_sources)",
+  "passed": false,
+  "lua_error": false,
+  "original_save_unchanged": true,
+  "elapsed_seconds": 98.0,
+  "submitted_actions": 522,
+  "checks_total": 21,
+  "checks_passed": 21,
+  "failed_checks": [],
+  "successful_talents": [
+    "T_INFUSION:_HEALING_3",
+    "T_INFUSION:_WILD_2"
+  ],
+  "native_log_kills": 0,
+  "visible_log_events": 13,
+  "last_level_instance_id": "level-2",
+  "blocker": "action bound reached; missing core talents",
+  "check_names": [
+    "official_mcp_client_initialized",
+    "recorded_ordinary_character_loaded",
+    "original_exit_position_and_unmodified_life",
+    "original_birth_talents_present",
+    "original_unspent_birth_progression_is_observable",
+    "original_equipment_is_observable",
+    "battle_companion_stays_idle",
+    "read_only_campaign_observation_preserves_character",
+    "compact_observe_omits_map_without_native_changes",
+    "visible_log_cursor_replay_has_no_duplicate_events",
+    "all_five_original_core_talents_supported",
+    "scene_identifies_trollmire_one",
+    "mcp_change_level_enters_actual_trollmire_two",
+    "level_change_revokes_control",
+    "ordinary_action_after_level_change",
+    "naturally_visible_hostile_has_native_inspect_details",
+    "native_rest_with_visible_hostile_stops_without_turn",
+    "native_talent_cooldown_T_INFUSION:_HEALING_3",
+    "native_healing_infusion_heals_without_turn",
+    "native_talent_cooldown_T_INFUSION:_WILD_2",
+    "native_wild_infusion_effect_without_turn"
+  ]
+}

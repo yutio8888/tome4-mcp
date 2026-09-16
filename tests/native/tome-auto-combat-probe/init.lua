@@ -1,0 +1,10 @@
+long_name = "Auto-combat native probe"
+short_name = "auto-combat-probe"
+for_module = "tome"
+version = {1, 7, 6}
+addon_version = {0, 1, 0}
+weight = 100200
+author = {"MCP Bridge contributors"}
+description = [[Test-only auto-combat scenario runner. Never enable in an ordinary game.]]
+overload = true
+hooks = true

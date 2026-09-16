@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tome://protocol/v4/errors.schema.json",
+  "title": "ToME MCP Bridge v4 error envelope",
+  "$comment": "Spec v1.0 section 8.3 / API-04. Codes and recovery values are validated against vectors/error-codes.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "category", "acceptance_scope", "message", "accepted", "uncertain", "recovery"],
+  "properties": {
+    "code": { "type": "string", "minLength": 1 },
+    "category": { "type": "string", "enum": ["protocol", "auth", "history", "request", "state", "collection", "transport", "native"] },
+    "acceptance_scope": { "$ref": "common.schema.json#/$defs/AcceptanceScope" },
+    "message": { "type": "string" },
+    "accepted": { "type": ["boolean", "null"] },
+    "uncertain": { "type": "boolean" },
+    "command_id": { "anyOf": [{ "$ref": "common.schema.json#/$defs/CommandId" }, { "type": "null" }] },
+    "response_id": { "anyOf": [{ "$ref": "common.schema.json#/$defs/ResponseId" }, { "type": "null" }] },
+    "recovery": {
+      "type": "string",
+      "enum": [
+        "upgrade_pair", "connect_explicitly", "stop_and_observe_new_session", "correct_request",
+        "refresh_history", "query_original", "do_not_replay", "observe_before_resubmit",
+        "inspect_current_state", "restart_collection", "narrow_query_or_manual",
+        "query_original_after_reconnect", "manual_or_fresh_load"
+      ]
+    },
+    "details": { "type": "object" },
+    "interaction_id": { "type": ["string", "null"] }
+  }
+}

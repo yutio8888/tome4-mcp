@@ -48,22 +48,35 @@ local function fixture()
     Runtime.reset(g);g:display()
     local seq=0
     local function request(op,args,version)
-        seq=seq+1;channel.options.onRequest{v=version or 3,id=tostring(seq),op=op,args=args}
+        seq=seq+1;channel.options.onRequest{v=version or 4,id=tostring(seq),op=op,args=args}
         return channel.messages[#channel.messages]
     end
     local hello=request('connect',{token='unit-test-token'}).result
-    local v3hello=request('connect',{token='unit-test-token'},3)
-    check(v3hello.v==3 and v3hello.result.protocol_version==3 and v3hello.result.capabilities.talent_query==true,
-        'v3 request returns a v3 envelope, protocol and query capability')
+    local v4hello=request('connect',{token='unit-test-token'})
+    check(v4hello.v==4 and v4hello.result.protocol_version==4 and v4hello.result.capabilities.talent_query==true,
+        'v4 request returns a v4 envelope, protocol and query capability')
+    local oldproto=request('connect',{token='unit-test-token'},3)
+    check(oldproto.error and oldproto.error.code=='protocol_mismatch','a v3 request is rejected without taking control')
     local restored=request('connect',{token='unit-test-token'}).result
     for k in pairs(hello) do hello[k]=nil end
     for k,v in pairs(restored) do hello[k]=v end
     local function observe() return request('observe',{session_id=hello.session_id}).result end
-    local function act(id,action,revision)
-        return request('act',{session_id=hello.session_id,control_token=hello.control_token,
-            command_id=id,expected_revision=revision or observe().revision,action=action})
+    local labels={}
+    local function nextId(label)
+        if not labels[label] then labels[label]=observe().history.next_command_id end
+        return labels[label]
     end
-    local function status(id,response_id) return request('status',{session_id=hello.session_id,command_id=id,response_id=response_id}).result end
+    local function act(id,action,revision)
+        local reply=request('act',{session_id=hello.session_id,control_token=hello.control_token,
+            command_id=nextId(id),expected_revision=revision or observe().revision,action=action})
+        if not reply.result and reply.error then
+            local code=reply.error.code
+            if code=='command_in_progress' or code=='not_ready' or code=='control_lost'
+                or code=='stale_revision' or code=='read_only_connection' then labels[id]=nil end
+        end
+        return reply
+    end
+    local function status(id,response_id) return request('status',{session_id=hello.session_id,command_id=nextId(id),response_id=response_id}).result end
     local function ready()
         Runtime.beforeTick(g);g.turn=g.turn+10;p.energy.value=1000;g.paused=true
         Runtime.onReady(p);Runtime.afterTick(g);g:display()
@@ -123,6 +136,8 @@ end
 fresh()
 local first=start('multi')
 check(first.status=='awaiting_input' and not first.execution_released,'first native yield is nonterminal')
+local yielded=observe()
+check(yielded.interaction and yielded.interaction.interaction_id==first.interaction.interaction_id,'a command-owned interaction is mirrored at the top level')
 local before=observe()
 for i=1,10 do status('multi');observe() end
 check(observe().revision==before.revision and partial==0,'reading prompts does not mutate game or revision')
@@ -320,5 +335,74 @@ check(status('scene-chat').status=='completed' and status('scene-chat').executio
 act('scene-chat',{type='change_level'},revision);frame()
 check(changes==1,'duplicate completed change-level command cannot run native change again')
 Compat.matches=matches
+
+-- Round-9 feedback: observe.sections must not erase control metadata, an
+-- unknown section is rejected, a player sub-field prunes the player container,
+-- an unknown talent id differs from an unlearned one, and static target
+-- geometry (incl. the native self-fire default) is advertised before acting.
+fresh()
+p.talents_def={T_FIXTURE={id='T_FIXTURE',name='Fixture',type={'fixture'},mode='activated',
+    target={type='ball',range=6,radius=1},cooldown=3}}
+p.talents={T_FIXTURE=1}
+p.talents_cd={}
+local trimmed=request('observe',{session_id=hello.session_id,sections={'effects'}}).result
+check(trimmed.actionable~=nil and trimmed.phase~=nil,'sections keeps control metadata')
+check(trimmed.map==nil and trimmed.actors==nil,'sections omits unrequested domains')
+check(type(trimmed.player)=='table' and trimmed.player.id~=nil,'effects section keeps player identity')
+check(trimmed.player.effects~=nil and trimmed.player.inventory==nil,'effects section prunes unrelated player fields')
+check(request('observe',{session_id=hello.session_id,sections={'bogus'}}).error.code=='invalid_sections','unknown section rejected')
+local talent=request('inspect',{session_id=hello.session_id,kind='talent',id='T_FIXTURE'}).result
+check(talent.range==6 and talent.target_shape=='ball','inspect advertises the static range and shape')
+check(talent.target_geometry and talent.target_geometry.selffire=='unknown','a ball without an explicit selffire stays unknown')
+check(request('inspect',{session_id=hello.session_id,kind='talent',id='T_NOPE'}).error.code=='unknown_talent','unknown talent id distinct from unlearned')
+local sheet=request('inspect',{session_id=hello.session_id,kind='character',id='self'}).result
+check(type(sheet.encumbrance)=='table','character always exposes encumbrance')
+local Details=require 'mod.mcp_bridge.ObservationDetails'
+check(Details.selffire({type='ball'})=='unknown','a missing area-shape selffire is unknown, not a self-hit claim')
+check(Details.selffire({type='beam'})==false,'a beam does not self-fire')
+check(Details.selffire({type='unknown',direct_hit=true})=='unknown','direct_hit alone must not claim self-fire safety (Searing Light)')
+check(Details.selffire({type='unknown'})=='unknown','an unknown shape stays unknown')
+check(Details.selffire({type='ball',selffire=false})==false,'an explicit selffire wins')
+local Interactions=require 'mod.mcp_bridge.Interactions'
+local closed_dialog=false
+local fake_game={dialogs={}}
+local fake_death={title='You have died!',key={virtuals={EXIT=function() closed_dialog=true;fake_game.dialogs[1]=nil end}},uis={}}
+fake_game.dialogs={fake_death}
+check(Interactions.dismissTop(fake_game)==true and closed_dialog,'dismissTop closes a native dialog through its own handler')
+check(Interactions.dismissTop({dialogs={{title='x',uis={}}}})==false,'an uncloseable dialog is reported as such')
+local stubborn={title='stubborn',key={virtuals={EXIT=function() end}},uis={}}
+check(Interactions.dismissTop({dialogs={stubborn}})==false,'a handler that leaves the dialog open is not reported as closed')
+-- A native list menu (death dialog) exposes its entries and is adoptable.
+local list_ui={list={{name='Resurrect'},{name='Go to main menu'}},sel=0,onSelect=function(self) end}
+local death_dialog={title='You have died!',uis={},c_list=list_ui,key={virtuals={}}}
+local dl=Details.dialogs({dialogs={death_dialog}})
+check(dl[1].kind=='list_menu' and #dl[1].options==2 and dl[1].options[1].label=='Resurrect','a list dialog exposes its menu entries')
+local menu_game={level={},paused=false}
+local menu_root={game=menu_game,command={responses={},consumed_interactions={},interaction_sequence=0},interactions={}}
+local adopted=Interactions.adoptNotice(death_dialog,menu_root)
+check(adopted and adopted.kind=='dialog.choice' and adopted.list==list_ui,'a list menu is adopted as a choice interaction')
+-- A session-root popup must be valid even though the session root has no
+-- player/level (this is what broke the death menu), and adoptNative must
+-- register it without bumping the revision.
+local sroot={game=menu_game,interactions={},command={responses={},consumed_interactions={},interaction_sequence=0}}
+local death2={title='You have died!',uis={},c_list=list_ui,key={virtuals={}}}
+menu_game.dialogs={death2}
+local h2=Interactions.adoptNative(death2,sroot)
+check(h2~=nil and Interactions.valid(h2),'a session-root popup handle is valid without a player')
+check(Interactions.current(sroot)==h2,'the session-root popup is the current interaction')
+check(Interactions.describe(sroot,{revision=1}).options[1].label=='Resurrect','the death menu options are described')
+-- A native popup with buttons (yesnoPopup) exposes its real buttons, so an
+-- answer selects Open/Leave instead of only pressing EXIT.
+local clicked=false
+local button_dialog={title='sealed door',uis={
+    {ui={text='Open',fct=function() clicked=true end}},
+    {ui={text='Leave',fct=function() end}}},key={virtuals={}}}
+local broot={game=menu_game,interactions={},command={responses={},consumed_interactions={},interaction_sequence=0}}
+menu_game.dialogs={button_dialog}
+local bh=Interactions.adoptNative(button_dialog,broot)
+check(bh~=nil and bh.kind=='dialog.choice' and #bh.options==2,'a native button popup exposes its buttons as options')
+check(Interactions.describe(broot,{revision=1}).options[1].label=='Open','the button labels are described')
+Interactions.apply(bh,{type='option',index=1,option=bh.options[1]})
+check(clicked,'selecting a button option calls the native callback')
 
 print('Interactive Runtime: '..count..' checks passed')

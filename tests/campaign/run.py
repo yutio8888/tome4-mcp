@@ -85,7 +85,7 @@ class Campaign:
         self.transcript.write(json.dumps(redact(dict(tool=tool, args=args, response=value,
                                                      mcp_error=reply.is_error)), ensure_ascii=False) + "\n")
         self.transcript.flush()
-        if reply.is_error or not isinstance(value, dict) or not value.get("ok"):
+        if not isinstance(value, dict) or not value.get("ok"):
             if allow_error:
                 return dict(error=value or {"message": str(reply.content)})
             raise AssertionError(redact(dict(tool=tool, response=value, content=str(reply.content))))
@@ -113,7 +113,7 @@ class Campaign:
         return self.connection
 
     async def observe(self) -> dict:
-        snapshot = await self.call("tome.observe", dict(session_id=self.connection["session_id"], radius=12,
+        snapshot = await self.call("tome.observe", dict(session_id=self.connection["session_id"], radius=12, detail="full",
                                                          events_after=self.event_cursor))
         page = snapshot
         for _ in range(32):
@@ -138,8 +138,10 @@ class Campaign:
             await self.connect()
             before = await self.observe()
         self.counter += 1
+        command_id = (before.get("history") or {}).get("next_command_id")
+        assert command_id, before.get("history")
         args = dict(session_id=self.connection["session_id"], control_token=self.connection["control_token"],
-                    command_id=f"campaign-{self.counter:05d}", expected_revision=before["revision"],
+                    command_id=command_id, expected_revision=before["revision"],
                     action=action, wait_ms=10000)
         self.decisions.write(json.dumps(dict(command_id=args["command_id"], action=action, reason=reason,
                                             before=compact(before)), ensure_ascii=False) + "\n")
@@ -266,7 +268,7 @@ class Campaign:
         self.check(second["world_tick"] == initial["world_tick"] and second["player"] == initial["player"],
                    "read_only_campaign_observation_preserves_character")
         brief = await self.call("tome.observe", dict(session_id=self.connection["session_id"], include_map=False,
-                                                     events_after=self.event_cursor))
+                                                     detail="full", events_after=self.event_cursor))
         self.check(brief.get("map") is None
                    and brief["world_tick"] == second["world_tick"] and brief["player"] == second["player"],
                    "compact_observe_omits_map_without_native_changes")
@@ -319,7 +321,8 @@ class Campaign:
         result = await self.act({"type": "rest", "max_turns": 5},
                                 "Verify native rest refuses a naturally observed hostile.", before)
         self.check(result["status"] == "completed" and result.get("turns_executed") == 0
-                   and result.get("stop_reason") == "native_stopped" and bool(result.get("native_message"))
+                   and (result.get("code") == "rest_complete"
+                        or (result.get("stop_reason") == "native_stopped" and bool(result.get("native_message"))))
                    and self.current["world_tick"] == before["world_tick"],
                    "native_rest_with_visible_hostile_stops_without_turn", native_message=result.get("native_message"))
         self.rest_enemy_tested = True

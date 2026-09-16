@@ -7,7 +7,7 @@ ToME MCP Bridge 把 ToME 1.7.6（T-Engine）接入 MCP，让 LLM / Agent 以**�
 - **游戏内 Lua addon**（本仓库根目录）：随游戏加载，负责观察和执行。
 - **外部 Python MCP server**（`server/`）：实现 MCP 协议，监听 stdio。
 
-两者通过 `127.0.0.1` 上的非阻塞 TCP + 行分隔 JSON（当前协议 v3）通信。
+两者通过 `127.0.0.1` 上的非阻塞 TCP + 行分隔 JSON（当前协议 v4）通信。
 
 ## 目录速览
 
@@ -48,3 +48,31 @@ python3 tools/package.py
 ```
 
 游戏安装、配置与 MCP 客户端接入方式见 `README.md`。
+
+## 开发对话与测试对话（反馈循环）
+
+本项目用两个角色反复迭代，**不要混用**：
+
+- **开发对话（拥有仓库/MCP 实现的这方）**：负责启动游戏、评审反馈、修改代码、跑单测、打包、重启测试、归档测试对话。
+- **测试对话（每轮由开发对话通过 Paseo CLI 启动的 agent）**：**只负责实机游玩与反馈**；不得修改仓库/游戏文件，不得重启或 kill 进程。
+
+### 一轮循环
+
+1. 开发对话启动隔离游戏 + FIFO 控制台（`tmp/mcp-play-support/agent-play.py`，会话名如 `agent-ham-insane-02`），用 v4 出生插件创建目标角色（如 半身人/星月术士/Insane）。
+2. 开发对话用 Paseo CLI 启动测试对话：
+   `paseo run -d --provider pi --model commandcode/deepseek/deepseek-v4.1-flash --thinking high --cwd /workspace/t-engine4 --title "ToME4 MCP play roundN…" "$(cat tmp/mcp-play-support/agent-insaneN-prompt.md)"`
+   prompt 里给出会话专用接口 `tome-insaneN.sh` / `map-insaneN.sh`、目标与反馈要求。
+3. 测试对话通过控制台游玩；在**死亡 / 长时间卡住 / 完成**时：
+   - `paseo send <开发对话 agent id> "<一句话结论>"` 通知开发对话；
+   - 写报告到 `tmp/mcp-play-support/agent-<session>-report.md`（最终状态、经过、技能/物品、**MCP 问题 + 原始 JSON 证据**）。
+4. 开发对话：收集报告 → 实现修复 + 新增/更新单测 → 提交推送（开发分支经 PR 评审）→ **确认本轮反馈的所有问题都已处理（已实现/已测试/已提交，未修项已记入 TODO 并说明）后，才 `tools/package.py` 重建并重启新一局** → 启动新测试对话 → **归档上一轮测试对话**。
+
+> **顺序约束（重要）**：不得在处理完当前反馈前重启。每轮必须先把该轮报告的问题处理到“已修且有证据/单测”或“明确记入待办并说明原因”，然后再停止游戏、重建、重启下一轮。
+
+### 边界与约定
+
+- 测试对话只通过 `tome-insaneN.sh` / `map-insaneN.sh` / `send.sh` 交互；不写代码、不改 addon、不 `kill`/`quit` 游戏。
+- 开发对话不替测试对话长时间游玩；用 `paseo ls` / `paseo send` / 报告文件收集反馈。
+- 每轮修复必须落成文档（如 `docs/tome-mcp-0.9.0-round*-feedback.md`）并新增/更新单测；未修项记入 `docs/tome-mcp-0.9.0-todo-*.md`。
+- 每轮结束，开发对话主动 `paseo archive <测试对话 id>`。
+

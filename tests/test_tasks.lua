@@ -107,16 +107,27 @@ local function fixture()
     Runtime.reset(g);g:display()
     local seq=0
     local function request(op,args)
-        seq=seq+1;channel.options.onRequest{v=3,id=tostring(seq),op=op,args=args}
+        seq=seq+1;channel.options.onRequest{v=4,id=tostring(seq),op=op,args=args}
         return channel.messages[#channel.messages]
     end
     local hello=request('connect',{token='task-test-token'}).result
     local function observe() return request('observe',{session_id=hello.session_id}).result end
-    local function act(id,action,revision)
-        return request('act',{session_id=hello.session_id,control_token=hello.control_token,
-            command_id=id,expected_revision=revision or observe().revision,action=action})
+    local labels={}
+    local function nextId(label)
+        if not labels[label] then labels[label]=observe().history.next_command_id end
+        return labels[label]
     end
-    local function status(id) return request('status',{session_id=hello.session_id,command_id=id}).result end
+    local function act(id,action,revision)
+        local reply=request('act',{session_id=hello.session_id,control_token=hello.control_token,
+            command_id=nextId(id),expected_revision=revision or observe().revision,action=action})
+        if not reply.result and reply.error then
+            local code=reply.error.code
+            if code=='command_in_progress' or code=='not_ready' or code=='control_lost'
+                or code=='stale_revision' or code=='read_only_connection' then labels[id]=nil end
+        end
+        return reply
+    end
+    local function status(id) return request('status',{session_id=hello.session_id,command_id=nextId(id)}).result end
     local function ready()
         Runtime.beforeTick(g);g.turn=g.turn+10;p.energy.value=1000;g.paused=true
         Runtime.onReady(p);Runtime.afterTick(g);g:display()

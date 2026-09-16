@@ -2,16 +2,22 @@
 """Build a reproducible addon archive containing only production files."""
 
 from pathlib import Path
+import argparse
 import hashlib
 import json
 import zipfile
 
-from generate_native_seams import generate
+from generate_native_seams import configure, generate
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--game-root', default=None,
+                        help='ToME source root with game/ (defaults to the enclosing checkout)')
+    args = parser.parse_args()
+    configure(args.game_root)
     for path, expected in generate().items():
         if not path.is_file() or path.read_text() != expected:
             raise SystemExit('Native seam out of date: ' + str(path))

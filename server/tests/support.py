@@ -18,6 +18,10 @@ class FakeGame:
         self.interaction_steps = 0
         self.pending = False
         self.legacy_bridge = False
+        self.status_error = None
+        self.act_failed = False
+        self.keep_status = False
+        self.abandon_not_isolated = False
         self.token = "test-token"
         self.snapshot = {"session_id": "s1", "revision": 7, "phase": "ready", "world_tick": 0}
 
@@ -46,10 +50,8 @@ class FakeGame:
                 op, args = request["op"], request["args"]
                 reply = {"v": request["v"], "id": "wrong" if self.wrong_id else request["id"], "ok": True}
                 if op in {"connect", "connect_observer"}:
-                    if request['v']==3 and self.legacy_bridge:
-                        reply.update(ok=False,error={"code":"invalid_request","message":"Old protocol"})
-                    elif op == "connect_observer" and self.legacy_bridge:
-                        reply.update(ok=False, error={"code": "not_connected", "message": "Old bridge"})
+                    if self.legacy_bridge:
+                        reply.update(ok=False, error={"code": "protocol_mismatch", "message": "Old bridge"})
                     elif args["token"] != self.token:
                         reply.update(ok=False, error={"code": "unauthorized", "message": "Authentication failed"})
                     else:
@@ -61,6 +63,8 @@ class FakeGame:
                         }
                 elif op == "act":
                     record = {"command_id": args["command_id"], "status": "queued"}
+                    if self.act_failed:
+                        record.update(status="failed", code="native_rejected", snapshot=self.snapshot)
                     self.commands[args["command_id"]] = record
                     if self.interaction_steps:
                         record.update(status='awaiting_input',revision=8,
@@ -74,19 +78,48 @@ class FakeGame:
                     reply['result']=record
                     if self.drop_response_reply:
                         continue
+                elif op == "level_map":
+                    reply["result"] = {"source": args.get("source", "native_map"), "format": args.get("format", "rows"),
+                                       "level_instance_id": "l1", "w": 5, "h": 5,
+                                       "rows": [{"y": 0, "x_start": 0, "text": "....."}],
+                                       "legend": {"?": "unknown", ".": "passable terrain"},
+                                       "capture_complete": True}
+                elif op == "abandon":
+                    if self.abandon_not_isolated:
+                        reply.update(ok=False, error={"code": "not_isolated", "message": "not isolated",
+                                                     "accepted": None, "uncertain": False})
+                    else:
+                        reply["result"] = {"recovered": True, "abandoned_command": "cmd-1",
+                                           "recovery": "discarded_failed_invocation", "snapshot": self.snapshot}
                 elif op == "status":
-                    record = self.commands[args["command_id"]]
-                    if record.get('response_receipt',{}).get('state')=='queued':
-                        record['response_receipt']['state']='applied'
-                        self.interaction_steps-=1
-                        if self.interaction_steps:
-                            record['interaction']={'interaction_id':'i2','kind':'target.grid'}
-                            record['revision']=9
-                        else:
-                            record['status']='completed'
-                    elif not self.pending and not self.interaction_steps:
-                        record.update(status="completed", energy_spent=1000, snapshot=self.snapshot)
-                    reply["result"] = record
+                    if self.status_error is not None:
+                        reply.update(ok=False, error=self.status_error)
+                    elif self.keep_status:
+                        reply["result"] = self.commands[args["command_id"]]
+                    else:
+                        record = self.commands[args["command_id"]]
+                        if record.get('response_receipt',{}).get('state')=='queued':
+                            record['response_receipt']['state']='applied'
+                            self.interaction_steps-=1
+                            if self.interaction_steps:
+                                record['interaction']={'interaction_id':'i2','kind':'target.grid'}
+                                record['revision']=9
+                            else:
+                                record['status']='completed'
+                        elif not self.pending and not self.interaction_steps:
+                            record.update(status="completed", energy_spent=1000, snapshot=self.snapshot)
+                        reply["result"] = record
+                elif op == "list_collection":
+                    req = args["request"]
+                    reply["result"] = {
+                        "view_id": "view-1", "session_id": "s1", "level_instance_id": "l1",
+                        "captured_revision": 7, "current_revision": 7, "historical": False,
+                        "collection": req.get("collection", "inventory"), "items": [],
+                        "returned_count": 0, "total_count": 0, "capture_complete": True,
+                        "has_more": False, "next_cursor": None, "expires_in_ms": 120000,
+                    }
+                elif op == "dismiss":
+                    reply["result"] = {"dismissed": True, "snapshot": self.snapshot}
                 elif op == "stop":
                     for record in self.commands.values():
                         if record["status"] == "queued":
@@ -115,7 +148,7 @@ class FakeGame:
             self.tasks.discard(task)
 
 
-def action_args(command_id="cmd1"):
+def action_args(command_id="cmd-1"):
     return {
         "session_id": "s1", "control_token": "c1", "command_id": command_id,
         "expected_revision": 7, "action": {"type": "wait"},

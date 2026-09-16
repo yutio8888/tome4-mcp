@@ -5,13 +5,27 @@ local Progression = require 'mod.mcp_bridge.Progression'
 local Items = require 'mod.mcp_bridge.Items'
 local Tracker = require 'mod.mcp_bridge.InvocationTracker'
 local Compat = require 'mod.mcp_bridge.NativeCompatibility'
+local Distance = require 'mod.mcp_bridge.Distance'
+local Details = require 'mod.mcp_bridge.ObservationDetails'
 local M = {}
 local attack_spec={target='actor',source='data/talents/misc/misc.lua',action_adapter='attack',
     description='Use the attack action with target_id to make a native ordinary attack, including native alternate attacks.'}
+-- Native talents whose interaction callback resumes the talent body coroutine
+-- directly (data/chats/command-staff.lua does coroutine.resume(co, true)).
+-- That conflicts with the bridge's wrapped body coroutine and raises a native
+-- Lua error which freezes the game; refuse them so an agent cannot trigger it.
+local UNSUPPORTED_TALENT_INTERACTIONS={T_COMMAND_STAFF=true}
+-- The command-staff chat resumes its own coroutine, which the tracker body
+-- cannot tolerate; it is refused unless explicitly enabled (the chat seam then
+-- runs it detached).
+local function staffChatAllowed()
+    return type(config)=='table' and type(config.settings)=='table'
+        and type(config.settings.tome_mcp_bridge)=='table'
+        and config.settings.tome_mcp_bridge.allow_command_staff==true
+end
 local function finite(value) return type(value)=='number' and value==value and value>-math.huge and value<math.huge end
 local function stringId(value) return type(value)=='string' and #value>0 and #value<=256 and not value:find('%z') end
 local function coordinate(value) return type(value)=='number' and value%1==0 and value>=0 and value<=2147483647 end
-local RESOURCES={'mana','stamina','vim','positive','negative','psi','hate','equilibrium','paradox'}
 local function native(fn, suffix)
     if type(fn) ~= 'function' then return false end
     local info = debug.getinfo(fn, 'S')
@@ -29,6 +43,7 @@ function M.admit(player,id,mode)
     local level=player and player.talents and player.talents[id]
     if not finite(level) or level<=0 then return nil,'talent_not_learned' end
     if type(t)~='table' or t.id~=id then return nil,'invalid_talent' end
+    if UNSUPPORTED_TALENT_INTERACTIONS[id] and not staffChatAllowed() then return nil,'talent_interaction_unsupported' end
     if t.mode~=mode then return nil,'talent_mode_unsupported' end
     if mode=='activated' and type(t.action)~='function'
         or mode=='sustained' and (type(t.activate)~='function' or type(t.deactivate)~='function') then
@@ -54,6 +69,7 @@ function M.describe(player, id)
     return {id=id, name=type(t.name)=='string' and t.name or id,
         level=player.talents and player.talents[id] or 0,
         cooldown=player.talents_cd and player.talents_cd[id] or 0,
+        base_cooldown=finite(t.cooldown) and t.cooldown or nil,
         mode=type(t.mode)=='string' and t.mode or 'unknown',
         supported=admitted~=nil, unsupported_reason=reason,
         target='runtime', action_adapter=id=='T_ATTACK' and 'attack' or nil,
@@ -63,106 +79,8 @@ function M.describe(player, id)
         description='Runs through native talent rules; input requests are discovered during execution.',
         sustained_active=player.sustain_talents and player.sustain_talents[id] and true or false}
 end
--- Read-only talent query. Only stored fields and audited scalars are read:
--- dynamic range/requires_target/target functions are reported unknown instead
--- of being evaluated, so observation stays free of side effects.
-local function resourceDef(p,name)
-    local defs=p.resources_def
-    return type(defs)=='table' and defs[name] or nil
-end
--- Mirror Actor:postUseTalent's deduction: alterTalentCost, then cost_factor,
--- using only statically declared base costs and the audited native helpers.
-local function finalResourceCosts(p,t,base_costs)
-    local final,complete={},true
-    local ok,suppressed=pcall(function()
-        if type(p.attr)~='function' then return false end
-        return (p:attr('zero_resource_cost') and true)
-            or (p:attr('force_talent_ignore_ressources') and true) or false
-    end)
-    if not ok then complete=false end
-    if t.fake_ressource then suppressed=true end
-    if type(p.talent_no_resources)=='table' and p.talent_no_resources[t.id] then suppressed=true end
-    local alter=native(p.alterTalentCost,'/mod/class/Actor.lua')
-    for name in pairs(base_costs) do
-        local base=t[name]
-        if suppressed==true then final[name]=0
-        elseif type(base)~='number' or not finite(base) then final[name]='unknown';complete=false
-        elseif not alter then final[name]='unknown';complete=false
-        else
-            local called,cost=pcall(p.alterTalentCost,p,t,name,base)
-            if not called or not finite(cost) then final[name]='unknown';complete=false
-            elseif cost==0 then final[name]=0
-            else
-                local def=resourceDef(p,name)
-                local factor=1
-                if def and def.cost_factor~=nil then
-                    if type(def.cost_factor)=='function' and native(def.cost_factor,'data/resources.lua') then
-                        local factor_ok,value=pcall(def.cost_factor,p,t,false,cost)
-                        factor=factor_ok and finite(value) and value or nil
-                    elseif type(def.cost_factor)=='number' and finite(def.cost_factor) then factor=def.cost_factor
-                    else factor=nil end
-                end
-                if factor==nil then final[name]='unknown';complete=false
-                else final[name]=cost*factor end
-            end
-        end
-    end
-    return final,complete
-end
-function M.query(player,id,target,x,y)
-    local t=player and player.talents_def and player.talents_def[id]
-    if type(t)~='table' or t.id~=id then return nil,'invalid_talent' end
-    local q={id=id}
-    if type(t.range)=='number' and finite(t.range) then q.range=t.range
-    elseif type(t.range)=='function' then q.range='unknown'
-    else q.range=1 end
-    if type(t.requires_target)=='boolean' then q.requires_target=t.requires_target
-    elseif type(t.requires_target)=='function' then q.requires_target='unknown'
-    else q.requires_target=false end
-    if type(t.target)=='string' then q.target_type=t.target
-    elseif type(t.target)=='table' then q.target_type='table'
-    elseif type(t.target)=='function' then q.target_type='unknown' end
-    local cd=player.talents_cd and player.talents_cd[id]
-    q.cooldown_remaining=finite(cd) and cd or (cd==nil and 0 or 'unknown')
-    local base={}
-    for _,key in ipairs(RESOURCES) do
-        local value=t[key]
-        if finite(value) then base[key]=value
-        elseif value~=nil then base[key]='unknown' end
-    end
-    -- current_costs is the real-time value; base_costs is the stored base.
-    local costs,complete=finalResourceCosts(player,t,base)
-    q.current_costs=costs;q.costs_complete=complete;q.base_costs=base
-    local affordable,unknown=true,false
-    for key in pairs(base) do
-        local value=type(costs[key])=='number' and costs[key] or base[key]
-        if type(value)=='number' then
-            local have=player[key]
-            if finite(have) then
-                if value>have then affordable=false end
-            else unknown=true end
-        else unknown=true end
-    end
-    if not affordable then q.affordable=false
-    elseif unknown then q.affordable='unknown'
-    else q.affordable=true end
-    local tx,ty=target and target.x or x,target and target.y or y
-    if finite(tx) and finite(ty) and finite(player.x) and finite(player.y) then
-        q.distance=math.max(math.abs(tx-player.x),math.abs(ty-player.y))
-        if type(q.range)=='number' then q.in_range=q.distance<=q.range end
-    end
-    local learned=player.talents and finite(player.talents[id]) and player.talents[id]>0
-    if not learned then q.readiness,q.readiness_reason='blocked','talent_not_learned'
-    elseif q.cooldown_remaining=='unknown' then q.readiness,q.readiness_reason='unknown','cooldown_unknown'
-    elseif q.cooldown_remaining>0 then q.readiness,q.readiness_reason='blocked','cooldown'
-    elseif q.affordable==false then q.readiness,q.readiness_reason='blocked','resource'
-    elseif q.requires_target==true and not finite(tx) then q.readiness,q.readiness_reason='unknown','target_required'
-    else q.readiness,q.readiness_reason='unknown','native_precheck_not_run' end
-    q.prefill_supported=true
-    q.prefill_modes=Json.array{'actor','position'}
-    q.query_is_advisory=true
-    return q
-end
+-- Read-only talent query lives in its own pure module (spec QRY-01..09).
+M.query=require('mod.mcp_bridge.TalentQuery').query
 function M.validate(action)
     if type(action) ~= 'table' then return nil, 'invalid_action' end
     if Progression.isAction(action.type) then return Progression.validate(action) end
@@ -172,7 +90,7 @@ function M.validate(action)
         local d = action.direction
         if type(d) ~= 'number' or d%1~=0 or d<1 or d>9 or d==5 then return nil, 'invalid_direction' end
         a.direction, allowed.direction = d, true
-    elseif a.type == 'wait' or a.type=='change_level' then
+    elseif a.type == 'wait' or a.type=='change_level' or a.type=='auto_explore' then
     elseif a.type == 'rest' then
         local limit=action.max_turns
         if limit==nil then limit=1000 end
@@ -231,14 +149,12 @@ local function changeLevel(g)
     -- changes and pending native interaction, not its return value, decide.
     return {ok=false,code='native_rejected',energy_spent=spent,level_changed=false}
 end
-local function gridDistance(ax,ay,bx,by)
-    if core and core.fov and type(core.fov.distance)=='function' then return core.fov.distance(ax,ay,bx,by) end
-    return math.max(math.abs(ax-bx),math.abs(ay-by))
-end
 function M.execute(g, action, target, meta, command)
     local normalized,invalid=M.validate(action)
     if not normalized then return {ok=false,code=invalid,energy_spent=0} end
     action=normalized
+    -- Each command records its own native target geometry; clear any previous run.
+    if type(command)=='table' then command.target_geometry=nil end
     if Progression.isAction(action.type) then return Progression.execute(g,action) end
     if Items.isAction(action.type) then return Items.execute(g,action,meta) end
     if action.type=='rest' then return {ok=false,code='runtime_managed_action',energy_spent=0} end
@@ -258,7 +174,7 @@ function M.execute(g, action, target, meta, command)
         local static_range=type(t)=='table' and t.range
         local tx,ty=target and target.x or action.x,target and target.y or action.y
         if finite(static_range) and finite(tx) and finite(ty) and finite(p.x) and finite(p.y)
-            and gridDistance(p.x,p.y,tx,ty)>static_range then
+            and Distance.grid(p.x,p.y,tx,ty)>static_range then
             return {ok=false,code='target_out_of_range',energy_spent=0}
         end
     end
@@ -283,6 +199,7 @@ function M.execute(g, action, target, meta, command)
         end
     end
     local before = p.energy.value
+    local before_x,before_y=p.x,p.y
     if not finite(before) then return {ok=false,code='invalid_native_energy',uncertain=true} end
     local ok, ret = pcall(function()
         if interactive then
@@ -310,7 +227,7 @@ function M.execute(g, action, target, meta, command)
                         if type(typ)=='table' then
                             -- Preserve the native range guard for the first request.
                             if finite(typ.range) and finite(p.x) and finite(p.y)
-                                and gridDistance(p.x,p.y,x,y)>typ.range then return false end
+                                and Distance.grid(p.x,p.y,x,y)>typ.range then return false end
                             -- Let the native UI raise its own self-target warning.
                             if x==p.x and y==p.y and typ.nowarning~=true and typ.talent~=nil then return false end
                         end
@@ -320,6 +237,22 @@ function M.execute(g, action, target, meta, command)
                         if consumed then return original(self,typ,...) end
                         consumed=true
                         rawset(p,'getTarget',prior)
+                        -- Record the native target geometry once, for the agent
+                        -- (beam/ball radius/self-fire). This is the spec the
+                        -- native talent itself built, not a speculative run.
+                        if command and type(typ)=='table' and not command.target_geometry then
+                            local talent=type(typ.talent)=='string' and p.talents_def and p.talents_def[typ.talent] or nil
+                            local shape=type(typ.type)=='string' and typ.type or 'unknown'
+                            local scope,residual=Details.damageScope(shape,talent and talent.direct_hit,
+                                talent and talent.radius or typ.radius)
+                            command.target_geometry={shape=shape,
+                                radius=finite(typ.radius) and typ.radius or nil,
+                                range=finite(typ.range) and typ.range or nil,
+                                selffire=Details.selffire({type=shape,selffire=typ.selffire,direct_hit=talent and talent.direct_hit}),
+                                friendlyfire=Details.friendlyfire({type=shape,friendlyfire=typ.friendlyfire}),
+                                piercing=typ.type=='beam' or nil,damage_scope=scope,
+                                residual_area_radius=residual}
+                        end
                         local x,y,entity=resolve()
                         if allowed(typ,x,y) then return x,y,entity end
                         -- Out of bounds/range or a native self-warning: fall back
@@ -352,6 +285,11 @@ function M.execute(g, action, target, meta, command)
     local success = ret and true or false
     local result={ok=success,code=success and 'action_complete' or 'native_rejected',energy_spent=spent}
     if type(ret)=='boolean' then result.native_return=ret end
+    -- A move that neither changed position nor spent energy was blocked by
+    -- terrain; report it distinctly instead of a silent success.
+    if success and action.type=='move' and spent==0 and p.x==before_x and p.y==before_y then
+        return {ok=false,code='blocked',energy_spent=0,native_return=ret}
+    end
     return result
 end
 return M

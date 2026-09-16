@@ -72,14 +72,18 @@ check(snapshot.player.stats.str.base==11 and snapshot.player.stats.str.bonus==1 
 check(snapshot.player.life_regen==0.25 and snapshot.player.resources.stamina.regen==1 and snapshot.player.regeneration_is_raw,'raw regeneration')
 check(snapshot.control_source==meta.control_source and snapshot.battle_companion==meta.battle_companion,'existing control source and BC metadata retained')
 check(#snapshot.actors==1 and snapshot.actors[1].name=='Visible enemy','visible actor only')
-check(snapshot.player.inventory[1].name=='old sword' and not snapshot.player.inventory[1].identified
-    and snapshot.player.inventory[1].combat==nil and snapshot.player.inventory[1].type==nil,'unidentified item only exposes unknown appearance')
-check(snapshot.player.inventory[1].requirements==nil and snapshot.player.inventory[1].equipment_slot==nil,
+check(snapshot.actors[1].distance==1,'actors carry the native grid distance')
+check(snapshot.player.inventory_count==1 and snapshot.player.equipment_count==1
+    and snapshot.player.inventory==nil,'compact snapshot keeps inventory counts only')
+local player_details=assert(Observer.inspect(g,meta,'character','self'))
+check(player_details.inventory[1].name=='old sword' and not player_details.inventory[1].identified
+    and player_details.inventory[1].combat==nil and player_details.inventory[1].type==nil,'unidentified item only exposes unknown appearance')
+check(player_details.inventory[1].requirements==nil and player_details.inventory[1].equipment_slot==nil,
     'unidentified inventory hides equipment slot and requirements')
-check(not Json.encode(snapshot):find('SECRET ARTIFACT',1,true) and not unknown.identified,'no secret item identity or identification mutation')
-check(snapshot.player.equipment[1].combat.dam==12 and snapshot.player.equipment[1].combat.secret==nil
-    and snapshot.player.equipment[1].wielder.secret==nil and snapshot.player.equipment[1].count==2,'known equipped scalar whitelist and stack count')
-local equipped=snapshot.player.equipment[1]
+check(not Json.encode(player_details):find('SECRET ARTIFACT',1,true) and not unknown.identified,'no secret item identity or identification mutation')
+check(player_details.equipment[1].combat.dam==12 and player_details.equipment[1].combat.secret==nil
+    and player_details.equipment[1].wielder.secret==nil and player_details.equipment[1].count==2,'known equipped scalar whitelist and stack count')
+local equipped=player_details.equipment[1]
 check(equipped.equipment_slot=='MAINHAND' and equipped.offslot=='OFFHAND' and equipped.material_level==1
     and equipped.encumbrance==3 and equipped.encumbrance_is_per_item,'identified equipment slot, tier and per-item weight')
 check(equipped.requirements.stats.str==15 and equipped.requirements.talents[1].id=='T_ARMOUR_TRAINING'
@@ -98,16 +102,16 @@ check(select(2,Observer.inspect(g,meta,'actor',Observer.actorId(meta,hidden)))==
 
 -- Reconstruct identification only from native rules and never change the item.
 g.object_known_types={weapon={greatsword={['SECRET ARTIFACT']=true}}}
-snapshot=Observer.capture(g,meta,2,{include_map=false})
+snapshot=Observer.capture(g,meta,2,{include_map=false,detail='full'})
 check(snapshot.map==Json.null and snapshot.scene.zone_id=='trollmire'
     and #snapshot.actors==1 and snapshot.player.exp==7,'map omission retains other observations')
 check(snapshot.player.inventory[1].identified and snapshot.player.inventory[1].name=='SECRET ARTIFACT'
     and unknown.identified==false,'native known-type identification is read-only')
 g.object_known_types=nil;unknown.auto_id=true
-check(Observer.capture(g,meta,2).player.inventory[1].identified and unknown.identified==false,'native auto-id is read-only')
+check(Observer.capture(g,meta,2,{detail='full'}).player.inventory[1].identified and unknown.identified==false,'native auto-id is read-only')
 unknown.auto_id=nil;unknown.isIdentified=forbidden
 g.object_known_types={weapon={greatsword={['SECRET ARTIFACT']=true}}}
-check(not Observer.capture(g,meta,2).player.inventory[1].identified,'overridden identification cannot disclose additional knowledge')
+check(not Observer.capture(g,meta,2,{detail='full'}).player.inventory[1].identified,'overridden identification cannot disclose additional knowledge')
 g.object_known_types=nil
 
 -- Compare the pure projection to the actual native act=false terrain branch.
@@ -226,7 +230,7 @@ for i=1,200 do
     p.inven[1][i]={uid=100+i,identified=true,name=noisy,add_name=noisy,type=noisy,subtype=noisy,
         combat={dam=1},wielder={combat_atk=1},isIdentified=forbidden}
 end
-local full=Observer.capture(g,meta,2,{include_map=false})
+local full=Observer.capture(g,meta,2,{include_map=false,detail='full'})
 check(#full.player.equipment==1 and full.player.equipment[1].name=='iron greatsword'
     and not full.player.equipment_truncated and full.player.inventory_truncated,'full backpack retains equipped items and independent truncation flags')
 g.dialogs={}
@@ -245,7 +249,7 @@ for y=0,24 do for x=0,24 do
     end
 end end
 map.map[p.x+p.y*25][3]=p
-snapshot=Observer.capture(g,meta,10000)
+snapshot=Observer.capture(g,meta,10000,{detail='full'})
 check(snapshot.map.radius==12 and #snapshot.map.cells==625,'direct observer calls also cap map size')
 check(#snapshot.talents<=64 and snapshot.talents_truncated and #snapshot.actors<=32 and snapshot.actors_truncated,'actor and talent limits explicit')
 check(#snapshot.player.inventory+#snapshot.player.equipment<=32 and snapshot.player.inventory_truncated
@@ -255,4 +259,20 @@ check(#snapshot.dialogs<=4 and snapshot.dialogs_truncated and #snapshot.dialogs[
 local bytes=#Json.encode(snapshot)
 check(bytes<192*1024 and snapshot.truncated and snapshot.map.names_truncated,'bounded capture leaves 64 KiB journal/transport headroom: '..bytes)
 check(forbidden_calls==0,'stress observations stay read-only')
+-- Round-11 backlog: static damage scope, ground effects, ego name cleanup.
+local dscope,dres=Details.damageScope('ball',nil,1)
+check(dscope=='area' and dres==1,'area shape reports residual radius')
+check(select(1,Details.damageScope('beam'))=='line','beam damage is a line')
+check(select(1,Details.damageScope('ball',true))=='area','a ball stays an area even with direct_hit')
+check(select(1,Details.damageScope('unknown',true))=='unknown','a function target with direct_hit and no residual stays unknown')
+check(select(1,Details.damageScope('beam',true))=='line','a beam stays multi-target even with direct_hit (Moonlight Ray)')
+check(select(1,Details.damageScope('unknown'))=='unknown','an unknown shape has unknown damage scope')
+g.level.map.effects={{x=p.x+1,y=p.y,duration=5,damtype={type='LIGHT'},radius=1,fake_overlay={type='light_zone'}}}
+local effects,effects_truncated=Details.groundEffects(g,p,8)
+check(#effects==1 and effects[1].kind=='light_zone' and effects[1].damage_type=='LIGHT' and effects[1].remaining==5
+    and not effects_truncated,'ground persistent effects are visible with kind and damage type')
+g.level.map.effects=nil
+local ego=Details.item(g,{uid=77,identified=true,name='iron longsword ()',type='weapon',subtype='longsword',
+    ego={{name='flaming'}}},meta)
+check(ego.name=='iron longsword flaming','ego name drops placeholders and keeps the stored ego name')
 print('Observer: '..checks..' checks passed; stress snapshot '..bytes..' bytes')

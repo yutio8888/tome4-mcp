@@ -138,6 +138,9 @@ function M.start()
         require('mod.MCPVisibilityProbe').run(M.emit)
         M.ready=true
         M.emit{kind="arena_ready", enemy_uid=enemy.uid, hidden_uid=hidden.uid, state=M.state()}
+        -- Let the separate auto-combat probe run its scenarios once the arena
+        -- is ready. Harmless when that addon is not loaded.
+        game:triggerHook{"AutoCombatProbe:run"}
     end)
 end
 function M.reload()

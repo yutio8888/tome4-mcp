@@ -7,7 +7,7 @@ import json
 import uuid
 from typing import Any
 
-PROTOCOL_VERSION = 3
+PROTOCOL_VERSION = 4
 MAX_MESSAGE = 1024 * 1024
 TERMINAL = frozenset({"completed", "failed", "cancelled", "needs_input"})
 
@@ -19,6 +19,10 @@ class BridgeError(Exception):
         message: str,
         *,
         uncertain: bool = False,
+        accepted: bool | None = None,
+        acceptance_scope: str | None = None,
+        recovery: str | None = None,
+        details: dict[str, Any] | None = None,
         command_id: str | None = None,
         response_id: str | None = None,
     ) -> None:
@@ -26,6 +30,10 @@ class BridgeError(Exception):
         self.code = code
         self.message = message
         self.uncertain = uncertain
+        self.accepted = accepted
+        self.acceptance_scope = acceptance_scope
+        self.recovery = recovery
+        self.details = details
         self.command_id = command_id
         self.response_id = response_id
 
@@ -33,8 +41,15 @@ class BridgeError(Exception):
         result: dict[str, Any] = {
             "code": self.code,
             "message": self.message,
+            "accepted": self.accepted,
             "uncertain": self.uncertain,
         }
+        if self.acceptance_scope is not None:
+            result["acceptance_scope"] = self.acceptance_scope
+        if self.recovery is not None:
+            result["recovery"] = self.recovery
+        if self.details is not None:
+            result["details"] = self.details
         if self.command_id is not None:
             result["command_id"] = self.command_id
         if self.response_id is not None:
@@ -159,8 +174,17 @@ class BridgeClient:
                 error = reply.get("error")
                 if not isinstance(error, dict) or not isinstance(error.get("code"), str):
                     raise ValueError("Invalid error envelope")
+                accepted = error.get("accepted")
+                acceptance_scope = error.get("acceptance_scope")
+                recovery = error.get("recovery")
+                details = error.get("details")
                 raise BridgeError(
                     error["code"], str(error.get("message", error["code"])),
+                    uncertain=bool(error.get("uncertain", False)),
+                    accepted=accepted if isinstance(accepted, bool) else None,
+                    acceptance_scope=acceptance_scope if isinstance(acceptance_scope, str) else None,
+                    recovery=recovery if isinstance(recovery, str) else None,
+                    details=details if isinstance(details, dict) else None,
                     command_id=args.get("command_id"),
                     response_id=args.get("response_id"),
                 )
@@ -181,6 +205,8 @@ class BridgeClient:
                 "bridge_timeout" if isinstance(exc, TimeoutError) else "bridge_disconnected",
                 message,
                 uncertain=uncertain,
+                accepted=None,
+                recovery="query_original_after_reconnect" if uncertain else None,
                 command_id=args.get("command_id"),
                 response_id=args.get("response_id"),
             ) from exc
@@ -214,9 +240,13 @@ class BridgeClient:
                 record = await self.request("status", query)
             except BridgeError as exc:
                 # Even a read-only status failure leaves the earlier accepted
-                # action unresolved from this client's perspective.
+                # action unresolved from this client's perspective. Keep the
+                # game's recovery metadata instead of flattening it (F2).
                 raise BridgeError(
-                    exc.code, exc.message, uncertain=True, command_id=args["command_id"],
+                    exc.code, exc.message, uncertain=True,
+                    accepted=exc.accepted, acceptance_scope=exc.acceptance_scope,
+                    recovery=exc.recovery, details=exc.details,
+                    command_id=args["command_id"],
                     response_id=args.get("response_id"),
                 ) from exc
         return record

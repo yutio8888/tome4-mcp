@@ -6,9 +6,17 @@ local Interactions=require 'mod.mcp_bridge.Interactions'
 local Chat=require 'engine.Chat'
 local Dialog=require 'engine.dialogs.Chat'
 local invoke=Chat.invoke
+local function staffAllowed()
+    return type(config)=='table' and type(config.settings)=='table' and type(config.settings.tome_mcp_bridge)=='table'
+        and config.settings.tome_mcp_bridge.allow_command_staff==true
+end
 function Chat:invoke(...)
     local runtime=package.loaded['mod.mcp_bridge.Runtime']
     local owner=Tracker.current() or type(runtime)=='table' and runtime.nativeUIOwner and runtime.nativeUIOwner(game)
+    -- The command-staff chat resumes its own coroutine from a dialog action;
+    -- scoping it to the tracker body finishes the invocation early and
+    -- deadlocks the native resume. Run it detached when explicitly allowed.
+    if owner and owner.talent_id=='T_COMMAND_STAFF' and staffAllowed() then return invoke(self,...) end
     if owner and Compat.available('Chat.invoke') then return Tracker.scope(owner,invoke,self,...) end
     return invoke(self,...)
 end

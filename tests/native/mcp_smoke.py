@@ -24,7 +24,7 @@ async def main() -> None:
     async with Client(params) as client:
         tools = await client.list_tools()
         names = {tool.name for tool in tools.tools}
-        check(names == {"tome.connect", "tome.observe", "tome.inspect", "tome.act", "tome.status", "tome.stop", "tome.respond"},
+        check(names == {"tome.connect", "tome.observe", "tome.inspect", "tome.list", "tome.act", "tome.status", "tome.stop", "tome.respond", "tome.dismiss", "tome.abandon", "tome.map", "tome.policy", "tome.policy_log"},
               "official_mcp_initialize_and_list_tools", tools=sorted(names))
         resource = await client.read_resource("tome://rules")
         check(bool(resource.contents), "official_mcp_rules_resource")
@@ -38,7 +38,7 @@ async def main() -> None:
 
         connection = await call("tome.connect")
         session = connection["session_id"]
-        before = await call("tome.observe", dict(session_id=session))
+        before = await call("tome.observe", dict(session_id=session, detail="full"))
         check(before["phase"] == "ready", "mcp_native_game_ready")
         await call("tome.inspect", dict(session_id=session, kind="talent", id="T_LIGHTNING"))
         if connection["capabilities"].get("progression_read"):
@@ -48,10 +48,10 @@ async def main() -> None:
             check(bool(owned), "mcp_native_item_inspection_has_original_equipment")
             item = await call("tome.inspect", dict(session_id=session, kind="item", id=owned[0]["id"]))
             check(item["id"] == owned[0]["id"] and item["name"] == owned[0]["name"], "mcp_native_owned_item_inspection")
-            unchanged = await call("tome.observe", dict(session_id=session))
+            unchanged = await call("tome.observe", dict(session_id=session, detail="full"))
             check(unchanged["player"] == before["player"] and unchanged["world_tick"] == before["world_tick"]
                   and unchanged["revision"] == before["revision"], "mcp_native_growth_item_reads_preserve_state")
-        args = dict(session_id=session, control_token=connection["control_token"], command_id="official-mcp-wait",
+        args = dict(session_id=session, control_token=connection["control_token"], command_id=(before.get("history") or {}).get("next_command_id"),
                     expected_revision=before["revision"], action={"type": "wait"}, wait_ms=10000)
         action = await call("tome.act", args)
         check(action["status"] == "completed" and action["energy_spent"] > 0,

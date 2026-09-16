@@ -109,4 +109,20 @@ local failed=restart_listener();failed.setoption=function() return nil,'option f
 failed.close=function(self) self.closed=true end
 local value,reason=Transport.new{port=55555,socket={tcp=function() return failed end}}
 check(not value and reason=='option failed' and failed.closed,'listener setup failure closes socket')
+-- NET-02: an unauthenticated connection only holds the single slot for the
+-- handshake window; an authenticated client is never dropped by that timer.
+local clock={t=0}
+local hbridge,hlistener=fixture{clock=function() return clock.t end,handshake_timeout=5000}
+local hpeer=client();hlistener.pending[1]=hpeer
+hbridge:poll()
+check(not hpeer.closed and hbridge.client==hpeer,'a new unauthenticated client is accepted')
+clock.t=5001
+hbridge:poll()
+check(hpeer.closed and hbridge.client==nil,'an unauthenticated client past the window is dropped')
+local abridge,alistener=fixture{clock=function() return clock.t end,handshake_timeout=5000}
+local apeer=client();alistener.pending[1]=apeer
+abridge:poll();abridge:markAuthenticated()
+clock.t=clock.t+100000
+abridge:poll()
+check(not apeer.closed and abridge.client==apeer,'an authenticated client is not dropped by the handshake timer')
 print(('transport: %d checks passed'):format(checks))

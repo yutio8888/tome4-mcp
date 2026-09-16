@@ -1,0 +1,61 @@
+{
+  "$comment": "Spec v1.0 examples. These are design examples for the v4 service, not current 0.8.0 output.",
+  "history": {
+    "last_accepted_seq": 4271,
+    "evicted_through_seq": 4015,
+    "retained_count": 256,
+    "next_command_id": "cmd-4272",
+    "dedup_scope": "game_session"
+  },
+  "command_view": {
+    "command_id": "cmd-4272",
+    "seq": 4272,
+    "status": "completed",
+    "code": "action_complete",
+    "accepted": true,
+    "execution_released": true,
+    "input_owner": null,
+    "uncertain": false,
+    "energy_spent_complete": true,
+    "revision_before": 800,
+    "revision_after": 802,
+    "snapshot_availability": "retained",
+    "snapshot": null,
+    "interaction": null,
+    "native_task": null,
+    "response_receipt": null
+  },
+  "observation_page": {
+    "view_id": "view-example",
+    "session_id": "tome-example",
+    "level_instance_id": "level-3",
+    "captured_revision": 734,
+    "current_revision": 736,
+    "historical": true,
+    "collection": "inventory",
+    "items": [],
+    "returned_count": 0,
+    "total_count": 0,
+    "capture_complete": true,
+    "has_more": false,
+    "next_cursor": null,
+    "expires_in_ms": 117000
+  },
+  "tool_reply_ok": { "ok": true, "result": { "session_id": "tome-example" }, "error": null },
+  "tool_reply_error": {
+    "ok": false,
+    "result": null,
+    "error": {
+      "code": "command_history_expired",
+      "category": "history",
+      "acceptance_scope": "command",
+      "message": "The command was accepted earlier; its detailed receipt is no longer retained.",
+      "accepted": true,
+      "uncertain": true,
+      "command_id": "cmd-17",
+      "response_id": null,
+      "recovery": "do_not_replay",
+      "details": { "evicted_through_seq": 100, "last_accepted_seq": 356 }
+    }
+  }
+}

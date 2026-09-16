@@ -1,9 +1,99 @@
 -- GPL-3.0-or-later. Bounded, read-only projections of already known state.
 -- Never invoke object naming/identification, tooltip, combat or UI callbacks.
 local Json = require 'mod.mcp_bridge.Json'
+local Distance = require 'mod.mcp_bridge.Distance'
 local M = {}
 function M.finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 function M.number(n) return M.finite(n) and n or nil end
+-- Self-inclusion for a target spec. Only an explicit selffire is authoritative.
+-- A missing value is never treated as "area shapes self-hit": shapes that
+-- cannot contain their own origin (beam/hit/bolt/arrow) are false, everything
+-- else stays unknown (Searing Light targets a ball cursor but deals a hit with
+-- a friendly ground zone, so it has no self-damage).
+function M.selffire(typ)
+    if type(typ)~='table' then return 'unknown' end
+    if type(typ.selffire)=='boolean' then return typ.selffire end
+    if typ.selffire~=nil then return 'unknown' end
+    -- Only a shape that cannot include its own origin is safe to report false.
+    -- A missing area-shape selffire stays unknown: the target cursor may allow
+    -- self placement, but the actual damage can be a single-target hit with a
+    -- friendly ground zone (Searing Light) or a self-hitting ball.
+    local shape=typ.type
+    if shape=='beam' or shape=='hit' or shape=='bolt' or shape=='arrow' then return false end
+    return 'unknown'
+end
+-- Static damage footprint: a direct hit is single-target, a beam is a line,
+-- and an area shape covers a region. A stored residual radius (an on-ground
+-- remainder such as Searing Light's light zone) is reported separately.
+function M.damageScope(shape,direct_hit,residual_radius)
+    local residual=M.number(residual_radius)
+    -- Only the static shape is a reliable damage footprint. direct_hit does not
+    -- imply single-target (Searing Light is direct_hit but a self-hitting ball).
+    if shape=='beam' then return 'line',residual end
+    if shape=='ball' or shape=='cone' or shape=='wide' then return 'area',residual end
+    if shape=='hit' then return 'single',residual end
+    return 'unknown',residual
+end
+-- Whether a talent can hit its own side. Explicit native values win; a dynamic
+-- target function or a missing value stays unknown (never inferred).
+function M.friendlyfire(typ)
+    if type(typ)~='table' then return 'unknown' end
+    if type(typ.friendlyfire)=='boolean' then return typ.friendlyfire end
+    return 'unknown'
+end
+local function onSegment(ox,oy,ex,ey,ax,ay)
+    -- Integer-grid collinearity plus bounding box; a warning, not a projectile.
+    local cross=(ex-ox)*(ay-oy)-(ey-oy)*(ax-ox)
+    if cross~=0 then return false end
+    if ax<math.min(ox,ex) or ax>math.max(ox,ex) then return false end
+    if ay<math.min(oy,ey) or ay>math.max(oy,ey) then return false end
+    return true
+end
+local function rayEnd(ox,oy,tx,ty,range)
+    local dx,dy=tx-ox,ty-oy
+    local steps=math.max(math.abs(dx),math.abs(dy))
+    if steps<=0 or type(range)~='number' then return tx,ty end
+    local f=range/steps
+    return math.floor(ox+dx*f+0.5),math.floor(oy+dy*f+0.5)
+end
+local function friendlyOf(origin,actor)
+    local reaction=M.number(actor.reaction)
+    if reaction~=nil then return reaction>=0 end
+    if actor.faction~=nil and origin.faction~=nil then return actor.faction==origin.faction end
+    return true
+end
+-- Visible friendly/neutral units inside a talent's static damage footprint.
+-- `visible` is injected so this stays a player-visible read (no engine getters).
+function M.friendliesInEffect(g,origin,tx,ty,shape,radius,range,visible)
+    local out,count=Json.array(),0
+    if type(visible)~='function' or not (g and g.level and origin) then return out,count end
+    if not (M.finite(tx) and M.finite(ty) and M.finite(origin.x) and M.finite(origin.y)) then return out,count end
+    local ex,ey=tx,ty
+    if shape=='beam' then ex,ey=rayEnd(origin.x,origin.y,tx,ty,range) end
+    for _,actor in pairs(g.level.entities or {}) do
+        if actor~=origin and type(actor)=='table' and actor.__is_actor and visible(g,actor)
+            and M.finite(actor.x) and M.finite(actor.y) and friendlyOf(origin,actor) then
+            local hit=false
+            if shape=='beam' then
+                hit=onSegment(origin.x,origin.y,ex,ey,actor.x,actor.y)
+                if hit and type(range)=='number' then
+                    hit=Distance.grid(origin.x,origin.y,actor.x,actor.y)<=range
+                end
+            elseif shape=='ball' or shape=='cone' or shape=='wide' then
+                hit=Distance.grid(tx,ty,actor.x,actor.y)<=(radius or 0)
+            elseif shape=='hit' or shape=='bolt' or shape=='arrow' or shape==nil or shape=='unknown' then
+                hit=actor.x==tx and actor.y==ty
+            end
+            if hit then
+                count=count+1
+                if #out<8 then
+                    out[#out+1]={id=M.text(tostring(actor.uid),64),name=M.text(actor.name,48) or 'unknown'}
+                end
+            end
+        end
+    end
+    return out,count
+end
 function M.native(fn,suffix)
     if type(fn)~='function' then return false end
     local info=debug.getinfo(fn,'S')
@@ -12,7 +102,9 @@ function M.native(fn,suffix)
 end
 function M.text(value,limit)
     if type(value)~='string' then return nil end
-    -- Bound escaping overhead as well as bytes; preserve ordinary UTF-8.
+    -- Strip ToME display markup (#COLOR#, #{bold}#, #RESIST#, ...) and bound
+    -- escaping overhead as well as bytes; preserve ordinary UTF-8.
+    value=value:gsub('#{.-}#',''):gsub('#[%w_]+#',''):gsub('##','')
     value=value:gsub('[%z\1-\8\11\12\14-\31]',' ')
     limit=limit or 128
     if #value<=limit then return value end
@@ -154,11 +246,34 @@ local function requirements(obj)
 end
 -- Shared by inventory, current ground observations and item inspection. These
 -- are raw, already known properties; never identify an object to describe it.
+-- Strip placeholder artifacts (empty parentheses) left by an unresolved ego
+-- template, then append stored ego names. The native getName is deliberately
+-- not invoked (pure stored reads only).
+local function cleanItemName(value)
+    local text=M.text(value,128)
+    if not text then return nil end
+    text=text:gsub('%s*%(%s*%)',''):gsub('%s+$','')
+    return #text>0 and text or nil
+end
+local function storedEgoName(obj)
+    if type(obj.ego)~='table' then return nil end
+    local parts={}
+    for _,ego in ipairs(obj.ego) do
+        local name=type(ego)=='table' and (ego.name or ego.ego_name) or nil
+        if type(name)=='string' and #name>0 then parts[#parts+1]=name end
+    end
+    return #parts>0 and table.concat(parts,' ') or nil
+end
 function M.item(g,obj,meta)
     local identified=isIdentified(g,obj)
+    local base=cleanItemName(identified and obj.name or obj.unided_name) or 'unknown'
+    if identified then
+        local ego=storedEgoName(obj)
+        if ego and not base:find(ego,1,true) then base=base..' '..ego end
+    end
     local result={id=M.objectId(meta,obj),identified=identified,
         count=type(obj.stacked)=='table' and 1+#obj.stacked or 1,
-        name=M.text(identified and obj.name or obj.unided_name) or 'unknown',name_is_raw=true}
+        name=base,name_is_raw=true}
     if identified then
         result.type=M.text(obj.type,48);result.subtype=M.text(obj.subtype,48)
         result.add_name=M.text(obj.add_name,64)
@@ -211,7 +326,7 @@ function M.inventory(g,p,meta)
             end
             local obj=inven[slot]
             local item=M.item(g,obj,meta)
-            item.inventory_id=inven_id;item.slot=slot
+            item.inventory_id=inven_id;item.container_id=inven_id;item.slot=slot
             item.container=M.text(inven.short_name or def.short_name,48);item.equipped=equipped
             item.transmogrification_pending=obj.__transmo and true or false
             local destination=is_equipment and equipment or inventory
@@ -220,7 +335,7 @@ function M.inventory(g,p,meta)
     end
     return inventory,equipment,inventory_truncated,equipment_truncated
 end
-function M.player(g,p,meta,result)
+function M.player(g,p,meta,result,detailed)
     result.level=M.number(p.level);result.exp=M.number(p.exp);result.exp_next=M.expNext(p)
     result.exp_scope='progress within current level; exp_next is the next-level threshold'
     for _,key in ipairs{'unused_stats','unused_talents','unused_generics','unused_talents_types','unused_prodigies'} do result[key]=M.number(p[key]) end
@@ -236,17 +351,88 @@ function M.player(g,p,meta,result)
             bonus=type(p.inc_stats)=='table' and M.number(p.inc_stats[id]) or nil}
     end
     result.life_regen=M.number(p.life_regen);result.regeneration_is_raw=true
+    result.gold=M.number(p.money)
+    result.gold_scope='gold is the stored money field'
+    local carried=0
+    for _,inven in pairs(p.inven or {}) do
+        if type(inven)=='table' then
+            for slot,obj in pairs(inven) do
+                if type(slot)=='number' and slot>0 and type(obj)=='table' and M.finite(obj.encumber) then
+                    local count=type(obj.stacked)=='table' and (1+#obj.stacked) or 1
+                    carried=carried+obj.encumber*count
+                end
+            end
+        end
+    end
+    result.encumbrance={items_total=math.floor(carried*100+0.5)/100,max_bonus=M.number(p.max_encumber),
+        scope='items_total sums stored per-item weights; native current/max totals include strength and effects and are not evaluated'}
+    result.cooldowns=Json.array()
+    if type(p.talents_cd)=='table' then
+        local ids={}
+        for tid,cd in pairs(p.talents_cd) do if type(tid)=='string' and M.finite(cd) and cd>0 then ids[#ids+1]=tid end end
+        table.sort(ids)
+        for _,tid in ipairs(ids) do
+            local def=p.talents_def and p.talents_def[tid]
+            result.cooldowns[#result.cooldowns+1]={id=tid,name=type(def)=='table' and M.text(def.name,64) or nil,
+                remaining=math.floor(p.talents_cd[tid]*1000+0.5)/1000}
+        end
+    end
     result.die_at=M.number(p.die_at) or 0
     result.energy=type(p.energy)=='table' and M.number(p.energy.value) or nil
     result.resources={}
+    local resource_defs=p.resources_def
     for _,name in ipairs{'mana','stamina','vim','positive','negative','psi','hate','equilibrium','paradox','air'} do
-        if M.finite(p[name]) then result.resources[name]={value=p[name],min=M.number(p['min_'..name]),
-            max=M.number(p['max_'..name]),regen=M.number(p[name..'_regen'])} end
+        if M.finite(p[name]) then
+            -- A resource is only reported when the player has unlocked it. Each
+            -- resource definition is tied to a resource-pool talent; a pool the
+            -- player has not learned is a default zero and carries no meaning
+            -- (air has no pool talent and is always kept).
+            local def=type(resource_defs)=='table' and resource_defs[name] or nil
+            local talent=type(def)=='table' and def.talent or nil
+            local unlocked=talent==nil or (type(p.talents)=='table' and p.talents[talent]~=nil)
+            if unlocked then
+                local regen=M.number(p[name..'_regen'])
+                if regen then regen=math.floor(regen*1000+0.5)/1000 end
+                result.resources[name]={value=p[name],min=M.number(p['min_'..name]),
+                    max=M.number(p['max_'..name]),regen=regen}
+            end
+        end
     end
     result.effects,result.effects_truncated=M.effects(p)
     result.effect_duration_is_raw=true
-    result.inventory,result.equipment,result.inventory_truncated,result.equipment_truncated=M.inventory(g,p,meta)
-    result.inventory_scope='owned items; raw known names and identified scalar properties only'
+    -- Active sustained talents are not tmp effects; expose them explicitly so a
+    -- build decision does not have to infer them from resource maximums.
+    result.sustains=Json.array()
+    if type(p.sustain_talents)=='table' then
+        local ids={}
+        for tid,on in pairs(p.sustain_talents) do
+            if on and type(tid)=='string' then ids[#ids+1]=tid end
+        end
+        table.sort(ids)
+        for _,tid in ipairs(ids) do
+            local def=p.talents_def and p.talents_def[tid]
+            result.sustains[#result.sustains+1]={id=tid,name=type(def)=='table' and M.text(def.name,64) or nil}
+        end
+    end
+    if detailed then
+        result.inventory,result.equipment,result.inventory_truncated,result.equipment_truncated=M.inventory(g,p,meta)
+        result.inventory_scope='owned items; raw known names and identified scalar properties only'
+    else
+        local inv,equip=0,0
+        for inven_id,inven in pairs(p.inven or {}) do
+            if type(inven)=='table' then
+                local def=p.inven_def and p.inven_def[inven_id] or {}
+                local is_equipment=inven.worn==true or def.is_worn==true or def.is_shown_equip==true
+                local n=0
+                for slot,obj in pairs(inven) do
+                    if type(slot)=='number' and slot>0 and slot%1==0 and type(obj)=='table' then n=n+1 end
+                end
+                if is_equipment then equip=equip+n else inv=inv+n end
+            end
+        end
+        result.inventory_count=inv;result.equipment_count=equip
+        result.inventory_scope='counts only; enumerate with tome.list collection=inventory or equipment'
+    end
 end
 function M.terrain(terrain,p)
     local result={name=M.text(terrain.name,48) or 'unknown',
@@ -296,6 +482,19 @@ function M.dialogs(g)
         local dialog=dialogs[i]
         if type(dialog)=='table' and not dialog.hidden and not dialog.hide then
             local item={title=M.text(dialog.title),topmost=i==#dialogs,widgets=Json.array()}
+            -- A native List menu (for example the death dialog) exposes its
+            -- selectable entries even though they are not text/button widgets.
+            local list=dialog.c_list
+            if type(list)=='table' and type(list.list)=='table' and #list.list>0 then
+                item.kind='list_menu'
+                item.options=Json.array()
+                for j=1,math.min(#list.list,16) do
+                    local option=list.list[j]
+                    item.options[#item.options+1]={label=M.text(type(option)=='table' and (option.name or option.label) or tostring(option),128)
+                        or ('Option '..j)}
+                end
+                if #list.list>16 then item.options_truncated=true end
+            end
             local widgets=type(dialog.uis)=='table' and dialog.uis or {}
             local shown=0
             for j=1,#widgets do
@@ -314,6 +513,31 @@ function M.dialogs(g)
         end
     end
     return result,truncated
+end
+-- Persistent ground/overlay effects stored on the map (light zones, glyphs,
+-- clouds). Read-only scalars; grids/particles/functions are never evaluated.
+function M.groundEffects(g,p,radius)
+    local out=Json.array()
+    local map=g and g.level and g.level.map
+    if not map or type(map.effects)~='table' or not M.finite(p.x) or not M.finite(p.y) then return out,false end
+    local limit=64;local truncated=false;local n=0
+    for _,e in ipairs(map.effects) do
+        if type(e)=='table' and M.finite(e.x) and M.finite(e.y)
+            and math.abs(e.x-p.x)<=radius and math.abs(e.y-p.y)<=radius then
+            n=n+1
+            if n>limit then truncated=true;break end
+            local kind
+            if type(e.overlay)=='table' then kind=M.text(e.overlay.type or e.overlay.name,48)
+            elseif type(e.fake_overlay)=='table' then kind=M.text(e.fake_overlay.type or e.fake_overlay.name,48) end
+            local damage_type
+            if type(e.damtype)=='table' then damage_type=M.text(e.damtype.type or e.damtype.name,48)
+            else damage_type=M.text(e.damtype,48) end
+            out[#out+1]={x=e.x,y=e.y,radius=M.number(e.radius),remaining=M.number(e.duration),
+                damage_type=damage_type,kind=kind,damage=M.number(e.dam)}
+        end
+    end
+    table.sort(out,function(a,b) if a.x~=b.x then return a.x<b.x end return a.y<b.y end)
+    return out,truncated
 end
 function M.bounded(result)
     -- Reserve 64 KiB of the 256 KiB transport frame for control/journal data.
@@ -361,5 +585,34 @@ function M.bounded(result)
         largest[2][largest[3]]=true
     end
     return result
+end
+function M.inventoryAll(g,p,meta,which)
+    local items,truncated=Json.array(),false
+    if not p or type(p.inven)~='table' then return items,true end
+    local keys,keys_truncated=M.keys(p.inven,4096,function(k,v) return M.finite(k) and type(v)=='table' end)
+    if keys_truncated then truncated=true end
+    table.sort(keys)
+    for _,inven_id in ipairs(keys) do
+        local inven=p.inven[inven_id]
+        local def=p.inven_def and p.inven_def[inven_id] or {}
+        local equipped=inven.worn==true or def.is_worn==true
+        local is_equipment=equipped or def.is_shown_equip==true
+        if (which=='equipment' and is_equipment) or (which=='inventory' and not is_equipment) then
+            local slots,slots_truncated=M.keys(inven,4096,function(k,v)
+                return M.finite(k) and k>0 and k%1==0 and type(v)=='table'
+            end)
+            if slots_truncated then truncated=true end
+            table.sort(slots)
+            for _,slot in ipairs(slots) do
+                local obj=inven[slot]
+                local item=M.item(g,obj,meta)
+                item.inventory_id=inven_id;item.container_id=inven_id;item.slot=slot
+                item.container=M.text(inven.short_name or def.short_name,48);item.equipped=equipped
+                item.transmogrification_pending=obj.__transmo and true or false
+                items[#items+1]=item
+            end
+        end
+    end
+    return items,not truncated
 end
 return M

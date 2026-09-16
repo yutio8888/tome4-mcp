@@ -1,0 +1,69 @@
+{
+  "date": "2026-09-16",
+  "round": "auto-combat-p1a-2",
+  "session": "agent-ham-insane-32",
+  "character": "Halfling/Celestial-Anorithil/Insane/Roguelike",
+  "policy": "anorithil_p1a",
+  "policy_hash": "3843a4f494f1a7f8336f8b1509756304",
+  "p0_recheck": {
+    "no-idle-hold": {
+      "passed": true,
+      "evidence": [
+        "acted ray",
+        "stopped no_available_action",
+        "control_owner=manual"
+      ]
+    },
+    "owner-exclusivity": {
+      "passed": true,
+      "evidence": [
+        "control_conflict",
+        "recovery=connect_explicitly",
+        "connect control -> manual",
+        "wait completed"
+      ]
+    }
+  },
+  "observed_decisions": {
+    "acted_melee": 76,
+    "stopped_no_available_action": 15,
+    "stopped_no_visible_enemies": 10,
+    "acted_finish": 4,
+    "acted_ray": 4,
+    "acted_heal": 2,
+    "paused_new_enemy": 1,
+    "acted_sustain": 1,
+    "unknown_safety": 0,
+    "control_lost": 0,
+    "native_error": 0
+  },
+  "issues_found": [
+    {
+      "severity": "P1",
+      "id": "cooldown-stop-friction",
+      "fixed": true,
+      "summary": "stop on every cooldown required manual turns",
+      "fix": "preset declares an explicit lowest-priority recover wait rule"
+    },
+    {
+      "severity": "P2",
+      "id": "native_result-null",
+      "fixed": true,
+      "summary": "acted log had no native_result",
+      "fix": "acted events carry native_result (service+log)"
+    },
+    {
+      "severity": "P2",
+      "id": "status-log-truncation",
+      "fixed": true,
+      "summary": "console auto status returned 24 entries",
+      "fix": "console requests 64"
+    }
+  ],
+  "raw": {
+    "report_sha256": "2012e877e9f4eee20083f12273607759d1366dcf313669bfe82cfc1ec7bb7041",
+    "play_mcp_sha256": "abd6035b21a98473898e808fd0eef7e7cdc1baa81bc44e4f46a9b1feed20e1da",
+    "game_log_sha256": "0033c990270c3406976e60368c38ee25172bd5f7fb2a17b47f87cae66c5af42c"
+  },
+  "archive_sha256": "ea15541bdefb8c565f8a9afaaca4ac70cd211c398d3bfe0f9c193f3c418ae30e"
+}

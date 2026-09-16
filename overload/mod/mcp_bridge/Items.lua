@@ -7,7 +7,7 @@ local Tracker=require 'mod.mcp_bridge.InvocationTracker'
 local M={LIMIT=32,PILE_LIMIT=128}
 local kinds={pickup=true,equip=true,unequip=true,use_item=true}
 local equipment_slots={MAINHAND=true,OFFHAND=true,BODY=true,HEAD=true,HANDS=true,FEET=true,
-    CLOAK=true,BELT=true,NECK=true,LITE=true,RING=true,TOOL=true}
+    CLOAK=true,BELT=true,NECK=true,LITE=true,RING=true,FINGER=true,TOOL=true}
 local function integer(n,lo,hi) return Details.finite(n) and n%1==0 and n>=lo and n<=hi end
 local function stringId(v) return type(v)=='string' and #v>0 and #v<=256 and not v:find('%z') end
 local function active(v) return v~=nil and v~=false and v~=0 end
@@ -248,7 +248,17 @@ function M.execute(g,action,meta)
         return result
     end
     if type(ret)=='boolean' then result.native_return=ret end
-    if a.type=='use_item' then result.ok=ret==true
+    if a.type=='use_item' then
+        result.ok=ret==true
+        if not result.ok then
+            local obj=record.obj or {}
+            local activation=type(obj.use_power)=='table' or type(obj.use_simple)=='table'
+                or type(obj.use_talent)=='table'
+            result.native_message=activation
+                and 'The native item use was refused (charges, cooldown, conditions or target).'
+                or 'This item has no bridge-visible activation; the native use was refused.'
+            result.hint='item use is decided natively; inspect activation.present and the player-visible log'
+        end
     elseif a.type=='pickup' then result.ok=ret~=nil and ret~=false
     else
         local after=owned(g,meta,nil,record.obj)

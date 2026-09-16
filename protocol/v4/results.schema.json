@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tome://protocol/v4/results.schema.json",
+  "title": "ToME MCP Bridge v4 result models",
+  "$comment": "Spec v1.0 API-02/03 and sections 4/8. CommandView property names are checked against Runtime.lua by tools/generate_protocol.py.",
+  "$defs": {
+    "ToolReply": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "result", "error"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "result": { "anyOf": [{ "type": "object" }, { "type": "null" }] },
+        "error": { "anyOf": [{ "$ref": "errors.schema.json" }, { "type": "null" }] }
+      },
+      "allOf": [
+        { "if": { "properties": { "ok": { "const": true } } }, "then": { "properties": { "result": { "type": "object" }, "error": { "type": "null" } } } },
+        { "if": { "properties": { "ok": { "const": false } } }, "then": { "properties": { "result": { "type": "null" }, "error": { "type": "object" } } } }
+      ]
+    },
+    "History": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["last_accepted_seq", "evicted_through_seq", "retained_count", "next_command_id", "dedup_scope"],
+      "properties": {
+        "last_accepted_seq": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "evicted_through_seq": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "retained_count": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "next_command_id": { "anyOf": [{ "$ref": "common.schema.json#/$defs/CommandId" }, { "type": "null" }] },
+        "dedup_scope": { "type": "string", "enum": ["game_session"] }
+      }
+    },
+    "CommandView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command_id", "seq", "status", "accepted", "execution_released", "input_owner", "uncertain", "snapshot_availability"],
+      "properties": {
+        "command_id": { "$ref": "common.schema.json#/$defs/CommandId" },
+        "seq": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "status": { "$ref": "common.schema.json#/$defs/CommandStatus" },
+        "accepted": { "const": true },
+        "code": { "type": ["string", "null"] },
+        "execution_released": { "type": "boolean" },
+        "input_owner": { "$ref": "common.schema.json#/$defs/InputOwner" },
+        "uncertain": { "type": "boolean" },
+        "energy_spent": { "type": ["number", "null"] },
+        "energy_spent_complete": { "type": "boolean" },
+        "native_return": { "type": ["boolean", "null"] },
+        "world_tick_before": { "type": ["integer", "null"] },
+        "world_tick_after": { "type": ["integer", "null"] },
+        "revision_before": { "anyOf": [{ "$ref": "common.schema.json#/$defs/Revision" }, { "type": "null" }] },
+        "revision_after": { "anyOf": [{ "$ref": "common.schema.json#/$defs/Revision" }, { "type": "null" }] },
+        "revision": { "anyOf": [{ "$ref": "common.schema.json#/$defs/Revision" }, { "type": "null" }] },
+        "history": { "$ref": "#/$defs/History" },
+        "snapshot_availability": { "$ref": "common.schema.json#/$defs/SnapshotAvailability" },
+        "snapshot_scope": { "type": ["string", "null"] },
+        "snapshot": { "anyOf": [{ "type": "object" }, { "type": "null" }] },
+        "interruption": { "type": ["string", "null"] },
+        "turns_executed": { "type": ["integer", "null"] },
+        "max_turns": { "type": ["integer", "null"] },
+        "stop_reason": { "type": ["string", "null"] },
+        "native_message": { "type": ["string", "null"] },
+        "target_geometry": { "anyOf": [{ "type": "object" }, { "type": "null" }] },
+        "level_changed": { "type": "boolean" },
+        "points_spent": { "type": ["integer", "null"] },
+        "points_returned": { "type": ["integer", "null"] },
+        "point_pool": { "type": ["string", "null"] },
+        "previous_value": { "type": ["integer", "boolean", "null"] },
+        "new_value": { "type": ["integer", "null"] },
+        "action_ok": { "type": ["boolean", "null"], "description": "Authoritative outcome: true only when the native action took effect. Distinct from accepted (the command was admitted); see also status/code." },
+        "missing": { "anyOf": [{ "type": "array" }, { "type": "null" }], "description": "Static unmet requirements for a rejected progression action (level/stat/talent/special)." },
+        "hint": { "type": ["string", "null"], "description": "Human hint for the terminal code; the code stays authoritative." },
+        "parent_action": { "type": ["string", "null"], "description": "For a respond result, the parent command action type whose code this result carries." },
+        "interaction": { "anyOf": [{ "type": "object" }, { "type": "null" }] },
+        "native_task": { "anyOf": [{ "type": "object" }, { "type": "null" }] },
+        "response_receipt": { "anyOf": [{ "type": "object" }, { "type": "null" }] }
+      }
+    },
+    "ObservationPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["view_id", "session_id", "level_instance_id", "captured_revision", "current_revision", "historical", "collection", "items", "returned_count", "total_count", "capture_complete", "has_more", "next_cursor", "expires_in_ms"],
+      "properties": {
+        "view_id": { "type": "string" },
+        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
+        "level_instance_id": { "type": "string" },
+        "captured_revision": { "$ref": "common.schema.json#/$defs/Revision" },
+        "current_revision": { "$ref": "common.schema.json#/$defs/Revision" },
+        "historical": { "type": "boolean" },
+        "collection": { "type": "string" },
+        "items": { "type": "array" },
+        "returned_count": { "type": "integer", "minimum": 0 },
+        "total_count": { "type": "integer", "minimum": 0 },
+        "capture_complete": { "type": "boolean" },
+        "has_more": { "type": "boolean" },
+        "next_cursor": { "anyOf": [{ "$ref": "common.schema.json#/$defs/Cursor" }, { "type": "null" }] },
+        "expires_in_ms": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

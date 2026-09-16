@@ -2,9 +2,9 @@
 -- actor lookups or perception checks run here. Cursors are session-local.
 local Json=require 'mod.mcp_bridge.Json'
 local M={LIMIT=256,PAGE=16,TEXT_LIMIT=512}
-local current,display,entries,sequence,next_line
+local current,display,entries,sequence,next_line,prev_texts
 function M.reset()
-    current={};display=nil;entries={};sequence=0;next_line=0
+    current={};display=nil;entries={};sequence=0;next_line=0;prev_texts={}
 end
 M.reset()
 local function boundedText(value)
@@ -25,37 +25,53 @@ function M.update(g)
     if not logdisplay or type(logdisplay.log)~='table' then return end
     if display~=logdisplay then
         if display then append{op='reset',reason='log_display_replaced'} end
-        display=logdisplay;current={}
+        display=logdisplay;current={};prev_texts={}
     end
-    local present={}
+    local present,appended,present_texts={},{},{}
     -- LogDisplay stores the newest line first; publish new lines oldest first.
     for i=math.min(#logdisplay.log,512),1,-1 do
         local row=logdisplay.log[i]
         if type(row)=='table' and type(row.str)=='string' and row.str~='' then
-            local existing=current[row]
             local text=boundedText(row.str)
+            present_texts[#present_texts+1]=text
+            local existing=current[row]
             if not existing then
                 next_line=next_line+1
                 existing={id=next_line,text=text}
-                append{op='append',line_id=existing.id,text=text,observed_world_tick=g.turn or 0,
-                    text_truncated=#row.str>#text}
+                appended[#appended+1]={line=existing,raw=row.str}
             elseif text~=existing.text then
                 existing.text=text
-                append{op='update',line_id=existing.id,text=text,observed_world_tick=g.turn or 0,
-                    text_truncated=#row.str>#text}
+                appended[#appended+1]={line=existing,update=true,raw=row.str}
             end
             present[row]=existing
         end
+    end
+    -- The engine may rebuild every log row object while the visible text is
+    -- unchanged (for example after a level change). Re-key without replaying.
+    local rerender=#appended>0 and #present_texts==#prev_texts
+    if rerender and #prev_texts>0 then
+        for i=1,#present_texts do
+            if present_texts[i]~=prev_texts[i] then rerender=false;break end
+        end
+    else
+        rerender=false
+    end
+    if rerender then current=present;prev_texts=present_texts;return end
+    for _,item in ipairs(appended) do
+        append{op=item.update and 'update' or 'append',line_id=item.line.id,text=item.line.text,
+            observed_world_tick=g.turn or 0,text_truncated=#item.raw>#item.line.text}
     end
     -- Rollback, clearing and history eviction are observable log changes.
     -- They do not imply that a previous game action was undone.
     local removed={}
     for row,line in pairs(current) do
-        if not present[row] then removed[#removed+1]=line.id end
+        if not present[row] then removed[#removed+1]={id=line.id,text=line.text} end
     end
-    table.sort(removed)
-    for _,id in ipairs(removed) do append{op='remove',line_id=id,reason='no_longer_in_visible_log'} end
-    current=present
+    table.sort(removed,function(a,b) return a.id<b.id end)
+    for _,entry in ipairs(removed) do
+        append{op='remove',line_id=entry.id,text=entry.text,reason='no_longer_in_visible_log'}
+    end
+    current=present;prev_texts=present_texts
 end
 function M.capture(g,after)
     M.update(g)

@@ -11,15 +11,39 @@ else
     task_lua_options=()
 fi
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_json.lua
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_ledger.lua
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_observation_views.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_transport.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_actions.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_talent_query.lua
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_query_purity.lua
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_resource_filter.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_journal.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_observer.lua
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_level_map.lua
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_actor_combat.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_progression.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_items.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_tasks.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_invocations.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_policy.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_friendly_fire.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_controller.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_catalog.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_snapshot.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_service.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_host.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_io.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_editor_model.lua
 if [ -f game/addons/tome-mcp-bridge/tests/test_runtime.lua ]; then
     "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_runtime.lua
 fi

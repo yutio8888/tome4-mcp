@@ -4,6 +4,7 @@ local Details=require 'mod.mcp_bridge.ObservationDetails'
 local Observer=require 'mod.mcp_bridge.Observer'
 local Tracker=require 'mod.mcp_bridge.InvocationTracker'
 local Compat=require 'mod.mcp_bridge.NativeCompatibility'
+local Distance=require 'mod.mcp_bridge.Distance'
 local M={MAX_RESPONSES=128,PAGE_SIZE=32}
 local dialogs=setmetatable({}, {__mode='k'})
 local targets=setmetatable({}, {__mode='k'})
@@ -59,6 +60,7 @@ function M.openTarget(g,typ)
             or 'Choose a target',
         origin={x=Details.number(origin.start_x) or g.player.x,y=Details.number(origin.start_y) or g.player.y},
         range=Details.number(origin.range),radius=Details.number(origin.radius),
+        shape=Details.text(origin.type,32),selffire=origin.selffire==true or nil,
         direction_source=direction and g.player or nil}
     targets[g]=h
 end
@@ -69,13 +71,33 @@ end
 
 -- Called inside audited native constructors, immediately before registration.
 -- Button closures stay inside the game; clients receive only opaque option IDs.
-function M.openDialog(d,kind,title,text,options,cancel,list)
-    local owner=nativeOwner()
+function M.openDialog(d,kind,title,text,options,cancel,list,owner)
+    owner=owner or nativeOwner()
     if not owner then return end
     local h=add{owner=owner,game=owner.root.game,dialog=d,kind=kind,
         prompt=Details.text(title,512),text=Details.text(text,2048),
         options=options,cancel=cancel,list=list}
     dialogs[d]=h
+end
+-- Move a dialog handle to a new root (for example a session root after the
+-- owning command was revoked) so it stays answerable.
+function M.reown(d,root)
+    local h=dialogs[d]
+    if not h or not root or h.root==root then return h end
+    h.root=root;h.owner={root=root}
+    h.game.paused=true
+    issue(h)
+    return h
+end
+function M.reownAll(old,new)
+    if not old or not new or old==new then return end
+    for _,h in pairs(dialogs) do
+        if h.root==old and liveDialog(h.game,h.dialog) then
+            h.root=new;h.owner={root=new}
+            h.game.paused=true
+            issue(h)
+        end
+    end
 end
 function M.openInventory(d,class_name)
     local owner=nativeOwner()
@@ -136,13 +158,126 @@ function M.noticeText(d)
     end
     return Details.text(table.concat(parts,'\n'),2048)
 end
-function M.openNotice(d,source,title,text)
+-- The native close/accept handler of a popup, used to answer dialogs the
+-- bridge did not create (for example the death dialog, which has no EXIT
+-- virtual but does have a default key or a button callback).
+local function nativeClose(d)
+    local key=d and d.key
+    local virtuals=key and key.virtuals
+    for _,name in ipairs{'EXIT','ACCEPT','DEFAULT'} do
+        local fn=virtuals and virtuals[name]
+        if type(fn)=='function' then return fn end
+    end
+    local uis=type(d.uis)=='table' and d.uis or {}
+    for _,entry in ipairs(uis) do
+        local ui=type(entry)=='table' and entry.ui
+        if type(ui)=='table' and type(ui.fct)=='function' and not ui.hidden and not ui.hide then return ui.fct end
+    end
+    return nil
+end
+-- Register an already-open native dialog for answering WITHOUT bumping the
+-- revision: observing a popup is a read, not a game mutation. Used lazily from
+-- snapshot because some dialogs (the death menu) call Dialog.init before they
+-- build their list UI, so the eager adoption cannot see it yet.
+-- Native buttons of a popup (for example Dialog:yesnoPopup Yes/No) as real
+-- options, so answering selects the button instead of only pressing EXIT.
+local function buttonOptions(d)
+    local options={}
+    for _,entry in ipairs(d.uis or {}) do
+        local ui=entry.ui
+        if type(ui)=='table' and type(ui.fct)=='function' and not ui.hidden and not ui.hide
+            and not entry.hidden and not entry.hide and ui.visible~=false then
+            options[#options+1]={label=Details.text(ui.text,128) or ('Option '..(#options+1)),
+                apply=function() ui.fct() end}
+        end
+    end
+    return #options>0 and options or nil
+end
+function M.adoptNative(d,root)
+    if not root or dialogs[d] then return dialogs[d] end
+    local list=d and d.c_list
+    local buttons=buttonOptions(d)
+    local h
+    if type(list)=='table' and type(list.list)=='table' and #list.list>0 and type(list.onSelect)=='function' then
+        h={owner={root=root},game=root.game,dialog=d,kind='dialog.choice',
+            prompt=Details.text(d.title,512),options=nil,cancel=nil,list=list}
+    elseif buttons then
+        h={owner={root=root},game=root.game,dialog=d,kind='dialog.choice',
+            prompt=Details.text(d.title,512),text=M.noticeText(d),options=buttons,cancel=nil}
+    else
+        local close=d and d.key and d.key.virtuals and d.key.virtuals.EXIT
+        if type(close)~='function' then close=nativeClose(d) end
+        if type(close)~='function' then return nil end
+        h={owner={root=root},game=root.game,dialog=d,kind='dialog.notice',
+            prompt=Details.text(d.title,512),text=M.noticeText(d),
+            options={{label='Close',apply=close}},cancel=close}
+        h.notice={source='nativePopup',key=d.key,close=close}
+    end
+    h.root=root;h.level=root.game.level
+    root.interactions=root.interactions or {}
+    root.interactions[#root.interactions+1]=h
+    root.command=root.command or {}
+    root.command.interaction_sequence=(root.command.interaction_sequence or 0)+1
+    h.sequence=root.command.interaction_sequence
+    serial=serial+1
+    h.interaction_id='interaction-'..serial
+    h.consumed=false
+    dialogs[d]=h
+    return h
+end
+-- Close the topmost native popup through its own handler. Returns ok, code.
+function M.dismissTop(g)
+    local dialogs=type(g.dialogs)=='table' and g.dialogs or {}
+    local function stillOpen(d)
+        for _,x in ipairs(dialogs) do if x==d then return true end end
+        return false
+    end
+    for i=#dialogs,1,-1 do
+        local d=dialogs[i]
+        if type(d)=='table' and not d.hidden and not d.hide then
+            local close=nativeClose(d)
+            if close then
+                local ok,err=pcall(close)
+                if ok and not stillOpen(d) then return true,'native_dialog' end
+                return false,ok and 'dialog_not_closed' or err
+            end
+        end
+    end
+    return false,'no_closeable_dialog'
+end
+function M.openNotice(d,source,title,text,owner)
     local key=d.key
     local close=key and key.virtuals and key.virtuals.EXIT
     if type(close)~='function' then return end
-    M.openDialog(d,'dialog.notice',title and title~='' and title or source,text,{{label='Close',apply=close}},close)
+    M.openDialog(d,'dialog.notice',title and title~='' and title or source,text,{{label='Close',apply=close}},close,nil,owner)
     local h=dialogs[d]
     if h then h.notice={source=source,key=key,close=close} end
+end
+-- Adopt an unowned, closeable native popup for the active remote command so the
+-- agent can answer it instead of losing control (round-5 report 3.8).
+function M.adoptNotice(d,root)
+    if not root or dialogs[d] then return nil end
+    -- A native List menu (for example the death dialog) exposes selectable
+    -- entries; adopt it as a choice so the options can be answered.
+    local list=d.c_list
+    if type(list)=='table' and type(list.list)=='table' and #list.list>0 and type(list.onSelect)=='function' then
+        M.openDialog(d,'dialog.choice',d.title,nil,nil,nil,list,{root=root})
+        return dialogs[d]
+    end
+    local buttons=buttonOptions(d)
+    if buttons then
+        M.openDialog(d,'dialog.choice',d.title,M.noticeText(d),buttons,nil,nil,{root=root})
+        return dialogs[d]
+    end
+    if root.command then
+        if type(root.command)~='table' then return nil end
+        if root.command.input_owner=='manual' or root.command.handoff_requested then return nil end
+    end
+    local close=d.key and d.key.virtuals and d.key.virtuals.EXIT
+    if type(close)~='function' then close=nativeClose(d) end
+    if type(close)~='function' then return nil end
+    M.openNotice(d,'nativePopup',d.title,M.noticeText(d),{root=root})
+    return dialogs[d]
 end
 function M.dialogOwner(d) local h=dialogs[d];return h and not h.closed and h.root end
 function M.adoptPassiveDialog(d,owner,task)
@@ -174,7 +309,13 @@ end
 
 function M.valid(h)
     local g,root=h.game,h.root
-    if h.closed or g.player~=root.player or g.level~=root.level or h.level and h.level~=g.level then return false end
+    if h.closed then return false end
+    -- The session root deliberately has no player/level: a native popup raised
+    -- outside a command belongs to the session, not to a command invocation.
+    -- Only a root that tracks its own player is compared against the live game;
+    -- h.level still invalidates the handle on a level change.
+    if root.player and (g.player~=root.player or g.level~=root.level) then return false end
+    if h.level and h.level~=g.level then return false end
     if h.chat then
         local d,c=h.dialog,h.chat
         if not chatCompatible(d) or d.chat~=c.provider or d.player~=c.player or d.npc~=c.npc or d.cur_id~=c.id or d.list~=c.list
@@ -256,6 +397,7 @@ function M.describe(root,meta,offset)
     if h.chat then result.native_ui='Chat' end
     if h.target then
         result.origin=h.origin;result.range=h.range;result.radius=h.radius
+        result.shape=h.shape;result.selffire=h.selffire
         if h.kind=='target.direction' then result.answer_types=Json.array{'direction','cancel'}
         else
             result.answer_types=Json.array{'actor','position','cancel'}
@@ -334,10 +476,7 @@ function M.prepare(h,answer,meta)
         if type(h.range)=='number' and h.range==h.range and h.range>=0 then
             local p=h.game.player
             local ox,oy=(h.origin and h.origin.x) or p.x,(h.origin and h.origin.y) or p.y
-            local dist
-            if core and core.fov and type(core.fov.distance)=='function' then
-                dist=core.fov.distance(ox,oy,x,y)
-            else dist=math.max(math.abs(ox-x),math.abs(oy-y)) end
+            local dist=Distance.grid(ox,oy,x,y)
             if dist>h.range then return nil,'position_out_of_range' end
         end
         return {type='position',x=x,y=y}
@@ -380,7 +519,9 @@ function M.apply(h,prepared)
         elseif h.list then
             h.list.sel=prepared.index
             h.list:onSelect()
-            h.dialog.key:triggerVirtual('ACCEPT')
+            -- Select the entry directly; a native dialog may not bind ACCEPT.
+            if type(h.list.onUse)=='function' then h.list:onUse()
+            else h.dialog.key:triggerVirtual('ACCEPT') end
         else prepared.option.apply() end
         -- Native options can keep a dialog open; ask again with a fresh ID.
         if M.valid(h) then issue(h) end
