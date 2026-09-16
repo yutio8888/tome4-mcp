@@ -273,7 +273,7 @@ async def main():
                 if op == 'status':
                     st = await policy('status')
                     log = await call('tome.policy_log',
-                                     {'session_id': state['connection']['session_id'], 'limit': 24})
+                                     {'session_id': state['connection']['session_id'], 'limit': 64})
                     return {'status': st, 'log': log}
                 return {'error': {'code': 'unknown_auto_op', 'op': op}}
 

@@ -18,6 +18,15 @@ for _,name in ipairs(names) do
     check(Catalog.verify(policy)==true,'preset '..name..' is semantically compatible')
 end
 do
+    -- The pilot preset declares an explicit cooldown-recovery wait so a fight
+    -- does not stop every opportunity while the main ray recharges.
+    local recover
+    for _,rule in ipairs(Presets.get('anorithil_p1a').rules) do
+        if rule.id=='recover' then recover=rule end
+    end
+    check(recover and recover['then'].action=='wait','the pilot preset has an explicit wait recovery rule')
+end
+do
     local edit=Presets.copy('anorithil_p1a')
     edit.rules[1].priority=1
     check(Presets.get('anorithil_p1a').rules[1].priority==100,'copy() does not mutate the built-in preset')

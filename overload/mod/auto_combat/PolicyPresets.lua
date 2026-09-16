@@ -34,6 +34,14 @@ M.PRESETS={
                     {talent_known={talent='T_MOONLIGHT_RAY'}},
                     {cooldown_ready={talent='T_MOONLIGHT_RAY'}}}},
                 ['then']={action='use_talent',talent='T_MOONLIGHT_RAY',target='nearest_hostile'}},
+            -- Explicit, lowest-priority cooldown recovery: an enemy is in range
+            -- but the main ray is cooling down, so spend one turn waiting (which
+            -- advances the cooldown) instead of stopping every opportunity.
+            -- This is a declared data rule, not an implicit executor fallback.
+            {id='recover',priority=1,
+                when={all={{enemy_count={ge=1}},{nearest_enemy_distance={le=10}},
+                    {['not']={cooldown_ready={talent='T_MOONLIGHT_RAY'}}}}},
+                ['then']={action='wait'}},
         },
     },
 }

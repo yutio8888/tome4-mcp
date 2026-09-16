@@ -147,4 +147,17 @@ do
     check(held.decision=='hold','a rule that does not match holds')
 end
 
+do
+    -- The pilot preset's lowest-priority rule spends a turn on cooldown
+    -- recovery instead of stopping every opportunity.
+    local Presets=require 'mod.auto_combat.PolicyPresets'
+    local preset=Presets.get('anorithil_p1a')
+    local c=ctx({hp_pct=80,enemy_count=1,nearest_enemy_distance=5,enemy_in_melee=false,
+        talent_known=function() return true end,
+        cooldown_ready=function(id) return id~='T_MOONLIGHT_RAY' end})
+    local decision=Evaluator.evaluate(preset,c)
+    check(decision.decision=='act' and decision.rule=='recover' and decision.action=='wait',
+        'the pilot preset waits one turn while its main ray cools down')
+end
+
 print('Auto-combat policy: '..checks..' checks passed')

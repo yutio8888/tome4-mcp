@@ -1,6 +1,6 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "603d3667f386bca2fabd612a7ad48a141e159913f0ba516737a665913267138b",
+  "sha256": "ea15541bdefb8c565f8a9afaaca4ac70cd211c398d3bfe0f9c193f3c418ae30e",
   "files": {
     "README.md": "21ca37fc6d9ab107a7690cb70c16f273f6296522811cadc2b46902e74bac55a3",
     "hooks/load.lua": "8c11d088a300e6ce1a4778c7388ef42a9c868fe60b41fa1e4fde37f667a061f6",
@@ -14,7 +14,7 @@
     "overload/mod/auto_combat/PolicyEvaluator.lua": "2fb20e987e457b97e67ef341a7f9f51ce47df56566d1babe127ba2cc96fcbf27",
     "overload/mod/auto_combat/PolicyIO.lua": "e90ca46c72b24e9449ff87d53bf007c9c44d372983a6c85fbef20f2486985ced",
     "overload/mod/auto_combat/PolicyLog.lua": "4ce647bce2f1ad435f5d73ff435be4d05db050e28c945aecf6ec78e2ee6431c7",
-    "overload/mod/auto_combat/PolicyPresets.lua": "6ae1889ac16a2cf235e1ecb2f153cc312fe2ad5359585f0a6aaa4f7d08896ada",
+    "overload/mod/auto_combat/PolicyPresets.lua": "5a45b78c28f2a93302b60b741763e7457f37cdd611e32ee6b3e5747f2fb807de",
     "overload/mod/auto_combat/PolicySchema.lua": "4208909bf579609074b997e0bd406ac98f6d41e780222673f2b403bc14ccefd9",
     "overload/mod/auto_combat/PolicySnapshot.lua": "bffeabf909a7e038c09b43a7e79348f9893c6ca75923d29e92b3ddd6cb9736f2",
     "overload/mod/auto_combat/PolicyStore.lua": "ea4da01649869deb868393ec573c14799f35ecf17531eda541520eefcda96930",
