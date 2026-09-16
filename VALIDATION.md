@@ -1,5 +1,26 @@
 # MCP Bridge 验收记录
 
+## 0.9.0：自动战斗插件 P3 首片（assistant 适配器）
+
+日期：2026-09-17。**只生成、人工确认**：把固定版本的旧自动技能助手配置翻译为自动战斗策略草稿。从不执行 assistant 逻辑、从不 approve/activate/start；执行与 `change_level` 默认仍关闭。
+
+| 检查层 | 结果 | 证据 |
+| --- | --- | --- |
+| 固定版本/格式 | **通过**：`tome-auto_talent_assistant` 2.3.9 / ToME 1.7.4 / 导出格式 `tome-auto-combat-assistant-export/v1`；版本、格式、addon、缺失 assistant 均明确拒绝 | `tests/test_auto_combat_assistant.lua`（44） |
+| 纯翻译器 | **通过**：`AssistantAdapter.detect/translate` 无引擎访问、确定性；生成草稿通过 `PolicySchema`+`AutoCombatCatalog` | 同上、fixtures |
+| 不支持项记录 | **通过**：不支持 talent/action/sustain/字段/条件以 warnings/unsupported 返回，不静默丢弃；无可用规则返回 `no_supported_rules` | fixtures `tests/fixtures/assistant/` |
+| MCP 路径 | **通过**：`tome.policy policy_op=import_assistant` 只产出草稿；`store=true` 才写 draft（control-only，observe 拒绝）；从不 approve/activate/start | `test_runtime.lua`（145）、`server/tests` |
+| 原生 fixture | **通过（27/27，source 与 `dist/*.teaa` 各一次）**：新增 `assistant-import` 场景 | `tmp/tome-mcp-validation/sessions/p3-check-01/`、`p3-teaa-01/` |
+| 既有套件 | Lua **32 套 / 101,901 checks**、Python **33 通过**、两个 `--check` 生成器绿 | `bash game/addons/tome-mcp-bridge/tests/run.sh` 等 |
+
+正式包 **59 个生产文件**，SHA-256：
+
+```text
+d16433cbc93b38fa20df37da8e0b6d232473c06b17e9e2e838caf0579bc66bfb
+```
+
+映射决定与排除项见 [P3 设计/状态](docs/tome-mcp-0.9.0-p3-assistant-adapter.md)。P3 为长期维护项，本片为有界首片。
+
 ## 0.9.0：自动战斗插件 P2（调优）
 
 日期：2026-09-17。在审计过的只读字段上增加一批谓词/选择器、可回放的决策追踪、A/B 调参器与第二个职业 pilot。仍为 data-only；执行与 `change_level` 默认关闭。

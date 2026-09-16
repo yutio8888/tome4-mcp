@@ -48,6 +48,7 @@ M.EXPECTED={
     ['rest-policy']={'wait_native','stopped'},
     ['explore-policy']={'wait_native','stopped'},
     ['sun-paladin-preset']={'valid','compatible','dry_run'},
+    ['assistant-import']={'generated','valid','unsupported_reported','stored','refused'},
     ['solo-pump']={},
 }
 
@@ -288,6 +289,50 @@ local function sunPaladinPreset()
     return compare('sun-paladin-preset',signals)
 end
 
+-- 9: generation-only assistant import through the production service. It
+-- translates a pinned export into a draft, reports unsupported entries, stores
+-- only on request, and refuses a wrong version. It never approves/activates.
+local function assistantImport()
+    local config={format='tome-auto-combat-assistant-export/v1',
+        assistant={addon='auto_talent_assistant',addon_version={2,3,9},tome_version={1,7,4}},
+        class='celestial/anorithil',settings={min_hp_pct=35,max_actions_per_tick=1},
+        sustains={{talent='T_CHANT_OF_FORTRESS',enabled=true,priority=20}},
+        talents={
+            {talent='T_HEALING_LIGHT',enabled=true,priority=100,emergency=true,
+                when={hp_pct={lt=50}}},
+            {talent='T_UNSUPPORTED_LEGACY',enabled=true,priority=50,when={hp_pct={lt=80}}},
+        }}
+    local signals={}
+    local result=Runtime.autoCombatHandle(game,'import_assistant',{config=config})
+    local generated=result and result.ok==true and result.imported==true and result.draft~=nil
+    signals[#signals+1]=generated and 'generated' or 'generate_failed'
+    check('assistant-import:generated',generated,result)
+    local valid=generated and Schema.validate(result.draft)==true and Catalog.verify(result.draft)==true
+    signals[#signals+1]=valid and 'valid' or 'invalid'
+    check('assistant-import:valid',valid,{})
+    local reported=false
+    for _,entry in ipairs(generated and result.unsupported or {}) do
+        if entry.code=='unsupported_talent' then reported=true end
+    end
+    signals[#signals+1]=reported and 'unsupported_reported' or 'unsupported_missing'
+    check('assistant-import:unsupported',reported,generated and result.unsupported)
+    local service=Runtime.autoCombatService(game)
+    local approved_before=service.store.approved
+    local stored=Runtime.autoCombatHandle(game,'import_assistant',{config=config,store=true})
+    local store_ok=stored and stored.ok==true and stored.stored and stored.stored.draft_hash
+        and service.store.approved==approved_before
+    signals[#signals+1]=store_ok and 'stored' or 'store_failed'
+    check('assistant-import:store',store_ok,stored)
+    local wrong=Runtime.autoCombatHandle(game,'import_assistant',
+        {config={format='tome-auto-combat-assistant-export/v1',
+            assistant={addon='auto_talent_assistant',addon_version={9,9,9}},
+            talents={{talent='T_HEALING_LIGHT',enabled=true,priority=1,when={always={}}}}}})
+    local refused=wrong and wrong.ok==false and wrong.error and wrong.error.code=='assistant_version_mismatch'
+    signals[#signals+1]=refused and 'refused' or 'not_refused'
+    check('assistant-import:refused',refused,wrong)
+    return compare('assistant-import',signals)
+end
+
 -- 6: with no MCP client, local authorization installs the live pump and the
 -- production executor performs a real native wait action.
 local function soloPumpSetup()
@@ -340,6 +385,7 @@ local function runAll()
         restPolicy()
         explorePolicy()
         sunPaladinPreset()
+        assistantImport()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok

@@ -126,3 +126,23 @@ P2 ships the bounded tuning slice documented in
 Items 12–13 (sustain `min_resource_pct`, `flee_below_hp_pct`) remain deferred:
 both are execution-tuning that interacts with native resource/retreat semantics
 and stay out of the bounded P2 slice.
+
+## P3 first slice (legacy assistant adapter)
+
+The generation-only adapter is documented in
+[docs/tome-mcp-0.9.0-p3-assistant-adapter.md](tome-mcp-0.9.0-p3-assistant-adapter.md).
+Decisions recorded here:
+
+23. **Pinned version** `tome-auto_talent_assistant` 2.3.9 on ToME 1.7.4, export
+    format `tome-auto-combat-assistant-export/v1`; any mismatch is refused.
+24. **Normalized export, not `.tata`/`actor.Assistant`.** The assistant has no
+    stable ABI (pointer-rebuilt `.tata`, numeric `conditionType` internals), so
+    the adapter maps an explicit, documented export and reports unknown keys
+    rather than guessing.
+25. **Generation only.** `import_assistant` produces a draft + warnings and
+    stores it only with `store=true` (control-only). It never approves,
+    activates or starts; native activities and `change_level` are never
+    generated.
+26. **`has_effect`/`computed`** stay warned as runtime-unknown; wiring host
+    getters for panel/tooltip-visible values is a future enablement, out of this
+    generation-only slice.
