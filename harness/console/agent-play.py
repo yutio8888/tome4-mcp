@@ -348,8 +348,11 @@ async def main():
                             state['revision'] = out['snapshot'].get('revision', state['revision'])
                             out = {**out, 'snapshot': snapshot_summary(out['snapshot'])}
                     elif c.get('key'):
-                        if c.get('modifier'):
-                            r.input.chord(c['modifier'], c['key'])
+                        mods = c.get('modifiers') or ([c['modifier']] if c.get('modifier') else [])
+                        if len(mods) > 1:
+                            r.input.chord_many(mods, c['key'])
+                        elif mods:
+                            r.input.chord(mods[0], c['key'])
                         else:
                             r.input.press(c['key'])
                         await asyncio.sleep(.3)

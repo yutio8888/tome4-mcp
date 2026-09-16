@@ -67,6 +67,20 @@ Fix (`Runtime.lua`):
 - `ControlArbiter.SOURCES` still uses `mcp` rather than the design's `remote`
   and has no `battle_companion`; tracked in the P1a TODO.
 
+## Standalone UI (no MCP client)
+
+The in-game editor is the human path. It is opened with **Ctrl+G** and the run is
+started/stopped with **Ctrl+Shift+G** (both also available from the Escape game
+menu as `Auto-combat policy`). An in-engine check (session `agent-ham-insane-31`,)
+confirmed Ctrl+G opens the `Auto-combat policy` dialog, Escape closes it,
+Ctrl+Shift+G attempts the run and reports `not_activated` gracefully without a
+preset, and there are no Lua errors. The editor's buttons call the same
+`Runtime.autoCombatHandle`/`setAutoCombatExecution` accessors that are unit
+tested in `test_runtime.lua`.
+
+The first keybind attempt used Ctrl+A, which the engine already binds to
+`DEBUG_MODE`; the final binding moved to the free Ctrl+G / Ctrl+Shift+G pair.
+
 ## Suites
 
 - `bash tests/run.sh` — 29 suites green.

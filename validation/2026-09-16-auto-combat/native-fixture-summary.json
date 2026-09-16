@@ -2,7 +2,7 @@
   "date": "2026-09-16",
   "fixture": "tests/native/auto_combat_run.py",
   "archive": "dist/tome-mcp-bridge.teaa",
-  "archive_sha256": "18599cc5803f9c10c639e0ae28591eeb362087db8edaca476a76c0e5d1e4b328",
+  "archive_sha256": "c1355b723a7e415e0ff1c6f50b4173dc4573465041a1c09aaeefb0188c9769b2",
   "expected_pause_reasons": {
     "start-when-ready": [
       "schedule_pump"
@@ -29,7 +29,7 @@
   "runs": [
     {
       "mode": "archive",
-      "session": "auto-combat-native-pkg-03",
+      "session": "auto-combat-native-pkg-04",
       "passed": true,
       "checks": [
         {
@@ -91,8 +91,8 @@
         "passed": true,
         "kind": "auto_combat_done"
       },
-      "game_log_sha256": "82a2b987f4c1d58f11832ea47df1db931d122e976a6ef5c8f5780062028072f2",
-      "candidate_sha256": "1a780d13850c09abe8cc177e95ae136cbbbd15dc0ea91a2aff871723ff50c485"
+      "game_log_sha256": "77ffd9abf246138726c98bc8a882cfdb158e70d879335837cb722f23309d7ddb",
+      "candidate_sha256": "79fc7517cfcece51638ec3ff8eec0286b182d6d59ff089c802ac07332c84ccca"
     },
     {
       "mode": "existing-native-suite",

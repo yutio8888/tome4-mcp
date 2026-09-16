@@ -5,13 +5,13 @@ require 'mod.mcp_bridge.NativeGameSeams'
 require 'mod.mcp_bridge.NativeChatSeams'
 local class=require 'engine.class'
 class:bindHook('ToME:load',function()
-    -- Ctrl+A opens the standalone auto-combat policy editor. It is deliberately
-    -- independent of the MCP transport: a human can use the plugin with no
-    -- client attached (design §6.1 / §9.3).
+    -- Ctrl+G opens the standalone auto-combat policy editor; Ctrl+Shift+G
+    -- starts/stops it. Both are deliberately independent of the MCP transport:
+    -- a human can use the plugin with no client attached (design 6.1 / 9.3).
     local KeyBind=require('engine.KeyBind')
-    KeyBind:defineAction{default={'sym:=a:true:false:false:false'},type='AUTO_COMBAT_POLICY',
+    KeyBind:defineAction{default={'sym:_g:true:false:false:false'},type='AUTO_COMBAT_POLICY',
         group='actions',name=_t'Auto-combat policy'}
-    KeyBind:defineAction{default={'sym:=a:true:false:true:false'},type='AUTO_COMBAT_TOGGLE',
+    KeyBind:defineAction{default={'sym:_g:true:true:false:false'},type='AUTO_COMBAT_TOGGLE',
         group='actions',name=_t'Start or stop auto-combat'}
 end)
 class:bindHook('ToME:runDone',function()

@@ -1,0 +1,36 @@
+{
+  "date": "2026-09-16",
+  "session": "agent-ham-insane-31",
+  "kind": "standalone UI in-engine verification",
+  "archive_sha256": "c1355b723a7e415e0ff1c6f50b4173dc4573465041a1c09aaeefb0188c9769b2",
+  "checks": [
+    {
+      "name": "ctrl-g-opens-editor",
+      "expected": "dialog 'Auto-combat policy'",
+      "observed": "dialogs ['Auto-combat policy'], phase needs_input",
+      "passed": true
+    },
+    {
+      "name": "escape-closes-editor",
+      "expected": "unregistered",
+      "observed": "dialogs [], phase ready",
+      "passed": true
+    },
+    {
+      "name": "ctrl-shift-g-toggle",
+      "expected": "graceful not_activated without a preset",
+      "observed": "log Auto-combat: not_activated",
+      "passed": true
+    },
+    {
+      "name": "no-lua-errors",
+      "expected": 0,
+      "observed": 0,
+      "passed": true
+    }
+  ],
+  "raw": {
+    "game_log_sha256": "ffc84f8d626b48fa79cea7e9d548afb3fd25ee4ced5ba4e701717fe2bfefb04f",
+    "play_mcp_sha256": "2959b6e610b4bdabe68099ef3e08e8cc545e912c88b607db78905dedaacd72d7"
+  }
+}

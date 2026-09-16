@@ -67,6 +67,15 @@ class NativeInput:
         time.sleep(0.1)
         self.key(modifier, False)
 
+    def chord_many(self, modifiers: list[str], key: str) -> None:
+        for modifier in modifiers:
+            self.key(modifier, True)
+        time.sleep(0.1)
+        self.press(key)
+        time.sleep(0.1)
+        for modifier in reversed(modifiers):
+            self.key(modifier, False)
+
     def close(self) -> None:
         self.x.XCloseDisplay(self.display)
 

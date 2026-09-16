@@ -1,9 +1,9 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "18599cc5803f9c10c639e0ae28591eeb362087db8edaca476a76c0e5d1e4b328",
+  "sha256": "c1355b723a7e415e0ff1c6f50b4173dc4573465041a1c09aaeefb0188c9769b2",
   "files": {
     "README.md": "21ca37fc6d9ab107a7690cb70c16f273f6296522811cadc2b46902e74bac55a3",
-    "hooks/load.lua": "c28132e9042be7d2a0a034db4d6ac346dc74cf312f16fb837511424d0e42ebd6",
+    "hooks/load.lua": "8c11d088a300e6ce1a4778c7388ef42a9c868fe60b41fa1e4fde37f667a061f6",
     "init.lua": "86313065d2d6090f12003c1cdcfb8cbe0fa370f82df2db6e04093126bafeca08",
     "overload/mod/auto_combat/AutoCombat.lua": "4c75dfc2a9d57c2c668fcdec96834198fb1bfe157fe87ee7ed42bdc901a9c6d1",
     "overload/mod/auto_combat/AutoCombatCatalog.lua": "57f4180c6771a7141fd7ff992f94e8c0faba20bd1d70a1cb548b1398019afc46",
