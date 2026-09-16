@@ -36,6 +36,8 @@ fi
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_catalog.lua
 
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_snapshot.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_service.lua
 if [ -f game/addons/tome-mcp-bridge/tests/test_runtime.lua ]; then
     "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_runtime.lua
 fi

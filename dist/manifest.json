@@ -1,12 +1,13 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "cac6f8a62fb5b4c93a87031362f626db0ca34ab8536527c71c7d0663e6d66cc6",
+  "sha256": "edb4f32c4a27e283a956d3e11758a9c3d9f4ba425ccaf754345c8b9fcfcb875c",
   "files": {
     "README.md": "21ca37fc6d9ab107a7690cb70c16f273f6296522811cadc2b46902e74bac55a3",
     "hooks/load.lua": "19e2e2216d4d83005d9b7f560da6560d2320988d3d7c78f39c7a4c4a1fc007dd",
     "init.lua": "86313065d2d6090f12003c1cdcfb8cbe0fa370f82df2db6e04093126bafeca08",
     "overload/mod/auto_combat/AutoCombat.lua": "432e62d7b76619fa94a16da438c1bd1e38761f9da696c70af8612c3abc0d970e",
     "overload/mod/auto_combat/AutoCombatCatalog.lua": "57f4180c6771a7141fd7ff992f94e8c0faba20bd1d70a1cb548b1398019afc46",
+    "overload/mod/auto_combat/AutoCombatService.lua": "2104e338949e0f7f3da0704d36a4c82cdfed1ec1657763ba32484eef88e2e1d0",
     "overload/mod/auto_combat/ControlArbiter.lua": "73d9111611e992a1095d626615e6bcf7b515127568042933cc5263c487906ed1",
     "overload/mod/auto_combat/PolicyEvaluator.lua": "2fb20e987e457b97e67ef341a7f9f51ce47df56566d1babe127ba2cc96fcbf27",
     "overload/mod/auto_combat/PolicyLog.lua": "63d75839bedb4b9b835de27c1cf8d01251d58e61aebc408b193c5cfaa19cb082",
