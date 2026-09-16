@@ -97,6 +97,7 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             invalid["action"] = {"type": "move", "direction": 5}
             rejected = await client.call_tool("tome.act", invalid)
             self.assertTrue(rejected.is_error)
+            self.assertEqual(rejected.structured_content["error"]["code"], "invalid_argument")
             self.assertEqual(len(self.game.requests), count)
             bad_radius = await client.call_tool("tome.observe", {"session_id": "s1", "radius": 13})
             self.assertTrue(bad_radius.is_error)

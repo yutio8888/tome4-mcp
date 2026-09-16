@@ -901,7 +901,16 @@ local function dispatch(s,request)
             return fail('unknown_response')
         end
         if a.options_offset~=nil and not integer(a.options_offset,0,2147483647) then return fail('invalid_options_offset') end
-        return commandView(command,a.include_map,a.response_id,a.options_offset)
+        if a.compact~=nil and type(a.compact)~='boolean' then return fail('invalid_compact') end
+        local view=commandView(command,a.include_map,a.response_id,a.options_offset)
+        if a.compact==true then
+            -- Trim the large payload; revision/revision_before/after stay so the
+            -- caller can tell the current revision from the command one.
+            view.snapshot=nil;view.history=nil;view.collection_refs=nil
+            view.revision_scope='current'
+            view.compact=true
+        end
+        return view
     elseif op=='list_collection' then
         local req=a.request
         if type(req)~='table' or req==Json.null then return fail('invalid_request') end

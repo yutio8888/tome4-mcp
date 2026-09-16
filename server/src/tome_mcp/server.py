@@ -339,6 +339,23 @@ Use stop to cancel queued work or hand off input; it cannot undo an action.
 """
 
 
+class TomeServer(MCPServer):
+    """MCPServer whose errors always carry a machine-readable envelope.
+
+    The SDK turns argument-validation failures into isError text with no
+    structured content. This keeps the strict input schemas and adds
+    {"ok": false, "error": {"code": "invalid_argument", ...}} to every error.
+    """
+
+    async def _handle_call_tool(self, ctx, params):
+        result = await super()._handle_call_tool(ctx, params)
+        if getattr(result, "is_error", False) and not getattr(result, "structured_content", None):
+            content = getattr(result, "content", None) or []
+            text = content[0].text if content and hasattr(content[0], "text") else "invalid arguments"
+            result.structured_content = {"ok": False, "error": {"code": "invalid_argument", "message": text}}
+        return result
+
+
 def create_server(bridge: BridgeClient) -> MCPServer:
     @asynccontextmanager
     async def lifespan(_server: MCPServer):
@@ -347,7 +364,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
         finally:
             await bridge.close()
 
-    server = MCPServer(
+    server = TomeServer(
         "tome-mcp", version=__version__, lifespan=lifespan,
         instructions="Control the local ToME game through structured snapshots and one native action at a time. Read tome://rules first. Check each tool's ok field and retain command_id for recovery.",
         log_level="WARNING",
@@ -442,13 +459,16 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     @server.tool(name="tome.status", annotations=read)
     async def status(session_id: Identifier, command_id: CommandId, include_map: bool = False,
                      response_id: Identifier | None = None,
-                     options_offset: Annotated[int, Field(ge=0, le=2147483647)] | None = None) -> ToolReply:
+                     options_offset: Annotated[int, Field(ge=0, le=2147483647)] | None = None,
+                     compact: bool = False) -> ToolReply:
         """Read the original command result without executing it again. Use after a pending act or after explicitly reconnecting following an uncertain result."""
         args = {"session_id": session_id, "command_id": command_id, "include_map": include_map}
         if response_id is not None:
             args["response_id"] = response_id
         if options_offset is not None:
             args["options_offset"] = options_offset
+        if compact:
+            args["compact"] = compact
         return reply_result(await call("status", args))
 
     @server.tool(name="tome.respond", annotations=write)
