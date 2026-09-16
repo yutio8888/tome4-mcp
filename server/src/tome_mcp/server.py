@@ -504,7 +504,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     async def abandon(session_id: Identifier, control_token: Identifier) -> ToolReply:
         """Discard a failed/uncertain invocation after a native error and clear bridge isolation so later reads and actions work again. This does NOT roll back the game state; observe first to see where the game actually is."""
         try:
-            return reply_result(ToolReply(ok=True, result=await call("abandon", {"session_id": session_id, "control_token": control_token})))
+            return reply_result(await call("abandon", {"session_id": session_id, "control_token": control_token}))
         except BridgeError as exc:
             return reply_result(ToolReply(ok=False, error=exc.as_dict()))
 

@@ -101,6 +101,12 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(self.game.requests), count)
             bad_radius = await client.call_tool("tome.observe", {"session_id": "s1", "radius": 13})
             self.assertTrue(bad_radius.is_error)
+            abandoned = await client.call_tool("tome.abandon", {"session_id": "s1", "control_token": "c1"})
+            self.assertEqual(abandoned.structured_content["result"]["recovery"], "discarded_failed_invocation")
+            self.game.abandon_not_isolated = True
+            not_isolated = await client.call_tool("tome.abandon", {"session_id": "s1", "control_token": "c1"})
+            self.assertTrue(not_isolated.is_error)
+            self.assertEqual(not_isolated.structured_content["error"]["code"], "not_isolated")
 
     async def test_answers_are_strict_and_reach_native_protocol_once(self):
         self.game.interaction_steps=2

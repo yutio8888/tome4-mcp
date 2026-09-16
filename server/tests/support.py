@@ -21,6 +21,7 @@ class FakeGame:
         self.status_error = None
         self.act_failed = False
         self.keep_status = False
+        self.abandon_not_isolated = False
         self.token = "test-token"
         self.snapshot = {"session_id": "s1", "revision": 7, "phase": "ready", "world_tick": 0}
 
@@ -77,6 +78,13 @@ class FakeGame:
                     reply['result']=record
                     if self.drop_response_reply:
                         continue
+                elif op == "abandon":
+                    if self.abandon_not_isolated:
+                        reply.update(ok=False, error={"code": "not_isolated", "message": "not isolated",
+                                                     "accepted": None, "uncertain": False})
+                    else:
+                        reply["result"] = {"recovered": True, "abandoned_command": "cmd-1",
+                                           "recovery": "discarded_failed_invocation", "snapshot": self.snapshot}
                 elif op == "status":
                     if self.status_error is not None:
                         reply.update(ok=False, error=self.status_error)
