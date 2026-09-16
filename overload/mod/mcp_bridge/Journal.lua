@@ -51,10 +51,12 @@ function M.update(g)
     -- They do not imply that a previous game action was undone.
     local removed={}
     for row,line in pairs(current) do
-        if not present[row] then removed[#removed+1]=line.id end
+        if not present[row] then removed[#removed+1]={id=line.id,text=line.text} end
     end
-    table.sort(removed)
-    for _,id in ipairs(removed) do append{op='remove',line_id=id,reason='no_longer_in_visible_log'} end
+    table.sort(removed,function(a,b) return a.id<b.id end)
+    for _,entry in ipairs(removed) do
+        append{op='remove',line_id=entry.id,text=entry.text,reason='no_longer_in_visible_log'}
+    end
     current=present
 end
 function M.capture(g,after)

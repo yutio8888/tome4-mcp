@@ -8,7 +8,7 @@ import os
 from typing import Annotated, Any, Literal
 
 from mcp.server import MCPServer
-from mcp.types import ToolAnnotations
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from . import __version__
@@ -361,13 +361,26 @@ def create_server(bridge: BridgeClient) -> MCPServer:
         except BridgeError as exc:
             return ToolReply(ok=False, error=exc.as_dict())
 
+    def reply_result(reply: ToolReply, *, terminal: bool = False) -> ToolReply | CallToolResult:
+        """API-05: ok=false is an error; an accepted act/respond that ends in a
+        terminal failed/cancelled is also isError, while a read-only status of
+        that same receipt stays isError=false."""
+        is_error = (not reply.ok) or (terminal and (reply.result or {}).get("status") in {"failed", "cancelled"})
+        if not is_error:
+            return reply
+        message = "native action did not complete"
+        if reply.error:
+            message = str(reply.error.get("message", reply.error.get("code", message)))
+        return CallToolResult(content=[TextContent(type="text", text=message)],
+                              structured_content=reply.model_dump(mode="json"), is_error=True)
+
     @server.tool(name="tome.connect", annotations=write)
     async def connect(mode: Literal["control", "observe"] = "control") -> ToolReply:
         """Connect in observe mode to watch local combat without taking control (null control_token). Control mode, the default, pauses Battle Companion and acquires a fresh lease. Returns session_id, mode, control_token, revision, capabilities and snapshot. Never fall back from observe to control automatically."""
         try:
-            return ToolReply(ok=True, result=await bridge.connect(mode))
+            return reply_result(ToolReply(ok=True, result=await bridge.connect(mode)))
         except BridgeError as exc:
-            return ToolReply(ok=False, error=exc.as_dict())
+            return reply_result(ToolReply(ok=False, error=exc.as_dict()))
 
     @server.tool(name="tome.observe", annotations=read)
     async def observe(session_id: Identifier, radius: Annotated[int, Field(ge=1, le=12)] = 8,
@@ -376,14 +389,14 @@ def create_server(bridge: BridgeClient) -> MCPServer:
         args = {"session_id": session_id, "radius": radius, "include_map": include_map}
         if events_after is not None:
             args["events_after"] = events_after
-        return await call("observe", args)
+        return reply_result(await call("observe", args))
 
     @server.tool(name="tome.inspect", annotations=read)
-    async def inspect(session_id: Identifier, kind: Literal["talent", "actor", "progression", "item", "compatibility"], id: Identifier,
+    async def inspect(session_id: Identifier, kind: Literal["talent", "actor", "character", "progression", "item", "compatibility"], id: Identifier,
                       target_id: Identifier | None = None,
                       x: Annotated[int, Field(ge=0, le=2147483647)] | None = None,
                       y: Annotated[int, Field(ge=0, le=2147483647)] | None = None) -> ToolReply:
-        """Inspect a learned talent, visible actor, owned/visible item by its returned ID, the progression tree with kind=progression and id=player, or the runtime compatibility summary with kind=compatibility and id=runtime. kind=talent adds a read-only query with range, costs, cooldown, affordability and readiness; pass target_id or x/y to include distance. Reads never evaluate dynamic talent descriptions or identify objects. Unavailable details remain unknown."""
+        """Inspect a learned talent, visible actor, the player character panel, an owned/visible item, the progression tree, or the runtime compatibility summary. Use kind=character with id=player (or self) for the stored character-sheet fields (stats, resources, life regen, energy, descriptor, unused points, equipment, base combat/resists); computed gear/effect values are not evaluated. kind=talent adds a read-only query with range, costs, cooldown, affordability and readiness; pass target_id or x/y to include distance. Reads never evaluate dynamic talent descriptions or identify objects."""
         args: dict[str, Any] = {"session_id": session_id, "kind": kind, "id": id}
         if target_id is not None:
             args["target_id"] = target_id
@@ -391,7 +404,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
             args["x"] = x
         if y is not None:
             args["y"] = y
-        return await call("inspect", args)
+        return reply_result(await call("inspect", args))
 
     @server.tool(name="tome.act", annotations=write)
     async def act(
@@ -411,14 +424,14 @@ def create_server(bridge: BridgeClient) -> MCPServer:
             "include_map": include_map,
         }
         try:
-            return ToolReply(ok=True, result=await bridge.act(args, wait_ms=wait_ms))
+            return reply_result(ToolReply(ok=True, result=await bridge.act(args, wait_ms=wait_ms)), terminal=True)
         except BridgeError as exc:
-            return ToolReply(ok=False, error=exc.as_dict())
+            return reply_result(ToolReply(ok=False, error=exc.as_dict()))
 
     @server.tool(name="tome.list", annotations=read)
     async def list_collection(session_id: Identifier, request: ListRequest) -> ToolReply:
         """Read one page of a frozen collection: inventory, equipment, actors, talents, effects, ground_items, progression_categories, progression_talents or compatibility. Start from the first shape in observe.collection_refs, then follow next_cursor. The page is historical when the game revision moved, and the cursor expires on TTL, capacity eviction or a session/level/connection change. This enumerates the allowed set directly; it does not page an already-truncated summary."""
-        return await call("list_collection", {"session_id": session_id, "request": request.model_dump(exclude_none=True)})
+        return reply_result(await call("list_collection", {"session_id": session_id, "request": request.model_dump(exclude_none=True)}))
 
     @server.tool(name="tome.status", annotations=read)
     async def status(session_id: Identifier, command_id: CommandId, include_map: bool = True,
@@ -430,7 +443,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
             args["response_id"] = response_id
         if options_offset is not None:
             args["options_offset"] = options_offset
-        return await call("status", args)
+        return reply_result(await call("status", args))
 
     @server.tool(name="tome.respond", annotations=write)
     async def respond(session_id: Identifier, control_token: Identifier, command_id: CommandId,
@@ -443,9 +456,9 @@ def create_server(bridge: BridgeClient) -> MCPServer:
                 "interaction_id": interaction_id, "response_id": response_id,
                 "expected_revision": expected_revision, "answer": answer.model_dump(), "include_map": include_map}
         try:
-            return ToolReply(ok=True, result=await bridge.respond(args, wait_ms=wait_ms))
+            return reply_result(ToolReply(ok=True, result=await bridge.respond(args, wait_ms=wait_ms)), terminal=True)
         except BridgeError as exc:
-            return ToolReply(ok=False, error=exc.as_dict())
+            return reply_result(ToolReply(ok=False, error=exc.as_dict()))
 
     @server.tool(name="tome.dismiss", annotations=write)
     async def dismiss(session_id: Identifier, control_token: Identifier, answer: Answer,
@@ -459,12 +472,12 @@ def create_server(bridge: BridgeClient) -> MCPServer:
             args["interaction_id"] = interaction_id
         if expected_revision is not None:
             args["expected_revision"] = expected_revision
-        return await call("dismiss", args)
+        return reply_result(await call("dismiss", args))
 
     @server.tool(name="tome.stop", annotations=write)
     async def stop(session_id: Identifier, control_token: Identifier) -> ToolReply:
         """Revoke remote control and cancel unstarted work. Already executed actions and native world settlement are not undone."""
-        return await call("stop", {"session_id": session_id, "control_token": control_token})
+        return reply_result(await call("stop", {"session_id": session_id, "control_token": control_token}))
 
     @server.resource("tome://rules", mime_type="text/plain")
     def rules() -> str:

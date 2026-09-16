@@ -102,6 +102,15 @@ local function snapshot(s,radius,options)
         if h then result.interaction=Interactions.describe(s.session_root,m) end
     end
     result.events=Journal.capture(s.game,options and options.events_after)
+    -- observe.sections: keep identity/metadata plus the requested domains only.
+    if options and type(options.sections)=='table' and #options.sections>0 then
+        local keep={}
+        for _,name in ipairs(options.sections) do keep[name]=true end
+        local identity={session_id=true,level_instance_id=true,revision=true,world_tick=true,phase=true,
+            actionable=true,control_lease=true,needs_reconnect=true,control_source=true,battle_companion=true,
+            history=true,collection_refs=true,pending_command=true,interaction=true,scene=true}
+        for key in pairs(result) do if not identity[key] and not keep[key] then result[key]=nil end end
+    end
     local root=invocation(s)
     if root then
         local command=root.command
@@ -813,7 +822,7 @@ local function dispatch(s,request)
                     equip={implementation='supported',scope='native_inventory_rules'},
                     unequip={implementation='supported',scope='native_inventory_rules'}},
                 compact_responses=true,event_cursor=true,inventory_read=true,ground_items_read=true,
-                progression_read=true,inspect_kinds=Json.array{'actor','talent','progression','item','compatibility'}},snapshot=snap}
+                progression_read=true,inspect_kinds=Json.array{'actor','character','talent','progression','item','compatibility'}},snapshot=snap}
         local ok,reason=Compat.check(s.game)
         result.capabilities.native_compatibility={compatible=ok==true,reason=reason,providers='runtime_checked'}
         if not ok then result.capabilities.talents=Json.array() end
@@ -828,7 +837,12 @@ local function dispatch(s,request)
     if op=='observe' then
         if a.radius~=nil and not integer(a.radius,1,12) then return fail('invalid_radius') end
         if a.events_after~=nil and not integer(a.events_after,0,9007199254740991) then return fail('invalid_event_cursor') end
-        return snapshot(s,a.radius,{include_map=a.include_map,events_after=a.events_after})
+        if a.sections~=nil then
+            if type(a.sections)~='table' or a.sections==Json.null then return fail('invalid_sections') end
+            local allowed={player=true,map=true,ground=true,actors=true,talents=true,events=true,dialogs=true}
+            for _,name in ipairs(a.sections) do if not allowed[name] then return fail('invalid_sections') end end
+        end
+        return snapshot(s,a.radius,{include_map=a.include_map,events_after=a.events_after,sections=a.sections})
     elseif op=='inspect' then
         if not stringId(a.id) or type(a.kind)~='string' then return fail('invalid_inspect') end
         if a.target_id~=nil and not stringId(a.target_id) then return fail('invalid_inspect_target') end
@@ -886,12 +900,14 @@ local function dispatch(s,request)
         if not s.session_root then return fail('no_pending_interaction') end
         local h=Interactions.current(s.session_root)
         if not h then return fail('no_pending_interaction') end
-        if a.interaction_id~=nil and a.interaction_id~=h.interaction_id then return fail('interaction_expired') end
+        if a.interaction_id~=nil and a.interaction_id~=h.interaction_id then
+            return fail('interaction_expired',nil,{interaction_id=h.interaction_id})
+        end
         if a.expected_revision~=nil and a.expected_revision~=s.revision then return fail('stale_revision') end
         local answer,code=Interactions.validateAnswer(a.answer)
-        if not answer then return fail(code) end
+        if not answer then return fail(code,nil,{interaction_id=h.interaction_id}) end
         local prepared,code=Interactions.prepare(h,answer,meta(s))
-        if not prepared then return fail(code) end
+        if not prepared then return fail(code,nil,{interaction_id=h.interaction_id}) end
         local ok,err=pcall(Interactions.apply,h,prepared)
         if not ok then
             s.native_error=s.native_error or 'dismiss_error'
@@ -962,11 +978,13 @@ local function dispatch(s,request)
         if s.active~=command or not command.invocation or command.input_owner~='remote' then return fail('interaction_not_owned') end
         if command.consumed_interactions[a.interaction_id] then return fail('interaction_consumed') end
         local h=Interactions.current(command.invocation)
-        if not h or h.interaction_id~=a.interaction_id then return fail('interaction_expired') end
-        if h.consumed or command.pending_response then return fail('interaction_consumed') end
+        if not h or h.interaction_id~=a.interaction_id then
+            return fail('interaction_expired',nil,{interaction_id=h and h.interaction_id})
+        end
+        if h.consumed or command.pending_response then return fail('interaction_consumed',nil,{interaction_id=h.interaction_id}) end
         if a.expected_revision~=s.revision then return fail('stale_revision') end
         local prepared,code=Interactions.prepare(h,answer,meta(s))
-        if not prepared then return fail(code) end
+        if not prepared then return fail(code,nil,{interaction_id=h.interaction_id}) end
         if command.response_count>=Interactions.MAX_RESPONSES then
             revoke(s,'response_budget_exhausted')
             return fail('response_budget_exhausted')
@@ -1020,6 +1038,12 @@ local function start(s)
         print('[MCP Bridge] Listener unavailable: '..tostring(err))
     end
 end
+local function invariants(s)
+    if s.ledger and s.ledger.W>s.ledger.H then return 'ledger_watermark' end
+    if s.active and s.active.status=='queued' and s.active.execution_released then return 'queued_released' end
+    if s.snapshots and #s.snapshots>M.MAX_RECENT_SNAPSHOTS then return 'snapshot_budget' end
+    return nil
+end
 function M.onFrame(g)
     if core and core.display and core.display.redrawingForSavefileScreenshot
         and core.display.redrawingForSavefileScreenshot() then return end
@@ -1029,6 +1053,12 @@ function M.onFrame(g)
     local ok,err=pcall(function()
         sync(s);Input.attach(g);Journal.update(g);settle(s);start(s)
         if s.transport then s.transport:poll() end
+        -- STA-03: cheap invariant check after every frame's transitions.
+        local violation=invariants(s)
+        if violation then
+            s.native_error=s.native_error or ('invariant_'..violation)
+            revoke(s,s.native_error)
+        end
     end)
     s.pumping=false
     if not ok then

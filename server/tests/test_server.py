@@ -271,6 +271,20 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(rejected.is_error)
             self.assertEqual(len(self.game.requests), before)
 
+    async def test_api05_iserror_mapping(self):
+        app = create_server(BridgeClient(token=self.game.token, port=self.game.port))
+        async with Client(app) as client:
+            await client.call_tool("tome.connect")
+            self.game.act_failed = True
+            failed = await client.call_tool("tome.act", action_args())
+            self.assertTrue(failed.is_error)
+            self.assertTrue(failed.structured_content["ok"])
+            self.assertEqual(failed.structured_content["result"]["status"], "failed")
+            self.game.keep_status = True
+            read = await client.call_tool("tome.status", {"session_id": "s1", "command_id": "cmd-1"})
+            self.assertFalse(read.is_error)
+            self.assertEqual(read.structured_content["result"]["status"], "failed")
+
     async def test_dismiss_answers_session_popup(self):
         app = create_server(BridgeClient(token=self.game.token, port=self.game.port))
         async with Client(app) as client:

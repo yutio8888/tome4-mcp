@@ -156,9 +156,18 @@ function M.capture(g,meta,radius,options)
 end
 function M.inspect(g,meta,kind,id,options)
     if kind=='actor' then
-        local actor=M.resolve(g,meta,id)
+        local actor
+        if id=='self' or id=='player' then actor=g.player else actor=M.resolve(g,meta,id) end
         if actor then return actorSummary(g,meta,actor,actor==g.player,true) end
         return nil,'actor_not_visible'
+    elseif kind=='character' then
+        -- Read-only character panel: the stored fields the native sheet shows,
+        -- without evaluating computed getters (see character_scope).
+        if not g.player then return nil,'no_player' end
+        if id~='player' and id~='self' and id~=M.actorId(meta,g.player) then return nil,'invalid_character_target' end
+        local result=actorSummary(g,meta,g.player,true,true)
+        result.character_scope='stored fields only; gear/effect computed values (effective accuracy/defense/damage/armor/saves/resists) are not evaluated'
+        return result
     elseif kind=='talent' then
         if g.player and g.player.talents and g.player.talents[id] then
             local result=talentSummary(g.player,id)

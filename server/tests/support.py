@@ -19,6 +19,8 @@ class FakeGame:
         self.pending = False
         self.legacy_bridge = False
         self.status_error = None
+        self.act_failed = False
+        self.keep_status = False
         self.token = "test-token"
         self.snapshot = {"session_id": "s1", "revision": 7, "phase": "ready", "world_tick": 0}
 
@@ -60,6 +62,8 @@ class FakeGame:
                         }
                 elif op == "act":
                     record = {"command_id": args["command_id"], "status": "queued"}
+                    if self.act_failed:
+                        record.update(status="failed", code="native_rejected", snapshot=self.snapshot)
                     self.commands[args["command_id"]] = record
                     if self.interaction_steps:
                         record.update(status='awaiting_input',revision=8,
@@ -76,6 +80,8 @@ class FakeGame:
                 elif op == "status":
                     if self.status_error is not None:
                         reply.update(ok=False, error=self.status_error)
+                    elif self.keep_status:
+                        reply["result"] = self.commands[args["command_id"]]
                     else:
                         record = self.commands[args["command_id"]]
                         if record.get('response_receipt',{}).get('state')=='queued':
