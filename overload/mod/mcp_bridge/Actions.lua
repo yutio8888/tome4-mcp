@@ -233,11 +233,16 @@ function M.execute(g, action, target, meta, command)
                         -- (beam/ball radius/self-fire). This is the spec the
                         -- native talent itself built, not a speculative run.
                         if command and type(typ)=='table' and not command.target_geometry then
-                            command.target_geometry={shape=type(typ.type)=='string' and typ.type or 'unknown',
+                            local talent=type(typ.talent)=='string' and p.talents_def and p.talents_def[typ.talent] or nil
+                            local shape=type(typ.type)=='string' and typ.type or 'unknown'
+                            local scope,residual=Details.damageScope(shape,talent and talent.direct_hit,
+                                talent and talent.radius or typ.radius)
+                            command.target_geometry={shape=shape,
                                 radius=finite(typ.radius) and typ.radius or nil,
                                 range=finite(typ.range) and typ.range or nil,
-                                selffire=Details.selffire(typ),
-                                piercing=typ.type=='beam' or nil}
+                                selffire=Details.selffire({type=shape,selffire=typ.selffire,direct_hit=talent and talent.direct_hit}),
+                                piercing=typ.type=='beam' or nil,damage_scope=scope,
+                                residual_area_radius=residual}
                         end
                         local x,y,entity=resolve()
                         if allowed(typ,x,y) then return x,y,entity end

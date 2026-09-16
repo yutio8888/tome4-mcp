@@ -18,6 +18,16 @@ function M.selffire(typ)
     if shape=='beam' or shape=='hit' or shape=='bolt' or shape=='arrow' then return false end
     return 'unknown'
 end
+-- Static damage footprint: a direct hit is single-target, a beam is a line,
+-- and an area shape covers a region. A stored residual radius (an on-ground
+-- remainder such as Searing Light's light zone) is reported separately.
+function M.damageScope(shape,direct_hit,residual_radius)
+    local residual=M.number(residual_radius)
+    if direct_hit==true then return 'single',residual end
+    if shape=='beam' then return 'line',residual end
+    if shape=='ball' or shape=='cone' or shape=='wide' then return 'area',residual end
+    return 'unknown',residual
+end
 function M.native(fn,suffix)
     if type(fn)~='function' then return false end
     local info=debug.getinfo(fn,'S')
@@ -170,11 +180,34 @@ local function requirements(obj)
 end
 -- Shared by inventory, current ground observations and item inspection. These
 -- are raw, already known properties; never identify an object to describe it.
+-- Strip placeholder artifacts (empty parentheses) left by an unresolved ego
+-- template, then append stored ego names. The native getName is deliberately
+-- not invoked (pure stored reads only).
+local function cleanItemName(value)
+    local text=M.text(value,128)
+    if not text then return nil end
+    text=text:gsub('%s*%(%s*%)',''):gsub('%s+$','')
+    return #text>0 and text or nil
+end
+local function storedEgoName(obj)
+    if type(obj.ego)~='table' then return nil end
+    local parts={}
+    for _,ego in ipairs(obj.ego) do
+        local name=type(ego)=='table' and (ego.name or ego.ego_name) or nil
+        if type(name)=='string' and #name>0 then parts[#parts+1]=name end
+    end
+    return #parts>0 and table.concat(parts,' ') or nil
+end
 function M.item(g,obj,meta)
     local identified=isIdentified(g,obj)
+    local base=cleanItemName(identified and obj.name or obj.unided_name) or 'unknown'
+    if identified then
+        local ego=storedEgoName(obj)
+        if ego and not base:find(ego,1,true) then base=base..' '..ego end
+    end
     local result={id=M.objectId(meta,obj),identified=identified,
         count=type(obj.stacked)=='table' and 1+#obj.stacked or 1,
-        name=M.text(identified and obj.name or obj.unided_name) or 'unknown',name_is_raw=true}
+        name=base,name_is_raw=true}
     if identified then
         result.type=M.text(obj.type,48);result.subtype=M.text(obj.subtype,48)
         result.add_name=M.text(obj.add_name,64)
@@ -390,6 +423,31 @@ function M.dialogs(g)
         end
     end
     return result,truncated
+end
+-- Persistent ground/overlay effects stored on the map (light zones, glyphs,
+-- clouds). Read-only scalars; grids/particles/functions are never evaluated.
+function M.groundEffects(g,p,radius)
+    local out=Json.array()
+    local map=g and g.level and g.level.map
+    if not map or type(map.effects)~='table' or not M.finite(p.x) or not M.finite(p.y) then return out,false end
+    local limit=64;local truncated=false;local n=0
+    for _,e in ipairs(map.effects) do
+        if type(e)=='table' and M.finite(e.x) and M.finite(e.y)
+            and math.abs(e.x-p.x)<=radius and math.abs(e.y-p.y)<=radius then
+            n=n+1
+            if n>limit then truncated=true;break end
+            local kind
+            if type(e.overlay)=='table' then kind=M.text(e.overlay.type or e.overlay.name,48)
+            elseif type(e.fake_overlay)=='table' then kind=M.text(e.fake_overlay.type or e.fake_overlay.name,48) end
+            local damage_type
+            if type(e.damtype)=='table' then damage_type=M.text(e.damtype.type or e.damtype.name,48)
+            else damage_type=M.text(e.damtype,48) end
+            out[#out+1]={x=e.x,y=e.y,radius=M.number(e.radius),remaining=M.number(e.duration),
+                damage_type=damage_type,kind=kind,damage=M.number(e.dam)}
+        end
+    end
+    table.sort(out,function(a,b) if a.x~=b.x then return a.x<b.x end return a.y<b.y end)
+    return out,truncated
 end
 function M.bounded(result)
     -- Reserve 64 KiB of the 256 KiB transport frame for control/journal data.

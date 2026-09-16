@@ -126,7 +126,7 @@ local function snapshot(s,radius,options)
         end
         local identity={session_id=true,level_instance_id=true,revision=true,world_tick=true,phase=true,
             actionable=true,control_lease=true,needs_reconnect=true,control_source=true,battle_companion=true,
-            release_reason=true,release_hint=true,
+            release_reason=true,release_hint=true,actor_id_scope=true,
             history=true,collection_refs=true,pending_command=true,interaction=true,scene=true}
         for key in pairs(result) do
             if not identity[key] and not keep[key] and not (key=='player' and next(sub)) then result[key]=nil end
@@ -871,7 +871,7 @@ local function dispatch(s,request)
         if a.sections~=nil then
             if type(a.sections)~='table' or a.sections==Json.null then return fail('invalid_sections') end
             local allowed={player=true,map=true,ground=true,actors=true,talents=true,events=true,dialogs=true,
-            effects=true,sustains=true,resources=true,stats=true}
+            effects=true,sustains=true,resources=true,stats=true,ground_effects=true}
             for _,name in ipairs(a.sections) do if not allowed[name] then return fail('invalid_sections') end end
         end
         if a.detail~=nil and a.detail~='summary' and a.detail~='full' then return fail('invalid_detail') end

@@ -66,6 +66,38 @@ local function rawLevel(p,tid)
     if value==nil then return 0 end
     return integer(value) and value or nil
 end
+-- Static, read-only list of unmet require fields. This never runs a talent's
+-- `special` function; that is reported as checked natively.
+local function staticMissing(p,t)
+    local out={}
+    local req=type(t)=='table' and t.require or nil
+    if type(req)=='table' then
+        if D.finite(req.level) and (D.number(p.level) or 0)<req.level then
+            out[#out+1]={kind='level',required=req.level,current=D.number(p.level)}
+        end
+        if type(req.stat)=='table' and D.finite(req.stat[2]) then
+            local def=p.stats_def and p.stats_def[req.stat[1]]
+            local id=type(def)=='table' and def.id or req.stat[1]
+            local cur=type(p.stats)=='table' and D.number(p.stats[id]) or nil
+            if cur==nil or cur<req.stat[2] then
+                out[#out+1]={kind='stat',stat=D.text(req.stat[1],32),required=req.stat[2],current=cur}
+            end
+        end
+        if type(req.talent)=='table' and D.finite(req.talent[2]) then
+            local known=rawLevel(p,req.talent[1])
+            if (known or 0)<req.talent[2] then
+                out[#out+1]={kind='talent',talent=D.text(req.talent[1],64),required=req.talent[2],current=known}
+            end
+        end
+        if req.special~=nil then out[#out+1]={kind='special',checked='native'} end
+    end
+    return out
+end
+local function rejectionFields(p,aid)
+    local t=aid and p.talents_def and p.talents_def[aid] or nil
+    return {missing=staticMissing(p,t),
+        missing_scope='static require fields only; special/lua prerequisites are checked natively'}
+end
 local function sourceLine(fn,source,line)
     if not D.native(fn,source) then return false end
     return debug.getinfo(fn,'S').linedefined==line
@@ -424,7 +456,8 @@ local function executeUnlearn(g,p,a)
         local refunded=p[pools[pool]]==before_points+1
         if not refunded or not D.finite(after_value) or after_value~=before_value-1 then
             local mutated=p[pools[pool]]~=before_points or after_value~=before_value
-            return {ok=false,code=refunded and 'native_progression_mismatch' or 'native_progression_rejected',uncertain=mutated or nil}
+            return {ok=false,code=refunded and 'native_progression_mismatch' or 'native_progression_rejected',uncertain=mutated or nil,
+                missing=staticMissing(p,p.talents_def and p.talents_def[a.talent_id])}
         end
         if not dialog.finish(host) then return {ok=false,code='native_progression_finish_failed',uncertain=true} end
         return {ok=true,code='progression_applied',points_returned=1,point_pool=pool,
@@ -544,7 +577,8 @@ function M.execute(g,action)
         elseif a.type=='learn_talent' then after_value=rawLevel(p,a.talent_id)
         else after_value=known(p,a.category_id) and ((field(p,'talents_types_mastery',a.category_id) or 0)+1) or false end
         mutated=p[pool]~=before_points or after_value~=before_value
-        if p[pool]~=before_points-1 then return {ok=false,code='native_progression_rejected',uncertain=mutated or nil} end
+        if p[pool]~=before_points-1 then return {ok=false,code='native_progression_rejected',uncertain=mutated or nil,
+            missing=staticMissing(p,a.talent_id and p.talents_def and p.talents_def[a.talent_id])} end
         local expected=a.type=='learn_category' and (before_value==false and 1+(field(backup,'talents_types_mastery',a.category_id) or 0) or before_value+0.2)
             or before_value+1
         if not D.finite(after_value) or math.abs(after_value-expected)>0.000001 then

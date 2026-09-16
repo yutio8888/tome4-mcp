@@ -97,6 +97,7 @@ function M.capture(g,meta,radius,options)
     options=options or {}
     local result={session_id=meta.session_id,level_instance_id=meta.level_instance_id,revision=meta.revision,
         phase=meta.phase,control_source=meta.control_source,battle_companion=meta.battle_companion,world_tick=number(g.turn) or 0,
+        actor_id_scope='ids embed the native uid and the level instance id; stable within a level, changed by a level change',
         player=Json.null,map=Json.null,ground=Json.null,actors=Json.array(),talents=Json.array(),
         scene={zone_id=g.zone and Details.text(g.zone.short_name),zone_name=g.zone and Details.text(g.zone.name),
             level=g.level and number(g.level.level)}}
@@ -107,6 +108,7 @@ function M.capture(g,meta,radius,options)
     local detailed=options.detail=='full'
     result.player=actorSummary(g,meta,p,true,detailed)
     result.ground=Items.ground(g,meta,radius)
+    result.ground_effects,result.ground_effects_truncated=Details.groundEffects(g,p,radius)
     local talent_ids
     talent_ids,result.talents_truncated=Details.keys(p.talents,64,function(id,level)
         return type(id)=='string' and #id<=256 and finite(level) and level>0
@@ -198,9 +200,12 @@ function M.inspect(g,meta,kind,id,options)
             result.base_costs=q.base_costs;result.affordable=q.affordable
             result.cooldown_remaining=q.cooldown_remaining;result.readiness=q.readiness
             if q.target_shape~=nil or q.radius~=nil or q.range~=nil then
+                local scope,residual=Details.damageScope(q.target_shape,def.direct_hit,def.radius)
+                result.damage_scope=scope
                 result.target_geometry={shape=q.target_shape or 'unknown',radius=q.radius,range=q.range,
                     selffire=Details.selffire({type=q.target_shape,selffire=q.selffire,direct_hit=def.direct_hit}),
-                    piercing=q.target_shape=='beam' or nil,
+                    piercing=q.target_shape=='beam' or nil,damage_scope=scope,
+                    residual_area_radius=residual,
                     source='static talent definition; a dynamic target function can change shape/radius/self-fire at cast time'}
             end
             return result

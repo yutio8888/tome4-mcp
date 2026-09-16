@@ -258,4 +258,18 @@ check(#snapshot.dialogs<=4 and snapshot.dialogs_truncated and #snapshot.dialogs[
 local bytes=#Json.encode(snapshot)
 check(bytes<192*1024 and snapshot.truncated and snapshot.map.names_truncated,'bounded capture leaves 64 KiB journal/transport headroom: '..bytes)
 check(forbidden_calls==0,'stress observations stay read-only')
+-- Round-11 backlog: static damage scope, ground effects, ego name cleanup.
+local dscope,dres=Details.damageScope('ball',nil,1)
+check(dscope=='area' and dres==1,'area shape reports residual radius')
+check(select(1,Details.damageScope('beam'))=='line','beam damage is a line')
+check(select(1,Details.damageScope('ball',true))=='single','a direct hit is single-target')
+check(select(1,Details.damageScope('unknown'))=='unknown','an unknown shape has unknown damage scope')
+g.level.map.effects={{x=p.x+1,y=p.y,duration=5,damtype={type='LIGHT'},radius=1,fake_overlay={type='light_zone'}}}
+local effects,effects_truncated=Details.groundEffects(g,p,8)
+check(#effects==1 and effects[1].kind=='light_zone' and effects[1].damage_type=='LIGHT' and effects[1].remaining==5
+    and not effects_truncated,'ground persistent effects are visible with kind and damage type')
+g.level.map.effects=nil
+local ego=Details.item(g,{uid=77,identified=true,name='iron longsword ()',type='weapon',subtype='longsword',
+    ego={{name='flaming'}}},meta)
+check(ego.name=='iron longsword flaming','ego name drops placeholders and keeps the stored ego name')
 print('Observer: '..checks..' checks passed; stress snapshot '..bytes..' bytes')
