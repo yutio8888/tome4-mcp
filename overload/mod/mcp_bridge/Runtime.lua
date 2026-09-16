@@ -90,6 +90,9 @@ local COMMAND_HINTS={native_rejected='the native action refused; see native_mess
     native_progression_rejected='the native level-up dialog refused; check the static prerequisites and point pools',
     native_progression_mismatch='the native level-up result did not match the spending; the point pool was left unchanged',
     explore_interrupted='native auto-explore stopped at a popup or notice; check observe interaction/dialogs and respond or dismiss',
+    enemies_in_sight='a visible hostile blocks native auto-explore; escorts and allies do not',
+    no_autoexplore='this zone or level forbids auto-explore',
+    nothing_left='native auto-explore found no reachable unexplored tile',
     target_out_of_range='the target is outside the talent range',
     target_not_adjacent='the target is not adjacent',
     insufficient_class_points='no class talent points remain',
@@ -207,7 +210,7 @@ local function commandView(command,include_map,response_id,options_offset)
     if command.status=='completed' then out.action_ok=true
     elseif command.status=='failed' then out.action_ok=false
     else out.action_ok=nil end
-    out.hint=command.code and COMMAND_HINTS[command.code] or nil
+    out.hint=command.hint or (command.code and COMMAND_HINTS[command.code]) or nil
     if command.protocol then
         out.revision=state.revision;out.input_owner=command.input_owner
         out.accepted=true;out.seq=command.seq
@@ -891,7 +894,7 @@ local function execute(s,command)
     end
     if not command.energy_measured then command.energy_spent=result.energy_spent or 0 end
     command.native_return=result.native_return;command.action_ok=result.ok;command.code=result.code
-    command.missing=result.missing
+    command.missing=result.missing;command.hint=result.hint
     command.action_code=result.code
     command.level_changed=result.level_changed
     command.native_message=Details.text(result.native_message,512) or command.native_message
