@@ -1,0 +1,49 @@
+{
+  "date": "2026-09-16",
+  "session": "agent-ham-insane-28",
+  "kind": "in-engine fix verification",
+  "archive_sha256": "18599cc5803f9c10c639e0ae28591eeb362087db8edaca476a76c0e5d1e4b328",
+  "checks": [
+    {
+      "name": "remote-act-while-auto-owns",
+      "expected": "control_conflict",
+      "observed": {
+        "code": "control_conflict",
+        "accepted": false,
+        "recovery": "connect_explicitly"
+      },
+      "passed": true
+    },
+    {
+      "name": "owner-unchanged-after-refused-act",
+      "expected": "auto_combat",
+      "observed": "auto_combat",
+      "passed": true
+    },
+    {
+      "name": "connect-control-takes-lease",
+      "expected": "manual",
+      "observed": "manual",
+      "passed": true
+    },
+    {
+      "name": "act-after-reconnect",
+      "expected": "completed",
+      "observed": "completed",
+      "passed": true
+    },
+    {
+      "name": "no-idle-hold-is-logged",
+      "expected": "stop event, not silent",
+      "observed": [
+        "acted sustain:T_HYMN_OF_SHADOWS",
+        "stopped no_visible_enemies"
+      ],
+      "passed": true
+    }
+  ],
+  "raw": {
+    "game_log_sha256": "7c0d102fa38938a5045c46e4aa16fb457b1cbaf40e18441c57d06e6f240e71f9",
+    "play_mcp_sha256": "ebae03e20faeb97bc017f6bdf9557d8b137e331230122e298a465da0c2b1c95d"
+  }
+}
