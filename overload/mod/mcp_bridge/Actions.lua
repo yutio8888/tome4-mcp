@@ -6,6 +6,7 @@ local Items = require 'mod.mcp_bridge.Items'
 local Tracker = require 'mod.mcp_bridge.InvocationTracker'
 local Compat = require 'mod.mcp_bridge.NativeCompatibility'
 local Distance = require 'mod.mcp_bridge.Distance'
+local Details = require 'mod.mcp_bridge.ObservationDetails'
 local M = {}
 local attack_spec={target='actor',source='data/talents/misc/misc.lua',action_adapter='attack',
     description='Use the attack action with target_id to make a native ordinary attack, including native alternate attacks.'}
@@ -235,7 +236,7 @@ function M.execute(g, action, target, meta, command)
                             command.target_geometry={shape=type(typ.type)=='string' and typ.type or 'unknown',
                                 radius=finite(typ.radius) and typ.radius or nil,
                                 range=finite(typ.range) and typ.range or nil,
-                                selffire=(type(typ.selffire)=='boolean') and typ.selffire or 'unknown',
+                                selffire=Details.selffire(typ),
                                 piercing=typ.type=='beam' or nil}
                         end
                         local x,y,entity=resolve()

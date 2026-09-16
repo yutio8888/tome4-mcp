@@ -169,7 +169,9 @@ function M.inspect(g,meta,kind,id,options)
         result.character_scope='stored fields only; gear/effect computed values (effective accuracy/defense/damage/armor/saves/resists) are not evaluated'
         return result
     elseif kind=='talent' then
-        if g.player and g.player.talents and g.player.talents[id] then
+        local def=g.player and g.player.talents_def and g.player.talents_def[id]
+        if not def then return nil,'unknown_talent' end
+        if g.player.talents and g.player.talents[id] then
             local result=talentSummary(g.player,id)
             local target
             if options and options.target_id~=nil then
@@ -179,6 +181,18 @@ function M.inspect(g,meta,kind,id,options)
             local q,reason=Actions.query(g.player,id,target,options and options.x,options and options.y)
             if not q then return nil,reason end
             result.query=q
+            -- Advertise the static parts of the query at the top level so a
+            -- planner does not have to act before it can see range/cost.
+            result.range=q.range;result.radius=q.radius;result.target_shape=q.target_shape
+            result.requires_target=q.requires_target;result.current_costs=q.current_costs
+            result.base_costs=q.base_costs;result.affordable=q.affordable
+            result.cooldown_remaining=q.cooldown_remaining;result.readiness=q.readiness
+            if q.target_shape~=nil or q.radius~=nil or q.range~=nil then
+                result.target_geometry={shape=q.target_shape or 'unknown',radius=q.radius,range=q.range,
+                    selffire=Details.selffire({type=q.target_shape,selffire=q.selffire}),
+                    piercing=q.target_shape=='beam' or nil,
+                    source='static talent definition; a dynamic target function can change shape/radius/self-fire at cast time'}
+            end
             return result
         end
         return nil,'talent_not_learned'

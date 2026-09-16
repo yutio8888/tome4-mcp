@@ -24,6 +24,7 @@
         "query_original_after_reconnect", "manual_or_fresh_load"
       ]
     },
-    "details": { "type": "object" }
+    "details": { "type": "object" },
+    "interaction_id": { "type": ["string", "null"] }
   }
 }

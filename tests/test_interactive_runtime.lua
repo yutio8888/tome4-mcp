@@ -334,4 +334,24 @@ act('scene-chat',{type='change_level'},revision);frame()
 check(changes==1,'duplicate completed change-level command cannot run native change again')
 Compat.matches=matches
 
+-- Round-9 feedback: observe.sections must not erase control metadata, an
+-- unknown section is rejected, a player sub-field prunes the player container,
+-- an unknown talent id differs from an unlearned one, and static target
+-- geometry (incl. the native self-fire default) is advertised before acting.
+fresh()
+p.talents_def={T_FIXTURE={id='T_FIXTURE',name='Fixture',type={'fixture'},mode='activated',
+    target={type='ball',range=6,radius=1},cooldown=3}}
+p.talents={T_FIXTURE=1}
+p.talents_cd={}
+local trimmed=request('observe',{session_id=hello.session_id,sections={'effects'}}).result
+check(trimmed.actionable~=nil and trimmed.phase~=nil,'sections keeps control metadata')
+check(trimmed.map==nil and trimmed.actors==nil,'sections omits unrequested domains')
+check(type(trimmed.player)=='table' and trimmed.player.id~=nil,'effects section keeps player identity')
+check(trimmed.player.effects~=nil and trimmed.player.inventory==nil,'effects section prunes unrelated player fields')
+check(request('observe',{session_id=hello.session_id,sections={'bogus'}}).error.code=='invalid_sections','unknown section rejected')
+local talent=request('inspect',{session_id=hello.session_id,kind='talent',id='T_FIXTURE'}).result
+check(talent.range==6 and talent.target_shape=='ball','inspect advertises the static range and shape')
+check(talent.target_geometry and talent.target_geometry.selffire==true,'a ball without selffire defaults to self-fire true')
+check(request('inspect',{session_id=hello.session_id,kind='talent',id='T_NOPE'}).error.code=='unknown_talent','unknown talent id distinct from unlearned')
+
 print('Interactive Runtime: '..count..' checks passed')

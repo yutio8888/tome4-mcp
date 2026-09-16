@@ -25,6 +25,19 @@ local COLLECTIONS = {
 
 function M.supported(collection) return COLLECTIONS[collection] ~= nil end
 
+-- Machine-readable filter contract for a collection, used to make
+-- invalid_filter diagnosable instead of a bare code.
+function M.allowedFilters(collection)
+    local spec = COLLECTIONS[collection]
+    if not spec then return nil end
+    local allowed = Json.array()
+    for key in pairs(spec.first or {}) do allowed[#allowed + 1] = key end
+    table.sort(allowed)
+    local required = Json.array()
+    for _, key in ipairs(spec.required or {}) do required[#required + 1] = key end
+    return {allowed_keys = allowed, required_keys = required}
+end
+
 function M.refs()
     local out = Json.array()
     for _, collection in ipairs{'inventory', 'equipment', 'actors', 'talents', 'effects',

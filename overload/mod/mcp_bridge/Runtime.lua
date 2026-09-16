@@ -105,11 +105,24 @@ local function snapshot(s,radius,options)
     -- observe.sections: keep identity/metadata plus the requested domains only.
     if options and type(options.sections)=='table' and #options.sections>0 then
         local keep={}
-        for _,name in ipairs(options.sections) do keep[name]=true end
+        local sub={}
+        local SUB={effects=true,sustains=true,resources=true,stats=true}
+        for _,name in ipairs(options.sections) do
+            keep[name]=true
+            if SUB[name] then sub[name]=true end
+        end
         local identity={session_id=true,level_instance_id=true,revision=true,world_tick=true,phase=true,
             actionable=true,control_lease=true,needs_reconnect=true,control_source=true,battle_companion=true,
             history=true,collection_refs=true,pending_command=true,interaction=true,scene=true}
-        for key in pairs(result) do if not identity[key] and not keep[key] then result[key]=nil end end
+        for key in pairs(result) do
+            if not identity[key] and not keep[key] and not (key=='player' and next(sub)) then result[key]=nil end
+        end
+        -- A player sub-field (effects/sustains/resources/stats) keeps the player
+        -- container pruned to the requested fields plus its identity scalars.
+        if next(sub) and not keep.player and type(result.player)=='table' then
+            local core={id=true,name=true,x=true,y=true,level=true,life=true,max_life=true,faction=true,descriptor=true}
+            for key in pairs(result.player) do if not core[key] and not sub[key] then result.player[key]=nil end end
+        end
     end
     local root=invocation(s)
     if root then
@@ -125,7 +138,7 @@ local function commandView(command,include_map,response_id,options_offset)
     for _,key in ipairs{'command_id','seq','status','code','energy_spent','native_return','world_tick_before',
         'world_tick_after','revision_before','revision_after','snapshot','snapshot_availability','interruption','uncertain',
         'turns_executed','max_turns','stop_reason','native_message','level_changed','target_geometry',
-        'points_spent','points_returned','point_pool','previous_value','new_value'} do out[key]=command[key] end
+        'points_spent','points_returned','point_pool','previous_value','new_value','action_ok'} do out[key]=command[key] end
     if command.protocol then
         out.revision=state.revision;out.input_owner=command.input_owner
         out.accepted=true;out.seq=command.seq
@@ -839,7 +852,8 @@ local function dispatch(s,request)
         if a.events_after~=nil and not integer(a.events_after,0,9007199254740991) then return fail('invalid_event_cursor') end
         if a.sections~=nil then
             if type(a.sections)~='table' or a.sections==Json.null then return fail('invalid_sections') end
-            local allowed={player=true,map=true,ground=true,actors=true,talents=true,events=true,dialogs=true}
+            local allowed={player=true,map=true,ground=true,actors=true,talents=true,events=true,dialogs=true,
+            effects=true,sustains=true,resources=true,stats=true}
             for _,name in ipairs(a.sections) do if not allowed[name] then return fail('invalid_sections') end end
         end
         return snapshot(s,a.radius,{include_map=a.include_map,events_after=a.events_after,sections=a.sections})
@@ -885,7 +899,11 @@ local function dispatch(s,request)
                 return fail('unsupported_collection',nil,{acceptance_scope='not_applicable'}) end
             if req.page_size~=nil and not integer(req.page_size,1,64) then return fail('invalid_page_size') end
             local projection,code=ObservationCollections.project(s.game,meta(s),req.collection,req.filter)
-            if not projection then return fail(code,nil,{acceptance_scope='not_applicable'}) end
+            if not projection then
+                local details={acceptance_scope='not_applicable'}
+                if code=='invalid_filter' then details.details={allowed_filters=ObservationCollections.allowedFilters(req.collection)} end
+                return fail(code,nil,details)
+            end
             local page,capcode=s.views:capture{collection=req.collection,items=projection.items,
                 complete=projection.complete,
                 context={session_id=s.session_id,level_instance_id=s.level_id,connection_generation=s.connection_generation},
@@ -897,9 +915,9 @@ local function dispatch(s,request)
     elseif op=='dismiss' then
         if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
         if s.native_error then return fail(s.native_error) end
-        if not s.session_root then return fail('no_pending_interaction') end
+        if not s.session_root then return fail('no_pending_interaction',nil,{details={hint='no native popup is waiting; observe.interaction lists one when present'}}) end
         local h=Interactions.current(s.session_root)
-        if not h then return fail('no_pending_interaction') end
+        if not h then return fail('no_pending_interaction',nil,{details={hint='no native popup is waiting; observe.interaction lists one when present'}}) end
         if a.interaction_id~=nil and a.interaction_id~=h.interaction_id then
             return fail('interaction_expired',nil,{interaction_id=h.interaction_id})
         end

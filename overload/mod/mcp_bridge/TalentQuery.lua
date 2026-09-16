@@ -172,6 +172,7 @@ function M.query(player,id,target,x,y)
     local q={id=id}
     if type(t.range)=='number' and finite(t.range) then q.range=t.range
     elseif type(t.range)=='function' then q.range='unknown'
+    elseif type(t.target)=='table' and type(t.target.range)=='number' and finite(t.target.range) then q.range=t.target.range
     else q.range=1 end
     if type(t.requires_target)=='boolean' then q.requires_target=t.requires_target
     elseif type(t.requires_target)=='function' then q.requires_target='unknown'
@@ -182,12 +183,18 @@ function M.query(player,id,target,x,y)
     -- Static targeting hints only. A function target is never evaluated here;
     -- the authoritative shape/radius/piercing arrives from the native getTarget
     -- at execution time (Actions.execute -> target_geometry).
-    if finite(t.radius) then q.radius=t.radius end
+    if finite(t.radius) then q.radius=t.radius
+    elseif type(t.target)=='table' and finite(t.target.radius) then q.radius=t.target.radius end
     if type(t.direct_hit)=='boolean' then q.direct_hit=t.direct_hit end
     if type(t.reflectable)=='boolean' then q.reflectable=t.reflectable end
     if type(t.target)=='string' then q.target_shape=t.target
     elseif type(t.target)=='table' and type(t.target.type)=='string' then q.target_shape=t.target.type
     else q.target_shape='unknown' end
+    -- Static self-fire from a table target spec; a function target (or a
+    -- non-boolean selffire) computes it at cast time and stays unknown.
+    if type(t.target)=='table' and type(t.target.selffire)=='boolean' then q.selffire=t.target.selffire
+    elseif type(t.selffire)=='boolean' then q.selffire=t.selffire
+    elseif (type(t.target)=='table' and t.target.selffire~=nil) or t.selffire~=nil then q.selffire='unknown' end
     local cd=player.talents_cd and player.talents_cd[id]
     q.cooldown_remaining=finite(cd) and cd or (cd==nil and 0 or 'unknown')
     local base={}

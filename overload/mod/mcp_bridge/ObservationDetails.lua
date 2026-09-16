@@ -4,6 +4,18 @@ local Json = require 'mod.mcp_bridge.Json'
 local M = {}
 function M.finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 function M.number(n) return M.finite(n) and n or nil end
+-- Self-inclusion for a target spec. ToME treats a missing selffire as
+-- "area shapes may hit their origin": beams/hits cannot. A function target
+-- (or a non-boolean selffire) computes it at cast time and stays unknown.
+function M.selffire(typ)
+    if type(typ)~='table' then return 'unknown' end
+    if type(typ.selffire)=='boolean' then return typ.selffire end
+    if typ.selffire~=nil then return 'unknown' end
+    local shape=typ.type
+    if shape=='ball' or shape=='cone' or shape=='wide' then return true end
+    if shape=='beam' or shape=='hit' or shape=='bolt' or shape=='arrow' then return false end
+    return 'unknown'
+end
 function M.native(fn,suffix)
     if type(fn)~='function' then return false end
     local info=debug.getinfo(fn,'S')
@@ -213,7 +225,7 @@ function M.inventory(g,p,meta)
             end
             local obj=inven[slot]
             local item=M.item(g,obj,meta)
-            item.inventory_id=inven_id;item.slot=slot
+            item.inventory_id=inven_id;item.container_id=inven_id;item.slot=slot
             item.container=M.text(inven.short_name or def.short_name,48);item.equipped=equipped
             item.transmogrification_pending=obj.__transmo and true or false
             local destination=is_equipment and equipment or inventory
@@ -238,6 +250,21 @@ function M.player(g,p,meta,result)
             bonus=type(p.inc_stats)=='table' and M.number(p.inc_stats[id]) or nil}
     end
     result.life_regen=M.number(p.life_regen);result.regeneration_is_raw=true
+    result.gold=M.number(p.gold)
+    if M.finite(p.encumber) or M.finite(p.max_encumber) then
+        result.encumbrance={used=M.number(p.encumber),max=M.number(p.max_encumber)}
+    end
+    result.cooldowns=Json.array()
+    if type(p.talents_cd)=='table' then
+        local ids={}
+        for tid,cd in pairs(p.talents_cd) do if type(tid)=='string' and M.finite(cd) and cd>0 then ids[#ids+1]=tid end end
+        table.sort(ids)
+        for _,tid in ipairs(ids) do
+            local def=p.talents_def and p.talents_def[tid]
+            result.cooldowns[#result.cooldowns+1]={id=tid,name=type(def)=='table' and M.text(def.name,64) or nil,
+                remaining=math.floor(p.talents_cd[tid]*1000+0.5)/1000}
+        end
+    end
     result.die_at=M.number(p.die_at) or 0
     result.energy=type(p.energy)=='table' and M.number(p.energy.value) or nil
     result.resources={}
@@ -412,7 +439,7 @@ function M.inventoryAll(g,p,meta,which)
             for _,slot in ipairs(slots) do
                 local obj=inven[slot]
                 local item=M.item(g,obj,meta)
-                item.inventory_id=inven_id;item.slot=slot
+                item.inventory_id=inven_id;item.container_id=inven_id;item.slot=slot
                 item.container=M.text(inven.short_name or def.short_name,48);item.equipped=equipped
                 item.transmogrification_pending=obj.__transmo and true or false
                 items[#items+1]=item
