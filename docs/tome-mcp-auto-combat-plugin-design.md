@@ -26,6 +26,10 @@
 - 自动等待/巡逻只作为**独立的显式模式**，不从规则失败中隐式产生。
 - “接管到什么程度”是产品承诺，必须先冻结；复杂能力（rest/auto_explore/换层/复杂撤退）后移。
 
+### 0.2 规范的效力（v1.2）
+**本文件正文 §0–§16 即规范（normative）**；§17 仅为修订历史（non-normative）。
+已决定的事项不再列入“需人拍板”；开发者应以正文条款为准，不能再参考旧版或摘要表述。
+
 ---
 
 ## 1. 目标与非目标
@@ -104,7 +108,7 @@ flowchart LR
 | `ControlArbiter.lua` | owner/epoch/lease、原子接管、监听器、reset；统一四类控制源 |
 | `PolicyStore.lua` | 保存/加载策略（内存 + 角色档案 + 文件），规范化、hash、版本迁移 |
 | `PolicySchema.lua` | 严格 schema 校验；默认值；limits 只可收紧 |
-| `PolicySnapshot.lua` | 每 tick 一次性"玩家已知"快照；审计 getter；截断标记 |
+| `PolicySnapshot.lua` | **每个行动机会**取一次“玩家已知”快照；瞬发后重取；审计 getter；截断标记 |
 | `PolicyEvaluator.lua` | 条件三值求值、优先级、目标选择、诊断 |
 | `AutoCombatCatalog.lua` | 受支持技能的**声明式** adapter（几何/目标/自伤/前置） |
 | `AutoCombat.lua` | 执行状态机：ready/pump/onTickEnd、instant 上限、pause/resume/stop |
@@ -133,6 +137,18 @@ flowchart LR
   4. 执行前复查：owner epoch、revision、目标引用仍有效、`canProject`；
   5. instant 技能通过下一次 pump 继续，受每 tick 上限约束。
 - **owner 互斥**：当 `auto_combat` 是 owner 时，不应存在远程 command；若存在视为仲裁错误并 pause（不让两个 tracker 叠加）。
+
+### 4.1 执行契约（v1.2 冻结，必须实现）
+- **启动/恢复先检查边界**：`start`/`resume` 若当前已处于可接受动作的 ready 边界，**直接安排 pump**；
+  否则才等下一次 ready 通知。不得出现“按下启动却没有任何动作”。
+- **动作机会与状态版本分离**：瞬发不消耗行动机会，但会改变资源/状态/技能可用性；同一行动机会内，
+  每次瞬发完成后**重新取相关状态（新快照）**，不得继续用瞬发前的旧值。
+- **瞬发预算按“连续执行”计**，不按显示帧重置；到顶后固定结果：停止继续瞬发、按规则处理后续耗能动作，
+  或以明确原因暂停——不得静默重置。
+- **失效标识（本地运行代际）**：owner 改变、暂停/恢复、替换策略、清空策略，都会推进运行代际
+  （可与 owner epoch 合并）；所有排队决策回调执行前比对代际，过期即丢弃。
+- **“清队列”只清插件尚未提交的决策**，不等同于撤销已进入原生的技能回调/协程；已提交的原生动作
+  继续跟踪到可判定边界，暂停只停止后续自动提交。
 
 ---
 
@@ -211,13 +227,28 @@ flowchart LR
 → 执行前复查（owner epoch / revision / 目标仍有效 / canProject）
 ```
 
-**失败语义（两阶段，v1.1 修正）**：
+**失败语义（三态，v1.2 冻结）**：
 - **执行前不可用**（冷却/点数/射程）：按 `on_unavailable: skip|pause|wait`（默认 `skip`，安全类 `pause`）。
-- **原生执行后失败**：不能“false 就换下一条”。必须复用桥接已有结果语义（`native_return`/`energy_spent`/
-  `uncertain`/`native_pending`）：已耗能/不确定/交互未结束时 **pause 并解释**，绝不静默换技能。
+- **`native_pending`（正常未完成）**：桥接返回 `{ok=true, code='native_pending'}`（`Actions.lua:282`）；
+  执行器进入**内部等待态**，不再提交动作，继续跟踪到可判定的安全边界后再重新评估。
+  **这不是失败，也不要求玩家重启。**
+- **需要玩家处理**（目标窗口/额外确认/原生交互）：明确暂停并交还交互，不自动确认。
+- **异常/结果不可判定**（`uncertain`/`execution_error`）：停止继续执行、显示原因、不自动重试；
+  已耗能时保守暂停。区分“**暂时不再提交动作**”与“**要求玩家重新启动**”两件事。
 
 **常驻（sustains）是“维持期望状态”**：表达“希望该 sustain 开启”，执行器先查期望态（桥接 `set_sustain`
 已有 `already_in_desired_state`），而不是“条件满足就再切换”；并规定常驻/救急优先级与重复失败重试上限。
+
+### 5.7 危急状态与自保语义（v1.2 冻结）
+执行器按固定三层，策略只能**收紧**不能放宽：
+1. **执行边界异常**（owner/场景/原生错误/unsafe unknown）→ 停止或暂停。
+2. **危急状态**（`hp_pct < flee_below_hp_pct` 或卫生守卫触发）→ **只**尝试预设中明确允许的紧急自保
+   （治疗/护盾/解控/一步撤离）；**无可用方案则暂停并交还玩家，不继续普通输出**。
+3. **其余状态** → 执行普通规则（按 priority）。
+- `min_hp_pct`：**启动/继续门槛**——低于它不开始/不继续普通规则（进入第 2 层）。
+- `flee_below_hp_pct`：第 2 层紧急自保触发阈值；必须 `<= min_hp_pct`。
+- **首版默认不出自动撤退**；`move{retreat}` 仅在预设显式启用且通过目的地判定测试后可用。
+- 自保动作同样要过 adapter/`canProject`/原生返回；`unknown` 按 §8.1 处理。
 
 ### 5.4 简单模式 ↔ 高级模式（同一数据）
 - **简单模式**：有序技能优先级列表 + 阈值滑杆（HP/资源/敌人距离），生成等价规则。
@@ -334,14 +365,22 @@ flowchart LR
 ### 9.2 生命周期
 | 事件 | 行为 |
 | --- | --- |
-| `start` | 校验策略 → 置 owner=auto_combat → 等下一个 ready |
-| `pause` | 停执行器、清队列、保留策略 |
+| `start` | 校验策略 → 置 owner=auto_combat → **若已 ready 直接安排 pump，否则等下一次 ready 通知**；推进运行代际 |
+| `pause` | 停执行器、清**未提交**决策、推进运行代际、保留策略 |
+| `resume` | 若已 ready 直接安排 pump；推进运行代际；strict 模式下确认当前已知新敌人集合 |
+| 应用/清空策略 | 推进运行代际；`clear` 不删除已批准的快照 |
 | `manual` 输入 | owner→manual，pause（可配置是否断开 MCP） |
 | MCP `connect control` | 原子接管 → owner=remote |
 | 场景切换/读档/存档 | pause + reset 快照；换层后需重新 start |
-| 新可见敌人 | 默认 pause（与 Battle Companion 一致），可由 `safety.pause_on_new_enemy` 控制 |
+| 新可见敌人 | strict：暂停（与 Battle Companion 一致）；见下方恢复语义 |
 | 死亡/终局 | 停止并记录 |
-| 未知安全输入 | pause 并记录原因 |
+| 未知安全输入 | 按 §8.1 范围处理 |
+
+**strict 模式的恢复语义（v1.2 冻结）**：`resume` 表示**确认当前已知的新敌人集合**；
+之后又出现**未确认**的新敌人，仍会触发 strict 暂停。例如：启动时见 A；B 出现→暂停；
+玩家恢复（确认 A、B）；随后 C 出现→仍暂停。同一敌人离开视野后又回来是否重算，用同一遭遇内的
+**稳定引用（uid）**判定并在日志中写明。确认新敌人只解除这一项暂停原因，**不得**绕过低生命、
+场景异常或未完成原生动作等其他守卫。
 
 ### 9.3 独立（无 MCP）形态
 - 仲裁器只有 `manual`/`auto_combat`；无 `remote` owner。
@@ -372,13 +411,20 @@ flowchart LR
 ### 11.1 `tome.policy`
 | 子命令 | 参数 | 说明 |
 | --- | --- | --- |
-| `get` | — | 返回当前策略 + hash |
+| `get` | — | 返回 draft / approved / running 三个版本与各自 hash |
 | `validate` | `policy` | 只做 schema 校验，不执行 |
 | `dry_run` | `policy` | 对当前快照求值，返回 §7 诊断 |
-| `set` | `policy`, `activate:bool` | 写入（可选立即启用） |
-| `clear` | — | 清空策略 |
+| `set` | `policy`, `expected_hash`, `activate:bool=false` | 写入草稿/批准；`expected_hash` 不匹配则拒绝覆盖；`activate` 仅在本地点明授权时生效 |
+| `clear` | — | 清空草稿；**不删除已批准版本** |
 | `start`/`pause`/`resume` | — | 控制执行器 |
-| `status` | — | owner、epoch、是否运行、最近决策摘要 |
+| `status` | — | owner、epoch、三个版本 hash、是否运行、最近决策摘要 |
+
+**版本与控制契约（v1.2 冻结）**：
+- `get`/`status` 必须区分 draft/approved/running；**停止运行不让已批准版本消失**。
+- UI 与 MCP 同时改同一策略时，提交必须携带 `expected_hash`；不匹配则拒绝，不做静默覆盖。
+- AI 可直接 `activate`，但必须来自**本地明确授权**；未授权时只能写草稿。
+- **“已认证”≠“此刻持有动作控制权”**：MCP 委派给 `auto_combat` 后，连接仍可 observe/pause，
+  但要执行普通 `act` 必须先重新取得 `remote` 控制（唯一 owner）。
 
 ### 11.2 其它
 - `tome.policy_log`（分页）。
@@ -418,16 +464,20 @@ flowchart LR
   dialog/manual+remote 接管/save-load-death。
 - **MCP 集成（Python）**：`tome.policy` schema 与错误映射、dry-run、分页日志、接管。
 - **安全验收**：手动接管后无旧动作继续执行；原生失败但耗能时不误重试；弹出目标窗口时不提交第二个动作；
-  读档后保留设置但不恢复自动战斗；无非法施法；无隐藏信息读取；未知安全输入必 paused。
-- **可用性验收（v1.1 新增）**：
+  读档后保留设置但不恢复自动战斗；无非法施法；无隐藏信息读取；**执行器级安全依赖未知必暂停，动作级未知按 §8.1**。
+- **可用性验收（v1.2 含通过标准）**：
 
-  | 指标 | 回答的问题 |
-  | --- | --- |
-  | 从套用预设到首次成功运行需要多少操作 | 上手是否方便 |
-  | 普通战斗中需要多少次人工重新启动 | 是否真的减少操作 |
-  | 每 100 次决策的非预期暂停次数及原因 | 保守策略是否过度打断 |
-  | 试点构筑常用技能的实际覆盖率 | 是否真正可用，而非动作类型齐全 |
-  | 玩家能否从暂停提示直接知道如何继续 | 日志是否有实际价值 |
+  | 指标 | 回答的问题 | 通过标准（示例） |
+  | --- | --- | --- |
+  | 从套用预设到首次成功运行需要多少操作 | 上手是否方便 | **全程无需编辑 JSON**；≤ 5 步操作 |
+  | 普通战斗中需要多少次人工重新启动 | 是否真的减少操作 | 固定样本中非预期暂停为 0 |
+  | 每 100 次决策的非预期暂停次数及原因 | 保守策略是否过度打断 | 预期暂停有清单，其余为 0 |
+  | 试点构筑常用技能的实际覆盖率 | 是否真正可用 | 试点构筑日常技能 100% 有 adapter |
+  | 玩家能否从暂停提示直接知道如何继续 | 日志是否有实际价值 | 每类暂停提示自含恢复步骤 |
+
+- **首轮原生验证场景（必须覆盖）**：启动时角色**已 ready**；瞬发后资源/状态改变（重新取快照）；动作排队后
+  **暂停再恢复**；运行中应用新策略；技能进入 `native_pending`；低生命时自保技能不可用；
+  已确认一名新敌人后又出现另一名未确认新敌人。这比加第二个职业更能检验底座。
 
 ---
 
@@ -435,7 +485,7 @@ flowchart LR
 
 | 阶段 | 内容 | 估计 |
 | --- | --- | --- |
-| **P1a 战斗核心** | 上述模块骨架；`tome.policy`+`dry_run`+status+日志；常驻/治疗护盾/普攻/一个静态单体/一个 beam/fixture 验证的 Searing·Shadow Blast·Starfall adapter/一步撤退 | **3–5 周** |
+| **P1a 首个可用闭环** | 模块骨架 + `tome.policy`/`dry_run`/status/日志；**简单编辑器（不写 JSON）+ 角色持久化 + 一个完整试点构筑**（治疗/护盾/资源恢复/稳定输出全流程可用）；常驻/普攻/一个静态单体/一个 beam/fixture 验证的 Searing·Shadow Blast·Starfall adapter | **3–5 周** |
 | **P1b 原生活动** | 抽出通用 `NativeActivity`，纳入 `rest`/`auto_explore`；自动换层默认关闭 | +2–3 周 |
 | **P2 调优** | 更多谓词/选择器、决策回放、A/B 调参、更多职业 adapter | +2–3 周 |
 | **P3 适配** | 固定版本 assistant 配置适配器（只生成、人工确认） | 6–10 周起（持续维护） |
@@ -451,7 +501,8 @@ P1a **不做**：队友/装备/物品/召唤管理、rest、auto-explore、换�
 3. 遇新可见敌人是否总 pause（建议是，与 BC 一致）。
 4. 允许的 selffire 概率（建议 P1 = 0）。
 5. manual 输入是 pause 还是断开 MCP transport（无论 UI 如何，owner 必须先回 manual）。
-6. 策略是否持久化（建议 P1 客户端持有、每 session 重发；角色档案可选）。
+6. 角色策略持久化：**已定（见 §6.3）**——随角色保存；运行态不保存，读档后为停止状态。
+   （不再需要“每 session 重发”或“角色档案可选”。）
 7. `rest`/`auto_explore` 是否进首个可用版本；自动换层是否永久 opt-in。
 8. 装 legacy assistant 时是否完全拒绝 auto（建议是）。
 9. 协议：v4 增量能力门控，还是升 v5（§3.2）。
@@ -490,12 +541,8 @@ P1a **不做**：队友/装备/物品/召唤管理、rest、auto-explore、换�
                          { "cooldown_ready": { "talent": "T_MOONLIGHT_RAY" } } ] },
       "then": { "action": "use_talent", "talent": "T_MOONLIGHT_RAY", "target": "nearest_hostile" } },
     { "id": "searing", "priority": 60,
-      "when": { "all": [ { "enemy_hp_pct": { "le": 100 } },
-                         { "cooldown_ready": { "talent": "T_SEARING_LIGHT" } } ] },
+      "when": { "cooldown_ready": { "talent": "T_SEARING_LIGHT" } },
       "then": { "action": "use_talent", "talent": "T_SEARING_LIGHT", "target": "nearest_hostile" } },
-    { "id": "retreat", "priority": 40,
-      "when": { "all": [ { "hp_pct": { "lt": 22 } }, { "enemy_in_melee": true } ] },
-      "then": { "action": "move", "retreat": 1 } },
     { "id": "attack", "priority": 10,
       "when": { "all": [ { "enemy_in_melee": true } ] },
       "then": { "action": "attack", "target": "nearest_hostile" } }
@@ -516,7 +563,7 @@ P1a **不做**：队友/装备/物品/召唤管理、rest、auto-explore、换�
 
 ---
 
-## 17. v1.1 修订摘要（对应产品评审）
+## 17. 修订历史（非规范；以正文为准）
 
 1. **先冻结合同**：见 §0.1 —— 只处理当前可见战斗，无可见敌人即结束，不探索/不换层，无动作不空等。
 2. **战斗语义**：§5.3 新增目标绑定流程、两阶段失败语义、sustains 期望态；附录 A 修正 searing 目标
@@ -529,6 +576,8 @@ P1a **不做**：队友/装备/物品/召唤管理、rest、auto-explore、换�
    整型化只覆盖整数字段；日志改名"决策追踪"；动作白名单与 capabilities/UI 必须一致。
 7. **可用性验收**：§14 新增指标（上手操作数、人工重启次数、非预期暂停率、试点覆盖率、暂停可操作性）。
 
-仍待拍板项见 §16；其中 "daily 模式"（`pause_on_new_enemy`）需要明确风险定义与"每个 encounter 只暂停一次"
+> **首版默认不包含自动撤退**：`move{retreat}` 仅在预设显式启用且通过目的地判定测试后可用（见 §5.7）。
+
+仍待拍板项见 §16；其中 "daily 模式"（`pause_on_new_enemy`）需要明确风险定义与“每个 encounter 只暂停一次”
 的状态，且**默认仍为 strict**。执行架构的边界契约（启动时已 ready、暂停/改策略失效旧决策、瞬发预算与
 瞬发后快照、目标窗口暂停规划、无进展短路、规则/深度/候选/日志上限）见 §4 与 §9。
