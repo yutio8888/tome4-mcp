@@ -81,14 +81,14 @@ local function auditedMethod(fn,path,digest,declaration)
     end
     return true
 end
-function M.registerDependency(id,domain,fn,path,purpose,digest,declaration)
+function M.registerDependency(id,domain,fn,path,purpose,digest,declaration,depends_on)
     if type(fn)~='function' then
-        dependencies[id]={ok=false,reason='dependency_missing',domain=domain,path=path}
+        dependencies[id]={ok=false,reason='dependency_missing',domain=domain,path=path,depends_on=depends_on or {}}
         return false
     end
     local existing=dependencies[id]
     if existing and existing.fn and existing.fn~=fn then
-        dependencies[id]={fn=fn,ok=false,reason='dependency_replaced',domain=domain,path=path}
+        dependencies[id]={fn=fn,ok=false,reason='dependency_replaced',domain=domain,path=path,depends_on=depends_on or {}}
         return false
     end
     -- No digest means the dependency was not audited: fail closed instead of
@@ -97,7 +97,7 @@ function M.registerDependency(id,domain,fn,path,purpose,digest,declaration)
     if type(digest)=='string' and #digest>0 then
         ok,reason=auditedMethod(fn,path,digest,declaration)
     end
-    dependencies[id]={fn=fn,ok=ok,reason=ok and nil or reason,domain=domain,path=path,purpose=purpose}
+    dependencies[id]={fn=fn,ok=ok,reason=ok and nil or reason,domain=domain,path=path,purpose=purpose,depends_on=depends_on or {}}
     return ok
 end
 function M.dependency(id,fn)
@@ -108,10 +108,35 @@ function M.dependency(id,fn)
         entry.ok=false;entry.reason='dependency_replaced'
         return nil,'dependency_replaced'
     end
+    -- Indirect closure: a transitive dependency that is missing or replaced
+    -- makes this query field unknown instead of silently trusting it.
+    for _,dep in ipairs(entry.depends_on or {}) do
+        local child=dependencies[dep]
+        if not child or not child.ok then
+            entry.ok=false;entry.reason='dependency_closure_broken'
+            return nil,'dependency_closure_broken'
+        end
+    end
     return fn,entry.reason
 end
 function M.hasDependency(id) return dependencies[id]~=nil end
 function M.resetDependencies() dependencies={} end
+local function closureOf(id,seen)
+    if seen[id] then return seen[id] end
+    local entry=dependencies[id]
+    local node={ok=entry~=nil and entry.ok==true or false,reason=entry and entry.reason,domain=entry and entry.domain,
+        path=entry and entry.path,purpose=entry and entry.purpose,depends_on={}}
+    seen[id]=node
+    if entry then
+        for _,dep in ipairs(entry.depends_on or {}) do node.depends_on[#node.depends_on+1]=closureOf(dep,seen) end
+    end
+    return node
+end
+function M.closureSummary()
+    local out={}
+    for id,_ in pairs(dependencies) do out[id]=closureOf(id,{}) end
+    return out
+end
 function M.dependencySummary()
     local out={}
     for id,entry in pairs(dependencies) do
@@ -159,7 +184,7 @@ function domainFor(name)
 end
 function M.summary()
     local providers=select(1,M.providerSummary())
-    return {scope='runtime audit: full file summary and function identity for entrypoints; source, digest, definition line and identity for query dependencies',
-        capture_complete=true,providers=providers,dependencies=M.dependencySummary()}
+    return {scope='runtime audit: full file summary and function identity for entrypoints; source, digest, definition line, identity and indirect dependency closure for query dependencies',
+        capture_complete=true,providers=providers,dependencies=M.dependencySummary(),closures=M.closureSummary()}
 end
 return M

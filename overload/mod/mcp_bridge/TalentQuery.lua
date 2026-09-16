@@ -20,9 +20,9 @@ end
 -- A read-only dependency is only called after it has been registered once.
 -- Re-registering an existing id never overwrites the baseline, so a later
 -- replacement stays failed instead of being adopted.
-local function registerOnce(id,domain,fn,path,purpose,digest,declaration)
+local function registerOnce(id,domain,fn,path,purpose,digest,declaration,depends_on)
     if Compat.hasDependency and Compat.hasDependency(id) then return end
-    Compat.registerDependency(id,domain,fn,path,purpose,digest,declaration)
+    Compat.registerDependency(id,domain,fn,path,purpose,digest,declaration,depends_on)
 end
 function M.registerNative(player)
     if type(player)~='table' then return end
@@ -31,8 +31,10 @@ function M.registerNative(player)
             Manifest.entity_md5,'function _M:attr')
     end
     if type(player.alterTalentCost)=='function' then
+        -- alterTalentCost reads combatFatigue, so its indirect closure includes
+        -- the fatigue dependency; a broken link makes the cost field unknown.
         registerOnce('actor.alterTalentCost','talent_query',player.alterTalentCost,'/mod/class/Actor.lua','talent cost mutation',
-            Manifest.actor_md5,'function _M:alterTalentCost')
+            Manifest.actor_md5,'function _M:alterTalentCost',{'actor.combatFatigue'})
     end
     if type(player.combatFatigue)=='function' then
         registerOnce('actor.combatFatigue','talent_query',player.combatFatigue,'/mod/class/interface/Combat.lua','fatigue-dependent cost factor',
@@ -44,7 +46,7 @@ function M.registerNative(player)
             -- Only the short-name keys; the array indices alias the same defs.
             if type(name)=='string' and type(def)=='table' and type(def.cost_factor)=='function' then
                 registerOnce('resource.cost_factor:'..name,'talent_query',def.cost_factor,'/data/resources.lua','resource cost factor',
-                    Manifest.resources_md5,'cost_factor = function')
+                    Manifest.resources_md5,'cost_factor = function',{'actor.combatFatigue'})
             end
         end
     end
