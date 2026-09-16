@@ -1,6 +1,6 @@
 # AI 与人共用的自动战斗策略插件方案（ToME 1.7.x / MCP Bridge 0.9.0）
 
-状态：设计报告（v1 草案）。目标读者：插件开发者、MCP 集成方、希望用 AI 或手工调参的玩家。
+状态：设计报告（v1.3 冻结；正文 §0–§16 即规范）。目标读者：插件开发者、MCP 集成方、希望用 AI 或手工调参的玩家。
 关联：`docs/tome-mcp-architecture.md`、`docs/battle-companion-mcp-control.md`、
 `docs/tome-mcp-0.9.0-level-map.md`，评审 `tmp/mcp-play-support/review-auto-combat.md`。
 
@@ -149,6 +149,19 @@ flowchart LR
   （可与 owner epoch 合并）；所有排队决策回调执行前比对代际，过期即丢弃。
 - **“清队列”只清插件尚未提交的决策**，不等同于撤销已进入原生的技能回调/协程；已提交的原生动作
   继续跟踪到可判定边界，暂停只停止后续自动提交。
+- **动作结果 → 预算 → 下一状态（冻结）**：
+
+  | 结果 | 预算 | 下一步 |
+  | --- | --- | --- |
+  | 执行前明确拒绝且未耗能（冷却/点数/射程） | 计入尝试 | 当前行动机会内**不得原样重试**；能确认状态未变且无原生待完成调用时可改试其他规则，否则暂停 |
+  | `native_pending` | 计入尝试 | 内部等待，不再提交；到安全边界重新评估 |
+  | 成功 | 计入尝试 | 重取状态；同一行动机会内继续（受预算） |
+  | 异常/不可判定 | 计入尝试 | 停止并解释，不自动重试 |
+
+  - **所有真实调用尝试都计入**有界预算（不只数成功动作）。
+  - **瞬发预算以一个行动机会为单位**：显示帧、瞬发后重取快照都不重置；只有确认进入下一行动机会才重置。
+    到顶后固定选一种：停止瞬发并处理后续耗能动作，或暂停并说明。
+  - 危急状态下**预算耗尽不得成为跳过自保门禁、改放普通输出的理由**。
 
 ---
 
@@ -196,7 +209,7 @@ flowchart LR
 | `enemy_rank` / `enemy_type` | 最近/指定敌人的 rank/type | `cmp`/`eq` |
 | `enemy_hp_pct` | 目标生命百分比 | `cmp`,`value` |
 | `ally_count` | 可见友方/召唤数量 | `cmp`,`value` |
-| `computed` | 有效计算属性（§5.5） | `field`（**有限枚举 id**，非任意路径）,`cmp`,`value` |
+| `computed` | 有效计算属性（§5.6） | `field`（**有限枚举 id**，非任意路径）,`cmp`,`value` |
 | `map_frontier` | 当前层未知前沿数 | `cmp`,`value` |
 | `turn_parity` | 回合奇偶/间隔 | `mod`,`eq` |
 
@@ -217,6 +230,10 @@ flowchart LR
 
 目标 selector：`nearest_hostile`、`lowest_hp_hostile`、`highest_rank_hostile`、
 `most_dangerous`（按 `computed`）、`cluster_center`（AoE：`min_targets`、`max_selffire`）、`self`、`position`。
+
+**规则字段（冻结）**：`id`、`priority`（越大越先）、`when`、`then`、可选 `emergency:true`、可选 `enabled`。
+**危急自保必须由 `emergency:true` 显式标记**，执行器再用能力目录验证该动作确实满足自保要求；
+**不得靠规则名为 `heal` 或优先级高低推断**。
 
 **目标绑定（冻结，v1.1 修正）**：每条规则按固定顺序执行，避免“条件检查 A、动作选到 B”：
 ```
@@ -239,7 +256,7 @@ flowchart LR
 **常驻（sustains）是“维持期望状态”**：表达“希望该 sustain 开启”，执行器先查期望态（桥接 `set_sustain`
 已有 `already_in_desired_state`），而不是“条件满足就再切换”；并规定常驻/救急优先级与重复失败重试上限。
 
-### 5.7 危急状态与自保语义（v1.2 冻结）
+### 5.4 危急状态与自保语义（v1.2 冻结）
 执行器按固定三层，策略只能**收紧**不能放宽：
 1. **执行边界异常**（owner/场景/原生错误/unsafe unknown）→ 停止或暂停。
 2. **危急状态**（`hp_pct < flee_below_hp_pct` 或卫生守卫触发）→ **只**尝试预设中明确允许的紧急自保
@@ -249,19 +266,21 @@ flowchart LR
 - `flee_below_hp_pct`：第 2 层紧急自保触发阈值；必须 `<= min_hp_pct`。
 - **首版默认不出自动撤退**；`move{retreat}` 仅在预设显式启用且通过目的地判定测试后可用。
 - 自保动作同样要过 adapter/`canProject`/原生返回；`unknown` 按 §8.1 处理。
+- **阈值边界（冻结用例）**：`hp_pct < min_hp_pct` 即禁止普通输出（进入第 2 层）；例如 `min_hp_pct=35` 时，
+  生命 30% 不得放普通输出，与是否低于 `flee_below_hp_pct` 无关。
 
-### 5.4 简单模式 ↔ 高级模式（同一数据）
+### 5.5 简单模式 ↔ 高级模式（同一数据）
 - **简单模式**：有序技能优先级列表 + 阈值滑杆（HP/资源/敌人距离），生成等价规则。
 - **高级模式**：条件树（AND/OR/NOT + 谓词），直接编辑 `rules`。
 - 两种模式编辑同一 `rules`；简单模式是高级模式的一个受限视图，**不产生第二份数据**。
 - 每个谓词/动作/字段在 UI 显示人类可读 label（来自 `catalog/labels.zh_hans|en`），JSON 里只存 id。
 
-### 5.5 `computed` 谓词引用（与只读接口一致）
+### 5.6 `computed` 谓词引用（与只读接口一致）
 策略可引用 `inspect(kind="actor")` 已暴露的有效计算值：`computed.crit.physical`、
 `computed.resists.FIRE`、`computed.offense.resistance_penetration.FIRE`、`computed.defense.fatigue`、
 `computed.stats.mag`、`computed.speeds.movement` 等。这些值来自**已审计的 getter**（§8）。
 
-### 5.6 自伤（selffire）建模（重要）
+### 5.7 自伤（selffire）建模（重要）
 - 只有技能**显式**声明 `selffire` 才是确定值；缺省的面积形状为 `unknown`。
 - adapter 记录**实际伤害语义**，而不是只看目标光标形状：
   - `T_SEARING_LIGHT`：伤害是**单体 `hit`** + 地面光域 `addEffect(..., selffire=false, friendlyfire=false)`
@@ -467,7 +486,7 @@ flowchart LR
   读档后保留设置但不恢复自动战斗；无非法施法；无隐藏信息读取；**执行器级安全依赖未知必暂停，动作级未知按 §8.1**。
 - **可用性验收（v1.2 含通过标准）**：
 
-  | 指标 | 回答的问题 | 通过标准（示例） |
+  | 指标 | 回答的问题 | 通过标准 |
   | --- | --- | --- |
   | 从套用预设到首次成功运行需要多少操作 | 上手是否方便 | **全程无需编辑 JSON**；≤ 5 步操作 |
   | 普通战斗中需要多少次人工重新启动 | 是否真的减少操作 | 固定样本中非预期暂停为 0 |
@@ -490,22 +509,31 @@ flowchart LR
 | **P2 调优** | 更多谓词/选择器、决策回放、A/B 调参、更多职业 adapter | +2–3 周 |
 | **P3 适配** | 固定版本 assistant 配置适配器（只生成、人工确认） | 6–10 周起（持续维护） |
 
+### 15.1 首版基线（冻结）
+- **试点构筑**：半身人 / 星月术士（Halfling / Celestial-Anorithil）。
+- **技能白名单**（仅这些进入 P1a 可提交 schema，每个都有 adapter）：`T_CHANT_OF_FORTRESS`、
+  `T_HYMN_OF_SHADOWS`、`T_HEALING_LIGHT`、`T_BARRIER`、`T_TWILIGHT`、`T_MOONLIGHT_RAY`、
+  `T_SEARING_LIGHT`、`T_ATTACK`（普攻）。
+- **模式**：strict（`pause_on_new_enemy=true`）；`max_selffire_risk=0`；**默认无自动撤退**；
+  **不含 rest/auto_explore/change_level**。
+- 不进入首版的动作/选择器不进 schema（仅在能力目录/路线图说明）。
+- **协议**：v4 **增量能力门控**（`capabilities.auto_combat`）；后续语义无法兼容再升 v5。
+- **`expected_hash` 指向唯一对象**：写 draft 时比较 draft 当前 hash；approve/activate 时比较
+  **approved** 版本 hash；不匹配返回 `policy_conflict`。
+
 P1a **不做**：队友/装备/物品/召唤管理、rest、auto-explore、换层、assistant 翻译、在线学习。
 
 ---
 
-## 16. 需人拍板
+## 16. 首版基线（已定）与仍待确认
 
-1. P1 支持哪 1–2 职业、哪些技能；只支持静态 target，还是含 version-pinned 动态 adapter。
-2. `unknown` 的默认：安全类 pause、非安全类 skip（本报告建议）。
-3. 遇新可见敌人是否总 pause（建议是，与 BC 一致）。
-4. 允许的 selffire 概率（建议 P1 = 0）。
-5. manual 输入是 pause 还是断开 MCP transport（无论 UI 如何，owner 必须先回 manual）。
-6. 角色策略持久化：**已定（见 §6.3）**——随角色保存；运行态不保存，读档后为停止状态。
-   （不再需要“每 session 重发”或“角色档案可选”。）
-7. `rest`/`auto_explore` 是否进首个可用版本；自动换层是否永久 opt-in。
-8. 装 legacy assistant 时是否完全拒绝 auto（建议是）。
-9. 协议：v4 增量能力门控，还是升 v5（§3.2）。
+**已定（见 §15.1，不再需要拍板）**：试点构筑与技能白名单、strict 模式、`max_selffire_risk=0`、
+无默认撤退、不含 rest/auto_explore/change_level、协议 v4 增量能力门控、`expected_hash` 对象。
+
+**仍待确认（不阻塞 P1a 开工）**：
+1. daily 模式的风险定义与 preset 默认（**默认仍为 strict**，作为 P1b 之后）。
+2. manual 输入是 pause 还是断开 MCP transport（无论哪种，owner 必须先回 manual）。
+3. `rest`/`auto_explore` 进入 P1b 的具体版本；自动换层是否永久 opt-in。
 
 ---
 
@@ -576,7 +604,7 @@ P1a **不做**：队友/装备/物品/召唤管理、rest、auto-explore、换�
    整型化只覆盖整数字段；日志改名"决策追踪"；动作白名单与 capabilities/UI 必须一致。
 7. **可用性验收**：§14 新增指标（上手操作数、人工重启次数、非预期暂停率、试点覆盖率、暂停可操作性）。
 
-> **首版默认不包含自动撤退**：`move{retreat}` 仅在预设显式启用且通过目的地判定测试后可用（见 §5.7）。
+> **首版默认不包含自动撤退**：`move{retreat}` 仅在预设显式启用且通过目的地判定测试后可用（见 §5.4）。
 
 仍待拍板项见 §16；其中 "daily 模式"（`pause_on_new_enemy`）需要明确风险定义与“每个 encounter 只暂停一次”
 的状态，且**默认仍为 strict**。执行架构的边界契约（启动时已 ready、暂停/改策略失效旧决策、瞬发预算与
