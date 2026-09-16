@@ -351,4 +351,33 @@ local wall=setmetatable({x=1,y=1,energy={value=1000},moveDir=function(self) retu
 local blocked_move=ActionsMod.execute({player=wall},{type='move',direction=4},nil)
 check(not blocked_move.ok and blocked_move.code=='blocked' and blocked_move.energy_spent==0,
     'a move that neither moves nor spends energy reports blocked')
+-- P1a: auto-combat policy authoring surface (execution is a later slice).
+do
+    local policy={schema='tome-auto-combat/v1',id='p1',name='unit',
+        limits={max_actions_per_tick=1},safety={min_hp_pct=35},
+        targeting={default='nearest_hostile'},
+        rules={{id='beam',priority=1,when={enemy_count={ge=1}},
+            ['then']={action='use_talent',talent='T_MOONLIGHT_RAY',target='nearest_hostile'}}}}
+    local invalid=request('policy',{session_id=hello.session_id,policy_op='validate',policy={schema='x'}})
+    check(not invalid.result and invalid.error.code=='invalid_policy','policy validate refuses an invalid policy')
+    local valid=request('policy',{session_id=hello.session_id,policy_op='validate',policy=policy})
+    check(valid.result and valid.result.hash,'policy validate accepts a valid policy')
+    local draft=request('policy',{session_id=hello.session_id,policy_op='set_draft',policy=policy}).result
+    check(draft and draft.draft_hash,'policy set_draft stores a valid policy')
+    local conflict=request('policy',{session_id=hello.session_id,policy_op='set_draft',policy=policy,expected_hash='deadbeef'})
+    check(not conflict.result and conflict.error.code=='policy_conflict','a stale policy write conflicts')
+    local approved=request('policy',{session_id=hello.session_id,policy_op='approve',expected_hash=draft.draft_hash}).result
+    check(approved and approved.approved_hash,'policy approve certifies the draft')
+    local activated=request('policy',{session_id=hello.session_id,policy_op='activate',expected_hash=approved.approved_hash}).result
+    check(activated and activated.running_hash,'policy activate promotes the approved policy')
+    local start=request('policy',{session_id=hello.session_id,policy_op='start'})
+    check(not start.result and start.error.code=='execution_not_available','execution is not wired yet')
+    local policy_status=request('policy',{session_id=hello.session_id,policy_op='status'}).result
+    check(policy_status and policy_status.control_owner=='auto_combat','policy status reports the lease owner')
+    local log=request('policy_log',{session_id=hello.session_id,limit=5}).result
+    check(log and log.events~=nil,'policy_log returns the event ring')
+    Runtime.manualInput(g,'unit')
+    local after=request('policy',{session_id=hello.session_id,policy_op='status'})
+    check(after.error and after.error.code=='not_connected','a manual input returns control and closes the session')
+end
 print('Runtime: '..count..' checks passed')

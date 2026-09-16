@@ -14,6 +14,7 @@ local CommandLedger=require 'mod.mcp_bridge.CommandLedger'
 local ObservationViews=require 'mod.mcp_bridge.ObservationViews'
 local ObservationCollections=require 'mod.mcp_bridge.ObservationCollections'
 local LevelMap=require 'mod.mcp_bridge.LevelMap'
+local AutoCombat=require 'mod.auto_combat.AutoCombatService'
 local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304,MAX_RECENT_SNAPSHOTS=16,SNAPSHOT_BYTE_BUDGET=4194304}
 local state, serial
 serial=0
@@ -130,7 +131,8 @@ local function meta(s)
         release_hint=(not s.control_token) and s.release_reason
             and (RELEASE_HINTS[s.release_reason] or 'control was released') or nil,
         lua_heap_kb=type(collectgarbage)=='function' and math.floor(collectgarbage('count') or 0) or nil,
-        control_source=s.control_token and 'remote' or localCombat(s) and 'battle_companion' or 'manual',
+        control_source=s.control_token and 'remote' or localCombat(s) and 'battle_companion'
+            or (s.auto_combat and s.auto_combat.arbiter.owner=='auto_combat') and 'auto_combat' or 'manual',
         battle_companion=summary}
 end
 local function snapshot(s,radius,options)
@@ -425,6 +427,9 @@ function M.reset(g)
         level_serial=1,level_id='level-1',ready_serial=0,
         tick_serial=0,tick_depth=0,next_start=0}
     local s=state
+    -- Policy authoring/certification surface. Execution is wired separately;
+    -- the service reports execution_not_available until the host adapter lands.
+    s.auto_combat=AutoCombat.new{}
     s.snapshots={};s.snapshot_bytes=0
     s.connection_generation=1
     s.views=ObservationViews.new{}
@@ -489,6 +494,7 @@ function M.manualInput(g,reason)
     if not state or state.game~=g then return end
     local s=state
     bump(s)
+    if s.auto_combat then AutoCombat.manualInput(s.auto_combat,reason) end
     revoke(s,'manual_'..reason)
     s.authenticated=false
     if s.transport then s.transport:disconnectClient('manual_input') end
@@ -1096,7 +1102,9 @@ local function dispatch(s,request)
                     equip={implementation='supported',scope='native_inventory_rules'},
                     unequip={implementation='supported',scope='native_inventory_rules'}},
                 compact_responses=true,event_cursor=true,inventory_read=true,ground_items_read=true,
-                progression_read=true,inspect_kinds=Json.array{'actor','character','talent','progression','item','compatibility'}},snapshot=snap}
+                progression_read=true,inspect_kinds=Json.array{'actor','character','talent','progression','item','compatibility'},
+                auto_combat={available=true,execution=false,source='auto_combat',baseline='p1a',
+                    policy_ops=Json.array{'status','validate','set_draft','approve','activate','deactivate','start','stop','pause','resume','log'}}},snapshot=snap}
         local ok,reason=Compat.check(s.game)
         result.capabilities.native_compatibility={compatible=ok==true,reason=reason,providers='runtime_checked'}
         if not ok then result.capabilities.talents=Json.array() end
@@ -1161,6 +1169,24 @@ local function dispatch(s,request)
             view.compact=true
         end
         return view
+    elseif op=='policy' then
+        if type(a.policy_op)~='string' then return fail('invalid_argument','policy_op is required') end
+        if s.access_mode~='control' and a.policy_op~='status' and a.policy_op~='log' then
+            return fail('read_only_connection')
+        end
+        local result=AutoCombat.handle(s.auto_combat,a.policy_op,a)
+        if not result.ok then
+            local details=result.error and result.error.details
+            if type(details)~='table' then details=details and {details=details} or nil end
+            return fail(result.error.code,nil,details)
+        end
+        result.ok=nil
+        return result
+    elseif op=='policy_log' then
+        local result=AutoCombat.handle(s.auto_combat,'log',{limit=a.limit})
+        if not result.ok then return fail(result.error.code) end
+        result.ok=nil
+        return result
     elseif op=='level_map' then
         if a.source~=nil and a.source~='native_map' then return fail('unsupported_map_source') end
         if a.format~=nil and a.format~='rows' and a.format~='region' then return fail('invalid_map_format') end

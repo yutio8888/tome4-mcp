@@ -549,6 +549,32 @@ def create_server(bridge: BridgeClient) -> MCPServer:
         """Revoke remote control and cancel unstarted work. Already executed actions and native world settlement are not undone."""
         return reply_result(await call("stop", {"session_id": session_id, "control_token": control_token}))
 
+    @server.tool(name="tome.policy", annotations=write)
+    async def policy(session_id: Identifier,
+                     policy_op: Literal["status", "validate", "set_draft", "approve", "activate",
+                                        "deactivate", "start", "stop", "pause", "resume", "log"],
+                     policy: dict[str, Any] | None = None,
+                     expected_hash: str | None = None,
+                     reason: str | None = None,
+                     limit: Annotated[int, Field(ge=1, le=256)] | None = None) -> ToolReply:
+        """Author, certify and run an auto-combat policy. policy_op=validate/set_draft take a policy document; set_draft/approve/activate compare expected_hash against the draft (writes) or the approved version (approve/activate) and return policy_conflict on a mismatch. Certification (approve) is separate from control: activate promotes the approved policy and requests the auto_combat lease. start/pause/resume/stop control the local run; execution is only available once the host adapter is wired. status and log are read-only."""
+        args: dict[str, Any] = {"session_id": session_id, "policy_op": policy_op}
+        if policy is not None:
+            args["policy"] = policy
+        if expected_hash is not None:
+            args["expected_hash"] = expected_hash
+        if reason is not None:
+            args["reason"] = reason
+        if limit is not None:
+            args["limit"] = limit
+        return reply_result(await call("policy", args))
+
+    @server.tool(name="tome.policy_log", annotations=read)
+    async def policy_log(session_id: Identifier,
+                         limit: Annotated[int, Field(ge=1, le=256)] = 32) -> ToolReply:
+        """Read the most recent auto-combat events (newest first): the selected rule, the reason for a pause, the controller generation and the running policy hash."""
+        return reply_result(await call("policy_log", {"session_id": session_id, "limit": limit}))
+
     @server.resource("tome://rules", mime_type="text/plain")
     def rules() -> str:
         """Read the control, observation, action, and recovery rules."""
