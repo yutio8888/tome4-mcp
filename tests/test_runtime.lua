@@ -380,4 +380,25 @@ do
     local after=request('policy',{session_id=hello.session_id,policy_op='status'})
     check(after.error and after.error.code=='not_connected','a manual input returns control and closes the session')
 end
+-- P1a: live execution is opt-in; when enabled the pump is wired and fails safe.
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=true
+    Runtime.reset(g);g:display()
+    local h2=request('connect',{token='unit-test-token'}).result
+    local pl={schema='tome-auto-combat/v1',id='p1',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35},targeting={default='nearest_hostile'},
+        rules={{id='attack',priority=1,when={always={}},['then']={action='attack',target='nearest_hostile'}}}}
+    request('policy',{session_id=h2.session_id,policy_op='set_draft',policy=pl})
+    local ap=request('policy',{session_id=h2.session_id,policy_op='approve'}).result
+    request('policy',{session_id=h2.session_id,policy_op='activate',expected_hash=ap.approved_hash})
+    local st=request('policy',{session_id=h2.session_id,policy_op='start'})
+    check(st.result and st.result.state~=nil,'live execution starts when enabled')
+    Runtime.beforeTick(g);g.turn=g.turn+10;p.energy.value=1000;g.paused=true
+    Runtime.onReady(p);Runtime.afterTick(g)
+    local pump_ok=pcall(Runtime.onFrame,g)
+    check(pump_ok,'the auto-combat pump does not raise')
+    local ps=request('policy',{session_id=h2.session_id,policy_op='status'}).result
+    check(ps and ps.control_owner=='auto_combat','the pump keeps the auto-combat lease')
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+end
 print('Runtime: '..count..' checks passed')

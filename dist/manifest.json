@@ -1,6 +1,6 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "f71865cad0fd68c52db0647bba7f0d733362ecf15b258cf6d172df384c4f9af2",
+  "sha256": "6d787b328fda47be7975f28e76aadb2389555f355af65a221159744d891473f3",
   "files": {
     "README.md": "21ca37fc6d9ab107a7690cb70c16f273f6296522811cadc2b46902e74bac55a3",
     "hooks/load.lua": "19e2e2216d4d83005d9b7f560da6560d2320988d3d7c78f39c7a4c4a1fc007dd",
@@ -38,7 +38,7 @@
     "overload/mod/mcp_bridge/ObservationViews.lua": "07f856552f06bdd758ccf7a5eebf29ed11ed0dc42c3ecb338756354c0aff0fb6",
     "overload/mod/mcp_bridge/Observer.lua": "99a4a2c912c6205f15be3886b1cce560e7042f3e067e83abdb0c571078e1fd90",
     "overload/mod/mcp_bridge/Progression.lua": "823faab02267d23a5fa704ba60b09236f323440c21a77b5f1b2aca14112a4eaa",
-    "overload/mod/mcp_bridge/Runtime.lua": "1d1f3187605848c90f3110d6007e1bba174848dba5929cd9b09ca762d099cc7b",
+    "overload/mod/mcp_bridge/Runtime.lua": "1676d36385dc4a35285f94afa173f08c5c2a0a59019079c1dd2d4c08b5557a83",
     "overload/mod/mcp_bridge/TalentQuery.lua": "f2535fe95bf2ee481a38aaaba3df0bd4f52f0da609c36d037f97069cf30f30e1",
     "overload/mod/mcp_bridge/TransportSocket.lua": "aa4366504f69ed3be2d74a8da2f9b059a858a163bd069dc0e6280b351703c66a",
     "superload/engine/GameTurnBased.lua": "8dfeb274274924f811aa08ed7d00da2450c49a7e3958c0a737cadc381e9ae65d",

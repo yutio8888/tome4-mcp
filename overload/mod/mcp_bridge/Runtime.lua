@@ -15,6 +15,8 @@ local ObservationViews=require 'mod.mcp_bridge.ObservationViews'
 local ObservationCollections=require 'mod.mcp_bridge.ObservationCollections'
 local LevelMap=require 'mod.mcp_bridge.LevelMap'
 local AutoCombat=require 'mod.auto_combat.AutoCombatService'
+local AutoCombatHost=require 'mod.auto_combat.AutoCombatHost'
+local buildAutoCombatHost
 local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304,MAX_RECENT_SNAPSHOTS=16,SNAPSHOT_BYTE_BUDGET=4194304}
 local state, serial
 serial=0
@@ -430,6 +432,13 @@ function M.reset(g)
     -- Policy authoring/certification surface. Execution is wired separately;
     -- the service reports execution_not_available until the host adapter lands.
     s.auto_combat=AutoCombat.new{}
+    -- Live execution is opt-in and experimental: the executor reuses
+    -- Actions.execute under a synthetic command whose root must not hijack the
+    -- remote command slot (the changed() guard below skips it).
+    if config and config.settings and config.settings.tome_mcp_bridge
+        and config.settings.tome_mcp_bridge.allow_auto_combat_execution==true then
+        s.auto_combat.host_factory=function(svc) return buildAutoCombatHost(s,svc.store.running) end
+    end
     s.snapshots={};s.snapshot_bytes=0
     s.connection_generation=1
     s.views=ObservationViews.new{}
@@ -456,7 +465,11 @@ function M.reset(g)
     s.session_node={root=s.session_root}
     local function changed(root)
         if state==s and root and root.game==g then
-            if root~=s.session_root then s.execution=root end
+            -- Auto-combat roots are tracked for their own pending work but never
+            -- become the remote invocation slot.
+            if root~=s.session_root and not (root.command and root.command.auto_combat) then
+                s.execution=root
+            end
             bump(s)
         end
     end
@@ -827,6 +840,117 @@ local function hostileVisible(g,p,actor)
     if type(actor.reaction)=='number' then return actor.reaction<0 end
     return actor.faction~=nil and actor.faction~=p.faction
 end
+-- Live controller host. Every read is bounded and audited; nothing here runs a
+-- dynamic getter, RNG or talent callback. The executor reuses Actions.execute
+-- under a synthetic command (see the changed() guard) and never becomes the
+-- remote invocation slot.
+buildAutoCombatHost=function(s,policy)
+    local g=s.game
+    local function lifePct(actor)
+        if actor and Details.finite(actor.life) and Details.finite(actor.max_life) and actor.max_life>0 then
+            return actor.life/actor.max_life*100
+        end
+    end
+    local function resourceOf(actor,name)
+        local resource=actor and actor[name]
+        return type(resource)=='table' and resource or nil
+    end
+    local reads={
+        policy=policy,
+        phase=function()
+            local p=g.player
+            if not p or p.dead then return 'waiting_player' end
+            local phase=nativePhase(s)
+            if phase=='ready' then return 'ready' end
+            if phase=='settling' then return 'settling' end
+            return 'waiting_player'
+        end,
+        opportunity_id=function() return s.ready_serial end,
+        origin=function() local p=g.player if p then return {x=p.x,y=p.y} end end,
+        hp_pct=function() return lifePct(g.player) end,
+        resource_pct=function(name)
+            if name=='positive' then return lifePct(g.player) end
+            local resource=resourceOf(g.player,name)
+            if resource and Details.finite(resource.current) and Details.finite(resource.max) and resource.max>0 then
+                return resource.current/resource.max*100
+            end
+        end,
+        resource_value=function(name)
+            local resource=resourceOf(g.player,name)
+            if resource and Details.finite(resource.current) then return resource.current end
+        end,
+        talent_known=function(id)
+            local p=g.player
+            if not p or type(p.talents)~='table' then return nil end
+            return p.talents[id]~=nil
+        end,
+        cooldown_ready=function(id)
+            local p=g.player
+            if not p then return nil end
+            local cooldown=p.talents_cd and p.talents_cd[id]
+            if cooldown==nil then return true end
+            if not Details.finite(cooldown) then return nil end
+            return cooldown<=0
+        end,
+        -- Effect/computed checks are left unknown in P1a: they would need a
+        -- dynamic getter the bridge does not audit yet.
+        has_effect=function() return nil end,
+        computed=function() return nil end,
+        hostiles=function()
+            local p=g.player
+            local out={}
+            if not p or not g.level then return out end
+            local session_meta=meta(s)
+            for _,actor in pairs(g.level.entities or {}) do
+                if hostileVisible(g,p,actor) then
+                    out[#out+1]={id=Observer.actorId(session_meta,actor),x=actor.x,y=actor.y,hp_pct=lifePct(actor)}
+                end
+            end
+            return out
+        end,
+        notify=function() end,
+    }
+    reads.enemy_ids=function()
+        local ids={}
+        for _,entry in ipairs(reads.hostiles()) do ids[#ids+1]=entry.id end
+        return ids
+    end
+    reads.execute=function(attempt)
+        local target
+        if attempt.bound_target then target=Observer.resolve(g,meta(s),attempt.bound_target) end
+        local action
+        if attempt.action=='attack' or attempt.talent=='T_ATTACK' then
+            if not target then return {status='rejected',code='target_lost',energy_spent=false} end
+            action={type='attack',target_id=attempt.bound_target}
+        elseif attempt.action=='use_talent' then
+            action={type='use_talent',talent_id=attempt.talent}
+            if target then action.target_id=attempt.bound_target end
+        elseif attempt.action=='wait' then
+            action={type='wait'}
+        else
+            return {status='rejected',code='unsupported_action',energy_spent=false}
+        end
+        local command={command_id='auto-combat',status='auto_combat',auto_combat=true,
+            interactions={},responses={},consumed_interactions={},interaction_sequence=0}
+        local ok,root,result=pcall(Tracker.startAction,g,command,function()
+            return Actions.execute(g,action,target,meta(s),command)
+        end)
+        if type(root)=='table' and root.done then
+            NativeTasks.release(root);Interactions.release(root);Tracker.release(root);root.invocation=nil
+        end
+        if not ok then
+            return {status='error',code='execution_error',energy_spent=false,
+                message=Details.text(tostring(root),256)}
+        end
+        if type(result)~='table' then return {status='error',code='no_result',energy_spent=false} end
+        local spent=(Details.finite(result.energy_spent) and result.energy_spent>0) or false
+        if result.uncertain then return {status='uncertain',code=result.code,energy_spent=spent} end
+        if result.ok then return {status='ok',code=result.code,energy_spent=spent} end
+        return {status='rejected',code=result.code,energy_spent=spent}
+    end
+    return AutoCombatHost.new(reads)
+end
+
 -- Start a native auto-explore run and advance it until energy is spent. The run
 -- continues across turns; the command owns it, so nativePhase settles and a
 -- revoke/stop cancels it. Getters are called only when audited and native.
@@ -1103,7 +1227,10 @@ local function dispatch(s,request)
                     unequip={implementation='supported',scope='native_inventory_rules'}},
                 compact_responses=true,event_cursor=true,inventory_read=true,ground_items_read=true,
                 progression_read=true,inspect_kinds=Json.array{'actor','character','talent','progression','item','compatibility'},
-                auto_combat={available=true,execution=false,source='auto_combat',baseline='p1a',
+                auto_combat={available=true,
+                    execution=(config and config.settings and config.settings.tome_mcp_bridge
+                        and config.settings.tome_mcp_bridge.allow_auto_combat_execution==true) or false,
+                    source='auto_combat',baseline='p1a',
                     policy_ops=Json.array{'status','validate','set_draft','approve','activate','deactivate','start','stop','pause','resume','log'}}},snapshot=snap}
         local ok,reason=Compat.check(s.game)
         result.capabilities.native_compatibility={compatible=ok==true,reason=reason,providers='runtime_checked'}
@@ -1438,6 +1565,11 @@ function M.onFrame(g)
     s.pumping=true
     local ok,err=pcall(function()
         sync(s);Input.attach(g);Journal.update(g);settle(s);start(s)
+        if s.auto_combat and s.auto_combat.host_factory and not s.active and not s.execution
+            and s.tick_depth==0 and s.tick_serial>0 then
+            local ok_auto=pcall(AutoCombat.step,s.auto_combat)
+            if not ok_auto then AutoCombat.manualInput(s.auto_combat,'execution_error') end
+        end
         if s.transport then s.transport:poll() end
         -- STA-03: cheap invariant check after every frame's transitions.
         local violation=invariants(s)
