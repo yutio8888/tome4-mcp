@@ -79,6 +79,26 @@ function M.openDialog(d,kind,title,text,options,cancel,list,owner)
         options=options,cancel=cancel,list=list}
     dialogs[d]=h
 end
+-- Move a dialog handle to a new root (for example a session root after the
+-- owning command was revoked) so it stays answerable.
+function M.reown(d,root)
+    local h=dialogs[d]
+    if not h or not root or h.root==root then return h end
+    h.root=root;h.owner={root=root}
+    h.game.paused=true
+    issue(h)
+    return h
+end
+function M.reownAll(old,new)
+    if not old or not new or old==new then return end
+    for _,h in pairs(dialogs) do
+        if h.root==old then
+            h.root=new;h.owner={root=new}
+            h.game.paused=true
+            issue(h)
+        end
+    end
+end
 function M.openInventory(d,class_name)
     local owner=nativeOwner()
     if not owner or not Compat.matches(class_name..'.init',d.init) then return end

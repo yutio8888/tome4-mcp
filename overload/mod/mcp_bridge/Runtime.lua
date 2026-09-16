@@ -105,6 +105,14 @@ local function meta(s)
         needs_reconnect=(s.access_mode=='control' and not s.control_token and not s.native_error) and true or nil,
         recovery=s.native_error and 'fresh_load_required' or nil,
         release_reason=(not s.control_token) and s.release_reason or nil,
+        native_activity=(function()
+            local p=s.game and s.game.player
+            if not p then return nil end
+            if p.resting then return (s.active and s.active.native_rest==p.resting) and 'rest_owned' or 'rest_unowned' end
+            if p.running then return 'run_unowned' end
+            return nil
+        end)(),
+        cancelled_native_activity=s.cancelled_native_activity,
         release_hint=(not s.control_token) and s.release_reason
             and (RELEASE_HINTS[s.release_reason] or 'control was released') or nil,
         lua_heap_kb=type(collectgarbage)=='function' and math.floor(collectgarbage('count') or 0) or nil,
@@ -122,6 +130,8 @@ local function snapshot(s,radius,options)
     result.release_reason=m.release_reason
     result.release_hint=m.release_hint
     result.lua_heap_kb=m.lua_heap_kb
+    result.native_activity=m.native_activity
+    result.cancelled_native_activity=m.cancelled_native_activity
     if s.session_root then
         local h=Interactions.current(s.session_root)
         if h then result.interaction=Interactions.describe(s.session_root,m) end
@@ -139,6 +149,7 @@ local function snapshot(s,radius,options)
         local identity={session_id=true,level_instance_id=true,revision=true,world_tick=true,phase=true,
             actionable=true,control_lease=true,needs_reconnect=true,control_source=true,battle_companion=true,
             release_reason=true,release_hint=true,actor_id_scope=true,lua_heap_kb=true,
+            native_activity=true,cancelled_native_activity=true,
             history=true,collection_refs=true,pending_command=true,interaction=true,interaction_scope=true,scene=true}
         for key in pairs(result) do
             if not identity[key] and not keep[key] and not (key=='player' and next(sub)) then result[key]=nil end
@@ -277,6 +288,21 @@ local function stopRest(s,command,reason)
         if not ok then restFault(s,command) end
     end
 end
+-- A native rest/run started outside a bridge command leaves the session
+-- permanently not_ready. Cancel it so the caller can act again.
+local function clearUnownedNativeActivity(s)
+    local p=s.game and s.game.player
+    if not p then return false end
+    local cancelled=nil
+    if p.resting and not (s.active and s.active.native_rest==p.resting) and type(p.restStop)=='function' then
+        if pcall(p.restStop,p,'mcp_cancel') then cancelled='unowned_rest' end
+    end
+    if p.running and type(p.runStop)=='function' then
+        if pcall(p.runStop,p,'mcp_cancel') then cancelled='unowned_run' end
+    end
+    if cancelled then s.cancelled_native_activity=cancelled end
+    return cancelled~=nil
+end
 local function revoke(s,reason,resumable_scene)
     local changed=s.control_token~=nil
     s.control_token=nil
@@ -298,6 +324,11 @@ local function revoke(s,reason,resumable_scene)
             if reason=='disconnected' or reason=='control_replaced' or resumable_scene then
                 if active.input_owner~='manual' then active.input_owner='orphaned' end
             else active.input_owner='manual';active.handoff_requested=reason end
+            -- A popup the command owned (for example the death dialog) stays
+            -- answerable by moving it to the session root once the command is
+            -- terminal. Non-terminal revokes (stop/lease change) keep it on the
+            -- command so respond/receipt semantics are preserved.
+            if s.session_root and reason=='terminal' then Interactions.reownAll(root,s.session_root) end
             if NativeTasks.current(root) and not active.pending_task_stop then
                 active.pending_task_stop=true
                 s.game:onTickEnd(function()
@@ -603,8 +634,11 @@ function M.boundary(g,reason,enter,detail)
                 return
             end
         end
-        if enter and not root and s.control_token and s.access_mode=='control' and s.session_root then
-            if Interactions.adoptNotice(detail,s.session_root) then
+        if enter and not root and s.access_mode=='control' and s.session_root and not s.native_error then
+            -- Adopt even when the lease was already released (for example the
+            -- death dialog raised after a terminal command).
+            local h=Interactions.reown(detail,s.session_root) or Interactions.adoptNotice(detail,s.session_root)
+            if h then
                 Interactions.exposeTop(s.session_root)
                 return
             end
@@ -1015,6 +1049,7 @@ local function dispatch(s,request)
             snapshot=snapshot(s)}
     elseif op=='stop' then
         if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
+        clearUnownedNativeActivity(s)
         revoke(s,'stopped')
         return {stopped=true,snapshot=snapshot(s)}
     elseif op=='act' then
@@ -1043,7 +1078,15 @@ local function dispatch(s,request)
         if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
         if a.expected_revision~=s.revision then return fail('stale_revision','Observe the current state before acting.') end
         if s.active or s.execution then return fail('command_in_progress') end
-        if nativePhase(s)~='ready' then return fail('not_ready') end
+        if nativePhase(s)~='ready' then
+            -- An unowned native rest/run would otherwise make the session
+            -- permanently not_ready; cancel it once and re-check.
+            if clearUnownedNativeActivity(s) then sync(s);bump(s) end
+            if nativePhase(s)~='ready' then
+                return fail('not_ready','The game is not ready for actions.',
+                    {details={hint='an unowned native rest/run is active; it was cancelled if possible, observe again'}})
+            end
+        end
         local command={expected_revision=a.expected_revision,action=action,
             control_token=s.control_token,status='queued',protocol=4,
             input_owner='remote',responses={},response_count=0,consumed_interactions={},

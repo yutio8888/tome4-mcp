@@ -141,6 +141,15 @@ check(abandoned.result and abandoned.result.recovered
     and abandoned.result.recovery=='discarded_failed_invocation','abandon clears bridge isolation')
 check(observe().phase~='unavailable' and observe().control_lease=='held','abandon restores a usable session')
 check(request('abandon',{session_id=hello.session_id,control_token=hello.control_token}).error.code=='not_isolated','a second abandon reports not_isolated')
+g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+-- An unowned native rest must not lock the session: the next action cancels it.
+p.resting={cnt=1}
+p.restStop=function(self) self.resting=nil end
+check(observe().native_activity=='rest_unowned','observe reports an unowned native rest')
+local cleared=act('unowned-rest',{type='wait'})
+check(cleared.result~=nil and p.resting==nil,'an unowned native rest is cancelled before admitting the action')
+g:tick();g:display()
+check(status('unowned-rest').status~='failed','the command proceeds after cancelling the unowned rest')
 local old_session=hello.session_id
 g:loaded();g:display();reconnect()
 check(hello.session_id~=old_session and observe().phase=='ready','reload creates usable new session')
