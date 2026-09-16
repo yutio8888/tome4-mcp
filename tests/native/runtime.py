@@ -122,7 +122,7 @@ class Runtime:
             self.port = sock.getsockname()[1]
         self.token = "native-acceptance-" + os.urandom(16).hex()
         (settings / "mcp-test.cfg").write_text("\n".join([
-            "cheat = true", "audio.enable = false", 'window = {size="1280x800 Windowed"}',
+            "cheat = true", "audio.enable = false", 'window = {size="1920x1080 Windowed"}',
             "firstrun = true", "firstrun_gdpr = true", "disable_all_connectivity = false",
             "allow_online_events = false", "tome.upload_charsheet = false",
             "tome.autoassign_talents_on_birth = true", 'locale = "en_US"',
@@ -136,6 +136,7 @@ class Runtime:
         self.env = dict(os.environ)
         self.env.pop("LD_PRELOAD", None)
         self.env.update(DISPLAY=self.display, LIBGL_ALWAYS_SOFTWARE="1", ALSOFT_DRIVERS="null",
+                        SDL_VIDEO_WINDOW_POS="0,0",
                         LD_LIBRARY_PATH=str(deps / "lib/x86_64-linux-gnu") + ":" + self.env.get("LD_LIBRARY_PATH", ""),
                         MESA_SHADER_CACHE_DIR=str(self.session / "mesa-cache"))
         self.xvfb_binary = deps / "bin/Xvfb-local"
@@ -168,7 +169,7 @@ class Runtime:
         log = (self.session / "game.log").open("w")
         self.log_paths.append(self.session / "game.log")
         self.handles.extend([xlog, log])
-        self.xvfb = subprocess.Popen([str(self.xvfb_binary), self.display, "-screen", "0", "1280x800x24",
+        self.xvfb = subprocess.Popen([str(self.xvfb_binary), self.display, "-screen", "0", "1920x1080x24",
                                      "-nolisten", "tcp", "-ac", "-fp", str(self.deps / "share/fonts/X11/misc")],
                                     cwd=self.deps, env=self.env, stdout=xlog, stderr=subprocess.STDOUT)
         deadline = time.monotonic() + 5
@@ -181,6 +182,15 @@ class Runtime:
         self.process = subprocess.Popen(self.command, cwd=self.runtime, env=self.env,
                                         stdout=log, stderr=subprocess.STDOUT)
         (self.session / "pid").write_text(str(self.process.pid))
+        # A windowed SDL window is centred for its initial 800x600 size, so a
+        # later full-screen resize leaves it offset. Move it to the origin once
+        # it appears, so a 1920x1080 window covers a 1920x1080 virtual screen.
+        if shutil.which("xdotool"):
+            subprocess.Popen(
+                ["bash", "-c", "for _ in $(seq 1 60); do "
+                 "xdotool search --name \"Tales of Maj'Eyal\" windowmove 0 0 2>/dev/null && exit 0; "
+                 "sleep 0.5; done"],
+                env=self.env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def restart_from_saved_copy(self) -> Path:
         """Reload only this suite's saved character, keeping the birth save intact."""
