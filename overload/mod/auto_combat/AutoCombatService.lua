@@ -147,10 +147,17 @@ function M.step(svc)
         return fail('control_lost')
     end
     local step=svc.controller:onOpportunity()
-    if step.action=='acted' or step.action=='paused' then
+    -- Pauses are already logged by the controller notify callback, so only the
+    -- successful action is added here (no duplicate pause entries).
+    if step.action=='acted' then
         Log.add(svc.log,{kind=step.action,reason=step.reason,rule=step.rule,talent=step.talent,
             target=step.bound_target,generation=step.generation,
             policy_hash=Schema.hash(svc.store.running)})
+    elseif step.action=='stopped' then
+        -- The controller ended itself (no visible enemy): return control.
+        Log.add(svc.log,{kind='stopped',reason=step.reason,generation=step.generation,
+            policy_hash=Schema.hash(svc.store.running)})
+        if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,step.reason or 'stopped') end
     end
     return ok({step=step,state=svc.controller.state,generation=svc.controller.generation})
 end

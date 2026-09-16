@@ -13,6 +13,10 @@ Commands (one JSON object per line):
   {"inspect": {"kind": "...", "id": "..."}}     read-only inspect
   {"walk": [8,8,6], "reason": "..."}   bounded movement, stops on actors
   {"key": "a", "modifier": "Control_L"} native key press + reconnect
+  {"auto": "preset"|"start"|"stop"|"pause"|"resume"|"status"}  auto-combat control
+  {"auto": {"op": "preset", "name": "anorithil_p1a"}}  preset then approve+activate
+  {"policy": {"op": "status"|"preset"|"set_draft"|...}}  raw tome.policy op
+  {"policy_log": 24}                   recent auto-combat decisions
   {"connect": "control"|"observe"}     explicit (re)connect
   {"stop": true}                       release control / hand off
   {"quit": true, "save": false}        end the run
@@ -117,7 +121,10 @@ async def main():
     shutil.rmtree(addons / 'tome-mcp-probe')
     r.command[-1] = "-Eset_addons={'mcp-bridge','" + birth + "'};no_birth_popup=true"
     settings = r.home / '.t-engine/4.0/settings/mcp-test.cfg'
-    settings.write_text(settings.read_text().replace('cheat = true', 'cheat = false'))
+    settings.write_text(settings.read_text()
+        .replace('cheat = true', 'cheat = false')
+        .replace('tome_mcp_bridge = {enabled=true,',
+                 'tome_mcp_bridge = {allow_auto_combat_execution=true,enabled=true,'))
     with zipfile.ZipFile(r.session / 'candidate.zip', 'w', zipfile.ZIP_DEFLATED) as z:
         for p in sorted(addons.rglob('*')):
             if p.is_file():
@@ -243,6 +250,33 @@ async def main():
                 out['snapshot'] = snapshot_summary(state['current'])
                 return out
 
+            async def policy(op, **kwargs):
+                args = {'session_id': state['connection']['session_id'], 'policy_op': op}
+                args.update(kwargs)
+                return await call('tome.policy', args)
+
+            async def auto(op, name=None):
+                """High-level auto-combat control so the play agent needs no JSON."""
+                if op == 'preset':
+                    preset = await policy('preset', name=name or 'anorithil_p1a')
+                    if '_error' in preset:
+                        return preset
+                    draft = await policy('set_draft', policy=preset['policy'])
+                    if '_error' in draft:
+                        return draft
+                    approved = await policy('approve', expected_hash=draft['draft_hash'])
+                    if '_error' in approved:
+                        return approved
+                    return await policy('activate', expected_hash=approved['approved_hash'])
+                if op in ('start', 'stop', 'pause', 'resume', 'deactivate'):
+                    return await policy(op, reason='playtest')
+                if op == 'status':
+                    st = await policy('status')
+                    log = await call('tome.policy_log',
+                                     {'session_id': state['connection']['session_id'], 'limit': 24})
+                    return {'status': st, 'log': log}
+                return {'error': {'code': 'unknown_auto_op', 'op': op}}
+
             async def respond(answer, reason):
                 if not state.get('interaction') or not state.get('command_id'):
                     return {'status': 'failed', 'code': 'no_pending_interaction', 'action_ok': False,
@@ -354,6 +388,16 @@ async def main():
                             status, code = 'settled', 'key_applied'
                         out = {**(snapshot_summary(snap) or {}),
                                'status': status, 'code': code, 'moved_steps': moved}
+                    elif c.get('auto'):
+                        spec = c['auto']
+                        if isinstance(spec, dict):
+                            out = await auto(spec.get('op'), spec.get('name'))
+                        else:
+                            out = await auto(spec)
+                    elif c.get('policy'):
+                        spec = dict(c['policy'])
+                        op = spec.pop('op', None)
+                        out = await policy(op, **spec)
                     elif c.get('action'):
                         out = await action(c['action'], c.get('reason', 'manual MCP decision'))
                     elif c.get('respond'):
@@ -487,7 +531,7 @@ async def main():
                             out = [entry]
                             if res.get('status') != 'completed':
                                 break
-                    elif c.get('observe') or not c:
+                    elif 'observe' in c or not c:
                         obs = c.get('observe')
                         if isinstance(obs, dict):
                             conn = state['connection']

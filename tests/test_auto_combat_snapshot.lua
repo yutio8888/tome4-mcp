@@ -74,7 +74,15 @@ do
     local ctx=Snapshot.build(host({hostiles=function() return {} end}),policy)
     check(ctx.enemy_count==0 and ctx.bound_target==nil and ctx.enemy_hp_pct==nil,
         'an empty hostile set binds nothing')
-    check(ctx.enemy_in_melee==nil,'no hostiles means melee is unknown, not false')
+    check(ctx.enemy_in_melee==false,'an empty hostile read means melee is false')
+end
+
+do
+    -- Visible enemies outside melee are a known false, not unknown.
+    local far=Snapshot.build(host({hostiles=function()
+        return {{id='far',x=16,y=10,hp_pct=50}}
+    end}),policy)
+    check(far.enemy_in_melee==false,'visible enemies outside melee are known false')
 end
 
 print('Auto-combat snapshot: '..checks..' checks passed')

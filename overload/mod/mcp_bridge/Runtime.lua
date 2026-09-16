@@ -889,6 +889,15 @@ buildAutoCombatHost=function(s,policy)
             if not p or type(p.talents)~='table' then return nil end
             return p.talents[id]~=nil
         end,
+        -- Desired sustain state. nil means the runtime cannot tell, so the
+        -- controller skips maintenance rather than pausing.
+        sustain_on=function(id)
+            local p=g.player
+            if not p or type(p.sustain_talents)~='table' then return nil end
+            -- Native activation stores the sustain's return value, not always
+            -- the boolean true; treat any non-nil, non-false value as on.
+            return p.sustain_talents[id] and true or false
+        end,
         cooldown_ready=function(id)
             local p=g.player
             if not p then return nil end
@@ -930,6 +939,8 @@ buildAutoCombatHost=function(s,policy)
         elseif attempt.action=='use_talent' then
             action={type='use_talent',talent_id=attempt.talent}
             if target then action.target_id=attempt.bound_target end
+        elseif attempt.action=='set_sustain' then
+            action={type='set_sustain',talent_id=attempt.talent,enabled=true}
         elseif attempt.action=='wait' then
             action={type='wait'}
         else

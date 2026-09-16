@@ -84,6 +84,41 @@ do
     check(svc.arbiter.owner=='manual','stop releases the lease')
 end
 
+do
+    -- A pause is logged exactly once (the notify callback owns it).
+    local svc=Service.new({host_factory=function()
+        return {phase=function() return 'ready' end,opportunity_id=function() return 1 end,
+            snapshot=function() return {hp_pct=10,enemy_count=1} end,
+            enemy_ids=function() return {} end,request=function() return {status='ok'} end,
+            notify=function() end}
+    end})
+    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{})
+    Service.handle(svc,'start',{})
+    Service.step(svc)
+    local events=Service.handle(svc,'log',{limit=8}).events
+    local pauses=0
+    for _,event in ipairs(events) do if event.kind=='paused' then pauses=pauses+1 end end
+    check(pauses==1,'a pause is logged exactly once')
+end
+
+do
+    -- Ending because no enemy is visible returns control to the player.
+    local svc=Service.new({host_factory=function()
+        return {phase=function() return 'ready' end,opportunity_id=function() return 1 end,
+            snapshot=function() return {hp_pct=80,enemy_count=0} end,
+            enemy_ids=function() return {} end,request=function() return {status='ok'} end,
+            notify=function() end}
+    end})
+    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{})
+    Service.handle(svc,'start',{})
+    Service.step(svc)
+    check(svc.arbiter.owner=='manual','a no-enemy self-stop returns control')
+end
+
 -- Presets, import/export and character persistence.
 do
     local svc=Service.new()

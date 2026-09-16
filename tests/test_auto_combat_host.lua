@@ -46,6 +46,16 @@ do
     check(host.phase()=='settling','a missing phase defaults to settling')
     local ctx=host.snapshot()
     check(ctx.hp_pct==nil and ctx.enemy_count==0,'missing reads stay unknown and bind nothing')
+    check(ctx.enemy_in_melee==nil,'a missing hostile read leaves melee unknown')
+end
+
+do
+    -- Sustain maintenance reads are exposed to the controller.
+    local host=Host.new(opts({sustain_on=function(id) return id=='on' end,
+        talent_known=function() return true end}))
+    check(host.sustain_on('on')==true and host.sustain_on('off')==false,
+        'the host exposes the desired sustain state')
+    check(host.talent_known('any')==true,'the host exposes the known-talent read')
 end
 
 do

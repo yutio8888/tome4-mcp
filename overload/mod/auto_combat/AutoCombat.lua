@@ -112,6 +112,32 @@ function M:context(selector)
     return self.host.snapshot(selector) or {}
 end
 
+-- Return the highest-priority declared sustain that should be enabled now, or
+-- nil. A sustain is only attempted when the host can tell us it is off and the
+-- talent is not known to be missing.
+function M:sustainStep()
+    if not (self.host and type(self.host.sustain_on)=='function') then return nil end
+    local limit=(self.policy.limits and self.policy.limits.max_actions_per_tick) or 1
+    if self.attempts>=limit then return nil end
+    local ordered={}
+    for _,sustain in ipairs(self.policy.sustains or {}) do ordered[#ordered+1]=sustain end
+    table.sort(ordered,function(a,b)
+        local pa,pb=a.priority or 0,b.priority or 0
+        if pa~=pb then return pa>pb end
+        return tostring(a.talent)<tostring(b.talent)
+    end)
+    for _,sustain in ipairs(ordered) do
+        if not self.denied[sustain.talent] then
+            local on=self.host.sustain_on(sustain.talent)
+            if on==false then
+                local known=self.host.talent_known and self.host.talent_known(sustain.talent)
+                if known~=false then return sustain end
+            end
+        end
+    end
+    return nil
+end
+
 -- A rule's condition and its action must bind the same target. When the winning
 -- rule uses a selector other than the context's, re-bind and re-check the
 -- condition against the actually bound target before acting.
@@ -135,6 +161,29 @@ function M:step()
     local generation=self.generation
     local reason=self:checkEnemies()
     if reason then return self:pause(reason) end
+    -- Declared sustains are maintained before spending the opportunity on an
+    -- offensive rule. Unknown sustain state is skipped, not paused: it is an
+    -- optimization input, not a safety boundary.
+    local sustain=self:sustainStep()
+    if sustain then
+        self.attempts=self.attempts+1
+        local outcome=(self.host and self.host.request and self.host.request({
+            rule='sustain:'..sustain.talent,action='set_sustain',talent=sustain.talent,
+            target='self',generation=generation})) or {}
+        if outcome.status=='native_pending' then
+            self.state='waiting_native'; self.reason='native_pending'
+            return {action='wait_native',rule='sustain:'..sustain.talent,state=self.state,generation=generation}
+        end
+        if outcome.status=='ok' then
+            return {action='acted',rule='sustain:'..sustain.talent,talent=sustain.talent,
+                outcome=outcome,state=self.state,generation=generation}
+        end
+        if outcome.status=='rejected' and outcome.energy_spent~=true then
+            self.denied[sustain.talent]=true
+        else
+            return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
+        end
+    end
     local default_selector=self.policy.targeting and self.policy.targeting.default
     for _=1,8 do
         local ctx=self:context(default_selector)
@@ -143,6 +192,12 @@ function M:step()
         local decision=Evaluator.evaluate(self.policy,ctx)
         if decision.decision=='pause' then return self:pause(decision.reason) end
         if decision.decision=='hold' then
+            -- The product contract ends the run when there is no visible enemy
+            -- left; control is returned instead of holding the lease forever.
+            if ctx.enemy_count==0 then
+                self:stop('no_visible_enemies')
+                return {action='stopped',reason='no_visible_enemies',state=self.state,generation=self.generation}
+            end
             return {action='hold',state=self.state,generation=generation,reason=decision.reason}
         end
         local bound=self:rebind(ctx,decision)

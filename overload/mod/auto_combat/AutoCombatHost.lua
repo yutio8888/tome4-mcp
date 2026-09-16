@@ -34,6 +34,10 @@ function M.new(opts)
     host.opportunity_id=function() return call('opportunity_id') end
     host.enemy_ids=function() return call('enemy_ids') end
     host.notify=opts.notify
+    -- Expose the reads the controller consults outside the snapshot (sustain
+    -- maintenance needs the desired-state check and the known check).
+    host.sustain_on=opts.sustain_on
+    host.talent_known=opts.talent_known
     host.snapshot=function(selector) return Snapshot.build(opts,opts.policy,selector) end
     host.request=function(attempt)
         local execute=opts.execute

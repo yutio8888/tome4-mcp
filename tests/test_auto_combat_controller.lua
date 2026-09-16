@@ -199,4 +199,54 @@ do
     check(c:onOpportunity().reason=='new_enemy','a later new hostile still pauses after resume')
 end
 
+do
+    -- Declared sustains are enabled before offensive rules; unknown desired
+    -- state and unknown talents are skipped, not paused.
+    local host=makeHost()
+    host.sustain_on=function(id)
+        if id=='T_CHANT_OF_FORTRESS' then return nil end
+        return false
+    end
+    host.talent_known=function(id) return id~='T_CHANT_OF_FORTRESS' end
+    local p=policy({sustains={{talent='T_CHANT_OF_FORTRESS',priority=20},
+        {talent='T_HYMN_OF_SHADOWS',priority=10}}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='acted' and step.rule=='sustain:T_HYMN_OF_SHADOWS',
+        'an off, known sustain is enabled before a rule')
+    check(host.requests[1].action=='set_sustain' and host.requests[1].talent=='T_HYMN_OF_SHADOWS',
+        'the sustain uses the native set_sustain action')
+    host.sustain_on=function() return true end
+    local settled=c:onOpportunity()
+    check(settled.action=='acted' and settled.rule=='beam','once sustains are on the rule fires')
+end
+
+do
+    -- A sustain attempt counts against the per-opportunity budget and is not
+    -- retried while the desired state is still off.
+    local host=makeHost()
+    host.sustain_on=function() return false end
+    host.talent_known=function() return true end
+    local p=policy({sustains={{talent='T_HYMN_OF_SHADOWS',priority=10}},
+        limits={max_actions_per_tick=1}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    local first=c:onOpportunity()
+    check(first.action=='acted' and #host.requests==1,'the first sustain attempt runs once')
+    c:onOpportunity()
+    check(#host.requests==1,'the attempt budget stops sustain spam')
+end
+
+do
+    -- No visible enemy ends the run instead of holding the lease forever.
+    local host=makeHost()
+    host.snap={hp_pct=80,enemy_count=0}
+    local c=AutoCombat.new(policy(),host)
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='stopped' and step.reason=='no_visible_enemies' and c.state=='stopped',
+        'no visible enemy stops the run')
+end
+
 print('Auto-combat controller: '..checks..' checks passed')

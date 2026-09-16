@@ -68,13 +68,16 @@ function M.build(host,policy,selector)
     ctx.cooldown_ready=host.cooldown_ready
     ctx.has_effect=host.has_effect
     ctx.computed=host.computed
-    local hostiles=host.hostiles and host.hostiles() or {}
+    local hostiles_read=type(host.hostiles)=='function'
+    local hostiles=hostiles_read and host.hostiles() or {}
     ctx.hostile_count=#hostiles
     ctx.enemy_count=#hostiles
     if origin then
-        local nearest=M.nearestDistance(origin,hostiles)
+        local nearest=hostiles_read and M.nearestDistance(origin,hostiles) or nil
         ctx.nearest_enemy_distance=nearest
-        ctx.enemy_in_melee=(nearest~=nil and nearest<=1) or nil
+        -- A real hostile read makes melee knowable: an empty set is definitely
+        -- not in melee. A missing read stays unknown.
+        if hostiles_read then ctx.enemy_in_melee=(nearest~=nil and nearest<=1) end
     end
     selector=selector or (policy.targeting and policy.targeting.default)
     ctx.binding_selector=selector
