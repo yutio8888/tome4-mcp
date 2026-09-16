@@ -1,0 +1,101 @@
+-- GPL-3.0-or-later. Bounded computed actor combat read (player-sheet values).
+--
+-- The player UI shows these values, so reads may call the getters. Each getter
+-- is called only when it is a native function from the audited file; an
+-- overridden, missing or erroring getter is reported as "unknown" instead of
+-- being trusted. No RNG, no attack rolls, no target-specific resolution.
+local Json=require 'mod.mcp_bridge.Json'
+local Details=require 'mod.mcp_bridge.ObservationDetails'
+local M={}
+
+local COMBAT='/mod/class/interface/Combat.lua'
+local STATS='/engine/interface/ActorStats.lua'
+local STAT_NAMES={'str','dex','con','mag','wil','cun','lck'}
+-- ToME damage-type keys as used by resists/inc_damage/resists_pen.
+local DAMAGE_TYPES={'PHYSICAL','FIRE','COLD','LIGHTNING','ACID','NATURE','BLIGHT','LIGHT','DARKNESS','MIND','TEMPORAL','ARCANE'}
+
+local function finite(v) return type(v)=='number' and v==v and v>-math.huge and v<math.huge end
+local function native(fn,suffix)
+    if type(fn)~='function' then return false end
+    local info=debug.getinfo(fn,'S')
+    return info~=nil and type(info.source)=='string' and info.source:sub(1,1)=='@'
+        and info.source:sub(-#suffix)==suffix
+end
+
+function M.computed(actor)
+    if type(actor)~='table' then return nil,'actor_unavailable' end
+    local unknown=Json.array()
+    -- Call an audited native getter; nil (and a note in `unknown`) otherwise.
+    local function value(name,suffix,...)
+        local fn=actor[name]
+        if not native(fn,suffix) then unknown[#unknown+1]=name; return nil end
+        local ok,v=pcall(fn,actor,...)
+        if not ok or not finite(v) then unknown[#unknown+1]=name; return nil end
+        return v
+    end
+    local stats={}
+    for _,stat in ipairs(STAT_NAMES) do stats[stat]=value('getStat',STATS,stat) end
+    local crit_power=Details.number(actor.combat_critical_power)
+    local result={
+        computed=true,
+        computed_scope='native computed getters (the values the player character sheet shows); '
+            ..'read-only, no RNG and no target-specific resolution. "unknown" lists getters that were '
+            ..'overridden, missing or errored.',
+        unknown=unknown,
+        stats=stats,
+        speeds={
+            global=Details.number(actor.global_speed),
+            movement=value('combatMovementSpeed',COMBAT),
+            attack=value('combatSpeed',COMBAT,actor.combat),
+            spell=value('combatSpellSpeed',COMBAT),
+            mind=value('combatMindSpeed',COMBAT),
+        },
+        crit={
+            physical=value('combatCrit',COMBAT,actor.combat),
+            spell=value('combatSpellCrit',COMBAT),
+            mind=value('combatMindCrit',COMBAT),
+            power_pct=crit_power,
+            multiplier=crit_power and (1.5+crit_power/100) or nil,
+        },
+        power={
+            physical=value('combatPhysicalpower',COMBAT),
+            spell=value('combatSpellpower',COMBAT),
+            mind=value('combatMindpower',COMBAT),
+        },
+        offense={
+            accuracy=value('combatAttack',COMBAT,actor.combat),
+            apr=value('combatAPR',COMBAT,actor.combat),
+            damage=value('combatDamage',COMBAT,actor.combat),
+            damage_range=value('combatDamageRange',COMBAT,actor.combat),
+            damage_increase={},
+            resistance_penetration={},
+            damage_affinity={},
+        },
+        defense={
+            defense=value('combatDefense',COMBAT),
+            defense_ranged=value('combatDefenseRanged',COMBAT),
+            armor=value('combatArmor',COMBAT),
+            armor_hardiness=value('combatArmorHardiness',COMBAT),
+            fatigue=value('combatFatigue',COMBAT),
+        },
+        saves={
+            physical=value('combatPhysicalResist',COMBAT),
+            spell=value('combatSpellResist',COMBAT),
+            mental=value('combatMentalResist',COMBAT),
+        },
+        resists={},
+        utility={
+            see_stealth=value('combatSeeStealth',COMBAT),
+            see_invisible=value('combatSeeInvisible',COMBAT),
+            crit_reduction=value('combatCritReduction',COMBAT),
+        },
+    }
+    for _,t in ipairs(DAMAGE_TYPES) do
+        result.offense.damage_increase[t]=value('combatGetDamageIncrease',COMBAT,t)
+        result.offense.resistance_penetration[t]=value('combatGetResistPen',COMBAT,t)
+        result.offense.damage_affinity[t]=value('combatGetAffinity',COMBAT,t)
+        result.resists[t]=value('combatGetResist',COMBAT,t)
+    end
+    return result
+end
+return M

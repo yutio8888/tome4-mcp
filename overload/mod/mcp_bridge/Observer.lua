@@ -6,6 +6,7 @@ local Progression = require 'mod.mcp_bridge.Progression'
 local Items = require 'mod.mcp_bridge.Items'
 local Compat = require 'mod.mcp_bridge.NativeCompatibility'
 local Distance = require 'mod.mcp_bridge.Distance'
+local ActorCombat = require 'mod.mcp_bridge.ActorCombat'
 local M = {}
 local memories = setmetatable({}, {__mode='k'})
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
@@ -185,7 +186,11 @@ function M.inspect(g,meta,kind,id,options)
     if kind=='actor' then
         local actor
         if id=='self' or id=='player' then actor=g.player else actor=M.resolve(g,meta,id) end
-        if actor then return actorSummary(g,meta,actor,actor==g.player,true) end
+        if actor then
+            local result=actorSummary(g,meta,actor,actor==g.player,true)
+            if not options or options.computed~=false then result.computed=ActorCombat.computed(actor) end
+            return result
+        end
         return nil,'actor_not_visible'
     elseif kind=='character' then
         -- Read-only character panel: the stored fields the native sheet shows,
@@ -194,6 +199,7 @@ function M.inspect(g,meta,kind,id,options)
         if id~='player' and id~='self' and id~=M.actorId(meta,g.player) then return nil,'invalid_character_target' end
         local result=actorSummary(g,meta,g.player,true,true)
         result.character_scope='stored fields only; gear/effect computed values (effective accuracy/defense/damage/armor/saves/resists) are not evaluated'
+        if not options or options.computed~=false then result.computed=ActorCombat.computed(g.player) end
         return result
     elseif kind=='talent' then
         local def=g.player and g.player.talents_def and g.player.talents_def[id]

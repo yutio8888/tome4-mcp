@@ -21,6 +21,7 @@ fi
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_journal.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_observer.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_level_map.lua
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_actor_combat.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_progression.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_items.lua
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_tasks.lua

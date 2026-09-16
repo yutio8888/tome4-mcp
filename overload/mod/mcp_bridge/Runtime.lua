@@ -955,6 +955,7 @@ local function dispatch(s,request)
         if a.target_id~=nil and not stringId(a.target_id) then return fail('invalid_inspect_target') end
         if a.x~=nil and not integer(a.x,0,2147483647) then return fail('invalid_inspect_target') end
         if a.y~=nil and not integer(a.y,0,2147483647) then return fail('invalid_inspect_target') end
+        if a.computed~=nil and type(a.computed)~='boolean' then return fail('invalid_inspect') end
         local result,code=Observer.inspect(s.game,meta(s),a.kind,a.id,a)
         if not result then return fail(code) end
         return result

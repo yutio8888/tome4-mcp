@@ -437,8 +437,9 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     async def inspect(session_id: Identifier, kind: Literal["talent", "actor", "character", "progression", "item", "compatibility"], id: Identifier,
                       target_id: Identifier | None = None,
                       x: Annotated[int, Field(ge=0, le=2147483647)] | None = None,
-                      y: Annotated[int, Field(ge=0, le=2147483647)] | None = None) -> ToolReply:
-        """Inspect a learned talent, visible actor, the player character panel, an owned/visible item, the progression tree, or the runtime compatibility summary. Use kind=character with id=player (or self) for the stored character-sheet fields (stats, resources, life regen, energy, descriptor, unused points, equipment, base combat/resists); computed gear/effect values are not evaluated. kind=talent adds a read-only query with range, costs, cooldown, affordability and readiness; pass target_id or x/y to include distance. Reads never evaluate dynamic talent descriptions or identify objects."""
+                      y: Annotated[int, Field(ge=0, le=2147483647)] | None = None,
+                      computed: bool | None = None) -> ToolReply:
+        """Inspect a learned talent, visible actor, the player character panel, an owned/visible item, the progression tree, or the runtime compatibility summary. Use kind=character with id=player (or self) for the stored character-sheet fields (stats, resources, life regen, energy, descriptor, unused points, equipment, base combat/resists). kind=actor/character also return a `computed` block of the native getter values the player sheet shows (effective stats, speeds, crit chance/damage, powers, accuracy/APR/damage, defense/armor/fatigue, saves, resists, per-type damage increase and resistance penetration, vision) unless computed=false; overridden/missing getters are listed in computed.unknown. kind=talent adds a read-only query with range, costs, cooldown, affordability and readiness; pass target_id or x/y to include distance. Reads never evaluate dynamic talent descriptions or identify objects."""
         args: dict[str, Any] = {"session_id": session_id, "kind": kind, "id": id}
         if target_id is not None:
             args["target_id"] = target_id
@@ -446,6 +447,8 @@ def create_server(bridge: BridgeClient) -> MCPServer:
             args["x"] = x
         if y is not None:
             args["y"] = y
+        if computed is not None:
+            args["computed"] = computed
         return reply_result(await call("inspect", args))
 
     @server.tool(name="tome.act", annotations=write)
