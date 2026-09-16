@@ -1,10 +1,12 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "15c0989c4283f4ef025cbeafd583f037305364bec100aa3a85be3e13cf6841af",
+  "sha256": "5d058147ef940f4cd6e0883b67b2f8f14de3f8a8de1f688883141562e8b10cdc",
   "files": {
     "README.md": "21ca37fc6d9ab107a7690cb70c16f273f6296522811cadc2b46902e74bac55a3",
     "hooks/load.lua": "19e2e2216d4d83005d9b7f560da6560d2320988d3d7c78f39c7a4c4a1fc007dd",
     "init.lua": "86313065d2d6090f12003c1cdcfb8cbe0fa370f82df2db6e04093126bafeca08",
+    "overload/mod/auto_combat/PolicyEvaluator.lua": "8b64449ad1eb649265e68b193b5b385092d2a35fc28e4265a3fff99399174cdd",
+    "overload/mod/auto_combat/PolicySchema.lua": "81d5465b25759ebc3e574ea085251918a5095466f672cf18a6bfcbd21cc6dfe7",
     "overload/mod/mcp_bridge/Actions.lua": "3810ed6f4762b7a11d71ea01c48597859b144bae46b6744c6a186c7a9b0e955b",
     "overload/mod/mcp_bridge/ActorCombat.lua": "488357b50ff4ea43e333ffdd7234cf0b72dd5a8e4887e04992198982f3cbf57e",
     "overload/mod/mcp_bridge/CommandLedger.lua": "3128cb65511f3370ef3f80f54d1437a85597e17699d85309c0cbb7e70bbe6e02",
