@@ -64,28 +64,35 @@ class SustainAction(StrictModel):
     enabled: bool
 
 
-class ActorAnswer(StrictModel):
+class AnswerModel(BaseModel):
+    # Answers carry only a type plus its fields. Unknown extras (for example a
+    # caller nesting interaction_id inside the answer) are ignored rather than
+    # rejected, so a recoverable respond never turns into a dead end.
+    model_config = ConfigDict(extra="ignore", strict=True)
+
+
+class ActorAnswer(AnswerModel):
     type: Literal["actor"]
     target_id: str = Field(min_length=1, max_length=256)
 
 
-class PositionAnswer(StrictModel):
+class PositionAnswer(AnswerModel):
     type: Literal["position"]
     x: int = Field(ge=0, le=2147483647)
     y: int = Field(ge=0, le=2147483647)
 
 
-class DirectionAnswer(StrictModel):
+class DirectionAnswer(AnswerModel):
     type: Literal["direction"]
     direction: Literal[1, 2, 3, 4, 6, 7, 8, 9]
 
 
-class OptionAnswer(StrictModel):
+class OptionAnswer(AnswerModel):
     type: Literal["option"]
     option_id: str = Field(min_length=1, max_length=512)
 
 
-class CancelAnswer(StrictModel):
+class CancelAnswer(AnswerModel):
     type: Literal["cancel"]
 
 
@@ -297,7 +304,8 @@ not fabricate one. Prodigies and evolutions are never unlearnable. These are com
 talent does not imply this bridge supports activating it: check capabilities.
 
 Snapshot ground.items contains currently visible ground items; pickup accepts an
-item_id at the player's current tile. equip and unequip accept an owned item_id
+item_id at the player's current tile (take the id from observe ground.items or
+tome.list collection="ground_items"; the input schema rejects a missing id). equip and unequip accept an owned item_id
 and use native inventory rules, including callbacks, requirements and time.
 Inspect kind="item" with its returned ID for current known item details. Ground
 IDs belong to their session, level and location; inventory IDs belong to their

@@ -228,7 +228,7 @@ function M.execute(g, action, target, meta, command)
                             command.target_geometry={shape=type(typ.type)=='string' and typ.type or 'unknown',
                                 radius=finite(typ.radius) and typ.radius or nil,
                                 range=finite(typ.range) and typ.range or nil,
-                                selffire=typ.selffire==true or nil,
+                                selffire=(type(typ.selffire)=='boolean') and typ.selffire or nil,
                                 piercing=typ.type=='beam' or nil}
                         end
                         local x,y,entity=resolve()

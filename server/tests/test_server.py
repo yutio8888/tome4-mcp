@@ -110,21 +110,22 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["result"]["status"],"awaiting_input")
             args={"session_id":"s1","control_token":"c1","command_id":"cmd-1",
                   "interaction_id":"i1","response_id":"answer1","expected_revision":7}
-            for answer in ({"type":"cancel","callback":"arbitrary"},
-                           {"type":"direction","direction":5},
+            for answer in ({"type":"direction","direction":5},
                            {"type":"position","x":True,"y":1},
-                           {"type":"option","option_id":""},
-                           {"type":"actor","target_id":"a","x":1}):
+                           {"type":"option","option_id":""}):
                 before=len(self.game.requests)
                 result=await client.call_tool("tome.respond",{**args,"answer":answer})
                 self.assertTrue(result.is_error,answer)
                 self.assertEqual(len(self.game.requests),before)
-            result=(await client.call_tool("tome.respond",{**args,"answer":{"type":"position","x":3,"y":4}})).structured_content
+            # Unknown extras are ignored, not rejected, so a nested
+            # interaction_id cannot dead-end the respond path (round-3 report 1).
+            result=(await client.call_tool("tome.respond",{**args,"answer":{"type":"position","x":3,"y":4,"interaction_id":"i1"}})).structured_content
             self.assertTrue(result["ok"],result)
             self.assertEqual(result["result"]["interaction"]["interaction_id"],"i2")
             submitted=[r for r in self.game.requests if r["op"]=="respond"]
             self.assertEqual(len(submitted),1)
             self.assertEqual(submitted[0]["v"],4)
+            self.assertNotIn("interaction_id",submitted[0]["args"]["answer"])
 
     async def test_real_stdio_transport_through_tcp(self):
         source = Path(__file__).resolve().parents[1] / "src"
