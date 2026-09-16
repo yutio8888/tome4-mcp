@@ -1181,6 +1181,12 @@ local function dispatch(s,request)
         if s.native_error then return fail(s.native_error) end
         if not s.session_root then return fail('no_pending_interaction',nil,{details={hint='no native popup is waiting; observe.interaction lists one when present'}}) end
         local h=Interactions.current(s.session_root)
+        if not h and s.active and s.active.invocation then
+            -- A command-owned interaction (escort chat / quest popup on the new
+            -- level) is answered by dismiss when respond is no longer valid, so
+            -- the command can settle instead of deadlocking in awaiting_input.
+            h=Interactions.current(s.active.invocation)
+        end
         if not h then
             -- A native dialog the bridge never adopted (for example death) can
             -- still be closed through its own handler.
@@ -1204,7 +1210,7 @@ local function dispatch(s,request)
             return fail('dismiss_error',Details.text(err,512))
         end
         bump(s)
-        return {dismissed=true,snapshot=snapshot(s)}
+        return {dismissed=true,scope=h.root==s.session_root and 'session' or 'command',snapshot=snapshot(s)}
     elseif op=='abandon' then
         if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
         -- Recovery for an isolated session, or for a pending command stuck in a
@@ -1213,6 +1219,7 @@ local function dispatch(s,request)
         local stuck=s.active~=nil and s.active.status~='executing'
             and not NativeTasks.current(stuck_root) and #(s.game.dialogs or {})==0
             and not Interactions.current(s.session_root)
+            and not (stuck_root and Interactions.current(stuck_root))
         if not s.native_error and not stuck then
             return fail('not_isolated',nil,{details={hint='the session is not isolated; observe/act work normally'}})
         end
