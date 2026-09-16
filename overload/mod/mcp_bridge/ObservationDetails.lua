@@ -1,6 +1,7 @@
 -- GPL-3.0-or-later. Bounded, read-only projections of already known state.
 -- Never invoke object naming/identification, tooltip, combat or UI callbacks.
 local Json = require 'mod.mcp_bridge.Json'
+local Distance = require 'mod.mcp_bridge.Distance'
 local M = {}
 function M.finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 function M.number(n) return M.finite(n) and n or nil end
@@ -32,6 +33,66 @@ function M.damageScope(shape,direct_hit,residual_radius)
     if shape=='ball' or shape=='cone' or shape=='wide' then return 'area',residual end
     if shape=='hit' then return 'single',residual end
     return 'unknown',residual
+end
+-- Whether a talent can hit its own side. Explicit native values win; a dynamic
+-- target function or a missing value stays unknown (never inferred).
+function M.friendlyfire(typ)
+    if type(typ)~='table' then return 'unknown' end
+    if type(typ.friendlyfire)=='boolean' then return typ.friendlyfire end
+    return 'unknown'
+end
+local function onSegment(ox,oy,ex,ey,ax,ay)
+    -- Integer-grid collinearity plus bounding box; a warning, not a projectile.
+    local cross=(ex-ox)*(ay-oy)-(ey-oy)*(ax-ox)
+    if cross~=0 then return false end
+    if ax<math.min(ox,ex) or ax>math.max(ox,ex) then return false end
+    if ay<math.min(oy,ey) or ay>math.max(oy,ey) then return false end
+    return true
+end
+local function rayEnd(ox,oy,tx,ty,range)
+    local dx,dy=tx-ox,ty-oy
+    local steps=math.max(math.abs(dx),math.abs(dy))
+    if steps<=0 or type(range)~='number' then return tx,ty end
+    local f=range/steps
+    return math.floor(ox+dx*f+0.5),math.floor(oy+dy*f+0.5)
+end
+local function friendlyOf(origin,actor)
+    local reaction=M.number(actor.reaction)
+    if reaction~=nil then return reaction>=0 end
+    if actor.faction~=nil and origin.faction~=nil then return actor.faction==origin.faction end
+    return true
+end
+-- Visible friendly/neutral units inside a talent's static damage footprint.
+-- `visible` is injected so this stays a player-visible read (no engine getters).
+function M.friendliesInEffect(g,origin,tx,ty,shape,radius,range,visible)
+    local out,count=Json.array(),0
+    if type(visible)~='function' or not (g and g.level and origin) then return out,count end
+    if not (M.finite(tx) and M.finite(ty) and M.finite(origin.x) and M.finite(origin.y)) then return out,count end
+    local ex,ey=tx,ty
+    if shape=='beam' then ex,ey=rayEnd(origin.x,origin.y,tx,ty,range) end
+    for _,actor in pairs(g.level.entities or {}) do
+        if actor~=origin and type(actor)=='table' and actor.__is_actor and visible(g,actor)
+            and M.finite(actor.x) and M.finite(actor.y) and friendlyOf(origin,actor) then
+            local hit=false
+            if shape=='beam' then
+                hit=onSegment(origin.x,origin.y,ex,ey,actor.x,actor.y)
+                if hit and type(range)=='number' then
+                    hit=Distance.grid(origin.x,origin.y,actor.x,actor.y)<=range
+                end
+            elseif shape=='ball' or shape=='cone' or shape=='wide' then
+                hit=Distance.grid(tx,ty,actor.x,actor.y)<=(radius or 0)
+            elseif shape=='hit' or shape=='bolt' or shape=='arrow' or shape==nil or shape=='unknown' then
+                hit=actor.x==tx and actor.y==ty
+            end
+            if hit then
+                count=count+1
+                if #out<8 then
+                    out[#out+1]={id=M.text(tostring(actor.uid),64),name=M.text(actor.name,48) or 'unknown'}
+                end
+            end
+        end
+    end
+    return out,count
 end
 function M.native(fn,suffix)
     if type(fn)~='function' then return false end

@@ -198,6 +198,9 @@ function M.query(player,id,target,x,y)
     if type(t.target)=='table' and type(t.target.selffire)=='boolean' then q.selffire=t.target.selffire
     elseif type(t.selffire)=='boolean' then q.selffire=t.selffire
     elseif (type(t.target)=='table' and t.target.selffire~=nil) or t.selffire~=nil then q.selffire='unknown' end
+    -- Static friendly-fire: only an explicit native boolean is authoritative.
+    if type(t.target)=='table' and type(t.target.friendlyfire)=='boolean' then q.friendlyfire=t.target.friendlyfire
+    elseif type(t.friendlyfire)=='boolean' then q.friendlyfire=t.friendlyfire end
     local cd=player.talents_cd and player.talents_cd[id]
     q.cooldown_remaining=finite(cd) and cd or (cd==nil and 0 or 'unknown')
     local base={}

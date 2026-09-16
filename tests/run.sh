@@ -28,6 +28,8 @@ fi
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_invocations.lua
 
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_policy.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_friendly_fire.lua
 if [ -f game/addons/tome-mcp-bridge/tests/test_runtime.lua ]; then
     "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_runtime.lua
 fi

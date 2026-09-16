@@ -237,9 +237,21 @@ function M.inspect(g,meta,kind,id,options)
                 result.damage_scope=scope
                 result.target_geometry={shape=q.target_shape or 'unknown',radius=q.radius,range=q.range,
                     selffire=Details.selffire({type=q.target_shape,selffire=q.selffire,direct_hit=def.direct_hit}),
+                    friendlyfire=Details.friendlyfire({type=q.target_shape,friendlyfire=q.friendlyfire}),
                     piercing=q.target_shape=='beam' or nil,damage_scope=scope,
                     residual_area_radius=residual,
                     source='static talent definition; a dynamic target function can change shape/radius/self-fire at cast time'}
+                -- Pre-cast safety: a line/area talent can hit a visible ally or
+                -- escort. This is a player-visible read, so the planner can
+                -- avoid the cast before it happens.
+                if finite(tx) and finite(ty) and g.player then
+                    local names,count=Details.friendliesInEffect(g,g.player,tx,ty,q.target_shape,
+                        q.radius,q.range,M.visible)
+                    if count>0 then
+                        result.friendly_fire_risk={count=count,targets=names,
+                            note='a visible friendly/neutral unit is inside this talent static damage footprint; casting may quest-fail or kill an ally'}
+                    end
+                end
             end
             return result
         end

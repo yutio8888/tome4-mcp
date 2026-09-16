@@ -249,6 +249,7 @@ function M.execute(g, action, target, meta, command)
                                 radius=finite(typ.radius) and typ.radius or nil,
                                 range=finite(typ.range) and typ.range or nil,
                                 selffire=Details.selffire({type=shape,selffire=typ.selffire,direct_hit=talent and talent.direct_hit}),
+                                friendlyfire=Details.friendlyfire({type=shape,friendlyfire=typ.friendlyfire}),
                                 piercing=typ.type=='beam' or nil,damage_scope=scope,
                                 residual_area_radius=residual}
                         end
