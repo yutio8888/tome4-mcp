@@ -384,11 +384,14 @@ def create_server(bridge: BridgeClient) -> MCPServer:
 
     @server.tool(name="tome.observe", annotations=read)
     async def observe(session_id: Identifier, radius: Annotated[int, Field(ge=1, le=12)] = 8,
-                      include_map: bool = True, events_after: Annotated[int, Field(ge=0)] | None = None) -> ToolReply:
-        """Read player-view state, scene, progression, inventory and visible log events without advancing the game. Set include_map=false for a compact snapshot. Pass events.cursor as events_after for subsequent event pages; respect gap/has_more. Map bounds describe only this response's window."""
+                      include_map: bool = True, events_after: Annotated[int, Field(ge=0)] | None = None,
+                      sections: list[str] | None = None) -> ToolReply:
+        """Read player-view state, scene, progression, inventory and visible log events without advancing the game. Set include_map=false for a compact snapshot. Pass events.cursor as events_after for subsequent event pages; respect gap/has_more. sections selects top-level domains (player, map, ground, actors, talents, events, dialogs) and keeps identity metadata; omit it for the full snapshot. Map bounds describe only this response's window."""
         args = {"session_id": session_id, "radius": radius, "include_map": include_map}
         if events_after is not None:
             args["events_after"] = events_after
+        if sections is not None:
+            args["sections"] = sections
         return reply_result(await call("observe", args))
 
     @server.tool(name="tome.inspect", annotations=read)
