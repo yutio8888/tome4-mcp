@@ -4,9 +4,11 @@ local Json = require 'mod.mcp_bridge.Json'
 local M = {}
 function M.finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 function M.number(n) return M.finite(n) and n or nil end
--- Self-inclusion for a target spec. ToME treats a missing selffire as
--- "area shapes may hit their origin": beams/hits cannot. A function target
--- (or a non-boolean selffire) computes it at cast time and stays unknown.
+-- Self-inclusion for a target spec. Only an explicit selffire is authoritative.
+-- A missing value is never treated as "area shapes self-hit": shapes that
+-- cannot contain their own origin (beam/hit/bolt/arrow) are false, everything
+-- else stays unknown (Searing Light targets a ball cursor but deals a hit with
+-- a friendly ground zone, so it has no self-damage).
 function M.selffire(typ)
     if type(typ)~='table' then return 'unknown' end
     if type(typ.selffire)=='boolean' then return typ.selffire end
