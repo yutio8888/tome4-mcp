@@ -11,8 +11,8 @@ function M.selffire(typ)
     if type(typ)~='table' then return 'unknown' end
     if type(typ.selffire)=='boolean' then return typ.selffire end
     if typ.selffire~=nil then return 'unknown' end
-    -- A direct-hit talent never includes its origin.
-    if typ.direct_hit==true then return false end
+    -- Only a known shape decides self-inclusion. direct_hit is NOT a safe
+    -- proxy: Searing Light is direct_hit yet casts a self-hitting ball.
     local shape=typ.type
     if shape=='ball' or shape=='cone' or shape=='wide' then return true end
     if shape=='beam' or shape=='hit' or shape=='bolt' or shape=='arrow' then return false end
@@ -23,16 +23,11 @@ end
 -- remainder such as Searing Light's light zone) is reported separately.
 function M.damageScope(shape,direct_hit,residual_radius)
     local residual=M.number(residual_radius)
+    -- Only the static shape is a reliable damage footprint. direct_hit does not
+    -- imply single-target (Searing Light is direct_hit but a self-hitting ball).
     if shape=='beam' then return 'line',residual end
     if shape=='ball' or shape=='cone' or shape=='wide' then return 'area',residual end
     if shape=='hit' then return 'single',residual end
-    if direct_hit==true then
-        -- A direct-hit talent with a stored area radius is a single target plus
-        -- a ground remainder (Searing Light). Without one, a function target may
-        -- still pierce (Moonlight Ray), so the scope stays unknown.
-        if residual then return 'single',residual end
-        return 'unknown',residual
-    end
     return 'unknown',residual
 end
 function M.native(fn,suffix)
@@ -423,6 +418,19 @@ function M.dialogs(g)
         local dialog=dialogs[i]
         if type(dialog)=='table' and not dialog.hidden and not dialog.hide then
             local item={title=M.text(dialog.title),topmost=i==#dialogs,widgets=Json.array()}
+            -- A native List menu (for example the death dialog) exposes its
+            -- selectable entries even though they are not text/button widgets.
+            local list=dialog.c_list
+            if type(list)=='table' and type(list.list)=='table' and #list.list>0 then
+                item.kind='list_menu'
+                item.options=Json.array()
+                for j=1,math.min(#list.list,16) do
+                    local option=list.list[j]
+                    item.options[#item.options+1]={label=M.text(type(option)=='table' and (option.name or option.label) or tostring(option),128)
+                        or ('Option '..j)}
+                end
+                if #list.list>16 then item.options_truncated=true end
+            end
             local widgets=type(dialog.uis)=='table' and dialog.uis or {}
             local shown=0
             for j=1,#widgets do

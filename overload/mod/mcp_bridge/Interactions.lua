@@ -158,14 +158,18 @@ end
 -- Close the topmost native popup through its own handler. Returns ok, code.
 function M.dismissTop(g)
     local dialogs=type(g.dialogs)=='table' and g.dialogs or {}
+    local function stillOpen(d)
+        for _,x in ipairs(dialogs) do if x==d then return true end end
+        return false
+    end
     for i=#dialogs,1,-1 do
         local d=dialogs[i]
         if type(d)=='table' and not d.hidden and not d.hide then
             local close=nativeClose(d)
             if close then
                 local ok,err=pcall(close)
-                if ok then return true,'native_dialog' end
-                return false,err
+                if ok and not stillOpen(d) then return true,'native_dialog' end
+                return false,ok and 'dialog_not_closed' or err
             end
         end
     end
@@ -183,6 +187,13 @@ end
 -- agent can answer it instead of losing control (round-5 report 3.8).
 function M.adoptNotice(d,root)
     if not root or dialogs[d] then return nil end
+    -- A native List menu (for example the death dialog) exposes selectable
+    -- entries; adopt it as a choice so the options can be answered.
+    local list=d.c_list
+    if type(list)=='table' and type(list.list)=='table' and #list.list>0 and type(list.onSelect)=='function' then
+        M.openDialog(d,'dialog.choice',d.title,nil,nil,nil,list,{root=root})
+        return dialogs[d]
+    end
     if root.command then
         if type(root.command)~='table' then return nil end
         if root.command.input_owner=='manual' or root.command.handoff_requested then return nil end

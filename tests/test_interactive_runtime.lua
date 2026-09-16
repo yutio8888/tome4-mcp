@@ -360,13 +360,26 @@ check(type(sheet.encumbrance)=='table','character always exposes encumbrance')
 local Details=require 'mod.mcp_bridge.ObservationDetails'
 check(Details.selffire({type='ball'})==true,'an area shape self-fires by default')
 check(Details.selffire({type='beam'})==false,'a beam does not self-fire')
-check(Details.selffire({type='unknown',direct_hit=true})==false,'direct_hit implies no self-fire')
+check(Details.selffire({type='unknown',direct_hit=true})=='unknown','direct_hit alone must not claim self-fire safety (Searing Light)')
 check(Details.selffire({type='unknown'})=='unknown','an unknown shape stays unknown')
 check(Details.selffire({type='ball',selffire=false})==false,'an explicit selffire wins')
 local Interactions=require 'mod.mcp_bridge.Interactions'
 local closed_dialog=false
-local fake_game={dialogs={{title='You have died!',key={virtuals={EXIT=function() closed_dialog=true end}},uis={}}}}
+local fake_game={dialogs={}}
+local fake_death={title='You have died!',key={virtuals={EXIT=function() closed_dialog=true;fake_game.dialogs[1]=nil end}},uis={}}
+fake_game.dialogs={fake_death}
 check(Interactions.dismissTop(fake_game)==true and closed_dialog,'dismissTop closes a native dialog through its own handler')
 check(Interactions.dismissTop({dialogs={{title='x',uis={}}}})==false,'an uncloseable dialog is reported as such')
+local stubborn={title='stubborn',key={virtuals={EXIT=function() end}},uis={}}
+check(Interactions.dismissTop({dialogs={stubborn}})==false,'a handler that leaves the dialog open is not reported as closed')
+-- A native list menu (death dialog) exposes its entries and is adoptable.
+local list_ui={list={{name='Resurrect'},{name='Go to main menu'}},sel=0,onSelect=function(self) end}
+local death_dialog={title='You have died!',uis={},c_list=list_ui,key={virtuals={}}}
+local dl=Details.dialogs({dialogs={death_dialog}})
+check(dl[1].kind=='list_menu' and #dl[1].options==2 and dl[1].options[1].label=='Resurrect','a list dialog exposes its menu entries')
+local menu_game={level={},paused=false}
+local menu_root={game=menu_game,command={responses={},consumed_interactions={},interaction_sequence=0},interactions={}}
+local adopted=Interactions.adoptNotice(death_dialog,menu_root)
+check(adopted and adopted.kind=='dialog.choice' and adopted.list==list_ui,'a list menu is adopted as a choice interaction')
 
 print('Interactive Runtime: '..count..' checks passed')

@@ -197,7 +197,6 @@ function M.query(player,id,target,x,y)
     if type(t.direct_hit)=='boolean' then q.direct_hit=t.direct_hit end
     if type(t.target)=='table' and type(t.target.selffire)=='boolean' then q.selffire=t.target.selffire
     elseif type(t.selffire)=='boolean' then q.selffire=t.selffire
-    elseif t.direct_hit==true then q.selffire=false
     elseif (type(t.target)=='table' and t.target.selffire~=nil) or t.selffire~=nil then q.selffire='unknown' end
     local cd=player.talents_cd and player.talents_cd[id]
     q.cooldown_remaining=finite(cd) and cd or (cd==nil and 0 or 'unknown')

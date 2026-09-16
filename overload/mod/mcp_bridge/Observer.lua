@@ -100,7 +100,7 @@ function M.capture(g,meta,radius,options)
         actor_id_scope='ids embed the native uid and the level instance id; stable within a level, changed by a level change',
         player=Json.null,map=Json.null,ground=Json.null,actors=Json.array(),talents=Json.array(),
         scene={zone_id=g.zone and Details.text(g.zone.short_name),zone_name=g.zone and Details.text(g.zone.name),
-            level=g.level and number(g.level.level)}}
+            zone_depth=g.level and number(g.level.level),level=g.level and number(g.level.level)}}
     result.dialogs,result.dialogs_truncated=Details.dialogs(g)
     local p,map=g.player,g.level and g.level.map
     if not p or not map or not finite(p.x) or not finite(p.y) then return Details.bounded(result) end

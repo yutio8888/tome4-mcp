@@ -975,7 +975,9 @@ local function dispatch(s,request)
             -- still be closed through its own handler.
             local closed,close_code=Interactions.dismissTop(s.game)
             if closed then bump(s);return {dismissed=true,scope='native_dialog',snapshot=snapshot(s)} end
-            return fail('no_pending_interaction',nil,{details={hint='no session interaction is waiting; observe.interaction lists one and observe.dialogs lists native popups'}})
+            return fail('dialog_not_closed','The native popup could not be closed by the bridge.',
+                {details={hint='observe.interaction exposes selectable options when the popup is a list menu; '
+                    ..'otherwise answer it with a native key. Last attempt: '..tostring(close_code)}})
         end
         if a.interaction_id~=nil and a.interaction_id~=h.interaction_id then
             return fail('interaction_expired',nil,{interaction_id=h.interaction_id})
