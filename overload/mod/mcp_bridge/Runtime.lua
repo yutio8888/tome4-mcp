@@ -293,6 +293,8 @@ function M.reset(g)
     s.session_root={game=g,interactions={},
         command={command_id='session',status='session',input_owner='remote',
             responses={},consumed_interactions={},interaction_sequence=0}}
+    -- nativeOwner()/Tracker.callback expect a node with `.root`.
+    s.session_node={root=s.session_root}
     local function changed(root)
         if state==s and root and root.game==g then
             if root~=s.session_root then s.execution=root end
@@ -423,7 +425,7 @@ function M.nativeUIOwner(g)
     end
     -- Dialogs raised outside a talent body (sealed door, lore, running, death)
     -- belong to the control session so tome.dismiss can answer them.
-    if s.session_root and s.control_token and s.access_mode=='control' then return s.session_root end
+    if s.session_node and s.control_token and s.access_mode=='control' then return s.session_node end
 end
 
 function M.beginSceneChange(g)
