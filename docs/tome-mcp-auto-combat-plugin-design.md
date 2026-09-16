@@ -15,6 +15,17 @@
 核心判断：**AI 写策略（数据），原生执行器本地跑战斗，MCP 负责观察/校验/仲裁/接管**。
 不让 LLM 逐回合发动作（网络往返 + 回合边界不划算），也不让 AI 写任意 Lua（不可审计）。
 
+### 0.1 产品契约（v1.1 冻结，先于一切实现）
+**按下启动后，它只负责“处理当前可见战斗”**：
+```
+启动 → 校验策略/技能支持 → 自动处理当前可见战斗
+     → 出现明确风险时暂停并解释 → 无可见敌人时结束 → 控制权交还玩家
+```
+- **无可见敌人即结束**；不探索、不追击进未知区域、不自动换层。
+- **没有可用动作时不空等**：不因规则失败就隐式等待冷却/巡逻，而是**停止并说明原因**。
+- 自动等待/巡逻只作为**独立的显式模式**，不从规则失败中隐式产生。
+- “接管到什么程度”是产品承诺，必须先冻结；复杂能力（rest/auto_explore/换层/复杂撤退）后移。
+
 ---
 
 ## 1. 目标与非目标
@@ -169,11 +180,14 @@ flowchart LR
 | `enemy_rank` / `enemy_type` | 最近/指定敌人的 rank/type | `cmp`/`eq` |
 | `enemy_hp_pct` | 目标生命百分比 | `cmp`,`value` |
 | `ally_count` | 可见友方/召唤数量 | `cmp`,`value` |
-| `computed` | 有效计算属性（§5.5） | `path`,`cmp`,`value` |
+| `computed` | 有效计算属性（§5.5） | `field`（**有限枚举 id**，非任意路径）,`cmp`,`value` |
 | `map_frontier` | 当前层未知前沿数 | `cmp`,`value` |
 | `turn_parity` | 回合奇偶/间隔 | `mod`,`eq` |
 
-比较符 `cmp`：`lt|le|eq|ge|gt`。布尔组合：`all`/`any`/`not`，采用三值逻辑。
+**正式语法（冻结）**：谓词的值是“比较键 → 值”的对象，`cmp ∈ {lt,le,eq,ge,gt}`，例如
+`{"hp_pct":{"lt":45}}`、`{"nearest_enemy_distance":{"le":7}}`；等值类谓词用其参数键，例如
+`{"cooldown_ready":{"talent":"T_HEALING_LIGHT"}}`。所有示例必须通过同一个校验器。
+布尔组合：`all`/`any`/`not`，三值逻辑。
 
 ### 5.3 规则与动作
 ```json
@@ -188,7 +202,22 @@ flowchart LR
 目标 selector：`nearest_hostile`、`lowest_hp_hostile`、`highest_rank_hostile`、
 `most_dangerous`（按 `computed`）、`cluster_center`（AoE：`min_targets`、`max_selffire`）、`self`、`position`。
 
-失败语义：`on_unavailable: skip|pause|wait`（默认 `skip`；安全类默认 `pause`）。
+**目标绑定（冻结，v1.1 修正）**：每条规则按固定顺序执行，避免“条件检查 A、动作选到 B”：
+```
+生成候选目标（该 selector 的候选集）
+→ 按该技能的目标类型/射程/投射条件过滤（射程合法性是执行器职责，不需玩家手填）
+→ 对同一个候选求目标相关条件（target hp/effect/distance 必须指向同一目标）
+→ 在合格候选中按 selector 稳定排序（tie_break: distance, hp, uid；不用 RNG）
+→ 执行前复查（owner epoch / revision / 目标仍有效 / canProject）
+```
+
+**失败语义（两阶段，v1.1 修正）**：
+- **执行前不可用**（冷却/点数/射程）：按 `on_unavailable: skip|pause|wait`（默认 `skip`，安全类 `pause`）。
+- **原生执行后失败**：不能“false 就换下一条”。必须复用桥接已有结果语义（`native_return`/`energy_spent`/
+  `uncertain`/`native_pending`）：已耗能/不确定/交互未结束时 **pause 并解释**，绝不静默换技能。
+
+**常驻（sustains）是“维持期望状态”**：表达“希望该 sustain 开启”，执行器先查期望态（桥接 `set_sustain`
+已有 `already_in_desired_state`），而不是“条件满足就再切换”；并规定常驻/救急优先级与重复失败重试上限。
 
 ### 5.4 简单模式 ↔ 高级模式（同一数据）
 - **简单模式**：有序技能优先级列表 + 阈值滑杆（HP/资源/敌人距离），生成等价规则。
@@ -228,10 +257,15 @@ flowchart LR
 - `tome.policy_log`：分页读取决策与拒绝原因，形成"观察→改策略→再验证"的闭环。
 - AI 只依赖稳定 id 与 schema；人类可读名称不进入 AI 逻辑。
 
-### 6.3 往返与版本
-- **规范化序列化**：字段白名单、固定顺序、整数化、无注释；保证 `parse(serialize(p)) == p`。
+### 6.3 往返与版本（v1.1 修正）
+- **规范化序列化**：字段白名单、固定顺序、无注释；**只对本来要求整数的字段整数化**，不改合法小数语义；
+  保证 `parse(serialize(p)) == p`。
 - `schema` 版本 + **迁移器**（`v1→v2`）；未知字段拒绝（`additionalProperties=false`）。
 - 策略 `hash`（内容哈希）用于日志与 UI diff。
+- **版本三态（冻结）**：`draft`（编辑中）→ `approved`（人工确认）→ `running`（不可变，正在执行）。
+  修改只能产生新 draft；apply 时取消旧决策并从新的安全边界继续。**`set` 不得在未获本地权限时直接激活**。
+- **简单/高级共享同一 `rules`**：高级里超出简单模式表达能力的条件，切回简单模式时只能**保留/只读**，不得丢失。
+- **角色持久化（P1 必交付）**：策略、预设选择与玩家参数随角色保存；**运行态不保存**；读档后为停止状态。
 
 ---
 
@@ -241,7 +275,9 @@ flowchart LR
 1. **Schema 级**：严格类型/上限/白名单；拒绝未知字段与非法值。返回 `policy_invalid` + 逐字段错误。
 2. **规划级（dry_run）**：用**当前只读快照**对策略求值，不执行任何动作：
    - 每条规则 → `true/false/unknown`，被选中的动作/目标，拒绝原因（冷却/资源/射程/selffire/adapter 不支持）。
-   - 不调用动态 talent `target`/`info` 之外的未审计函数；不触发 RNG（`tie_break` 用稳定排序）。
+   - **纯度由“该函数是否经过纯读取审计”决定，不由函数名决定**：名叫 `target`/`info` 也要被审计拒绝则不调用；
+     不触发 RNG（`tie_break` 用稳定排序）。
+   - 产品语义是“**预览此刻会选什么**”，**不是**“证明该动作一定安全/一定成功”。
 - 诊断格式：
 ```json
 { "policy_hash": "…", "schema": "tome-auto-combat/v1", "snapshot": { "revision": 1234, "level_instance_id": "level-3" },
@@ -266,6 +302,25 @@ flowchart LR
 - `Actions.admit`/`TalentQuery` 是 **advisory**，不能单独作为安全证明；执行前需 adapter + `canProject` + 原生返回。
 - **冲突即拒绝**：检测到 `tome-auto_talent_assistant`（或其它已知自动战斗 addon）→ 拒绝启用自动，避免双控制。
 - **原子接管**：任何 owner 变更（手动输入、MCP connect、场景切换）先停执行器并清 epoch，再交接。
+- **原版 `automaticTalents` 也纳入排他**：owner 为 `remote`/`auto_combat` 时必须抑制原生自动施法
+  （桥接已在 `superload/mod/class/Player.lua` 对 `hasControl` 做此事，本插件需同样处理）。
+- **旁观连接不抢控制**。
+
+### 8.1 `unknown` 的作用范围（v1.1 修正，不能一票否决）
+| 未知/异常 | 建议行为 |
+| --- | --- |
+| 控制权、当前角色、场景边界、原生动作是否结束不明确 | **整个执行器暂停** |
+| 某范围技能的友伤/几何不明确 | **禁用该动作**，不否定其它已验证动作 |
+| 仅用于目标优化的属性不明确 | 跳过依赖它的规则，或用规定好的简单 selector |
+| 当前唯一自保动作是否安全不明确 | 暂停并交给玩家 |
+| 玩家学了一个策略未使用的未适配技能 | 显示“未支持”，**不阻止启动** |
+
+三值逻辑要**尊重短路**：技能已明确在冷却，就不必因其伤害属性未知而暂停全部自动战斗。
+
+### 8.2 保证的边界（v1.1 修正）
+- **执行保证**（可强证明）：不越权执行、不重复提交、不使用失效目标、不读取禁止信息、不调用未支持的规划函数。
+- **战斗策略目标**（不承诺）：尽量避免已知友伤、合理治疗、减少危险动作。
+- 插件保证“**按受控规则执行**”，**不保证**“不会做出导致死亡的战术选择”。验收措辞必须区分这两类。
 
 ---
 
@@ -294,7 +349,7 @@ flowchart LR
 
 ---
 
-## 10. 决策日志与回放
+## 10. 决策日志（追踪；确定性回放为可选项）
 
 环形缓冲（默认 256 条），每条记录：
 ```json
@@ -306,6 +361,8 @@ flowchart LR
   "native_result": "completed", "pause_reason": null }
 ```
 - 确定性：`tie_break` 用 `distance/hp/uid` 稳定排序，**不用 RNG**。
+- 该日志是**决策追踪**：保存结果与拒绝原因。若要做**确定性回放**，还需额外保存输入、adapter 版本、
+  策略运行态（`policy_hash`/schema/owner epoch/快照 revision）；否则只能称“追踪”而非“回放”。
 - MCP 分页读取；人类在 UI 里查看；可导出用于回归对比。
 
 ---
@@ -360,7 +417,17 @@ flowchart LR
 - **原生 fixture**：常驻/治疗/普通攻击/单体/直线/AoE（含 selffire）/一步撤退/未知暂停/目标丢失/
   dialog/manual+remote 接管/save-load-death。
 - **MCP 集成（Python）**：`tome.policy` schema 与错误映射、dry-run、分页日志、接管。
-- **验收**：日志确定性回放；无非法施法；无自伤；无隐藏信息读取；未知安全输入必 paused。
+- **安全验收**：手动接管后无旧动作继续执行；原生失败但耗能时不误重试；弹出目标窗口时不提交第二个动作；
+  读档后保留设置但不恢复自动战斗；无非法施法；无隐藏信息读取；未知安全输入必 paused。
+- **可用性验收（v1.1 新增）**：
+
+  | 指标 | 回答的问题 |
+  | --- | --- |
+  | 从套用预设到首次成功运行需要多少操作 | 上手是否方便 |
+  | 普通战斗中需要多少次人工重新启动 | 是否真的减少操作 |
+  | 每 100 次决策的非预期暂停次数及原因 | 保守策略是否过度打断 |
+  | 试点构筑常用技能的实际覆盖率 | 是否真正可用，而非动作类型齐全 |
+  | 玩家能否从暂停提示直接知道如何继续 | 日志是否有实际价值 |
 
 ---
 
@@ -423,10 +490,10 @@ P1a **不做**：队友/装备/物品/召唤管理、rest、auto-explore、换�
                          { "cooldown_ready": { "talent": "T_MOONLIGHT_RAY" } } ] },
       "then": { "action": "use_talent", "talent": "T_MOONLIGHT_RAY", "target": "nearest_hostile" } },
     { "id": "searing", "priority": 60,
-      "when": { "all": [ { "nearest_enemy_distance": { "le": 7 } },
+      "when": { "all": [ { "enemy_hp_pct": { "le": 100 } },
                          { "cooldown_ready": { "talent": "T_SEARING_LIGHT" } } ] },
-      "then": { "action": "use_talent", "talent": "T_SEARING_LIGHT", "target": "lowest_hp_hostile" } },
-    { "id": "retreat", "priority": 200,
+      "then": { "action": "use_talent", "talent": "T_SEARING_LIGHT", "target": "nearest_hostile" } },
+    { "id": "retreat", "priority": 40,
       "when": { "all": [ { "hp_pct": { "lt": 22 } }, { "enemy_in_melee": true } ] },
       "then": { "action": "move", "retreat": 1 } },
     { "id": "attack", "priority": 10,
@@ -446,3 +513,22 @@ P1a **不做**：队友/装备/物品/召唤管理、rest、auto-explore、换�
 - **adapter**：某技能的声明式安全描述（几何/目标/自伤/前置）。
 - **三值逻辑**：`true/false/unknown`；`unknown` 按安全语义 pause 或 skip。
 - **dry-run**：只对当前快照求值、不执行。
+
+---
+
+## 17. v1.1 修订摘要（对应产品评审）
+
+1. **先冻结合同**：见 §0.1 —— 只处理当前可见战斗，无可见敌人即结束，不探索/不换层，无动作不空等。
+2. **战斗语义**：§5.3 新增目标绑定流程、两阶段失败语义、sustains 期望态；附录 A 修正 searing 目标
+   （条件与动作绑定同一目标）与 retreat 优先级（不再默认"撤退优先于治疗"）。
+3. **安全收敛**：§8.1 未知作用范围表、§8.2 执行保证 vs 策略目标、原版 `automaticTalents` 排他、旁观不抢控制。
+4. **首版范围提升**：简单 UI + 角色持久化 + **一个真实试点构筑**（治疗/护盾/资源恢复/稳定输出全覆盖）
+   进入 P1；预设按构筑而非"每类动作一个样例"。
+5. **版本不变量**：§6.3 三态 draft/approved/running；`set` 不直接激活；简单/高级不丢条件。
+6. **文档一致性**：冻结谓词语法（§5.2，`{"<pred>":{"<cmp>":<value>}}`）；`computed` 用有限枚举 id；
+   整型化只覆盖整数字段；日志改名"决策追踪"；动作白名单与 capabilities/UI 必须一致。
+7. **可用性验收**：§14 新增指标（上手操作数、人工重启次数、非预期暂停率、试点覆盖率、暂停可操作性）。
+
+仍待拍板项见 §16；其中 "daily 模式"（`pause_on_new_enemy`）需要明确风险定义与"每个 encounter 只暂停一次"
+的状态，且**默认仍为 strict**。执行架构的边界契约（启动时已 ready、暂停/改策略失效旧决策、瞬发预算与
+瞬发后快照、目标窗口暂停规划、无进展短路、规则/深度/候选/日志上限）见 §4 与 §9。
