@@ -112,6 +112,14 @@ function M:context(selector)
     return self.host.snapshot(selector) or {}
 end
 
+-- Deny a rule/sustain for the rest of this action opportunity and record why.
+function M:deny(id,reason)
+    self.denied[id]=true
+    if self.notify then
+        self.notify({kind='denied',reason=reason or 'denied',rule=id,generation=self.generation})
+    end
+end
+
 -- Return the highest-priority declared sustain that should be enabled now, or
 -- nil. A sustain is only attempted when the host can tell us it is off and the
 -- talent is not known to be missing.
@@ -179,7 +187,7 @@ function M:step()
                 outcome=outcome,state=self.state,generation=generation}
         end
         if outcome.status=='rejected' and outcome.energy_spent~=true then
-            self.denied[sustain.talent]=true
+            self:deny(sustain.talent,'sustain_rejected')
         else
             return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
         end
@@ -192,17 +200,15 @@ function M:step()
         local decision=Evaluator.evaluate(self.policy,ctx)
         if decision.decision=='pause' then return self:pause(decision.reason) end
         if decision.decision=='hold' then
-            -- The product contract ends the run when there is no visible enemy
-            -- left; control is returned instead of holding the lease forever.
-            if ctx.enemy_count==0 then
-                self:stop('no_visible_enemies')
-                return {action='stopped',reason='no_visible_enemies',state=self.state,generation=self.generation}
-            end
-            return {action='hold',state=self.state,generation=generation,reason=decision.reason}
+            -- No idle waiting: when there is no executable rule (and no visible
+            -- enemy left) the run ends and explains why, returning control.
+            local holdreason=ctx.enemy_count==0 and 'no_visible_enemies' or 'no_available_action'
+            self:stop(holdreason)
+            return {action='stopped',reason=holdreason,state=self.state,generation=self.generation}
         end
         local bound=self:rebind(ctx,decision)
         if bound==nil then
-            self.denied[decision.rule]=true
+            self:deny(decision.rule,'target_rebind_failed')
         else
             self.attempts=self.attempts+1
             local outcome=(self.host and self.host.request and self.host.request({
@@ -219,7 +225,7 @@ function M:step()
             if outcome.status=='rejected' and outcome.energy_spent~=true then
                 -- Explicitly rejected and no energy spent: do not retry as-is in
                 -- this opportunity, but another rule may still be valid.
-                self.denied[decision.rule]=true
+                self:deny(decision.rule,'native_rejected')
             else
                 return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
             end

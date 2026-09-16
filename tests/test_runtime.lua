@@ -413,6 +413,18 @@ do
     check(pump_ok,'the auto-combat pump does not raise')
     local ps=request('policy',{session_id=h2.session_id,policy_op='status'}).result
     check(ps and ps.control_owner=='auto_combat','the pump keeps the auto-combat lease')
+    -- Owner exclusivity: a remote act is refused while auto-combat owns the
+    -- lease, and reconnecting control takes it back atomically.
+    for k,v in pairs(h2) do hello[k]=v end
+    local blocked=act('auto-blocked',{type='wait'})
+    check(blocked.error and blocked.error.code=='control_conflict',
+        'a remote act during auto-combat is refused with control_conflict')
+    reconnect()
+    local taken=request('policy',{session_id=hello.session_id,policy_op='status'}).result
+    check(taken and taken.control_owner=='manual','reconnecting control takes the auto-combat lease')
+    local allowed=act('auto-allowed',{type='wait'})
+    check(allowed.result and allowed.result.status=='queued','after reconnect the remote can act again')
+    g:tick();ready()
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
 end
 -- P1a: standalone in-game editor accessors. No MCP transport is involved, so

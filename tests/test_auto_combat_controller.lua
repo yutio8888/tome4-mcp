@@ -175,8 +175,13 @@ do
     local host=bindingHost({nearest_hostile={id='near',hp_pct=20},lowest_hp_hostile={id='low',hp_pct=90}})
     local c=AutoCombat.new(p,host); c:start()
     local step=c:onOpportunity()
-    check(step.action=='hold' and #host.requests==0,
+    check(step.action=='stopped' and step.reason=='no_available_action' and #host.requests==0,
         'a rule whose bound target fails its own condition is denied, not fired')
+    local denied=false
+    for _,note in ipairs(host.notifications) do
+        if note.kind=='denied' and note.rule=='finish' then denied=true end
+    end
+    check(denied,'a denied rule is recorded in the decision log')
     host=bindingHost({nearest_hostile={id='near',hp_pct=20},lowest_hp_hostile={id='low',hp_pct=10}})
     c=AutoCombat.new(p,host); c:start()
     step=c:onOpportunity()

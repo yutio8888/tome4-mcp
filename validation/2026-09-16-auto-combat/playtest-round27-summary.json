@@ -1,0 +1,47 @@
+{
+  "date": "2026-09-16",
+  "round": "auto-combat-p1a-1",
+  "session": "agent-ham-insane-27",
+  "character": "Halfling/Celestial-Anorithil/Insane/Roguelike",
+  "policy": "anorithil_p1a",
+  "policy_hash": "3843a4f494f1a7f8336f8b1509756304",
+  "observed_decisions": {
+    "acted_melee": 59,
+    "acted_ray": 8,
+    "acted_finish": 5,
+    "acted_heal": 4,
+    "acted_sustain": 2,
+    "stopped_no_visible_enemies": 14,
+    "paused_no_emergency_action": 1,
+    "paused_new_enemy": 1
+  },
+  "issues_found": [
+    {
+      "severity": "P0",
+      "id": "hold-deadlock",
+      "fixed": true,
+      "summary": "no rule matched -> silent hold froze the fight while holding the lease",
+      "fix": "hold becomes stop+reason (no_available_action/no_visible_enemies) and releases the lease"
+    },
+    {
+      "severity": "P0",
+      "id": "remote-act-while-auto",
+      "fixed": true,
+      "summary": "remote act executed while auto_combat owned the lease, without takeover",
+      "fix": "act returns control_conflict; connect control atomically takes the lease"
+    },
+    {
+      "severity": "P2",
+      "id": "thin-decision-log",
+      "fixed": "partial",
+      "summary": "denials and holds were not logged",
+      "fix": "denied events and stop reasons are logged"
+    }
+  ],
+  "raw": {
+    "report_sha256": "2328ecc5858043a05b186f2d87e2fc53a63405c95bf8f48fd2928dc3c46f7666",
+    "play_mcp_sha256": "c6763db52338e1e311d010235a8c9ceca635d30aaf51d5f38fa6b9e7b063ff30",
+    "game_log_sha256": "8885d46dfbb8780f84c786ac96999e1cb762d6c75af1c1094eb777fa123b9cb3"
+  },
+  "archive_sha256": "18599cc5803f9c10c639e0ae28591eeb362087db8edaca476a76c0e5d1e4b328"
+}

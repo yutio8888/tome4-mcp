@@ -14,6 +14,7 @@
     { "code": "command_not_accepted", "category": "history", "acceptance_scope": "command", "recovery": "observe_before_resubmit" },
     { "code": "stale_revision", "category": "state", "acceptance_scope": "command", "recovery": "observe_before_resubmit" },
     { "code": "control_lost", "category": "state", "acceptance_scope": "command", "recovery": "inspect_current_state" },
+    { "code": "control_conflict", "category": "state", "acceptance_scope": "command", "recovery": "connect_explicitly" },
     { "code": "command_in_progress", "category": "state", "acceptance_scope": "command", "recovery": "inspect_current_state" },
     { "code": "not_ready", "category": "state", "acceptance_scope": "command", "recovery": "inspect_current_state" },
     { "code": "cursor_expired", "category": "collection", "acceptance_scope": "not_applicable", "recovery": "restart_collection" },

@@ -102,7 +102,8 @@ function M.start(svc)
     local host=svc.host_factory(svc)
     if not host then return fail('execution_not_available') end
     svc.controller=Combat.new(svc.store.running,host,{strict=svc.strict,notify=function(event)
-        Log.add(svc.log,{kind=event.kind,reason=event.reason,generation=event.generation,
+        Log.add(svc.log,{kind=event.kind,reason=event.reason,rule=event.rule,talent=event.talent,
+            target=event.target,generation=event.generation,
             policy_hash=Schema.hash(svc.store.running)})
     end})
     local started=svc.controller:start()

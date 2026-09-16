@@ -117,7 +117,8 @@ local function meta(s)
     local phase=nativePhase(s)
     return {session_id=s.session_id,level_instance_id=s.level_id,revision=s.revision,protocol_version=4,
         history=s.ledger and s.ledger:history() or Json.null,
-        phase=phase,actionable=(phase=='ready' and s.control_token~=nil) or false,
+        phase=phase,actionable=(phase=='ready' and s.control_token~=nil
+            and not (s.auto_combat and s.auto_combat.arbiter.owner=='auto_combat')) or false,
         control_lease=s.control_token and 'held' or 'released',
         needs_reconnect=(s.access_mode=='control' and not s.control_token and not s.native_error) and true or nil,
         recovery=s.native_error and 'fresh_load_required' or nil,
@@ -133,8 +134,8 @@ local function meta(s)
         release_hint=(not s.control_token) and s.release_reason
             and (RELEASE_HINTS[s.release_reason] or 'control was released') or nil,
         lua_heap_kb=type(collectgarbage)=='function' and math.floor(collectgarbage('count') or 0) or nil,
-        control_source=s.control_token and 'remote' or localCombat(s) and 'battle_companion'
-            or (s.auto_combat and s.auto_combat.arbiter.owner=='auto_combat') and 'auto_combat' or 'manual',
+        control_source=(s.auto_combat and s.auto_combat.arbiter.owner=='auto_combat') and 'auto_combat'
+            or s.control_token and 'remote' or localCombat(s) and 'battle_companion' or 'manual',
         battle_companion=summary}
 end
 local function snapshot(s,radius,options)
@@ -1195,6 +1196,11 @@ local function dispatch(s,request)
                 if type(controller.remoteTakeover)=='function' then controller.remoteTakeover(s.game.player)
                 else controller.stop(s.game.player,'remote_control') end
             end
+            -- Re-acquiring control atomically takes the auto-combat lease too:
+            -- the run stops and the arbiter returns to manual (design 9/11.1).
+            if s.auto_combat and s.auto_combat.arbiter.owner=='auto_combat' then
+                AutoCombat.manualInput(s.auto_combat,'remote_takeover')
+            end
             s.control_token=identifier('control');bump(s)
             local root=invocation(s)
             if root and s.active==root.command and root.player==s.game.player and root.level==s.game.level then
@@ -1472,6 +1478,12 @@ local function dispatch(s,request)
             return fail('command_ledger_hole','The command ledger is inconsistent.',{accepted=Json.null})
         end
         -- None of the checks below consume the sequence on failure.
+        -- Owner exclusivity: while auto-combat holds the lease the remote must
+        -- reconnect control (which atomically takes it over) before acting.
+        if s.auto_combat and s.auto_combat.arbiter.owner=='auto_combat' then
+            return fail('control_conflict','Auto-combat holds control; reconnect control to take it over.',
+                {accepted=false,recovery='connect_explicitly'})
+        end
         if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
         if a.expected_revision~=s.revision then return fail('stale_revision','Observe the current state before acting.') end
         if s.active or s.execution then return fail('command_in_progress') end
