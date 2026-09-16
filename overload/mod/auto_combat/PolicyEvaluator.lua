@@ -125,10 +125,12 @@ function M.critical(policy,hp_pct)
     return hp_pct<minHp
 end
 
--- Returns one of:
---   {decision='act',rule,action,talent,target,critical,emergency}
---   {decision='pause',reason,critical,rule}
---   {decision='hold',reason}
+-- Returns one of (every decision carries `results`, the §10 per-rule trace):
+--   {decision='act',rule,action,talent,target,critical,emergency,results}
+--   {decision='pause',reason,critical,rule,results}
+--   {decision='hold',reason,results}
+-- `results` is an ordered array of {rule, result='true'|'false'|'unknown'|'denied',
+-- emergency=bool} for the rules considered in this layer, bounded by the rule cap.
 function M.evaluate(policy,ctx)
     ctx=ctx or {}
     local limits=policy.limits or {}
@@ -147,21 +149,29 @@ function M.evaluate(policy,ctx)
         if a.priority~=b.priority then return a.priority>b.priority end
         return a.id<b.id
     end)
+    local results={}
+    local layer=critical and 'emergency' or 'normal'
     -- Budget exhaustion never falls through to a different layer: in critical
     -- state it must not become a reason to fire normal output.
     if attempts>=maxActions then
-        return {decision='pause',reason='budget_exhausted',critical=critical}
+        for _,rule in ipairs(eligible) do
+            results[#results+1]={rule=rule.id,result='skipped',emergency=rule.emergency==true}
+        end
+        return {decision='pause',reason='budget_exhausted',critical=critical,results=results,layer=layer}
     end
     local unknownRule
     for _,rule in ipairs(eligible) do
         -- A rule denied earlier in the same action opportunity is skipped, not
         -- retried as-is (and not mistaken for an unknown safety condition).
-        if not (ctx.denied and ctx.denied[rule.id]) then
+        if ctx.denied and ctx.denied[rule.id] then
+            results[#results+1]={rule=rule.id,result='denied',emergency=rule.emergency==true}
+        else
             local value=M.evalCondition(rule.when,ctx)
+            results[#results+1]={rule=rule.id,result=value,emergency=rule.emergency==true}
             if value==TRUE then
                 local target=rule['then'].target or (policy.targeting and policy.targeting.default)
                 return {decision='act',rule=rule.id,action=rule['then'].action,talent=rule['then'].talent,
-                    target=target,critical=critical,emergency=rule.emergency==true}
+                    target=target,critical=critical,emergency=rule.emergency==true,results=results,layer=layer}
             elseif value==UNKNOWN and isSafety(rule.when) then
                 unknownRule=unknownRule or rule
             end
@@ -169,11 +179,11 @@ function M.evaluate(policy,ctx)
     end
     if critical then
         return {decision='pause',reason='no_emergency_action',critical=true,
-            rule=unknownRule and unknownRule.id}
+            rule=unknownRule and unknownRule.id,results=results,layer=layer}
     end
     if unknownRule and safety.pause_on_unknown_safety~=false then
-        return {decision='pause',reason='unknown_safety',rule=unknownRule.id}
+        return {decision='pause',reason='unknown_safety',rule=unknownRule.id,results=results,layer=layer}
     end
-    return {decision='hold',reason='no_rule_matched'}
+    return {decision='hold',reason='no_rule_matched',results=results,layer=layer}
 end
 return M

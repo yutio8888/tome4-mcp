@@ -11,10 +11,19 @@ function M.new(limit)
     return {limit=math.floor(limit),entries={},next_seq=1,total=0}
 end
 
+local function bounded(value,limit)
+    if type(value)~='table' then return value end
+    local out={}
+    for index=1,math.min(#value,limit) do out[index]=value[index] end
+    return out
+end
+
 function M.add(log,event)
     if type(event)~='table' then return nil end
     local entry={seq=log.next_seq,kind=event.kind or 'event',reason=event.reason,
         rule=event.rule,talent=event.talent,target=event.target,native_result=event.native_result,
+        rule_results=bounded(event.rule_results,32),rejections=bounded(event.rejections,8),
+        resources_before=event.resources_before,resources_after=event.resources_after,
         generation=event.generation,policy_hash=event.policy_hash}
     log.next_seq=log.next_seq+1
     log.total=log.total+1

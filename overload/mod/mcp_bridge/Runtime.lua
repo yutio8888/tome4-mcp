@@ -161,7 +161,8 @@ local function snapshot(s,radius,options)
             policy_hash=ac.running_hash,state=run and run.state or 'stopped',
             actions=run and run.actions or 0,
             paused_reason=run and run.state=='paused' and run.reason or nil,
-            generation=run and run.generation or nil}
+            generation=run and run.generation or nil,
+            last_decisions=ac.last_decisions or Json.array{}}
     end
     if s.session_root then
         local h=Interactions.current(s.session_root)
@@ -937,6 +938,14 @@ buildAutoCombatHost=function(s,policy)
             return out
         end,
         notify=function() end,
+        resources=function()
+            local p=g.player
+            if not p then return nil end
+            return {life=p.life,max_life=p.max_life,
+                positive=p.positive and p.positive.current or nil,
+                negative=p.negative and p.negative.current or nil,
+                stamina=p.stamina and p.stamina.current or nil}
+        end,
     }
     reads.enemy_ids=function()
         local ids={}

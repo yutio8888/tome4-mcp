@@ -14,6 +14,11 @@
 -- stale once the controller pauses/resumes/stops (generation > N).
 local Evaluator=require 'mod.auto_combat.PolicyEvaluator'
 local M={}
+-- A rejected sustain is not retried forever: after this many rejected attempts
+-- in one run the sustain is disabled for that run (design 5.3).
+M.SUSTAIN_FAILURE_CAP=2
+-- Bounded tail of recent decisions exposed to observers (design 10/11.2).
+M.RECENT_LIMIT=8
 
 function M.new(policy,host,options)
     options=options or {}
@@ -21,6 +26,7 @@ function M.new(policy,host,options)
         policy=policy,host=host,state='stopped',reason=nil,generation=0,
         attempts=0,instant_attempts=0,opportunity=0,opportunity_id=nil,actions=0,
         strict=options.strict~=false,denied={},known_enemies=nil,
+        rejections={},recent={},sustain_failures={},sustain_disabled={},
         max_attempts=(policy.limits and policy.limits.max_actions_per_tick) or 1,
         notify=options.notify or (host and host.notify),
     },{__index=M})
@@ -29,8 +35,25 @@ end
 function M:isStale(generation) return generation~=self.generation end
 
 function M:newOpportunity()
-    self.attempts=0; self.instant_attempts=0; self.denied={}
+    self.attempts=0; self.instant_attempts=0; self.denied={}; self.rejections={}
     self.opportunity=self.opportunity+1
+end
+
+function M:record(entry)
+    entry.generation=entry.generation or self.generation
+    self.recent[#self.recent+1]=entry
+    if #self.recent>M.RECENT_LIMIT then table.remove(self.recent,1) end
+end
+
+-- Most recent decisions, newest first, bounded.
+function M:recentDecisions(limit)
+    limit=limit or M.RECENT_LIMIT
+    local out={}
+    for index=#self.recent,1,-1 do
+        if #out>=limit then break end
+        out[#out+1]=self.recent[index]
+    end
+    return out
 end
 
 function M:refreshOpportunity()
@@ -115,8 +138,11 @@ end
 -- Deny a rule/sustain for the rest of this action opportunity and record why.
 function M:deny(id,reason)
     self.denied[id]=true
+    reason=reason or 'denied'
+    self.rejections[#self.rejections+1]={rule=id,reason=reason}
+    self:record({kind='denied',rule=id,reason=reason})
     if self.notify then
-        self.notify({kind='denied',reason=reason or 'denied',rule=id,generation=self.generation})
+        self.notify({kind='denied',reason=reason,rule=id,generation=self.generation})
     end
 end
 
@@ -135,7 +161,7 @@ function M:sustainStep()
         return tostring(a.talent)<tostring(b.talent)
     end)
     for _,sustain in ipairs(ordered) do
-        if not self.denied[sustain.talent] then
+        if not self.denied[sustain.talent] and not self.sustain_disabled[sustain.talent] then
             local on=self.host.sustain_on(sustain.talent)
             if on==false then
                 local known=self.host.talent_known and self.host.talent_known(sustain.talent)
@@ -184,11 +210,16 @@ function M:step()
         end
         if outcome.status=='ok' then
             self.actions=self.actions+1
+            self:record({kind='acted',rule='sustain:'..sustain.talent,talent=sustain.talent})
             return {action='acted',rule='sustain:'..sustain.talent,talent=sustain.talent,
-                outcome=outcome,state=self.state,generation=generation}
+                outcome=outcome,rejections=self.rejections,state=self.state,generation=generation}
         end
         if outcome.status=='rejected' and outcome.energy_spent~=true then
-            self:deny(sustain.talent,'sustain_rejected')
+            local count=(self.sustain_failures[sustain.talent] or 0)+1
+            self.sustain_failures[sustain.talent]=count
+            local capped=count>=M.SUSTAIN_FAILURE_CAP
+            if capped then self.sustain_disabled[sustain.talent]=true end
+            self:deny(sustain.talent,capped and 'sustain_failure_cap' or 'sustain_rejected')
         else
             return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
         end
@@ -199,13 +230,20 @@ function M:step()
         ctx.attempts=self.attempts
         ctx.denied=self.denied
         local decision=Evaluator.evaluate(self.policy,ctx)
-        if decision.decision=='pause' then return self:pause(decision.reason) end
+        if decision.decision=='pause' then
+            self:record({kind='paused',reason=decision.reason,rule=decision.rule})
+            local paused=self:pause(decision.reason)
+            paused.results=decision.results; paused.rejections=self.rejections
+            return paused
+        end
         if decision.decision=='hold' then
             -- No idle waiting: when there is no executable rule (and no visible
             -- enemy left) the run ends and explains why, returning control.
             local holdreason=ctx.enemy_count==0 and 'no_visible_enemies' or 'no_available_action'
+            self:record({kind='stopped',reason=holdreason})
             self:stop(holdreason)
-            return {action='stopped',reason=holdreason,state=self.state,generation=self.generation}
+            return {action='stopped',reason=holdreason,results=decision.results,
+                rejections=self.rejections,state=self.state,generation=self.generation}
         end
         local bound=self:rebind(ctx,decision)
         if bound==nil then
@@ -221,8 +259,10 @@ function M:step()
             end
             if outcome.status=='ok' then
                 self.actions=self.actions+1
+                self:record({kind='acted',rule=decision.rule,talent=decision.talent,target=bound.bound_target})
                 return {action='acted',rule=decision.rule,talent=decision.talent,bound_target=bound.bound_target,
-                    outcome=outcome,state=self.state,generation=generation}
+                    results=decision.results,rejections=self.rejections,outcome=outcome,
+                    state=self.state,generation=generation}
             end
             if outcome.status=='rejected' and outcome.energy_spent~=true then
                 -- Explicitly rejected and no energy spent: do not retry as-is in

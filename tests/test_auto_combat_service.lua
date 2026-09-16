@@ -20,6 +20,7 @@ local function fakeHost()
     return {phase=function() return 'ready' end,opportunity_id=function() return 1 end,
         snapshot=function() return {hp_pct=80,enemy_count=1} end,
         enemy_ids=function() return {} end,request=function() return {status='ok'} end,
+        resources=function() return {life=90,max_life=100} end,
         notify=function() end}
 end
 
@@ -80,6 +81,10 @@ do
     check(stepped.ok and stepped.step.action=='acted','the pump advances one opportunity')
     local log=Service.handle(svc,'log',{limit=4})
     check(log.ok and #log.events>=1 and log.events[1].kind=='acted','the service log records the step')
+    check(log.events[1].rule_results~=nil and log.events[1].resources_before~=nil,
+        'the log entry carries the rule trace and resource snapshot')
+    local status=Service.handle(svc,'status',{})
+    check(status.ok and type(status.last_decisions)=='table','status carries a bounded last_decisions tail')
     check(log.events[1].native_result=='ok','the action log records the native result')
     check(Service.status(svc).run.actions==1,'the run exposes a cumulative action count')
     Service.handle(svc,'stop',{})

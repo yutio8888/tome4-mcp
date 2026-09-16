@@ -34,7 +34,7 @@ do
     check(not ControlArbiter.canAct(a,'auto_combat'),'no source may act before a grant')
     local ok,code=ControlArbiter.grant(a,'auto_combat','player started auto')
     check(ok and code=='granted' and ControlArbiter.canAct(a,'auto_combat'),'grant hands over control')
-    check(not ControlArbiter.grant(a,'mcp'),'another source cannot take a held lease')
+    check(not ControlArbiter.grant(a,'remote'),'another source cannot take a held lease')
     local moved,previous=ControlArbiter.manualInput(a,'player moved')
     check(moved and previous=='auto_combat','manual input revokes the lease')
     check(ControlArbiter.isManual(a) and not ControlArbiter.canAct(a,'auto_combat'),
@@ -263,4 +263,42 @@ do
     check(c:status().actions==1,'a successful action counts in the cumulative total')
 end
 
+-- §10 / §5.3: rejections, bounded recent decisions and the sustain failure cap.
+do
+    local host=makeHost()
+    host.responses={{status='rejected',energy_spent=false},{status='rejected',energy_spent=false}}
+    local c=AutoCombat.new(policy(),host)
+    c:start(); c:onOpportunity()
+    check(#c.rejections==2 and c.rejections[1].rule=='beam' and c.rejections[1].reason=='native_rejected'
+        and c.rejections[2].rule=='attack','every denied rule is recorded with a reason')
+    local recent=c:recentDecisions(1)
+    check(#recent==1,'recentDecisions honours the limit')
+    local sawDenied=false
+    for _,entry in ipairs(c.recent) do if entry.kind=='denied' then sawDenied=true end end
+    check(sawDenied,'recent decisions include the denials')
+end
+do
+    local host=makeHost()
+    host.sustain_on=function() return false end
+    host.talent_known=function() return true end
+    host.request=function(attempt)
+        host.requests[#host.requests+1]=attempt
+        if attempt.action=='set_sustain' then return {status='rejected',energy_spent=false} end
+        return {status='ok',energy_spent=true}
+    end
+    local p=policy({limits={max_actions_per_tick=4},
+        sustains={{talent='T_CHANT_OF_FORTRESS',priority=20}}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    for _=1,AutoCombat.SUSTAIN_FAILURE_CAP do
+        host.oid=(host.oid or 1)+1
+        c:onOpportunity()
+    end
+    check(c.sustain_disabled['T_CHANT_OF_FORTRESS'],'a repeatedly rejected sustain is disabled for the run')
+    check(c.sustain_failures['T_CHANT_OF_FORTRESS']>=AutoCombat.SUSTAIN_FAILURE_CAP,
+        'the sustain failure count reaches the cap')
+    local attempts=0
+    for _,entry in ipairs(host.requests) do if entry.action=='set_sustain' then attempts=attempts+1 end end
+    check(attempts==AutoCombat.SUSTAIN_FAILURE_CAP,'a disabled sustain is not attempted again')
+end
 print('Auto-combat controller: '..checks..' checks passed')

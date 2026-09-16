@@ -37,7 +37,10 @@ function M.status(svc)
     status.actionable=control.actionable
     status.source=M.SOURCE
     status.strict=svc.strict
-    if svc.controller then status.run=svc.controller:status() end
+    if svc.controller then
+        status.run=svc.controller:status()
+        status.last_decisions=svc.controller:recentDecisions(5)
+    end
     status.log=Log.status(svc.log)
     return ok(status)
 end
@@ -139,6 +142,14 @@ function M.manualInput(svc,reason)
     return moved
 end
 
+local function resourcesOf(host)
+    if host and type(host.resources)=='function' then
+        local ok,value=pcall(host.resources)
+        if ok and type(value)=='table' then return value end
+    end
+    return nil
+end
+
 -- Advance the controller one action opportunity (the live pump calls this).
 function M.step(svc)
     if not svc.controller then return fail('not_running') end
@@ -147,18 +158,24 @@ function M.step(svc)
         svc.controller=nil
         return fail('control_lost')
     end
+    local host=svc.controller.host
+    local before=resourcesOf(host)
     local step=svc.controller:onOpportunity()
-    -- Pauses are already logged by the controller notify callback, so only the
-    -- successful action is added here (no duplicate pause entries).
+    local after=resourcesOf(host)
+    local policy_hash=Schema.hash(svc.store.running)
+    -- Pauses and denials are already logged by the controller notify callback,
+    -- so only the successful/terminal steps are added here (no duplicates).
     if step.action=='acted' then
         Log.add(svc.log,{kind=step.action,reason=step.reason,rule=step.rule,talent=step.talent,
             target=step.bound_target,generation=step.generation,
             native_result=step.outcome and step.outcome.status or nil,
-            policy_hash=Schema.hash(svc.store.running)})
+            rule_results=step.results,rejections=step.rejections,
+            resources_before=before,resources_after=after,policy_hash=policy_hash})
     elseif step.action=='stopped' then
         -- The controller ended itself (no visible enemy): return control.
         Log.add(svc.log,{kind='stopped',reason=step.reason,generation=step.generation,
-            policy_hash=Schema.hash(svc.store.running)})
+            rule_results=step.results,rejections=step.rejections,
+            resources_before=before,resources_after=after,policy_hash=policy_hash})
         if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,step.reason or 'stopped') end
     end
     return ok({step=step,state=svc.controller.state,generation=svc.controller.generation})

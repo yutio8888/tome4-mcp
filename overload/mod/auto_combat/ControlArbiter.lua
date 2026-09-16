@@ -4,7 +4,9 @@
 -- an approved policy still cannot act until it owns the lease. Manual input
 -- always wins and returns the lease to the player.
 local M={}
-M.SOURCES={manual=true,mcp=true,auto_combat=true}
+-- Non-manual control sources. `remote` is the MCP bridge lease; `battle_companion`
+-- is the legacy in-game autoplay controller (tracked, not driven by this plugin).
+M.SOURCES={manual=true,remote=true,battle_companion=true,auto_combat=true}
 
 function M.new()
     return {owner='manual',lease=0,revision=0,reason='initial'}
