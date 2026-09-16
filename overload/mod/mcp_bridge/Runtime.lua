@@ -97,6 +97,7 @@ local function meta(s)
         release_reason=(not s.control_token) and s.release_reason or nil,
         release_hint=(not s.control_token) and s.release_reason
             and (RELEASE_HINTS[s.release_reason] or 'control was released') or nil,
+        lua_heap_kb=type(collectgarbage)=='function' and math.floor(collectgarbage('count') or 0) or nil,
         control_source=s.control_token and 'remote' or localCombat(s) and 'battle_companion' or 'manual',
         battle_companion=summary}
 end
@@ -110,6 +111,7 @@ local function snapshot(s,radius,options)
     result.needs_reconnect=m.needs_reconnect
     result.release_reason=m.release_reason
     result.release_hint=m.release_hint
+    result.lua_heap_kb=m.lua_heap_kb
     if s.session_root then
         local h=Interactions.current(s.session_root)
         if h then result.interaction=Interactions.describe(s.session_root,m) end
@@ -126,7 +128,7 @@ local function snapshot(s,radius,options)
         end
         local identity={session_id=true,level_instance_id=true,revision=true,world_tick=true,phase=true,
             actionable=true,control_lease=true,needs_reconnect=true,control_source=true,battle_companion=true,
-            release_reason=true,release_hint=true,actor_id_scope=true,
+            release_reason=true,release_hint=true,actor_id_scope=true,lua_heap_kb=true,
             history=true,collection_refs=true,pending_command=true,interaction=true,scene=true}
         for key in pairs(result) do
             if not identity[key] and not keep[key] and not (key=='player' and next(sub)) then result[key]=nil end
