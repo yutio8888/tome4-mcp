@@ -89,9 +89,13 @@ local function meta(s)
         battle_companion=summary}
 end
 local function snapshot(s,radius,options)
-    local result=Observer.capture(s.game,meta(s),radius,options)
+    local m=meta(s)
+    local result=Observer.capture(s.game,m,radius,options)
     result.history=s.ledger:history()
     result.collection_refs=ObservationCollections.refs()
+    result.actionable=m.actionable
+    result.control_lease=m.control_lease
+    result.needs_reconnect=m.needs_reconnect
     result.events=Journal.capture(s.game,options and options.events_after)
     local root=invocation(s)
     if root then
