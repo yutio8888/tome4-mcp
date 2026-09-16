@@ -250,9 +250,10 @@ function M.player(g,p,meta,result)
             bonus=type(p.inc_stats)=='table' and M.number(p.inc_stats[id]) or nil}
     end
     result.life_regen=M.number(p.life_regen);result.regeneration_is_raw=true
-    result.gold=M.number(p.gold)
-    if M.finite(p.encumber) or M.finite(p.max_encumber) then
-        result.encumbrance={used=M.number(p.encumber),max=M.number(p.max_encumber)}
+    result.gold=M.number(p.money)
+    if M.finite(p.max_encumber) then
+        result.encumbrance={max_bonus=M.number(p.max_encumber),
+            scope='stored strength bonus only; current/max encumbrance are engine-computed and not evaluated'}
     end
     result.cooldowns=Json.array()
     if type(p.talents_cd)=='table' then
