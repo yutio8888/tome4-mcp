@@ -16,7 +16,7 @@
 正式包 **58 个生产文件**，SHA-256：
 
 ```text
-44b16985c1646e924fbd4b7b7e2e13b53e50e943130d8108c4091fb87b97c4df
+76b2ea636dcc0c5dbfee990bb35584eb019826a165eaef02f6f3c9a241559fd0
 ```
 
 P2 范围决定（含显式排除项）见 [P2 设计/状态](docs/tome-mcp-0.9.0-p2-tuning.md)；未修项见 [TODO](docs/tome-mcp-0.9.0-auto-combat-todo.md)。

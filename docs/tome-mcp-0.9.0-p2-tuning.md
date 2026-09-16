@@ -117,7 +117,7 @@ and a production `dry_run` against the real engine snapshot.
 - Python: 33 tests (incl. the `replay` literal/forwarding).
 - `generate_protocol.py --check` and `generate_native_seams.py --check` green.
 - `dist/tome-mcp-bridge.teaa`: 58 files, SHA-256
-  `44b16985c1646e924fbd4b7b7e2e13b53e50e943130d8108c4091fb87b97c4df`.
+  `76b2ea636dcc0c5dbfee990bb35584eb019826a165eaef02f6f3c9a241559fd0`.
 - Execution default and `change_level` default unchanged; P1a/P1b invariants
   (emergency-only critical layer, budget before layer, no rejected-as-is retry,
   `native_pending` never resubmits, manual input revokes the lease, player-only
