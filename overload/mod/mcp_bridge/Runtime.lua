@@ -79,9 +79,13 @@ local function meta(s)
     local raw=controller and type(controller.observation)=='function' and controller.observation(s.game.player)
     local summary=type(raw)=='table' and {state=Details.text(raw.state,48),code=Details.text(raw.code,128),
         message=Details.text(raw.message,512),actions=Details.number(raw.actions)} or nil
+    local phase=nativePhase(s)
     return {session_id=s.session_id,level_instance_id=s.level_id,revision=s.revision,protocol_version=4,
         history=s.ledger and s.ledger:history() or Json.null,
-        phase=nativePhase(s),control_source=s.control_token and 'remote' or localCombat(s) and 'battle_companion' or 'manual',
+        phase=phase,actionable=(phase=='ready' and s.control_token~=nil) or false,
+        control_lease=s.control_token and 'held' or 'released',
+        needs_reconnect=(s.access_mode=='control' and not s.control_token) and true or nil,
+        control_source=s.control_token and 'remote' or localCombat(s) and 'battle_companion' or 'manual',
         battle_companion=summary}
 end
 local function snapshot(s,radius,options)
@@ -118,6 +122,12 @@ local function commandView(command,include_map,response_id,options_offset)
             state=receipt.state,code=receipt.code} end
     end
     if command.native_rest then out.turns_executed=command.native_rest.cnt or 0 end
+    -- A pending interaction can change life/actors; return a live snapshot so
+    -- the caller does not mistake the pre-action snapshot for the current state.
+    if command.protocol and command.status=='awaiting_input' and not out.snapshot and state then
+        out.snapshot=snapshot(state)
+        out.snapshot_scope='live'
+    end
     if include_map==false and out.snapshot then
         local compact={};for k,v in pairs(out.snapshot) do if k~='map' then compact[k]=v end end
         compact.map=Json.null;out.snapshot=compact
@@ -483,6 +493,17 @@ function M.boundary(g,reason,enter,detail)
             if not enter then Interactions.closeDialog(detail) end
             Interactions.exposeTop(root)
             return
+        end
+        -- An unowned closeable popup raised while an owned remote action is
+        -- settling is adopted as a dialog.notice so the agent can answer it
+        -- instead of being forced into manual control (round-5 report 3.8).
+        local active=invocation(s)
+        if enter and active and s.active==active.command and active.command.input_owner=='remote'
+            and not active.command.handoff_requested then
+            if Interactions.adoptNotice(detail,active) then
+                Interactions.exposeTop(active)
+                return
+            end
         end
         local command=s.active
         if command and command.action.type=='rest' then

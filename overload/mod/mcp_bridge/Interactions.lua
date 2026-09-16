@@ -71,8 +71,8 @@ end
 
 -- Called inside audited native constructors, immediately before registration.
 -- Button closures stay inside the game; clients receive only opaque option IDs.
-function M.openDialog(d,kind,title,text,options,cancel,list)
-    local owner=nativeOwner()
+function M.openDialog(d,kind,title,text,options,cancel,list,owner)
+    owner=owner or nativeOwner()
     if not owner then return end
     local h=add{owner=owner,game=owner.root.game,dialog=d,kind=kind,
         prompt=Details.text(title,512),text=Details.text(text,2048),
@@ -138,13 +138,23 @@ function M.noticeText(d)
     end
     return Details.text(table.concat(parts,'\n'),2048)
 end
-function M.openNotice(d,source,title,text)
+function M.openNotice(d,source,title,text,owner)
     local key=d.key
     local close=key and key.virtuals and key.virtuals.EXIT
     if type(close)~='function' then return end
-    M.openDialog(d,'dialog.notice',title and title~='' and title or source,text,{{label='Close',apply=close}},close)
+    M.openDialog(d,'dialog.notice',title and title~='' and title or source,text,{{label='Close',apply=close}},close,nil,owner)
     local h=dialogs[d]
     if h then h.notice={source=source,key=key,close=close} end
+end
+-- Adopt an unowned, closeable native popup for the active remote command so the
+-- agent can answer it instead of losing control (round-5 report 3.8).
+function M.adoptNotice(d,root)
+    if not root or type(root.command)~='table' or dialogs[d] then return nil end
+    if root.command.input_owner=='manual' or root.command.handoff_requested then return nil end
+    local close=d.key and d.key.virtuals and d.key.virtuals.EXIT
+    if type(close)~='function' then return nil end
+    M.openNotice(d,'nativePopup',d.title,M.noticeText(d),{root=root})
+    return dialogs[d]
 end
 function M.dialogOwner(d) local h=dialogs[d];return h and not h.closed and h.root end
 function M.adoptPassiveDialog(d,owner,task)

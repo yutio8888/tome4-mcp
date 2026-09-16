@@ -54,6 +54,7 @@ function M.describe(player, id)
     return {id=id, name=type(t.name)=='string' and t.name or id,
         level=player.talents and player.talents[id] or 0,
         cooldown=player.talents_cd and player.talents_cd[id] or 0,
+        base_cooldown=finite(t.cooldown) and t.cooldown or nil,
         mode=type(t.mode)=='string' and t.mode or 'unknown',
         supported=admitted~=nil, unsupported_reason=reason,
         target='runtime', action_adapter=id=='T_ATTACK' and 'attack' or nil,
@@ -228,7 +229,7 @@ function M.execute(g, action, target, meta, command)
                             command.target_geometry={shape=type(typ.type)=='string' and typ.type or 'unknown',
                                 radius=finite(typ.radius) and typ.radius or nil,
                                 range=finite(typ.range) and typ.range or nil,
-                                selffire=(type(typ.selffire)=='boolean') and typ.selffire or nil,
+                                selffire=(type(typ.selffire)=='boolean') and typ.selffire or 'unknown',
                                 piercing=typ.type=='beam' or nil}
                         end
                         local x,y,entity=resolve()

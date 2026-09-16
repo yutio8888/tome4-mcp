@@ -97,7 +97,7 @@ function Store:page(view, offset, page_size)
     local limit = page_size or self.default_page
     if limit > self.max_page then limit = self.max_page end
     if limit < 1 then limit = 1 end
-    local items, data_bytes, index = {}, 0, offset + 1
+    local items, data_bytes, index = Json.array(), 0, offset + 1
     while index <= #view.items and #items < limit do
         local size = view.sizes[index] or 32
         if #items > 0 and data_bytes + size > self.page_bytes then break end

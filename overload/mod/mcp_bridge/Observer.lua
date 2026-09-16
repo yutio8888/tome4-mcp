@@ -56,6 +56,11 @@ local function actorSummary(g,meta,actor,is_player,detailed)
         faction=Details.text(actor.faction,48) or 'unknown',
         type=Details.text(actor.type,48),subtype=Details.text(actor.subtype,48),
         level=actor.hide_level_tooltip and 'unknown' or number(actor.level),rank=number(actor.rank)}
+    -- A stored reaction is a cheap scalar; when present it classifies the actor
+    -- without invoking the dynamic reactionToward chain.
+    local reaction=number(actor.reaction)
+    result.reaction=reaction
+    result.hostile=reaction~=nil and reaction<0 or nil
     if detailed then Details.actor(actor,result) end
     if is_player then Details.player(g,actor,meta,result) end
     return result

@@ -53,6 +53,7 @@
         "revision": { "anyOf": [{ "$ref": "common.schema.json#/$defs/Revision" }, { "type": "null" }] },
         "history": { "$ref": "#/$defs/History" },
         "snapshot_availability": { "$ref": "common.schema.json#/$defs/SnapshotAvailability" },
+        "snapshot_scope": { "type": ["string", "null"] },
         "snapshot": { "anyOf": [{ "type": "object" }, { "type": "null" }] },
         "interruption": { "type": ["string", "null"] },
         "turns_executed": { "type": ["integer", "null"] },
