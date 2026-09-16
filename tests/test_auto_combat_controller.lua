@@ -159,6 +159,32 @@ do
 end
 
 do
+    -- Target binding: the winning rule's selector must bind the same target the
+    -- condition was checked against, or the rule is denied.
+    local function bindingHost(bindings)
+        local h=makeHost()
+        h.snapshot=function(selector)
+            local b=bindings[selector] or {}
+            return {hp_pct=80,enemy_count=1,binding_selector=selector,enemy_hp_pct=b.hp_pct,bound_target=b.id}
+        end
+        return h
+    end
+    local p=policy({targeting={default='nearest_hostile'},limits={max_actions_per_tick=1},rules={
+        {id='finish',priority=10,when={enemy_hp_pct={lt=30}},
+            ['then']={action='use_talent',talent='T_SEARING_LIGHT',target='lowest_hp_hostile'}}}})
+    local host=bindingHost({nearest_hostile={id='near',hp_pct=20},lowest_hp_hostile={id='low',hp_pct=90}})
+    local c=AutoCombat.new(p,host); c:start()
+    local step=c:onOpportunity()
+    check(step.action=='hold' and #host.requests==0,
+        'a rule whose bound target fails its own condition is denied, not fired')
+    host=bindingHost({nearest_hostile={id='near',hp_pct=20},lowest_hp_hostile={id='low',hp_pct=10}})
+    c=AutoCombat.new(p,host); c:start()
+    step=c:onOpportunity()
+    check(step.action=='acted' and step.bound_target=='low' and host.requests[1].bound_target=='low',
+        'the executed action uses the same bound target as the condition')
+end
+
+do
     -- Strict resume: confirm the current enemy set, then pause on a new enemy.
     local host=makeHost(); host.enemies={'a'}
     local c=AutoCombat.new(policy(),host,{strict=true})

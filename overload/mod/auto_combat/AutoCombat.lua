@@ -102,14 +102,42 @@ function M:resume()
     return {ok=true,state=self.state,generation=self.generation,action='schedule_pump'}
 end
 
+function M:findRule(id)
+    for _,rule in ipairs(self.policy.rules or {}) do if rule.id==id then return rule end end
+    return nil
+end
+
+function M:context(selector)
+    if not (self.host and self.host.snapshot) then return {} end
+    return self.host.snapshot(selector) or {}
+end
+
+-- A rule's condition and its action must bind the same target. When the winning
+-- rule uses a selector other than the context's, re-bind and re-check the
+-- condition against the actually bound target before acting.
+function M:rebind(ctx,decision)
+    if not (self.host and self.host.snapshot) or ctx.binding_selector==nil
+        or decision.target==nil or ctx.binding_selector==decision.target then
+        return ctx
+    end
+    local rule=self:findRule(decision.rule)
+    if not rule then return ctx end
+    local rebound=self:context(decision.target)
+    if rebound.binding_selector==decision.target
+        and Evaluator.evalCondition(rule['when'],rebound)==Evaluator.TRUE then
+        return rebound
+    end
+    return nil
+end
+
 function M:step()
     if self.state~='running' then return {action='noop',state=self.state} end
     local generation=self.generation
     local reason=self:checkEnemies()
     if reason then return self:pause(reason) end
+    local default_selector=self.policy.targeting and self.policy.targeting.default
     for _=1,8 do
-        local ctx={}
-        if self.host and self.host.snapshot then ctx=self.host.snapshot() or {} end
+        local ctx=self:context(default_selector)
         ctx.attempts=self.attempts
         ctx.denied=self.denied
         local decision=Evaluator.evaluate(self.policy,ctx)
@@ -117,24 +145,29 @@ function M:step()
         if decision.decision=='hold' then
             return {action='hold',state=self.state,generation=generation,reason=decision.reason}
         end
-        self.attempts=self.attempts+1
-        local outcome=(self.host and self.host.request and self.host.request({
-            rule=decision.rule,action=decision.action,talent=decision.talent,
-            target=decision.target,generation=generation})) or {}
-        if outcome.status=='native_pending' then
-            self.state='waiting_native'; self.reason='native_pending'
-            return {action='wait_native',rule=decision.rule,state=self.state,generation=generation}
-        end
-        if outcome.status=='ok' then
-            return {action='acted',rule=decision.rule,talent=decision.talent,outcome=outcome,
-                state=self.state,generation=generation}
-        end
-        if outcome.status=='rejected' and outcome.energy_spent~=true then
-            -- Explicitly rejected and no energy spent: do not retry as-is in this
-            -- opportunity, but another rule may still be valid.
+        local bound=self:rebind(ctx,decision)
+        if bound==nil then
             self.denied[decision.rule]=true
         else
-            return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
+            self.attempts=self.attempts+1
+            local outcome=(self.host and self.host.request and self.host.request({
+                rule=decision.rule,action=decision.action,talent=decision.talent,
+                target=decision.target,bound_target=bound.bound_target,generation=generation})) or {}
+            if outcome.status=='native_pending' then
+                self.state='waiting_native'; self.reason='native_pending'
+                return {action='wait_native',rule=decision.rule,state=self.state,generation=generation}
+            end
+            if outcome.status=='ok' then
+                return {action='acted',rule=decision.rule,talent=decision.talent,bound_target=bound.bound_target,
+                    outcome=outcome,state=self.state,generation=generation}
+            end
+            if outcome.status=='rejected' and outcome.energy_spent~=true then
+                -- Explicitly rejected and no energy spent: do not retry as-is in
+                -- this opportunity, but another rule may still be valid.
+                self.denied[decision.rule]=true
+            else
+                return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
+            end
         end
     end
     return self:pause('rule_loop_limit')
