@@ -82,6 +82,16 @@ local RELEASE_HINTS={unsupported_interaction='a native UI the bridge cannot driv
     stopped='control was stopped explicitly',
     control_replaced='another client took control',
     saving='a native save is in progress'}
+-- Human hints for common terminal command codes; the code stays authoritative.
+local COMMAND_HINTS={native_rejected='the native action refused; see native_message or the player-visible log',
+    blocked='the move did not change position and spent no energy',
+    target_out_of_range='the target is outside the talent range',
+    target_not_adjacent='the target is not adjacent',
+    insufficient_class_points='no class talent points remain',
+    insufficient_generic_points='no generic talent points remain',
+    not_enough_resource='not enough of the required resource',
+    talent_not_learned='the talent is not learned from a stored point pool',
+    respec_not_enabled='respeccing is disabled by configuration'}
 local function meta(s)
     local controller=companion()
     local raw=controller and type(controller.observation)=='function' and controller.observation(s.game.player)
@@ -129,7 +139,7 @@ local function snapshot(s,radius,options)
         local identity={session_id=true,level_instance_id=true,revision=true,world_tick=true,phase=true,
             actionable=true,control_lease=true,needs_reconnect=true,control_source=true,battle_companion=true,
             release_reason=true,release_hint=true,actor_id_scope=true,lua_heap_kb=true,
-            history=true,collection_refs=true,pending_command=true,interaction=true,scene=true}
+            history=true,collection_refs=true,pending_command=true,interaction=true,interaction_scope=true,scene=true}
         for key in pairs(result) do
             if not identity[key] and not keep[key] and not (key=='player' and next(sub)) then result[key]=nil end
         end
@@ -146,6 +156,12 @@ local function snapshot(s,radius,options)
         result.pending_command={command_id=command.command_id,status=command.status,
             input_owner=command.input_owner,execution_released=false,
             interaction=Interactions.describe(root,meta(s)),native_task=NativeTasks.describe(root)}
+        -- A command-owned interaction (chat, quest, target) is also surfaced at
+        -- the top level so a caller does not have to look inside pending_command.
+        if not result.interaction and result.pending_command.interaction then
+            result.interaction=result.pending_command.interaction
+            result.interaction_scope='owned by the pending command; answer it with tome.respond'
+        end
     end
     return result
 end
@@ -156,8 +172,12 @@ local function commandView(command,include_map,response_id,options_offset)
         'turns_executed','max_turns','stop_reason','native_message','level_changed','target_geometry',
         'points_spent','points_returned','point_pool','previous_value','new_value'} do out[key]=command[key] end
     -- action_ok is derived from the terminal status so it can never contradict
-    -- it (a fatal blow reports status=failed, action_ok=false).
-    out.action_ok=(command.status=='completed' and true) or (command.status=='failed' and false) or nil
+    -- it (a fatal blow reports status=failed, action_ok=false). A Lua
+    -- `or` chain would collapse false to nil, so branch explicitly.
+    if command.status=='completed' then out.action_ok=true
+    elseif command.status=='failed' then out.action_ok=false
+    else out.action_ok=nil end
+    out.hint=command.code and COMMAND_HINTS[command.code] or nil
     if command.protocol then
         out.revision=state.revision;out.input_owner=command.input_owner
         out.accepted=true;out.seq=command.seq
@@ -170,6 +190,9 @@ local function commandView(command,include_map,response_id,options_offset)
         local receipt=command.responses and command.responses[response_id or command.last_response_id]
         if receipt then out.response_receipt={response_id=receipt.response_id,interaction_id=receipt.interaction_id,
             state=receipt.state,code=receipt.code} end
+        -- A respond inherits its parent command's code; expose what it answered
+        -- so code=level_changed after a chat answer is unambiguous.
+        if response_id then out.parent_action=command.action and command.action.type or nil end
     end
     if command.native_rest then out.turns_executed=command.native_rest.cnt or 0 end
     -- A pending interaction can change life/actors; return a live snapshot so

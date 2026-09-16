@@ -68,6 +68,8 @@
         "previous_value": { "type": ["integer", "boolean", "null"] },
         "new_value": { "type": ["integer", "null"] },
         "action_ok": { "type": ["boolean", "null"], "description": "Authoritative outcome: true only when the native action took effect. Distinct from accepted (the command was admitted); see also status/code." },
+        "hint": { "type": ["string", "null"], "description": "Human hint for the terminal code; the code stays authoritative." },
+        "parent_action": { "type": ["string", "null"], "description": "For a respond result, the parent command action type whose code this result carries." },
         "interaction": { "anyOf": [{ "type": "object" }, { "type": "null" }] },
         "native_task": { "anyOf": [{ "type": "object" }, { "type": "null" }] },
         "response_receipt": { "anyOf": [{ "type": "object" }, { "type": "null" }] }

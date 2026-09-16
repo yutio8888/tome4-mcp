@@ -248,7 +248,17 @@ function M.execute(g,action,meta)
         return result
     end
     if type(ret)=='boolean' then result.native_return=ret end
-    if a.type=='use_item' then result.ok=ret==true
+    if a.type=='use_item' then
+        result.ok=ret==true
+        if not result.ok then
+            local obj=record.obj or {}
+            local activation=type(obj.use_power)=='table' or type(obj.use_simple)=='table'
+                or type(obj.use_talent)=='table'
+            result.native_message=activation
+                and 'The native item use was refused (charges, cooldown, conditions or target).'
+                or 'This item has no bridge-visible activation; the native use was refused.'
+            result.hint='item use is decided natively; inspect activation.present and the player-visible log'
+        end
     elseif a.type=='pickup' then result.ok=ret~=nil and ret~=false
     else
         local after=owned(g,meta,nil,record.obj)

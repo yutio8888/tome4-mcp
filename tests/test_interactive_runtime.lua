@@ -136,6 +136,8 @@ end
 fresh()
 local first=start('multi')
 check(first.status=='awaiting_input' and not first.execution_released,'first native yield is nonterminal')
+local yielded=observe()
+check(yielded.interaction and yielded.interaction.interaction_id==first.interaction.interaction_id,'a command-owned interaction is mirrored at the top level')
 local before=observe()
 for i=1,10 do status('multi');observe() end
 check(observe().revision==before.revision and partial==0,'reading prompts does not mutate game or revision')

@@ -23,8 +23,9 @@ end
 -- remainder such as Searing Light's light zone) is reported separately.
 function M.damageScope(shape,direct_hit,residual_radius)
     local residual=M.number(residual_radius)
-    if direct_hit==true then return 'single',residual end
+    -- A beam is a line even when the talent also sets direct_hit (Moonlight Ray).
     if shape=='beam' then return 'line',residual end
+    if direct_hit==true then return 'single',residual end
     if shape=='ball' or shape=='cone' or shape=='wide' then return 'area',residual end
     return 'unknown',residual
 end
@@ -287,8 +288,19 @@ function M.player(g,p,meta,result,detailed)
     result.life_regen=M.number(p.life_regen);result.regeneration_is_raw=true
     result.gold=M.number(p.money)
     result.gold_scope='gold is the stored money field'
-    result.encumbrance={max_bonus=M.number(p.max_encumber),current=M.number(p.encumber),
-        scope='stored fields only; current/max encumbrance are engine-computed and not evaluated'}
+    local carried=0
+    for _,inven in pairs(p.inven or {}) do
+        if type(inven)=='table' then
+            for slot,obj in pairs(inven) do
+                if type(slot)=='number' and slot>0 and type(obj)=='table' and M.finite(obj.encumber) then
+                    local count=type(obj.stacked)=='table' and (1+#obj.stacked) or 1
+                    carried=carried+obj.encumber*count
+                end
+            end
+        end
+    end
+    result.encumbrance={items_total=math.floor(carried*100+0.5)/100,max_bonus=M.number(p.max_encumber),
+        scope='items_total sums stored per-item weights; native current/max totals include strength and effects and are not evaluated'}
     result.cooldowns=Json.array()
     if type(p.talents_cd)=='table' then
         local ids={}

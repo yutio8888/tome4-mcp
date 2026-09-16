@@ -33,6 +33,14 @@ check(#tail.entries==12 and not tail.has_more,'default snapshot returns compact 
 local future=Journal.capture(g,cursor+100)
 check(future.cursor_ahead and future.cursor==cursor,'foreign or future cursors reported')
 Journal.reset()
+local r1,r2={str='same line'},{str='second line'}
+local rr={turn=1,uiset={logdisplay={log={r2,r1}}}}
+Journal.capture(rr,0)
+local n1,n2={str='same line'},{str='second line'}
+rr.uiset.logdisplay.log={n2,n1}
+local repr=Journal.capture(rr,2)
+check(#repr.entries==0 and repr.head_cursor==2,'a same-text level-change re-render does not replay old log lines')
+Journal.reset()
 check(Journal.capture({}).head_cursor==0,'new session resets cursors')
 local huge={turn=20,uiset={logdisplay={log={{str=string.rep('a',9000)}}}}}
 local bounded=Journal.capture(huge,0)
