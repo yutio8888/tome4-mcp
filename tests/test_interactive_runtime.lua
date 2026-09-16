@@ -381,5 +381,15 @@ local menu_game={level={},paused=false}
 local menu_root={game=menu_game,command={responses={},consumed_interactions={},interaction_sequence=0},interactions={}}
 local adopted=Interactions.adoptNotice(death_dialog,menu_root)
 check(adopted and adopted.kind=='dialog.choice' and adopted.list==list_ui,'a list menu is adopted as a choice interaction')
+-- A session-root popup must be valid even though the session root has no
+-- player/level (this is what broke the death menu), and adoptNative must
+-- register it without bumping the revision.
+local sroot={game=menu_game,interactions={},command={responses={},consumed_interactions={},interaction_sequence=0}}
+local death2={title='You have died!',uis={},c_list=list_ui,key={virtuals={}}}
+menu_game.dialogs={death2}
+local h2=Interactions.adoptNative(death2,sroot)
+check(h2~=nil and Interactions.valid(h2),'a session-root popup handle is valid without a player')
+check(Interactions.current(sroot)==h2,'the session-root popup is the current interaction')
+check(Interactions.describe(sroot,{revision=1}).options[1].label=='Resurrect','the death menu options are described')
 
 print('Interactive Runtime: '..count..' checks passed')

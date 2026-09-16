@@ -175,6 +175,20 @@ local function snapshot(s,radius,options)
             result.interaction_scope='owned by the pending command; answer it with tome.respond'
         end
     end
+    -- Lazily register an open native popup that the eager adoption could not
+    -- see (the death menu builds its list UI after Dialog.init registers it).
+    -- This is a read: the passive registration must not bump the revision.
+    if not result.interaction and s.session_root and not s.native_error then
+        local stack=s.game.dialogs
+        local top=type(stack)=='table' and stack[#stack] or nil
+        if top then
+            local h=Interactions.adoptNative(top,s.session_root)
+            if h then
+                result.interaction=Interactions.describe(s.session_root,m)
+                result.interaction_scope='native popup owned by the session; answer it with tome.dismiss'
+            end
+        end
+    end
     return result
 end
 local function commandView(command,include_map,response_id,options_offset)

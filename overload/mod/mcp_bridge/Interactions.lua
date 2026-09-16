@@ -175,6 +175,38 @@ local function nativeClose(d)
     end
     return nil
 end
+-- Register an already-open native dialog for answering WITHOUT bumping the
+-- revision: observing a popup is a read, not a game mutation. Used lazily from
+-- snapshot because some dialogs (the death menu) call Dialog.init before they
+-- build their list UI, so the eager adoption cannot see it yet.
+function M.adoptNative(d,root)
+    if not root or dialogs[d] then return dialogs[d] end
+    local list=d and d.c_list
+    local h
+    if type(list)=='table' and type(list.list)=='table' and #list.list>0 and type(list.onSelect)=='function' then
+        h={owner={root=root},game=root.game,dialog=d,kind='dialog.choice',
+            prompt=Details.text(d.title,512),options=nil,cancel=nil,list=list}
+    else
+        local close=d and d.key and d.key.virtuals and d.key.virtuals.EXIT
+        if type(close)~='function' then close=nativeClose(d) end
+        if type(close)~='function' then return nil end
+        h={owner={root=root},game=root.game,dialog=d,kind='dialog.notice',
+            prompt=Details.text(d.title,512),text=M.noticeText(d),
+            options={{label='Close',apply=close}},cancel=close}
+        h.notice={source='nativePopup',key=d.key,close=close}
+    end
+    h.root=root;h.level=root.game.level
+    root.interactions=root.interactions or {}
+    root.interactions[#root.interactions+1]=h
+    root.command=root.command or {}
+    root.command.interaction_sequence=(root.command.interaction_sequence or 0)+1
+    h.sequence=root.command.interaction_sequence
+    serial=serial+1
+    h.interaction_id='interaction-'..serial
+    h.consumed=false
+    dialogs[d]=h
+    return h
+end
 -- Close the topmost native popup through its own handler. Returns ok, code.
 function M.dismissTop(g)
     local dialogs=type(g.dialogs)=='table' and g.dialogs or {}
@@ -254,7 +286,13 @@ end
 
 function M.valid(h)
     local g,root=h.game,h.root
-    if h.closed or g.player~=root.player or g.level~=root.level or h.level and h.level~=g.level then return false end
+    if h.closed then return false end
+    -- The session root deliberately has no player/level: a native popup raised
+    -- outside a command belongs to the session, not to a command invocation.
+    -- Only a root that tracks its own player is compared against the live game;
+    -- h.level still invalidates the handle on a level change.
+    if root.player and (g.player~=root.player or g.level~=root.level) then return false end
+    if h.level and h.level~=g.level then return false end
     if h.chat then
         local d,c=h.dialog,h.chat
         if not chatCompatible(d) or d.chat~=c.provider or d.player~=c.player or d.npc~=c.npc or d.cur_id~=c.id or d.list~=c.list
