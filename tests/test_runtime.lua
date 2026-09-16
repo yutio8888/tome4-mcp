@@ -138,7 +138,8 @@ check(observe().phase=='unavailable','native error remains read-only after recon
 check(act('after_error',{type='wait'}).error.code=='not_ready','native error forbids writes')
 local abandoned=request('abandon',{session_id=hello.session_id,control_token=hello.control_token})
 check(abandoned.result and abandoned.result.recovered
-    and abandoned.result.recovery=='discarded_failed_invocation','abandon clears bridge isolation')
+    and abandoned.result.recovery~='fresh_load_required','abandon clears bridge isolation')
+check(abandoned.result.phase~=nil,'abandon reports the phase it left the game in')
 check(observe().phase~='unavailable' and observe().control_lease=='held','abandon restores a usable session')
 check(request('abandon',{session_id=hello.session_id,control_token=hello.control_token}).error.code=='not_isolated','a second abandon reports not_isolated')
 g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()

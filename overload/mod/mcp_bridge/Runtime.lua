@@ -860,6 +860,7 @@ local function autoExploreStart(s,command,p)
         return {ok=false,code='nothing_left',native_message='There is nowhere left to explore.',
             energy_spent=math.max(0,energy-p.energy.value)}
     end
+    local start_x,start_y=p.x,p.y
     local steps=0
     local ok2,err=pcall(function()
         while steps<200 and p:enoughEnergy() and p:runStep() do steps=steps+1 end
@@ -869,6 +870,26 @@ local function autoExploreStart(s,command,p)
         stopRun(s,command,'execution_error')
         return {ok=false,code='execution_error',uncertain=true,
             native_message=Details.text(tostring(err),512),energy_spent=math.max(0,energy-p.energy.value)}
+    end
+    if not p.running then
+        -- The run ended within the first opportunity: report the real reason
+        -- instead of a bare "exploring" that leaves the caller spinning.
+        for _,actor in pairs(s.game.level.entities or {}) do
+            if hostileVisible(s.game,p,actor) then
+                return {ok=false,code='enemies_in_sight',
+                    native_message='You may not auto-explore with enemies in sight ('
+                        ..(Details.text(actor.name,48) or 'hostile')..').',
+                    energy_spent=math.max(0,energy-p.energy.value),
+                    hint='defeat or lose sight of the hostile first; escorts and allies do not block auto-explore'}
+            end
+        end
+        if p.x==start_x and p.y==start_y then
+            return {ok=false,code='nothing_left',native_message='There is nowhere left to explore.',
+                energy_spent=math.max(0,energy-p.energy.value)}
+        end
+        return {ok=true,code='explore_stopped',
+            native_message='native auto-explore stopped; observe interaction/dialogs before continuing',
+            energy_spent=math.max(0,energy-p.energy.value)}
     end
     return {ok=true,code='exploring',energy_spent=math.max(0,energy-p.energy.value)}
 end
@@ -1094,7 +1115,13 @@ local function dispatch(s,request)
             if type(a.sections)~='table' or a.sections==Json.null then return fail('invalid_sections') end
             local allowed={player=true,map=true,ground=true,actors=true,talents=true,events=true,dialogs=true,
             scene=true,effects=true,sustains=true,resources=true,stats=true,ground_effects=true}
-            for _,name in ipairs(a.sections) do if not allowed[name] then return fail('invalid_sections') end end
+            for _,name in ipairs(a.sections) do
+                if not allowed[name] then
+                    return fail('invalid_sections',nil,{details={allowed_sections=Json.array{
+                        'player','map','ground','actors','talents','events','dialogs','scene',
+                        'effects','sustains','resources','stats','ground_effects'}}})
+                end
+            end
         end
         if a.detail~=nil and a.detail~='summary' and a.detail~='full' then return fail('invalid_detail') end
         return snapshot(s,a.radius,{include_map=a.include_map,events_after=a.events_after,sections=a.sections,detail=a.detail})
@@ -1232,9 +1259,12 @@ local function dispatch(s,request)
         s.active=nil;s.execution=nil
         s.native_error=nil;s.release_reason='abandoned'
         sync(s);bump(s)
-        return {recovered=true,abandoned_command=dropped,recovery='discarded_failed_invocation',
+        local phase=nativePhase(s)
+        return {recovered=true,abandoned_command=dropped,phase=phase,
+            recovery=phase=='ready' and 'discarded_failed_invocation' or 'wait_for_ready',
             release_reason='abandoned',
-            details={hint='the failed invocation was discarded; the game state was not rolled back'},
+            details={hint=phase=='ready' and 'the failed invocation was discarded; the game state was not rolled back'
+                or 'the game is still settling a native action; wait for phase ready before acting'},
             snapshot=snapshot(s)}
     elseif op=='stop' then
         if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
