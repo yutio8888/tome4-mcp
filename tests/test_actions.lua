@@ -53,7 +53,11 @@ local defs={
 local p={talents_def=defs,talents={T_A=1,T_S=2,T_P=1,T_ATTACK=1,T_COMMAND_STAFF=1},talents_cd={T_S=4},sustain_talents={T_S={}},useTalent=function() end}
 check(Actions.admit(p,'T_A','activated')~=nil,'activated talent admitted')
 check(select(2,Actions.admit(p,'T_COMMAND_STAFF','activated'))=='talent_interaction_unsupported',
-    'T_COMMAND_STAFF is refused (native chat would freeze the game)')
+    'T_COMMAND_STAFF is refused by default (native chat would freeze the game)')
+config={settings={tome_mcp_bridge={allow_command_staff=true}}}
+check(Actions.admit(p,'T_COMMAND_STAFF','activated')~=nil,
+    'T_COMMAND_STAFF is admitted when the operator enables allow_command_staff')
+config.settings.tome_mcp_bridge.allow_command_staff=nil
 check(select(2,Actions.admit(p,'T_A','sustained'))=='talent_mode_unsupported','mode mismatch rejected')
 check(select(2,Actions.admit(p,'T_P','activated'))=='talent_mode_unsupported','passive rejected')
 check(select(2,Actions.admit(p,'T_MISSING','activated'))=='talent_not_learned','unlearned rejected')
