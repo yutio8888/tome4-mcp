@@ -97,6 +97,10 @@ local function snapshot(s,radius,options)
     result.actionable=m.actionable
     result.control_lease=m.control_lease
     result.needs_reconnect=m.needs_reconnect
+    if s.session_root then
+        local h=Interactions.current(s.session_root)
+        if h then result.interaction=Interactions.describe(s.session_root,m) end
+    end
     result.events=Journal.capture(s.game,options and options.events_after)
     local root=invocation(s)
     if root then
@@ -284,8 +288,16 @@ function M.reset(g)
             record.player,record.level,record.control_token=nil,nil,nil
             record.snapshot_availability='evicted'
         end}
+    -- Dialogs raised outside a talent body (sealed door, lore, running, death)
+    -- belong to the control session and are answered with tome.dismiss.
+    s.session_root={game=g,interactions={},
+        command={command_id='session',status='session',input_owner='remote',
+            responses={},consumed_interactions={},interaction_sequence=0}}
     local function changed(root)
-        if state==s and root.game==g then s.execution=root;bump(s) end
+        if state==s and root and root.game==g then
+            if root~=s.session_root then s.execution=root end
+            bump(s)
+        end
     end
     Tracker.reset(changed);Interactions.reset(changed);NativeTasks.reset(changed)
     Input.attach(g)
@@ -398,13 +410,20 @@ end
 -- idle frames, pre-existing dialogs and manual handoffs cannot adopt a dialog.
 function M.nativeUIOwner(g)
     local s=state
-    if not s or s.game~=g or s.tick_depth<=0 or s.native_error then return end
-    local command=s.active
-    local root=command and command.invocation
-    if not root or root.error or command.input_owner=='manual'
-        or command.handoff_requested or root.player~=g.player then return end
-    if root.level~=g.level and not root.transitioning then return end
-    if command.status=='executing' or command.status=='settling' or command.status=='running_native_task' then return root end
+    if not s or s.game~=g or s.native_error then return end
+    if s.tick_depth>0 then
+        local command=s.active
+        local root=command and command.invocation
+        if root and not root.error and command.input_owner~='manual'
+            and not command.handoff_requested and root.player==g.player
+            and (root.level==g.level or root.transitioning)
+            and (command.status=='executing' or command.status=='settling' or command.status=='running_native_task') then
+            return root
+        end
+    end
+    -- Dialogs raised outside a talent body (sealed door, lore, running, death)
+    -- belong to the control session so tome.dismiss can answer them.
+    if s.session_root and s.control_token and s.access_mode=='control' then return s.session_root end
 end
 
 function M.beginSceneChange(g)
@@ -499,6 +518,13 @@ function M.boundary(g,reason,enter,detail)
             Interactions.exposeTop(root)
             return
         end
+        -- A dialog owned by the control session (raised outside a talent body:
+        -- sealed door, lore, running, death) can be answered with tome.dismiss.
+        if root==s.session_root and s.control_token and s.access_mode=='control' and not s.native_error then
+            if not enter then Interactions.closeDialog(detail) end
+            Interactions.exposeTop(root)
+            return
+        end
         -- An unowned closeable popup raised while an owned remote action is
         -- settling is adopted as a dialog.notice so the agent can answer it
         -- instead of being forced into manual control (round-5 report 3.8).
@@ -507,6 +533,12 @@ function M.boundary(g,reason,enter,detail)
             and not active.command.handoff_requested then
             if Interactions.adoptNotice(detail,active) then
                 Interactions.exposeTop(active)
+                return
+            end
+        end
+        if enter and not root and s.control_token and s.access_mode=='control' and s.session_root then
+            if Interactions.adoptNotice(detail,s.session_root) then
+                Interactions.exposeTop(s.session_root)
                 return
             end
         end
@@ -774,7 +806,7 @@ local function dispatch(s,request)
                     spend_stat={implementation='supported',scope='native_levelup'},
                     learn_talent={implementation='supported',scope='visible_known_categories',requirements='native_checked',detail_collection='progression_categories'},
                     learn_category={implementation='supported',scope='visible_known_or_lockable_categories',requirements='native_checked',detail_collection='progression_categories'},
-                    unlearn_talent={implementation='limited',scope='native_last_learnt_window',reason='recent_window_only'},
+                    unlearn_talent={implementation='limited',scope='native_last_learnt_window',reason='recent_window_only',enabled_by='settings.allow_respec'},
                     pickup={implementation='supported',scope='player_tile'},
                     equip={implementation='supported',scope='native_inventory_rules'},
                     unequip={implementation='supported',scope='native_inventory_rules'}},
@@ -789,7 +821,7 @@ local function dispatch(s,request)
     if request.v~=4 then return fail('protocol_mismatch') end
     if a.session_id~=s.session_id then return fail('session_mismatch') end
     sync(s)
-    if s.access_mode=='observe' and (op=='act' or op=='stop' or op=='respond') then return fail('read_only_connection') end
+    if s.access_mode=='observe' and (op=='act' or op=='stop' or op=='respond' or op=='dismiss') then return fail('read_only_connection') end
     if a.include_map~=nil and type(a.include_map)~='boolean' then return fail('invalid_include_map') end
     if op=='observe' then
         if a.radius~=nil and not integer(a.radius,1,12) then return fail('invalid_radius') end
@@ -846,6 +878,25 @@ local function dispatch(s,request)
             return page
         end
         return fail('invalid_request')
+    elseif op=='dismiss' then
+        if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
+        if s.native_error then return fail(s.native_error) end
+        if not s.session_root then return fail('no_pending_interaction') end
+        local h=Interactions.current(s.session_root)
+        if not h then return fail('no_pending_interaction') end
+        if a.interaction_id~=nil and a.interaction_id~=h.interaction_id then return fail('interaction_expired') end
+        if a.expected_revision~=nil and a.expected_revision~=s.revision then return fail('stale_revision') end
+        local answer,code=Interactions.validateAnswer(a.answer)
+        if not answer then return fail(code) end
+        local prepared,code=Interactions.prepare(h,answer,meta(s))
+        if not prepared then return fail(code) end
+        local ok,err=pcall(Interactions.apply,h,prepared)
+        if not ok then
+            s.native_error=s.native_error or 'dismiss_error'
+            return fail('dismiss_error',Details.text(err,512))
+        end
+        bump(s)
+        return {dismissed=true,snapshot=snapshot(s)}
     elseif op=='stop' then
         if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
         revoke(s,'stopped')

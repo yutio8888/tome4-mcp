@@ -12,7 +12,9 @@ function M.native(fn,suffix)
 end
 function M.text(value,limit)
     if type(value)~='string' then return nil end
-    -- Bound escaping overhead as well as bytes; preserve ordinary UTF-8.
+    -- Strip ToME display markup (#COLOR#, #{bold}#, #RESIST#, ...) and bound
+    -- escaping overhead as well as bytes; preserve ordinary UTF-8.
+    value=value:gsub('#{.-}#',''):gsub('#[%w_]+#',''):gsub('##','')
     value=value:gsub('[%z\1-\8\11\12\14-\31]',' ')
     limit=limit or 128
     if #value<=limit then return value end

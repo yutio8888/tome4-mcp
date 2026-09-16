@@ -3,6 +3,7 @@
 local root=(arg[0]:match('^(.*)/tests/[^/]+$') or 'game/addons/tome-mcp-bridge')
 package.path=root..'/overload/?.lua;'..package.path
 local Progression=require 'mod.mcp_bridge.Progression'
+config={settings={tome_mcp_bridge={allow_respec=true}}}
 local Json=require 'mod.mcp_bridge.Json'
 local checks=0
 local function check(value,message) checks=checks+1;assert(value,message) end
@@ -361,5 +362,12 @@ local generic_result=Progression.execute(g,{type='learn_talent',talent_id='T_MOO
 check(generic_result.ok and generic_result.code=='progression_applied'
     and p.talents.T_MOONLIGHT_RAY==1 and p.unused_talents==before_class_points-1,
     'generic learn_talent spends a class point through the native dialog: '..Json.encode(generic_result))
+
+-- respec is opt-in: without settings.allow_respec it is refused.
+g,p=fixture()
+config.settings.tome_mcp_bridge.allow_respec=nil
+check(Progression.execute(g,{type='unlearn_talent',talent_id='T_RUSH'}).code=='respec_not_enabled',
+    'unlearn_talent requires the settings opt-in')
+config.settings.tome_mcp_bridge.allow_respec=true
 
 print('Progression: '..checks..' checks passed')

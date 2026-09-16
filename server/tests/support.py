@@ -98,6 +98,8 @@ class FakeGame:
                         "returned_count": 0, "total_count": 0, "capture_complete": True,
                         "has_more": False, "next_cursor": None, "expires_in_ms": 120000,
                     }
+                elif op == "dismiss":
+                    reply["result"] = {"dismissed": True, "snapshot": self.snapshot}
                 elif op == "stop":
                     for record in self.commands.values():
                         if record["status"] == "queued":

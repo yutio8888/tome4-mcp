@@ -24,7 +24,7 @@ async def main() -> None:
     async with Client(params) as client:
         tools = await client.list_tools()
         names = {tool.name for tool in tools.tools}
-        check(names == {"tome.connect", "tome.observe", "tome.inspect", "tome.list", "tome.act", "tome.status", "tome.stop", "tome.respond"},
+        check(names == {"tome.connect", "tome.observe", "tome.inspect", "tome.list", "tome.act", "tome.status", "tome.stop", "tome.respond", "tome.dismiss"},
               "official_mcp_initialize_and_list_tools", tools=sorted(names))
         resource = await client.read_resource("tome://rules")
         check(bool(resource.contents), "official_mcp_rules_resource")

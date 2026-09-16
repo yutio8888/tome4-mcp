@@ -459,7 +459,14 @@ function M.execute(g,action)
     if busy(g,p) then return {ok=false,code='player_busy',energy_spent=0} end
     local supported,audit_reason=playerAudit(p)
     if not supported then return {ok=false,code=audit_reason,energy_spent=0} end
-    if a.type=='unlearn_talent' then return executeUnlearn(g,p,a) end
+    if a.type=='unlearn_talent' then
+        -- Native respec bypasses the normal respec item/cost, so it is opt-in.
+        local settings=config and config.settings and config.settings.tome_mcp_bridge
+        if not (type(settings)=='table' and settings.allow_respec==true) then
+            return {ok=false,code='respec_not_enabled',energy_spent=0}
+        end
+        return executeUnlearn(g,p,a)
+    end
     local description,target,before_value
     if a.type=='spend_stat' then
         description=statSummary(p,a.stat)

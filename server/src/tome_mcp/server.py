@@ -270,6 +270,10 @@ Enemies, damage, detrimental effects, dialogs, stop or lost control interrupt it
 No reconnect or load resumes an interrupted rest. Native completion may include
 cooldown recovery; it is not a command to add health directly.
 
+A native popup raised outside a command (sealed door confirm, lore, running, death)
+appears as a top-level `interaction` in observe and is answered with `tome.dismiss`
+(no command_id); use `tome.respond` only for command-owned interactions.
+
 Set include_map=false on observe, act or status to omit map cells from replies.
 Every map reports its radius and window bounds; replace only those cells within
 the same level_instance_id, never discard previously observed outside cells or
@@ -306,7 +310,9 @@ point, learn_talent spends one class or generic point, and learn_category spends
 one category point to unlock a known locked tree or improve its mastery once.
 unlearn_talent refunds one point from a recently learnt talent, inside the
 native last-learnt window and out of combat; readiness is reported under
-respec.unlearnable. This is native respec only: stats and unlocked categories
+respec.unlearnable. Because it bypasses the normal respec item/cost it is
+disabled unless config.settings.tome_mcp_bridge.allow_respec is true; otherwise
+it returns respec_not_enabled. This is native respec only: stats and unlocked categories
 are not refundable outside an open native level-up dialog, and the bridge does
 not fabricate one. Prodigies and evolutions are never unlearnable. These are committed native changes, not a reversible build preview. Learning a
 talent does not imply this bridge supports activating it: check capabilities.
@@ -440,6 +446,20 @@ def create_server(bridge: BridgeClient) -> MCPServer:
             return ToolReply(ok=True, result=await bridge.respond(args, wait_ms=wait_ms))
         except BridgeError as exc:
             return ToolReply(ok=False, error=exc.as_dict())
+
+    @server.tool(name="tome.dismiss", annotations=write)
+    async def dismiss(session_id: Identifier, control_token: Identifier, answer: Answer,
+                      interaction_id: Identifier | None = None,
+                      expected_revision: Annotated[int, Field(ge=1)] | None = None,
+                      include_map: bool = True) -> ToolReply:
+        """Dismiss or answer a native popup raised outside a command (sealed door, lore, running, death screen). observe exposes it as a top-level interaction; use only the answer types it offers. This has no command_id; use tome.respond for command-owned interactions."""
+        args: dict[str, Any] = {"session_id": session_id, "control_token": control_token,
+                                "answer": answer.model_dump(), "include_map": include_map}
+        if interaction_id is not None:
+            args["interaction_id"] = interaction_id
+        if expected_revision is not None:
+            args["expected_revision"] = expected_revision
+        return await call("dismiss", args)
 
     @server.tool(name="tome.stop", annotations=write)
     async def stop(session_id: Identifier, control_token: Identifier) -> ToolReply:

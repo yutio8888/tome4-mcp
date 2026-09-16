@@ -86,7 +86,7 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
         app = create_server(BridgeClient(token=self.game.token, port=self.game.port))
         async with Client(app) as client:
             tools = (await client.list_tools()).tools
-            self.assertEqual(len(tools), 8)
+            self.assertEqual(len(tools), 9)
             self.assertTrue(all(tool.output_schema for tool in tools))
             self.assertNotIn("token", next(t for t in tools if t.name == "tome.connect").input_schema["properties"])
             result = (await client.call_tool("tome.connect")).structured_content
@@ -134,7 +134,7 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             env={**os.environ, "PYTHONPATH": str(source), "TOME_MCP_PORT": str(self.game.port), "TOME_MCP_TOKEN": self.game.token},
         )
         async with Client(params) as client:
-            self.assertEqual(len((await client.list_tools()).tools), 8)
+            self.assertEqual(len((await client.list_tools()).tools), 9)
             connected = await client.call_tool("tome.connect", {})
             self.assertTrue(connected.structured_content["ok"])
             observed = await client.call_tool("tome.observe", {"session_id": "s1"})
@@ -178,7 +178,7 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             env={**os.environ, "PYTHONPATH": str(source), "TOME_MCP_PORT": str(self.game.port), "TOME_MCP_TOKEN": self.game.token},
         )
         async with Client(params, mode="legacy") as client:
-            self.assertEqual(len((await client.list_tools()).tools), 8)
+            self.assertEqual(len((await client.list_tools()).tools), 9)
             connected = await client.call_tool("tome.connect", {})
             self.assertTrue(connected.structured_content["ok"])
             result = await client.call_tool("tome.act", action_args())
@@ -270,6 +270,17 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
                 "session_id": "s1", "request": {"type": "next", "cursor": "c", "collection": "actors"}})
             self.assertTrue(rejected.is_error)
             self.assertEqual(len(self.game.requests), before)
+
+    async def test_dismiss_answers_session_popup(self):
+        app = create_server(BridgeClient(token=self.game.token, port=self.game.port))
+        async with Client(app) as client:
+            await client.call_tool("tome.connect")
+            result = (await client.call_tool("tome.dismiss", {
+                "session_id": "s1", "control_token": "c1",
+                "answer": {"type": "option", "option_id": "interaction-1:option-1"}})).structured_content
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(self.game.requests[-1]["op"], "dismiss")
+            self.assertEqual(self.game.requests[-1]["v"], 4)
 
     async def test_older_bridge_never_silently_acquires_control_for_observer(self):
         self.game.legacy_bridge = True
