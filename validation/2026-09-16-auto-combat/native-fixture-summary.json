@@ -1,0 +1,172 @@
+{
+  "date": "2026-09-16",
+  "fixture": "tests/native/auto_combat_run.py",
+  "archive": "dist/tome-mcp-bridge.teaa",
+  "archive_sha256": "d450ae74164a2f7ecb4adee9b65baf417060240a9cb48761d2108d414e6bb84b",
+  "expected_pause_reasons": {
+    "start-when-ready": [
+      "schedule_pump"
+    ],
+    "pause-resume": [
+      "paused",
+      "schedule_pump"
+    ],
+    "native-pending": [
+      "wait_native",
+      "wait_native",
+      "wait_native",
+      "acted"
+    ],
+    "critical": [
+      "no_emergency_action"
+    ],
+    "strict-resume": [
+      "new_enemy",
+      "new_enemy"
+    ],
+    "solo-pump": []
+  },
+  "runs": [
+    {
+      "mode": "source",
+      "session": "auto-combat-native-04",
+      "passed": true,
+      "checks": [
+        {
+          "name": "start-when-ready",
+          "passed": true
+        },
+        {
+          "name": "pause-resume:stale-discarded",
+          "passed": true
+        },
+        {
+          "name": "pause-resume:reason",
+          "passed": true
+        },
+        {
+          "name": "pause-resume",
+          "passed": true
+        },
+        {
+          "name": "native-pending:no-resubmit",
+          "passed": true
+        },
+        {
+          "name": "native-pending",
+          "passed": true
+        },
+        {
+          "name": "critical:no-normal-output",
+          "passed": true
+        },
+        {
+          "name": "critical",
+          "passed": true
+        },
+        {
+          "name": "strict-resume:reasons",
+          "passed": true
+        },
+        {
+          "name": "strict-resume",
+          "passed": true
+        },
+        {
+          "name": "solo-pump:ran",
+          "passed": true
+        },
+        {
+          "name": "solo-pump:stopped",
+          "passed": true
+        },
+        {
+          "name": "solo-pump",
+          "passed": true
+        }
+      ],
+      "done": {
+        "checks": 13,
+        "failures": 0,
+        "passed": true,
+        "kind": "auto_combat_done"
+      },
+      "game_log_sha256": "f672f59643acea03bd63744f49468ee787914a9d3f1c16cb1c171a1b2a82d048",
+      "candidate_sha256": "d1b83f9770c8c29ceee4d0b95ef8a7dcc3fce230a621dea4e1137eec33eb0862"
+    },
+    {
+      "mode": "archive",
+      "session": "auto-combat-native-pkg-01",
+      "passed": true,
+      "checks": [
+        {
+          "name": "start-when-ready",
+          "passed": true
+        },
+        {
+          "name": "pause-resume:stale-discarded",
+          "passed": true
+        },
+        {
+          "name": "pause-resume:reason",
+          "passed": true
+        },
+        {
+          "name": "pause-resume",
+          "passed": true
+        },
+        {
+          "name": "native-pending:no-resubmit",
+          "passed": true
+        },
+        {
+          "name": "native-pending",
+          "passed": true
+        },
+        {
+          "name": "critical:no-normal-output",
+          "passed": true
+        },
+        {
+          "name": "critical",
+          "passed": true
+        },
+        {
+          "name": "strict-resume:reasons",
+          "passed": true
+        },
+        {
+          "name": "strict-resume",
+          "passed": true
+        },
+        {
+          "name": "solo-pump:ran",
+          "passed": true
+        },
+        {
+          "name": "solo-pump:stopped",
+          "passed": true
+        },
+        {
+          "name": "solo-pump",
+          "passed": true
+        }
+      ],
+      "done": {
+        "checks": 13,
+        "failures": 0,
+        "passed": true,
+        "kind": "auto_combat_done"
+      },
+      "game_log_sha256": "7e109d06c45ce611f750d8e4483e5e632fcfc9fd5de10c8c885fb9b380e2a025",
+      "candidate_sha256": "cd8f19a507ce0a2810e2016134e05d2e880d7da4ace70c5f40fc054b41a55d06"
+    },
+    {
+      "mode": "existing-native-suite",
+      "session": "native-regress-ac-04",
+      "passed": true,
+      "checks": 100,
+      "note": "tests/native/run.py full suite, source mode"
+    }
+  ]
+}

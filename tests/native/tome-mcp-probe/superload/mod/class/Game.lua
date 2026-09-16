@@ -3,6 +3,10 @@ local base = _M.display
 function _M:display(...)
     local result = base(self, ...)
     require("mod.MCPProbe").onFrame()
+    -- The auto-combat probe (a separate test-only addon) hooks its scenario
+    -- runner here so it reuses this already-composed display seam.
+    local auto = package.loaded["mod.AutoCombatProbe"]
+    if auto then auto.onFrame() end
     return result
 end
 local save = _M.saveGame

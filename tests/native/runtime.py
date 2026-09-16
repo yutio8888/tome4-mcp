@@ -230,9 +230,9 @@ class Runtime:
         content = "\n".join(p.read_text(errors="replace") for p in self.log_paths)
         records = []
         for line in content.splitlines():
-            if line.startswith("[MCPProbe] "):
+            if line.startswith("[MCPProbe] ") or line.startswith("[AutoCombatProbe] "):
                 try:
-                    records.append(json.loads(line[len("[MCPProbe] "):]))
+                    records.append(json.loads(line.split("] ", 1)[1]))
                 except json.JSONDecodeError:
                     pass  # A partial final write will complete on the next poll.
         return records

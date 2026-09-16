@@ -14,6 +14,18 @@ import traceback
 from runtime import DEFAULT_DEPS, DEFAULT_SOURCE, WORKSPACE, Runtime, sha
 
 
+def without_diagnostics(value):
+    """Drop per-call memory diagnostics before an exact-equality comparison.
+
+    `lua_heap_kb` is a live GC reading, not game state; the pure-observation
+    contract is about the game snapshot, not the Lua heap."""
+    if isinstance(value, dict):
+        return {key: without_diagnostics(item) for key, item in value.items() if key != "lua_heap_kb"}
+    if isinstance(value, list):
+        return [without_diagnostics(item) for item in value]
+    return value
+
+
 class Wire:
     def __init__(self, port: int, transcript: list):
         self.sock = socket.create_connection(("127.0.0.1", port), timeout=5)
@@ -148,7 +160,8 @@ class Acceptance:
         first = self.observe()
         responses = self.wire.batch([("observe", dict(session_id=self.session_id)),
                                      ("observe", dict(session_id=self.session_id))])
-        self.check(all(r.get("ok") and r["result"] == first for r in responses),
+        self.check(all(r.get("ok") and without_diagnostics(r["result"]) == without_diagnostics(first)
+                       for r in responses),
                    "multiple_tcp_packets_repeat_identical_observation")
         inspected = self.wire.call("inspect", dict(session_id=self.session_id, kind="talent", id="T_LIGHTNING"))
         self.check(bool(inspected), "inspect_native_lightning")
