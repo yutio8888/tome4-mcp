@@ -41,8 +41,9 @@ function M.registerNative(player)
     local defs=player.resources_def
     if type(defs)=='table' then
         for name,def in pairs(defs) do
-            if type(def)=='table' and type(def.cost_factor)=='function' then
-                registerOnce('resource.cost_factor:'..name,'talent_query',def.cost_factor,'data/resources.lua','resource cost factor',
+            -- Only the short-name keys; the array indices alias the same defs.
+            if type(name)=='string' and type(def)=='table' and type(def.cost_factor)=='function' then
+                registerOnce('resource.cost_factor:'..name,'talent_query',def.cost_factor,'/data/resources.lua','resource cost factor',
                     Manifest.resources_md5,'cost_factor = function')
             end
         end

@@ -259,6 +259,20 @@ function M.player(g,p,meta,result)
     end
     result.effects,result.effects_truncated=M.effects(p)
     result.effect_duration_is_raw=true
+    -- Active sustained talents are not tmp effects; expose them explicitly so a
+    -- build decision does not have to infer them from resource maximums.
+    result.sustains=Json.array()
+    if type(p.sustain_talents)=='table' then
+        local ids={}
+        for tid,on in pairs(p.sustain_talents) do
+            if on and type(tid)=='string' then ids[#ids+1]=tid end
+        end
+        table.sort(ids)
+        for _,tid in ipairs(ids) do
+            local def=p.talents_def and p.talents_def[tid]
+            result.sustains[#result.sustains+1]={id=tid,name=type(def)=='table' and M.text(def.name,64) or nil}
+        end
+    end
     result.inventory,result.equipment,result.inventory_truncated,result.equipment_truncated=M.inventory(g,p,meta)
     result.inventory_scope='owned items; raw known names and identified scalar properties only'
 end

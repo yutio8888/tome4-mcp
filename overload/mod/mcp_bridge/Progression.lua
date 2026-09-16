@@ -261,7 +261,9 @@ local function talentSummary(p,t)
         local points=p[pools[result.point_cost.pool]]
         if not integer(points) then return readiness(result,false,'progression_state_unknown',true) end
         if points<1 then return readiness(result,false,'insufficient_'..result.point_cost.pool..'_points') end
-        return readiness(result,true)
+        -- The requirement function of an unlisted talent is dynamic and is not
+        -- evaluated by a read query; never claim availability here.
+        return readiness(result,false,'native_precheck_not_run',true)
     end
     local points=p[pools[result.point_cost.pool]]
     local req=result.requirements

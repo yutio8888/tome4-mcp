@@ -355,7 +355,7 @@ check(generic_category and generic_category.supported and generic_category.cover
     'unreviewed visible category is native_generic')
 local generic_talent=talent(generic_tree,'T_MOONLIGHT_RAY')
 check(generic_talent and generic_talent.supported and generic_talent.coverage=='native_generic'
-    and generic_talent.readiness=='available','unreviewed visible talent is learnable via the native path')
+    and generic_talent.readiness=='unknown','unreviewed visible talent is native_generic with unknown requirements')
 local before_class_points=p.unused_talents
 local generic_result=Progression.execute(g,{type='learn_talent',talent_id='T_MOONLIGHT_RAY'})
 check(generic_result.ok and generic_result.code=='progression_applied'

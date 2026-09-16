@@ -286,7 +286,11 @@ progression_categories, progression_talents, compatibility); start from
 observe.collection_refs and follow next_cursor. A page is historical when the
 revision moved; the cursor expires on TTL, capacity eviction or a
 session/level/connection change. It enumerates the allowed set directly and
-never pages an already-truncated summary. Base values are not final damage or success odds.
+never pages an already-truncated summary. Filters are per collection:
+progression_talents requires filter.category_id; ground_items accepts radius
+(1-12); effects accepts actor_id; inventory/equipment accept inventory_id;
+compatibility accepts domain; actors/talents/progression_categories take no
+filter. set_sustain takes an explicit `enabled` boolean (not `active`). Base values are not final damage or success odds.
 A talent query is the same kind of advisory read; query_is_advisory
 and costs_complete show whether the value is exact, and the native action still
 decides the outcome.
