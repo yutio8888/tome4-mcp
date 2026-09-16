@@ -1598,4 +1598,67 @@ function M.onFrame(g)
         print('[MCP Bridge] frame error: '..tostring(err))
     end
 end
+
+-- Local (in-game) auto-combat surface. The editor and the standalone form use
+-- these directly; they never grant the MCP remote lease and never run without
+-- explicit local authorization (`setAutoCombatExecution`).
+local function persistAutoCombat(s)
+    if s.game and s.game.player then
+        s.game.player.auto_combat_policy=AutoCombat.saveState(s.auto_combat)
+    end
+end
+function M.autoCombatStatus(g)
+    local s=state
+    if not s or s.game~=g then return nil end
+    return AutoCombat.status(s.auto_combat)
+end
+function M.autoCombatHandle(g,op,args)
+    local s=state
+    if not s or s.game~=g then return {ok=false,error={code='no_session'}} end
+    local result=AutoCombat.handle(s.auto_combat,op,args)
+    if result.ok and (op=='set_draft' or op=='approve' or op=='activate'
+        or op=='deactivate' or op=='import') then
+        persistAutoCombat(s)
+    end
+    return result
+end
+function M.autoCombatExecutionEnabled(g)
+    local s=state
+    if not s or s.game~=g then return false end
+    return s.auto_combat and s.auto_combat.host_factory~=nil or false
+end
+-- Explicit local authorization to run native actions. This is the only path
+-- that installs the live executor outside of configuration; it is deliberately
+-- separate from `activate`, and it is never persisted into the character.
+function M.setAutoCombatExecution(g,enabled)
+    local s=state
+    if not s or s.game~=g then return false end
+    if enabled then
+        if not s.auto_combat.host_factory then
+            s.auto_combat.host_factory=function(svc) return buildAutoCombatHost(s,svc.store.running) end
+        end
+    else
+        if s.auto_combat.controller and s.auto_combat.controller.state~='stopped' then
+            s.auto_combat.controller:stop('execution_disabled')
+        end
+        s.auto_combat.controller=nil
+        s.auto_combat.host_factory=nil
+    end
+    if config and config.settings and config.settings.tome_mcp_bridge then
+        config.settings.tome_mcp_bridge.allow_auto_combat_execution=enabled and true or false
+    end
+    return true
+end
+-- Test/native fixture seam: build the production host (audited reads + real
+-- executor) for the current session without installing the live pump.
+function M.buildAutoCombatHostFor(g,policy)
+    local s=state
+    if not s or s.game~=g then return nil end
+    return buildAutoCombatHost(s,policy)
+end
+function M.autoCombatService(g)
+    local s=state
+    if not s or s.game~=g then return nil end
+    return s.auto_combat
+end
 return M

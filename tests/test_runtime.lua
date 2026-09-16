@@ -415,4 +415,34 @@ do
     check(ps and ps.control_owner=='auto_combat','the pump keeps the auto-combat lease')
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
 end
+-- P1a: standalone in-game editor accessors. No MCP transport is involved, so
+-- this is the "works with no MCP client" path required by the design.
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+    Runtime.reset(g);g:display()
+    local pl={schema='tome-auto-combat/v1',id='p1',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35},targeting={default='nearest_hostile'},
+        rules={{id='attack',priority=1,when={always={}},['then']={action='attack',target='nearest_hostile'}}}}
+    local set=Runtime.autoCombatHandle(g,'set_draft',{policy=pl})
+    check(set.ok and set.draft_hash,'the local editor can write a draft')
+    check(g.player.auto_combat_policy and g.player.auto_combat_policy.draft~=nil,
+        'the local editor write is persisted on the character')
+    local approved=Runtime.autoCombatHandle(g,'approve',{expected_hash=set.draft_hash})
+    check(approved.ok,'the local editor can approve')
+    local activated=Runtime.autoCombatHandle(g,'activate',{expected_hash=approved.approved_hash})
+    check(activated.ok,'the local editor can activate locally')
+    local status=Runtime.autoCombatStatus(g)
+    check(status and status.control_owner=='auto_combat','local activation grants the auto-combat lease')
+    local blocked=Runtime.autoCombatHandle(g,'start',{})
+    check(not blocked.ok and blocked.error.code=='execution_not_available',
+        'start stays behind the local execution gate')
+    check(Runtime.setAutoCombatExecution(g,true),'the editor can grant local execution')
+    check(Runtime.autoCombatExecutionEnabled(g),'the local execution authorization is reflected')
+    local start=Runtime.autoCombatHandle(g,'start',{})
+    check(start.ok and start.run,'the standalone editor can start execution')
+    local stopped=Runtime.autoCombatHandle(g,'stop',{reason='editor'})
+    check(stopped.ok,'the standalone editor can stop execution')
+    Runtime.setAutoCombatExecution(g,false)
+    check(not Runtime.autoCombatExecutionEnabled(g),'local execution can be revoked')
+end
 print('Runtime: '..count..' checks passed')

@@ -65,4 +65,47 @@ do
     check(Model.request('bogus')==nil,'an unknown request maps to nil')
 end
 
+-- Editing: fields describe the current policy and every mutation is a pure
+-- clone (the source policy is never modified).
+do
+    local Presets=require 'mod.auto_combat.PolicyPresets'
+    local original=Presets.copy('anorithil_p1a')
+    local fields=Model.fields(original)
+    check(#fields>4,'the editor exposes global setting and rule fields')
+    local byId={}
+    for _,field in ipairs(fields) do byId[field.id]=field end
+    check(byId['limits.max_actions_per_tick']~=nil,'limits are editable')
+    check(byId['safety.min_hp_pct']~=nil,'safety thresholds are editable')
+    check(byId['rules.heal.enabled']~=nil,'rule enabled state is editable')
+    check(byId['rules.heal.priority']~=nil,'rule priority is editable')
+
+    local bumped=Model.bump(original,'safety.min_hp_pct',5)
+    check(bumped~=nil and bumped.safety.min_hp_pct==original.safety.min_hp_pct+5,
+        'bump increases a numeric field')
+    check(original.safety.min_hp_pct==35,'bump never mutates the source policy')
+    local clamped=Model.bump(original,'limits.max_actions_per_tick',99)
+    check(clamped.limits.max_actions_per_tick==4,'bump clamps to the schema hard cap')
+    local lowered=Model.bump(original,'rules.heal.priority',1)
+    check(lowered.rules[1].priority==101,'bump edits the addressed rule by id')
+
+    local toggled=Model.toggle(original,'rules.heal.enabled')
+    check(toggled.rules[1].enabled==false,'toggle flips a rule off')
+    check(original.rules[1].enabled==nil,'toggle never mutates the source policy')
+    local back=Model.toggle(toggled,'rules.heal.enabled')
+    check(back.rules[1].enabled==true,'toggle flips a rule back on')
+    local safety=Model.toggle(original,'safety.pause_on_new_enemy')
+    check(safety.safety.pause_on_new_enemy==false,'toggle flips a safety boolean')
+
+    local _,err=Model.toggle(original,'safety.min_hp_pct')
+    check(err and err.code=='not_boolean','toggling a numeric field is refused')
+    local _,err2=Model.bump(original,'rules.heal.enabled',1)
+    check(err2 and err2.code=='not_numeric','bumping a boolean field is refused')
+
+    local Schema=require 'mod.auto_combat.PolicySchema'
+    local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
+    check(Schema.validate(clamped)==true and Catalog.verify(clamped)==true,
+        'an edited policy still validates and stays supported')
+    check(Schema.hash(clamped)~=Schema.hash(original),'an edit changes the content hash')
+end
+
 print('Auto-combat editor model: '..checks..' checks passed')
