@@ -196,6 +196,7 @@ function M.inspect(g,meta,kind,id,options)
             -- Advertise the static parts of the query at the top level so a
             -- planner does not have to act before it can see range/cost.
             result.range=q.range;result.radius=q.radius;result.target_shape=q.target_shape
+            result.direct_hit=def.direct_hit==true or nil
             result.requires_target=q.requires_target;result.current_costs=q.current_costs
             result.base_costs=q.base_costs;result.affordable=q.affordable
             result.cooldown_remaining=q.cooldown_remaining;result.readiness=q.readiness

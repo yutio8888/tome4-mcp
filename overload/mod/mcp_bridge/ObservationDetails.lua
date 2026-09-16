@@ -23,10 +23,16 @@ end
 -- remainder such as Searing Light's light zone) is reported separately.
 function M.damageScope(shape,direct_hit,residual_radius)
     local residual=M.number(residual_radius)
-    -- A beam is a line even when the talent also sets direct_hit (Moonlight Ray).
     if shape=='beam' then return 'line',residual end
-    if direct_hit==true then return 'single',residual end
     if shape=='ball' or shape=='cone' or shape=='wide' then return 'area',residual end
+    if shape=='hit' then return 'single',residual end
+    if direct_hit==true then
+        -- A direct-hit talent with a stored area radius is a single target plus
+        -- a ground remainder (Searing Light). Without one, a function target may
+        -- still pierce (Moonlight Ray), so the scope stays unknown.
+        if residual then return 'single',residual end
+        return 'unknown',residual
+    end
     return 'unknown',residual
 end
 function M.native(fn,suffix)
