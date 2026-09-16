@@ -69,6 +69,7 @@ local function nativePhase(s)
         or s.changing then return 'settling' end
     if localCombat(s) then return 'unavailable' end
     if p.resting and s.active and p.resting==s.active.native_rest then return 'settling' end
+    if p.running and s.active and s.active.native_run==p.running then return 'settling' end
     if p~=s.player or g.level~=s.level or not p.player or p.resting or p.running
         or g.wasd_state and (g.wasd_state.cnt or 0)>0 then return 'unavailable' end
     if not g.paused or not p.energy or p.energy.value<(g.energy_to_act or 1000) then return 'settling' end
@@ -303,6 +304,22 @@ local function stopRest(s,command,reason)
         if not ok then restFault(s,command) end
     end
 end
+-- Auto-explore is the native run state (p.running). Stopping it mirrors stopRest.
+local function stopRun(s,command,reason)
+    if not command or command.action.type~='auto_explore' or command.stopping then return end
+    command.stop_reason=command.stop_reason or reason
+    local p=s.game.player
+    if p and p.running and (not command.native_run or p.running==command.native_run)
+        and type(p.runStop)=='function' then
+        command.stopping=true
+        local ok,err=pcall(p.runStop,p,reason)
+        command.stopping=false
+        if not ok then
+            command.stop_error=true;command.uncertain=true
+            s.native_error=s.native_error or 'native_run_stop_error'
+        end
+    end
+end
 -- A native rest/run started outside a bridge command leaves the session
 -- permanently not_ready. Cancel it so the caller can act again.
 local function clearUnownedNativeActivity(s)
@@ -312,7 +329,7 @@ local function clearUnownedNativeActivity(s)
     if p.resting and not (s.active and s.active.native_rest==p.resting) and type(p.restStop)=='function' then
         if pcall(p.restStop,p,'mcp_cancel') then cancelled='unowned_rest' end
     end
-    if p.running and type(p.runStop)=='function' then
+    if p.running and not (s.active and s.active.native_run==p.running) and type(p.runStop)=='function' then
         if pcall(p.runStop,p,'mcp_cancel') then cancelled='unowned_run' end
     end
     if cancelled then s.cancelled_native_activity=cancelled end
@@ -326,7 +343,7 @@ local function revoke(s,reason,resumable_scene)
     if active and active.status=='queued' then
         bump(s);finish(s,active,'cancelled',reason)
     elseif active then
-        active.interruption=reason;stopRest(s,active,reason)
+        active.interruption=reason;stopRest(s,active,reason);stopRun(s,active,reason)
         local root=active.invocation
         if root then
             if active.pending_response then
@@ -727,11 +744,59 @@ local function settle(s)
         else finish(s,command,'failed','scene_changed') end
     elseif phase=='ready' and (not command.requires_ready or s.ready_serial>command.ready_before) then
         if queueDeferredSave(s) then return end
-        if command.action.type=='rest' then
+        if command.action.type=='rest' or command.action.type=='auto_explore' then
             finish(s,command,command.interruption and 'cancelled' or command.action_ok and 'completed' or 'failed',
                 command.stop_reason or command.code)
         else finish(s,command,command.action_ok and 'completed' or 'failed',command.code) end
     end
+end
+-- Start a native auto-explore run and advance it until energy is spent. The run
+-- continues across turns; the command owns it, so nativePhase settles and a
+-- revoke/stop cancels it. Getters are called only when audited and native.
+local function autoExploreStart(s,command,p)
+    local function nativeAt(fn,suffix)
+        if type(fn)~='function' then return false end
+        local info=debug.getinfo(fn,'S')
+        return info~=nil and type(info.source)=='string' and info.source:sub(1,1)=='@'
+            and info.source:sub(-#suffix)==suffix
+    end
+    if not nativeAt(p.autoExplore,'/mod/class/interface/PlayerExplore.lua')
+        or not nativeAt(p.runStep,'/engine/interface/Player.lua')
+        or not nativeAt(p.enoughEnergy,'/engine/interface/Player.lua') then
+        return {ok=false,code='auto_explore_unavailable',energy_spent=0}
+    end
+    if (s.game.zone and s.game.zone.no_autoexplore) or (s.game.level and s.game.level.no_autoexplore) then
+        return {ok=false,code='no_autoexplore',native_message='You may not auto-explore this level.',energy_spent=0}
+    end
+    -- Mirror the native RUN_AUTO guard: a visible hostile refuses the command.
+    for _,actor in pairs(s.game.level.entities or {}) do
+        if actor~=p and actor.__is_actor and Observer.visible(s.game,actor) then
+            return {ok=false,code='enemies_in_sight',
+                native_message='You may not auto-explore with enemies in sight.',energy_spent=0}
+        end
+    end
+    local energy=p.energy.value
+    local ok,started=pcall(p.autoExplore,p)
+    if not ok then
+        return {ok=false,code='execution_error',uncertain=true,
+            native_message=Details.text(tostring(started),512),energy_spent=0}
+    end
+    command.native_run=p.running
+    if not command.native_run then
+        return {ok=false,code='nothing_left',native_message='There is nowhere left to explore.',
+            energy_spent=math.max(0,energy-p.energy.value)}
+    end
+    local steps=0
+    local ok2,err=pcall(function()
+        while steps<200 and p:enoughEnergy() and p:runStep() do steps=steps+1 end
+    end)
+    if not ok2 then
+        command.uncertain=true
+        stopRun(s,command,'execution_error')
+        return {ok=false,code='execution_error',uncertain=true,
+            native_message=Details.text(tostring(err),512),energy_spent=math.max(0,energy-p.energy.value)}
+    end
+    return {ok=true,code='exploring',energy_spent=math.max(0,energy-p.energy.value)}
 end
 local function execute(s,command)
     if state~=s or s.active~=command or command.status~='queued' then return end
@@ -768,6 +833,8 @@ local function execute(s,command)
                 stopRest(s,command,'execution_error')
             elseif command.interruption then stopRest(s,command,command.interruption) end
         end
+    elseif command.action.type=='auto_explore' then
+        result=autoExploreStart(s,command,s.game.player)
     else
         local root
         Journal.update(s.game)

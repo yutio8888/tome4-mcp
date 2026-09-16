@@ -28,6 +28,10 @@ class WaitAction(StrictModel):
     type: Literal["wait"]
 
 
+class AutoExploreAction(StrictModel):
+    type: Literal["auto_explore"]
+
+
 class ChangeLevelAction(StrictModel):
     type: Literal["change_level"]
 
@@ -141,7 +145,7 @@ class UseItemAction(StrictModel):
 
 
 Action = Annotated[
-    MoveAction | WaitAction | AttackAction | TalentAction | SustainAction | ChangeLevelAction | RestAction
+    MoveAction | WaitAction | AutoExploreAction | AttackAction | TalentAction | SustainAction | ChangeLevelAction | RestAction
     | SpendStatAction | LearnTalentAction | LearnCategoryAction | UnlearnTalentAction | PickupAction | EquipAction | UnequipAction | UseItemAction,
     Field(discriminator="type"),
 ]

@@ -90,7 +90,7 @@ function M.validate(action)
         local d = action.direction
         if type(d) ~= 'number' or d%1~=0 or d<1 or d>9 or d==5 then return nil, 'invalid_direction' end
         a.direction, allowed.direction = d, true
-    elseif a.type == 'wait' or a.type=='change_level' then
+    elseif a.type == 'wait' or a.type=='change_level' or a.type=='auto_explore' then
     elseif a.type == 'rest' then
         local limit=action.max_turns
         if limit==nil then limit=1000 end

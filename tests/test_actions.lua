@@ -52,6 +52,8 @@ local defs={
 }
 local p={talents_def=defs,talents={T_A=1,T_S=2,T_P=1,T_ATTACK=1,T_COMMAND_STAFF=1},talents_cd={T_S=4},sustain_talents={T_S={}},useTalent=function() end}
 check(Actions.admit(p,'T_A','activated')~=nil,'activated talent admitted')
+check(Actions.validate({type='auto_explore'})~=nil,'auto_explore is a valid action')
+check(select(2,Actions.validate({type='auto_explore',extra=1}))=='unexpected_action_field','auto_explore rejects extra fields')
 check(select(2,Actions.admit(p,'T_COMMAND_STAFF','activated'))=='talent_interaction_unsupported',
     'T_COMMAND_STAFF is refused by default (native chat would freeze the game)')
 config={settings={tome_mcp_bridge={allow_command_staff=true}}}

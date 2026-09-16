@@ -150,6 +150,29 @@ local cleared=act('unowned-rest',{type='wait'})
 check(cleared.result~=nil and p.resting==nil,'an unowned native rest is cancelled before admitting the action')
 g:tick();g:display()
 check(status('unowned-rest').status~='failed','the command proceeds after cancelling the unowned rest')
+-- auto_explore: a visible hostile refuses; otherwise the native run is owned.
+g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+local function nativeAt(suffix,body) return assert(loadstring('return '..body,'@'..suffix))() end
+p.autoExplore=nativeAt('/mod/class/interface/PlayerExplore.lua','function(self) self.running={explore="unseen",cnt=0} return true end')
+p.runStep=nativeAt('/engine/interface/Player.lua','function(self) self.running.cnt=self.running.cnt+1 return self.running.cnt<3 end')
+p.enoughEnergy=nativeAt('/engine/interface/Player.lua','function(self) return true end')
+p.runStop=function(self) self.running=nil end
+g.level.entities={p,enemy}
+p.can_see_cache={[enemy]={['nil/nil']={true}}}
+act('explore-blocked',{type='auto_explore'});g:tick();g:display()
+check(status('explore-blocked').code=='enemies_in_sight' and status('explore-blocked').action_ok==false,
+    'auto-explore refuses with a visible hostile')
+g.level.entities={p}
+act('explore',{type='auto_explore'});g:tick();g:display()
+check(p.running~=nil and status('explore').status~='failed','auto-explore starts the native run')
+check(observe().phase=='settling','an owned auto-explore run settles the game')
+p.running=nil
+g:tick();g:display()
+check(status('explore').status=='completed','auto-explore completes when the native run ends')
+g.level.no_autoexplore=true
+act('explore-forbidden',{type='auto_explore'});g:tick();g:display()
+check(status('explore-forbidden').code=='no_autoexplore','a no_autoexplore level refuses auto-explore')
+g.level.no_autoexplore=nil
 local old_session=hello.session_id
 g:loaded();g:display();reconnect()
 check(hello.session_id~=old_session and observe().phase=='ready','reload creates usable new session')
