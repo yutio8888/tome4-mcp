@@ -11,10 +11,11 @@ function M.selffire(typ)
     if type(typ)~='table' then return 'unknown' end
     if type(typ.selffire)=='boolean' then return typ.selffire end
     if typ.selffire~=nil then return 'unknown' end
-    -- Only a known shape decides self-inclusion. direct_hit is NOT a safe
-    -- proxy: Searing Light is direct_hit yet casts a self-hitting ball.
+    -- Only a shape that cannot include its own origin is safe to report false.
+    -- A missing area-shape selffire stays unknown: the target cursor may allow
+    -- self placement, but the actual damage can be a single-target hit with a
+    -- friendly ground zone (Searing Light) or a self-hitting ball.
     local shape=typ.type
-    if shape=='ball' or shape=='cone' or shape=='wide' then return true end
     if shape=='beam' or shape=='hit' or shape=='bolt' or shape=='arrow' then return false end
     return 'unknown'
 end
