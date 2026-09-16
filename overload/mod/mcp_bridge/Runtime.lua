@@ -10,6 +10,7 @@ local Tracker=require 'mod.mcp_bridge.InvocationTracker'
 local Interactions=require 'mod.mcp_bridge.Interactions'
 local Compat=require 'mod.mcp_bridge.NativeCompatibility'
 local NativeTasks=require 'mod.mcp_bridge.NativeTasks'
+local NativeActivity=require 'mod.mcp_bridge.NativeActivity'
 local CommandLedger=require 'mod.mcp_bridge.CommandLedger'
 local ObservationViews=require 'mod.mcp_bridge.ObservationViews'
 local ObservationCollections=require 'mod.mcp_bridge.ObservationCollections'
@@ -37,10 +38,9 @@ local function busy(g,s)
     -- The native rest and run activities own their own popup (the rest dialog
     -- and the "Running..." auto-explore dialog); they are not a request for the
     -- agent to answer.
-    local rest=s and s.active and s.active.rest_dialog
-    local run=s and s.active and s.active.run_dialog
+    local activity_dialog=s and NativeActivity.dialog(s.native_activity)
     for _,dialog in ipairs(g.dialogs or {}) do
-        if not s or not s.active or (dialog~=rest and dialog~=run) then return true end
+        if not s or not s.native_activity or dialog~=activity_dialog then return true end
     end
     return false
 end
@@ -76,8 +76,7 @@ local function nativePhase(s)
         or type(savefile_pipe.waiton)=='table' and next(savefile_pipe.waiton)~=nil)
         or s.changing then return 'settling' end
     if localCombat(s) then return 'unavailable' end
-    if p.resting and s.active and p.resting==s.active.native_rest then return 'settling' end
-    if p.running and s.active and s.active.native_run==p.running then return 'settling' end
+    if s.native_activity and NativeActivity.live(s.native_activity,p) then return 'settling' end
     if p~=s.player or g.level~=s.level or not p.player or p.resting or p.running
         or g.wasd_state and (g.wasd_state.cnt or 0)>0 then return 'unavailable' end
     if not g.paused or not p.energy or p.energy.value<(g.energy_to_act or 1000) then return 'settling' end
@@ -126,8 +125,9 @@ local function meta(s)
         native_activity=(function()
             local p=s.game and s.game.player
             if not p then return nil end
-            if p.resting then return (s.active and s.active.native_rest==p.resting) and 'rest_owned' or 'rest_unowned' end
-            if p.running then return 'run_unowned' end
+            local activity=s.native_activity
+            if p.resting then return (activity and activity.kind=='rest' and activity.native_rest==p.resting) and 'rest_owned' or 'rest_unowned' end
+            if p.running then return (activity and activity.kind=='auto_explore' and activity.native_run==p.running) and 'run_owned' or 'run_unowned' end
             return nil
         end)(),
         cancelled_native_activity=s.cancelled_native_activity,
@@ -323,6 +323,7 @@ local function finish(s,command,status,code)
     -- Retain deduplication metadata without retaining an entire old level.
     command.player,command.level,command.control_token=nil,nil,nil
     command.native_rest,command.rest_dialog=nil,nil
+    if s.native_activity==command then s.native_activity=nil end
     command.snapshot=snapshot(s)
     command.snapshot_availability=command.snapshot and 'retained' or 'not_captured'
     if command.snapshot then retainSnapshot(s,command) end
@@ -337,44 +338,30 @@ local function restFault(s,command)
     s.failed_rest=s.game.player and s.game.player.resting
     if s.control_token then s.control_token=nil;bump(s) end
 end
+-- Activity stops are owned by NativeActivity; these thin wrappers keep the
+-- existing Runtime call sites and only act on a registered activity.
 local function stopRest(s,command,reason)
-    if not command or command.action.type~='rest' or command.stopping or command.stop_error then return end
-    command.stop_reason=command.stop_reason or reason
-    local p=s.game.player
-    if p and p.resting and p.resting==command.native_rest then
-        command.turns_executed=p.resting.cnt or 0
-        command.stopping=true
-        local ok,err=pcall(p.restStop,p,reason)
-        command.stopping=false
-        if not ok then restFault(s,command) end
-    end
+    if not command or command.kind~='rest' then return end
+    NativeActivity.stop(s,command,reason)
+    if command.stop_error then restFault(s,command) end
 end
--- Auto-explore is the native run state (p.running). Stopping it mirrors stopRest.
 local function stopRun(s,command,reason)
-    if not command or command.action.type~='auto_explore' or command.stopping then return end
-    command.stop_reason=command.stop_reason or reason
-    local p=s.game.player
-    if p and p.running and (not command.native_run or p.running==command.native_run)
-        and type(p.runStop)=='function' then
-        command.stopping=true
-        local ok,err=pcall(p.runStop,p,reason)
-        command.stopping=false
-        if not ok then
-            command.stop_error=true;command.uncertain=true
-            s.native_error=s.native_error or 'native_run_stop_error'
-        end
-    end
+    if not command or command.kind~='auto_explore' then return end
+    NativeActivity.stop(s,command,reason)
 end
 -- A native rest/run started outside a bridge command leaves the session
 -- permanently not_ready. Cancel it so the caller can act again.
 local function clearUnownedNativeActivity(s)
     local p=s.game and s.game.player
     if not p then return false end
+    local activity=s.native_activity
+    local active_rest=activity and activity.kind=='rest' and activity.native_rest or nil
+    local active_run=activity and activity.kind=='auto_explore' and activity.native_run or nil
     local cancelled=nil
-    if p.resting and not (s.active and s.active.native_rest==p.resting) and type(p.restStop)=='function' then
+    if p.resting and p.resting~=active_rest and type(p.restStop)=='function' then
         if pcall(p.restStop,p,'mcp_cancel') then cancelled='unowned_rest' end
     end
-    if p.running and not (s.active and s.active.native_run==p.running) and type(p.runStop)=='function' then
+    if p.running and p.running~=active_run and type(p.runStop)=='function' then
         if pcall(p.runStop,p,'mcp_cancel') then cancelled='unowned_run' end
     end
     if cancelled then s.cancelled_native_activity=cancelled end
@@ -562,48 +549,28 @@ function M.beforeRestStep(player)
     -- A failed native cleanup may retain rest state/effects. Quarantine its
     -- automatic steps without pretending to have repaired native state.
     if s and s.game.player==player and s.failed_rest and player.resting==s.failed_rest then return false end
-    local command=s and s.active
-    if not command or command.action.type~='rest' or player~=s.game.player
-        or not player.resting or player.resting~=command.native_rest then return true end
-    command.turns_executed=player.resting.cnt or 0
-    if not s.control_token then stopRest(s,command,'control_lost');return false end
-    if command.turns_executed>=command.max_turns then
-        stopRest(s,command,'max_turns');return false
-    end
-    return true
+    if not s then return true end
+    return NativeActivity.beforeStep(s,player)
 end
 function M.afterRestStep(player,energy_before,task)
     if task then NativeTasks.afterStep(task,energy_before);return end
-    local s=state;local command=s and s.active
-    if command and command.action.type=='rest' and player==s.game.player and command.native_rest then
-        command.turns_executed=command.native_rest.cnt or 0
-        command.energy_spent=(command.energy_spent or 0)+math.max(0,energy_before-player.energy.value)
-    end
+    local s=state
+    if s then NativeActivity.afterStep(s,player,energy_before) end
 end
 function M.markRestInterruption(player,reason)
-    local s=state;local command=s and s.active
-    if command and command.action.type=='rest' and player==s.game.player
-        and player.resting and player.resting==command.native_rest then command.stop_reason=reason end
+    local s=state
+    if s and s.game.player==player then NativeActivity.markInterruption(s,reason) end
 end
 function M.onRestStop(player,message)
-    local s=state;local command=s and s.active
-    if not command or command.action.type~='rest' or player~=s.game.player or not player.resting then return end
-    if player.resting~=command.native_rest then
-        if not s.starting_rest or player.resting.dialog~=command.rest_dialog then return end
-        command.native_rest=player.resting
-    end
-    command.turns_executed=player.resting.cnt or 0
-    command.native_message=Details.text(message,512)
-    command.stop_reason=command.stop_reason or (player.resting.rested_fully and 'native_complete' or 'native_stopped')
-    local was_stopping=command.stopping
-    command.stopping=true
-    return command,was_stopping
+    local s=state
+    if not s then return end
+    return NativeActivity.onStop(s,player,message)
 end
-function M.afterRestStop(command,was_stopping)
-    if command then command.stopping=was_stopping end
+function M.afterRestStop(activity,was_stopping)
+    NativeActivity.afterStop(activity,was_stopping)
 end
-function M.onRestStopError(command)
-    if state and command and state.active==command then restFault(state,command) end
+function M.onRestStopError(activity)
+    if state then NativeActivity.onStopError(state,activity) end
 end
 function M.beforeTick(g)
     local s=ensure(g);s.tick_depth=s.tick_depth+1
@@ -728,20 +695,18 @@ function M.boundary(g,reason,enter,detail)
             Interactions.exposeTop(root)
             return
         end
-        -- The native auto-explore popup ("Running...") belongs to the owned
-        -- run, not to the agent. Claim it as a passive dialog before the generic
-        -- notice adoption, otherwise it looks like an unanswered popup and
-        -- aborts the run.
-        local command=s.active
-        if enter and command and command.action.type=='auto_explore' then
-            local run=s.game.player and s.game.player.running
-            if run and run.dialog==detail then
-                command.run_dialog=detail
-                Interactions.adoptPassiveDialog(detail,{root=command.invocation})
+        -- A rest/run popup that belongs to the current native activity is not
+        -- an unanswered interaction: own it (adopting the run popup passively).
+        local activity=s.native_activity
+        if activity then
+            local ownership=NativeActivity.ownsDialog(s,activity,detail,enter)
+            if ownership then
+                if ownership=='passive' and activity.command and activity.command.invocation then
+                    Interactions.adoptPassiveDialog(detail,{root=activity.command.invocation})
+                end
                 return
             end
         end
-        if detail and command and command.action.type=='auto_explore' and detail==command.run_dialog then return end
         -- An unowned closeable popup raised while an owned remote action is
         -- settling is adopted as a dialog.notice so the agent can answer it
         -- instead of being forced into manual control (round-5 report 3.8).
@@ -761,13 +726,6 @@ function M.boundary(g,reason,enter,detail)
                 Interactions.exposeTop(s.session_root)
                 return
             end
-        end
-        local command=s.active
-        if command and command.action.type=='rest' then
-            -- Native restInit always creates its own popup before onRestStart.
-            -- Only that one dialog belongs to this command; other UI revokes.
-            if enter and s.starting_rest and not command.rest_dialog then command.rest_dialog=detail;return end
-            if detail and detail==command.rest_dialog then return end
         end
     end
     if (enter~=false or reason=='dialog') and not (reason=='saving' and s.allow_owned_save) then revoke(s,reason) end
@@ -816,7 +774,7 @@ local function settle(s)
         end
     end
     if phase=='needs_input' then
-        if command.action.type=='auto_explore' then
+        if command.kind=='auto_explore' then
             -- A native notice (trap/door/item) interrupted auto-explore. Stop the
             -- run and report a clean stop with the popup that caused it; keep the
             -- lease so the agent can observe it and answer with respond/dismiss.
@@ -848,25 +806,11 @@ local function settle(s)
         else finish(s,command,'failed','scene_changed') end
     elseif phase=='ready' and (not command.requires_ready or s.ready_serial>command.ready_before) then
         if queueDeferredSave(s) then return end
-        if command.action.type=='rest' or command.action.type=='auto_explore' then
+        if NativeActivity.is(command.kind) then
             finish(s,command,command.interruption and 'cancelled' or command.action_ok and 'completed' or 'failed',
                 command.stop_reason or command.code)
         else finish(s,command,command.action_ok and 'completed' or 'failed',command.code) end
     end
-end
--- The native RUN_AUTO guard is reactionToward(actor) < 0. A visible escort or
--- summon is not hostile, so it must not refuse auto-explore.
-local function hostileVisible(g,p,actor)
-    if actor==p or type(actor)~='table' or not actor.__is_actor or not Observer.visible(g,actor) then return false end
-    if type(p.reactionToward)=='function' then
-        local info=debug.getinfo(p.reactionToward,'S')
-        if info~=nil and type(info.source)=='string' and info.source:sub(-#'/mod/class/Actor.lua')=='/mod/class/Actor.lua' then
-            local ok,r=pcall(p.reactionToward,p,actor)
-            if ok and type(r)=='number' then return r<0 end
-        end
-    end
-    if type(actor.reaction)=='number' then return actor.reaction<0 end
-    return actor.faction~=nil and actor.faction~=p.faction
 end
 -- Audited read-only reads shared by the live host and the planning dry-run
 -- host. Nothing here runs a dynamic getter, RNG or talent callback.
@@ -937,7 +881,7 @@ local function autoCombatReads(s,policy)
             if not p or not g.level then return out end
             local session_meta=meta(s)
             for _,actor in pairs(g.level.entities or {}) do
-                if hostileVisible(g,p,actor) then
+                if NativeActivity.hostileVisible(g,p,actor) then
                     out[#out+1]={id=Observer.actorId(session_meta,actor),x=actor.x,y=actor.y,hp_pct=lifePct(actor)}
                 end
             end
@@ -971,6 +915,20 @@ buildAutoCombatHost=function(s,policy)
     local g=s.game
     local reads=autoCombatReads(s,policy)
     reads.execute=function(attempt)
+        -- Multi-turn native activities (design §15 P1b). They register the
+        -- session activity and hold the next turns; the controller waits rather
+        -- than resubmitting.
+        if NativeActivity.is(attempt.action) then
+            local activity={owner='auto_combat'}
+            local result=NativeActivity.start(s,activity,attempt.action,{max_turns=attempt.max_turns})
+            local spent=(Details.finite(result.energy_spent) and result.energy_spent>0) or false
+            if result.uncertain then return {status='uncertain',code=result.code,energy_spent=spent} end
+            if not result.ok then return {status='rejected',code=result.code,energy_spent=spent} end
+            if NativeActivity.live(activity,s.game and s.game.player) then
+                return {status='native_pending',code=result.code,energy_spent=spent}
+            end
+            return {status='ok',code=result.code,energy_spent=spent}
+        end
         local target
         if attempt.bound_target then target=Observer.resolve(g,meta(s),attempt.bound_target) end
         local action
@@ -1014,78 +972,6 @@ buildAutoCombatReadHost=function(s,policy)
     return AutoCombatHost.new(autoCombatReads(s,policy))
 end
 
--- Start a native auto-explore run and advance it until energy is spent. The run
--- continues across turns; the command owns it, so nativePhase settles and a
--- revoke/stop cancels it. Getters are called only when audited and native.
-local function autoExploreStart(s,command,p)
-    local function nativeAt(fn,suffix)
-        if type(fn)~='function' then return false end
-        local info=debug.getinfo(fn,'S')
-        return info~=nil and type(info.source)=='string' and info.source:sub(1,1)=='@'
-            and info.source:sub(-#suffix)==suffix
-    end
-    if not nativeAt(p.autoExplore,'/mod/class/interface/PlayerExplore.lua')
-        or not nativeAt(p.runStep,'/engine/interface/PlayerRun.lua')
-        or not nativeAt(p.enoughEnergy,'/engine/Actor.lua') then
-        return {ok=false,code='auto_explore_unavailable',energy_spent=0}
-    end
-    if (s.game.zone and s.game.zone.no_autoexplore) or (s.game.level and s.game.level.no_autoexplore) then
-        return {ok=false,code='no_autoexplore',native_message='You may not auto-explore this level.',energy_spent=0}
-    end
-    -- Mirror the native RUN_AUTO guard: a visible hostile refuses the command.
-    for _,actor in pairs(s.game.level.entities or {}) do
-        if hostileVisible(s.game,p,actor) then
-            return {ok=false,code='enemies_in_sight',
-                native_message='You may not auto-explore with enemies in sight ('
-                    ..(Details.text(actor.name,48) or 'hostile')..').',energy_spent=0,
-                hint='defeat or lose sight of the hostile first; escorts and allies do not block auto-explore'}
-        end
-    end
-    local energy=p.energy.value
-    local ok,started=pcall(p.autoExplore,p)
-    if not ok then
-        return {ok=false,code='execution_error',uncertain=true,
-            native_message=Details.text(tostring(started),512),energy_spent=0}
-    end
-    command.native_run=p.running
-    command.run_dialog=p.running and p.running.dialog or nil
-    if not command.native_run then
-        return {ok=false,code='nothing_left',native_message='There is nowhere left to explore.',
-            energy_spent=math.max(0,energy-p.energy.value)}
-    end
-    local start_x,start_y=p.x,p.y
-    local steps=0
-    local ok2,err=pcall(function()
-        while steps<200 and p:enoughEnergy() and p:runStep() do steps=steps+1 end
-    end)
-    if not ok2 then
-        command.uncertain=true
-        stopRun(s,command,'execution_error')
-        return {ok=false,code='execution_error',uncertain=true,
-            native_message=Details.text(tostring(err),512),energy_spent=math.max(0,energy-p.energy.value)}
-    end
-    if not p.running then
-        -- The run ended within the first opportunity: report the real reason
-        -- instead of a bare "exploring" that leaves the caller spinning.
-        for _,actor in pairs(s.game.level.entities or {}) do
-            if hostileVisible(s.game,p,actor) then
-                return {ok=false,code='enemies_in_sight',
-                    native_message='You may not auto-explore with enemies in sight ('
-                        ..(Details.text(actor.name,48) or 'hostile')..').',
-                    energy_spent=math.max(0,energy-p.energy.value),
-                    hint='defeat or lose sight of the hostile first; escorts and allies do not block auto-explore'}
-            end
-        end
-        if p.x==start_x and p.y==start_y then
-            return {ok=false,code='nothing_left',native_message='There is nowhere left to explore.',
-                energy_spent=math.max(0,energy-p.energy.value)}
-        end
-        return {ok=true,code='explore_stopped',
-            native_message='native auto-explore stopped; observe interaction/dialogs before continuing',
-            energy_spent=math.max(0,energy-p.energy.value)}
-    end
-    return {ok=true,code='exploring',energy_spent=math.max(0,energy-p.energy.value)}
-end
 local function execute(s,command)
     if state~=s or s.active~=command or command.status~='queued' then return end
     sync(s)
@@ -1101,28 +987,16 @@ local function execute(s,command)
     command.player,command.level=s.player,s.level
     local target=command.action.target_id and Observer.resolve(s.game,meta(s),command.action.target_id)
     local result
-    if command.action.type=='rest' then
+    if NativeActivity.is(command.action.type) then
+        command.owner='command'
         command.max_turns=command.action.max_turns;command.turns_executed=0
-        local p=s.game.player
-        local info=type(p.restInit)=='function' and debug.getinfo(p.restInit,'S')
-        if not Compat.matches('restInit',p.restInit)
-            and (not info or type(info.source)~='string' or not info.source:match('[/]engine/interface/PlayerRest%.lua$')) then
-            result={ok=false,code='rest_modified',energy_spent=0}
-        else
-            local energy=p.energy.value
-            s.starting_rest=true
-            local ok,err=pcall(p.restInit,p)
-            s.starting_rest=false
-            command.native_rest=p.resting or command.native_rest
-            if command.native_rest then command.turns_executed=command.native_rest.cnt or 0 end
-            result={ok=ok,code=ok and 'rest_complete' or 'execution_error',energy_spent=math.max(0,energy-p.energy.value)}
-            if not ok then
-                command.uncertain=true
-                stopRest(s,command,'execution_error')
-            elseif command.interruption then stopRest(s,command,command.interruption) end
+        result=NativeActivity.start(s,command,command.action.type,{max_turns=command.action.max_turns})
+        if result.uncertain then
+            command.uncertain=true
+            NativeActivity.stop(s,command,'execution_error')
+        elseif command.interruption then
+            NativeActivity.stop(s,command,command.interruption)
         end
-    elseif command.action.type=='auto_explore' then
-        result=autoExploreStart(s,command,s.game.player)
     else
         local root
         Journal.update(s.game)
@@ -1298,7 +1172,10 @@ local function dispatch(s,request)
                 auto_combat={available=true,
                     execution=(config and config.settings and config.settings.tome_mcp_bridge
                         and config.settings.tome_mcp_bridge.allow_auto_combat_execution==true) or false,
-                    source='auto_combat',baseline='p1a',
+                    source='auto_combat',baseline='p1b',
+                    actions=Json.array{'use_talent','attack','wait','rest','auto_explore','change_level'},
+                    native_activities=Json.array{'rest','auto_explore'},
+                    change_level='opt_in',
                     policy_ops=Json.array{'status','validate','dry_run','set_draft','approve','activate','deactivate',
                         'start','stop','pause','resume','log','presets','preset','export','import'}}},snapshot=snap}
         local ok,reason=Compat.check(s.game)
@@ -1649,7 +1526,16 @@ function M.onFrame(g)
     s.pumping=true
     local ok,err=pcall(function()
         sync(s);Input.attach(g);Journal.update(g);settle(s);start(s)
+        -- A live auto-combat activity owns the next turns; stop it if the run
+        -- ended or lost the lease, then drop finished activities.
+        local auto=s.auto_combat
+        if s.native_activity and s.native_activity.owner=='auto_combat'
+            and not (auto and auto.controller and auto.controller.state~='stopped') then
+            NativeActivity.stop(s,s.native_activity,'auto_combat_stopped')
+        end
+        NativeActivity.reap(s)
         if s.auto_combat and s.auto_combat.host_factory and not s.active and not s.execution
+            and not (s.native_activity and s.native_activity.owner=='auto_combat')
             and s.tick_depth==0 and s.tick_serial>0 then
             local ok_auto=pcall(AutoCombat.step,s.auto_combat)
             if not ok_auto then AutoCombat.manualInput(s.auto_combat,'execution_error') end

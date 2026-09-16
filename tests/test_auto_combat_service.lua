@@ -217,6 +217,18 @@ do
         'dry_run re-binds a non-default selector and reports the bound target')
 end
 
+do
+    -- A native-activity rule is previewed without executing it.
+    local camp={schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35},targeting={default='nearest_hostile'},
+        rules={{id='camp',priority=1,when={always={}},['then']={action='rest',max_turns=5}}}}
+    local svc=Service.new{dry_run_host_factory=function() return readOnlyHost({}) end}
+    local dry=Service.handle(svc,'dry_run',{policy=camp})
+    check(dry.ok and dry.decision=='act' and dry.action=='rest' and dry.max_turns==5,
+        'dry_run previews a rest activity and its max_turns')
+    check(dry.executed==false and dry.side_effects=='none','a rest dry run still executes nothing')
+end
+
 -- Presets, import/export and character persistence.
 do
     local svc=Service.new()

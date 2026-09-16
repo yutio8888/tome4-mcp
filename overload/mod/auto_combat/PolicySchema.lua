@@ -9,7 +9,14 @@ local M={}
 M.SCHEMA='tome-auto-combat/v1'
 -- P1a baseline (see docs §15.1): the only actions/selectors/predicates/talents
 -- a policy may use. Unsupported names are a schema error, not a silent skip.
-M.ACTIONS={use_talent=true,attack=true,wait=true}
+-- P1b adds the native activities (`rest`/`auto_explore`) and the opt-in
+-- `change_level`.
+M.ACTIONS={use_talent=true,attack=true,wait=true,rest=true,auto_explore=true,change_level=true}
+-- Multi-turn native activities with no talent/target binding.
+M.ACTIVITY_ACTIONS={rest=true,auto_explore=true,change_level=true}
+-- Actions that count as self-preservation for an `emergency:true` rule (§5.4).
+M.SELF_PRESERVATION_ACTIONS={use_talent=true,attack=true}
+M.PERMISSIONS={change_level=true}
 M.SELECTORS={self=true,nearest_hostile=true,lowest_hp_hostile=true}
 M.PREDICATES={always=true,hp_pct=true,resource_pct=true,resource_value=true,
     cooldown_ready=true,talent_known=true,has_effect=true,enemy_count=true,
@@ -96,7 +103,7 @@ function M.validate(policy)
     local errors=Json.array()
     if type(policy)~='table' or policy==Json.null then return nil,{{path='',code='not_an_object'}} end
     onlyKeys(policy,{schema=true,id=true,name=true,class=true,updated=true,limits=true,
-        sustains=true,safety=true,targeting=true,rules=true,logging=true},'',errors)
+        permissions=true,sustains=true,safety=true,targeting=true,rules=true,logging=true},'',errors)
     if policy.schema~=M.SCHEMA then errors[#errors+1]={path='schema',code='wrong_schema'} end
     if type(policy.id)~='string' or #policy.id==0 or #policy.id>128 then
         errors[#errors+1]={path='id',code='invalid_id'} end
@@ -157,6 +164,15 @@ function M.validate(policy)
             end
         end
     end
+    if policy.permissions~=nil then
+        if type(policy.permissions)~='table' then errors[#errors+1]={path='permissions',code='invalid_permissions'}
+        else
+            onlyKeys(policy.permissions,{change_level=true},'permissions',errors)
+            if policy.permissions.change_level~=nil and type(policy.permissions.change_level)~='boolean' then
+                errors[#errors+1]={path='permissions.change_level',code='invalid_boolean'}
+            end
+        end
+    end
     if not isArray(policy.rules) or #policy.rules==0 then
         errors[#errors+1]={path='rules',code='rules_required'}
     else
@@ -182,15 +198,37 @@ function M.validate(policy)
                 if type(rule['then'])~='table' then
                     errors[#errors+1]={path=path..'.then',code='invalid_then'}
                 else
-                    onlyKeys(rule['then'],{action=true,talent=true,target=true},path..'[then]',errors)
-                    if not M.ACTIONS[rule['then'].action] then
+                    onlyKeys(rule['then'],{action=true,talent=true,target=true,max_turns=true},path..'[then]',errors)
+                    local action=rule['then'].action
+                    if not M.ACTIONS[action] then
                         errors[#errors+1]={path=path..'.then.action',code='unsupported_action'}
                     end
-                    if rule['then'].action=='use_talent' and not M.TALENTS[rule['then'].talent] then
+                    if action=='use_talent' and not M.TALENTS[rule['then'].talent] then
                         errors[#errors+1]={path=path..'.then.talent',code='unsupported_talent'}
                     end
-                    if rule['then'].target~=nil and not M.SELECTORS[rule['then'].target] then
+                    if action=='rest' then
+                        numberField(rule['then'],'max_turns',1,1000,path..'[then]',errors,true)
+                    end
+                    if M.ACTIVITY_ACTIONS[action] then
+                        -- Native activities bind no talent/target (only `rest`
+                        -- takes a bounded max_turns).
+                        if rule['then'].talent~=nil then
+                            errors[#errors+1]={path=path..'.then.talent',code='unexpected_talent'}
+                        end
+                        if rule['then'].target~=nil then
+                            errors[#errors+1]={path=path..'.then.target',code='unexpected_target'}
+                        end
+                        if rule['then'].max_turns~=nil and action~='rest' then
+                            errors[#errors+1]={path=path..'.then.max_turns',code='unexpected_max_turns'}
+                        end
+                    elseif rule['then'].target~=nil and not M.SELECTORS[rule['then'].target] then
                         errors[#errors+1]={path=path..'.then.target',code='unsupported_selector'}
+                    end
+                    if action=='change_level' and not (policy.permissions and policy.permissions.change_level==true) then
+                        errors[#errors+1]={path=path..'.then.action',code='change_level_not_enabled'}
+                    end
+                    if rule.emergency==true and not M.SELF_PRESERVATION_ACTIONS[action] then
+                        errors[#errors+1]={path=path..'.then.action',code='emergency_not_self_preservation'}
                     end
                 end
             end

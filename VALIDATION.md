@@ -1,5 +1,25 @@
 # MCP Bridge 验收记录
 
+## 0.9.0：自动战斗插件 P1b（原生活动）
+
+日期：2026-09-17。把 `rest` / `auto_explore` 变为数据策略的一等动作，抽出通用 `NativeActivity`；`change_level` 仍为显式 opt-in 且默认关闭。执行仍由 `allow_auto_combat_execution` 门控（默认关）。
+
+| 检查层 | 结果 | 证据 |
+| --- | --- | --- |
+| `NativeActivity` 抽象 | **通过**：新增 `overload/mod/mcp_bridge/NativeActivity.lua`；`Runtime` 的 `nativePhase`/`busy`/`revoke`/`settle`/rest 回调/dialog ownership 全部委托，不再按 action.type 分支 | `tests/test_native_activity.lua`（17）、`tests/test_tasks.lua`（65） |
+| `rest` / `auto_explore` 策略动作 | **通过**：schema + capability catalogue + evaluator（`max_turns`）+ 执行器 adapter；控制器复用 `native_pending` 等待语义；活动存活期间不重提、交互即暂停 | `test_auto_combat_policy.lua`（38）、`test_auto_combat_controller.lua`（57）、`test_auto_combat_catalog.lua`（30） |
+| `change_level` opt-in | **通过**：`permissions.change_level=true` 才通过 schema/目录校验，内置预设不启用 | `test_auto_combat_policy.lua`、`test_auto_combat_catalog.lua` |
+| 原生 P1b fixture（含预声明信号） | **通过（17/17，source 与 `dist/*.teaa` 各一次）**：`rest-policy`（数据策略驱动真实原生 rest：`wait_native`→`stopped`）、`explore-policy`（原生 `enemies_in_sight` 守卫生效并声明） | `tmp/tome-mcp-validation/sessions/p1b-check-06/`、`p1b-teaa-01/` |
+| 既有套件 | Lua **30 套通过**、Python **33 通过**、两个 `--check` 生成器绿 | `bash game/addons/tome-mcp-bridge/tests/run.sh` 等 |
+
+正式包 **58 个生产文件**，SHA-256：
+
+```text
+420eaedaf567d6dd30e107a0c1572ed056206ddac8f0561ce88ab2841ebbdedb
+```
+
+§16 三项未决已解决并于 [TODO](docs/tome-mcp-0.9.0-auto-combat-todo.md) 记录；设计见 [P1b 设计](docs/tome-mcp-0.9.0-p1b-native-activity.md)。
+
 ## 0.9.0：自动战斗插件 P1a（首个可用闭环）
 
 日期：2026-09-16。数据-only 战斗策略由原生执行器逐回合本地执行；MCP 只观察/校验/仲裁。人类可用游戏内编辑器独立使用（无需 MCP 客户端）。

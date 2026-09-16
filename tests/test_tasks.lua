@@ -245,4 +245,34 @@ for _,mode in ipairs{'natural','max_turns'} do
     check(observe().control_source=='manual' and not Runtime.hasControl(p),'rest cleanup error revokes control lease: '..mode)
     check(observe().phase=='unavailable' and p.resting~=nil,'failed cleanup remains quarantined without fabricating success: '..mode)
 end
+-- P1b: the auto-combat service owns a native rest through NativeActivity.
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=true
+    local g,p,hello,request,observe,act,status,ready,step,start=fixture()
+    p.life=50;p.max_life=100
+    local saved_check=p.restCheck
+    p.restCheck=function() return true end
+    local pol={schema='tome-auto-combat/v1',id='rest-policy',name='rest',
+        limits={max_actions_per_tick=1},safety={min_hp_pct=35},
+        targeting={default='nearest_hostile'},
+        rules={{id='camp',priority=10,when={hp_pct={lt=100}},
+            ['then']={action='rest',max_turns=2}}}}
+    Runtime.autoCombatHandle(g,'set_draft',{policy=pol})
+    local approved=Runtime.autoCombatHandle(g,'approve',{})
+    Runtime.autoCombatHandle(g,'activate',{expected_hash=approved.approved_hash})
+    Runtime.autoCombatHandle(g,'start',{})
+    ready()
+    Runtime.onFrame(g)
+    check(p.resting~=nil and observe().native_activity=='rest_owned',
+        'the auto-combat pump starts an owned native rest')
+    local run=Runtime.autoCombatStatus(g).run
+    check(run and run.state=='waiting_native','the controller waits while the native rest runs')
+    Runtime.autoCombatHandle(g,'stop',{reason='test'})
+    Runtime.onFrame(g)
+    check(p.resting==nil and observe().native_activity==nil,
+        'stopping the run stops and reaps the native rest')
+    p.restCheck=saved_check
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+    Runtime.reset(g);g:display()
+end
 print('Tasks: '..checks..' checks passed')

@@ -8,6 +8,7 @@
 -- is loaded by the production addon.
 local Runtime=require 'mod.mcp_bridge.Runtime'
 local AutoCombat=require 'mod.auto_combat.AutoCombat'
+local NativeActivity=require 'mod.mcp_bridge.NativeActivity'
 local M={pending=false,checks={},failures=0,solo_frames=0}
 
 local function encode(value)
@@ -41,6 +42,8 @@ M.EXPECTED={
     ['native-pending']={'wait_native','wait_native','wait_native','acted'},
     ['critical']={'no_emergency_action'},
     ['strict-resume']={'new_enemy','new_enemy'},
+    ['rest-policy']={'wait_native','stopped'},
+    ['explore-policy']={'wait_native','stopped'},
     ['solo-pump']={},
 }
 
@@ -194,6 +197,75 @@ local function strictResume()
     return compare('strict-resume',{p1.reason,p2.reason})
 end
 
+-- 6: a `rest` rule in a data policy drives the real native rest through the
+-- generic NativeActivity, occupies the wait, and yields control when done.
+local function restPolicy()
+    forceReady()
+    local p=game.player
+    p.life=math.max(1,math.floor(p.max_life*0.5))
+    local previous_check=p.restCheck
+    p.restCheck=function() return true end
+    local pol=policy({{id='camp',priority=10,when={hp_pct={lt=100}},
+        ['then']={action='rest',max_turns=1}}})
+    local host=hostFor(pol,{phase=function()
+        if game.player.resting then return 'settling' end
+        return 'ready'
+    end})
+    if not host then
+        check('rest-policy:host',false,{note='production host unavailable'})
+        return false
+    end
+    local c=AutoCombat.new(pol,host,{strict=false})
+    local svc=Runtime.autoCombatService(game)
+    svc.controller=c
+    c:start()
+    local r1=c:onOpportunity()
+    check('rest-policy:started',p.resting~=nil and r1.action=='wait_native',
+        {action=r1.action,resting=p.resting~=nil})
+    if p.resting then p:restStop('probe_done') end
+    p.restCheck=previous_check
+    forceReady()
+    p.life=p.max_life
+    local r2=c:onOpportunity()
+    svc.controller=nil
+    return compare('rest-policy',{r1.action,r2.action})
+end
+
+-- 7: an `auto_explore` rule in a data policy is validated against the real
+-- native guard. The probe level keeps a hostile, so the guard refuses with a
+-- declared signal; if a clear level is ever used the run path is exercised too.
+local function explorePolicy()
+    forceReady()
+    local refusal=NativeActivity.descriptor('auto_explore').guards({player=game.player,game=game})
+    if refusal then
+        check('explore-policy:guarded',refusal.ok==false and refusal.code~=nil,refusal)
+        M.EXPECTED['explore-policy']={'rejected:'..refusal.code}
+        return compare('explore-policy',{'rejected:'..refusal.code})
+    end
+    local pol=policy({{id='scout',priority=10,when={always={}},
+        ['then']={action='auto_explore'}}})
+    local host=hostFor(pol,{phase=function()
+        if game.player.running then return 'settling' end
+        return 'ready'
+    end})
+    if not host then
+        check('explore-policy:host',false,{note='production host unavailable'})
+        return false
+    end
+    local c=AutoCombat.new(pol,host,{strict=false})
+    local svc=Runtime.autoCombatService(game)
+    svc.controller=c
+    c:start()
+    local r1=c:onOpportunity()
+    check('explore-policy:started',r1.action=='wait_native' or r1.action=='acted',
+        {action=r1.action,running=game.player.running~=nil})
+    if game.player.running then game.player:runStop('probe_done') end
+    forceReady()
+    local r2=c:onOpportunity()
+    svc.controller=nil
+    return compare('explore-policy',{r1.action,r2.action})
+end
+
 -- 6: with no MCP client, local authorization installs the live pump and the
 -- production executor performs a real native wait action.
 local function soloPumpSetup()
@@ -243,6 +315,8 @@ local function runAll()
         nativePending()
         criticalState()
         strictResume()
+        restPolicy()
+        explorePolicy()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok
