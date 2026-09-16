@@ -252,6 +252,7 @@ function M:step()
             self.attempts=self.attempts+1
             local outcome=(self.host and self.host.request and self.host.request({
                 rule=decision.rule,action=decision.action,talent=decision.talent,
+                max_turns=decision.max_turns,
                 target=decision.target,bound_target=bound.bound_target,generation=generation})) or {}
             if outcome.status=='native_pending' then
                 self.state='waiting_native'; self.reason='native_pending'

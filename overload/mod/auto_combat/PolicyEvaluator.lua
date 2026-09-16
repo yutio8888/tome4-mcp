@@ -171,6 +171,7 @@ function M.evaluate(policy,ctx)
             if value==TRUE then
                 local target=rule['then'].target or (policy.targeting and policy.targeting.default)
                 return {decision='act',rule=rule.id,action=rule['then'].action,talent=rule['then'].talent,
+                    max_turns=rule['then'].max_turns,
                     target=target,critical=critical,emergency=rule.emergency==true,results=results,layer=layer}
             elseif value==UNKNOWN and isSafety(rule.when) then
                 unknownRule=unknownRule or rule

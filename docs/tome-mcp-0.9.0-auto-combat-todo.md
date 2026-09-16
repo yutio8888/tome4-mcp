@@ -77,3 +77,26 @@ following were audited and are **decisions for later phases**, not P1a defects:
     no Shadow Blast/Starfall adapter is in P1a.
 15. **§10 log replay metadata** (tick/revision/level_instance_id) is now
     recorded; closed in the dry-run pass rather than deferred.
+
+## P1b close-out (native activities)
+
+P1b ships the generic `NativeActivity` abstraction and the `rest` /
+`auto_explore` policy actions; see
+[docs/tome-mcp-0.9.0-p1b-native-activity.md](tome-mcp-0.9.0-p1b-native-activity.md).
+The three §16 open items are resolved:
+
+16. **daily mode** stays unimplemented (design defers it to after P1b); the
+    default preset remains `strict`. No daily preset or risk definition is
+    added.
+17. **manual input** keeps the P1a behaviour: it returns the single owner to
+    `manual` and tears the MCP transport down; the arbiter never keeps the
+    lease.
+18. **rest / auto_explore / change_level**: `rest` (optional bounded
+    `max_turns`) and `auto_explore` enter in P1b as additive schema-v1 actions
+    gated by `capabilities.auto_combat`; `change_level` is opt-in via
+    `permissions.change_level=true` and is **default off** (no preset enables
+    it). The pilot preset is unchanged.
+
+Items 12–13 remain the only deferred tuning decisions (sustain
+`min_resource_pct`, `flee_below_hp_pct`); the P1b `NativeActivity` work did not
+change their semantics.

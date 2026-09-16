@@ -160,4 +160,50 @@ do
         'the pilot preset waits one turn while its main ray cools down')
 end
 
+-- P1b: native activities as first-class policy actions ----------------------
+do
+    local p=basePolicy()
+    p.rules={{id='camp',priority=10,when={hp_pct={lt=50}},['then']={action='rest',max_turns=20}}}
+    check(Schema.validate(p),'a rest rule with a bounded max_turns validates')
+end
+do
+    local p=basePolicy()
+    p.rules={{id='explore',priority=10,when={enemy_count={eq=0}},['then']={action='auto_explore'}}}
+    check(Schema.validate(p),'an auto_explore rule validates')
+    local bad=basePolicy()
+    bad.rules={{id='explore',priority=10,when={always={}},['then']={action='auto_explore',talent='T_ATTACK'}}}
+    check(not Schema.validate(bad),'auto_explore rejects a talent binding')
+    local bad2=basePolicy()
+    bad2.rules={{id='camp',priority=10,when={always={}},['then']={action='rest',target='self'}}}
+    check(not Schema.validate(bad2),'rest rejects a target binding')
+    local bad3=basePolicy()
+    bad3.rules={{id='camp',priority=10,when={always={}},['then']={action='rest',max_turns=5000}}}
+    check(not Schema.validate(bad3),'rest max_turns is bounded')
+end
+do
+    -- change_level is opt-in: rejected unless permissions.change_level is true.
+    local p=basePolicy()
+    p.rules={{id='descend',priority=10,when={enemy_count={eq=0}},['then']={action='change_level'}}}
+    check(not Schema.validate(p),'change_level is rejected without explicit permission')
+    p.permissions={change_level=true}
+    check(Schema.validate(p),'change_level validates once explicitly enabled')
+    p.permissions={change_level='yes'}
+    check(not Schema.validate(p),'permissions.change_level must be a boolean')
+end
+do
+    -- The critical layer is only for genuine self-preservation actions.
+    local p=basePolicy()
+    p.rules={{id='panic-rest',priority=100,emergency=true,when={always={}},
+        ['then']={action='rest',max_turns=5}}}
+    check(not Schema.validate(p),'an emergency rest rule is rejected as non-self-preservation')
+end
+do
+    -- The evaluator carries max_turns into the act decision for the executor.
+    local p=basePolicy();p.rules={{id='camp',priority=10,when={always={}},
+        ['then']={action='rest',max_turns=7}}}
+    local decision=Evaluator.evaluate(p,ctx({hp_pct=80,enemy_count=1}))
+    check(decision.decision=='act' and decision.action=='rest' and decision.max_turns==7,
+        'the evaluator returns the rest max_turns to the executor')
+end
+
 print('Auto-combat policy: '..checks..' checks passed')

@@ -159,6 +159,27 @@ do
 end
 
 do
+    -- A native-activity rule (rest) carries its bounded max_turns and, while the
+    -- activity is live, is a native_pending wait that is never resubmitted.
+    local host=makeHost(); host.responses={{status='native_pending'}}
+    local p=policy({limits={max_actions_per_tick=1},rules={
+        {id='camp',priority=50,when={always={}},['then']={action='rest',max_turns=3}}}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    local first=c:onOpportunity()
+    check(first.action=='wait_native' and c.state=='waiting_native',
+        'a rest rule enters an internal wait while the activity runs')
+    check(host.requests[1].action=='rest' and host.requests[1].max_turns==3,
+        'the rest attempt carries the rule max_turns')
+    host.phase_='settling'
+    check(c:onOpportunity().action=='wait_native' and #host.requests==1,
+        'the live activity is never resubmitted')
+    host.phase_='ready'
+    c:onOpportunity()
+    check(#host.requests==2,'the controller resumes after the activity settles')
+end
+
+do
     -- Target binding: the winning rule's selector must bind the same target the
     -- condition was checked against, or the rule is denied.
     local function bindingHost(bindings)

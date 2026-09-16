@@ -77,4 +77,23 @@ do
     check(#empty==0,'an empty tail is empty')
 end
 
+-- P1b native-activity action adapters --------------------------------------
+do
+    check(Catalog.actionSupported('rest') and Catalog.actionSupported('auto_explore')
+        and Catalog.actionSupported('change_level'),'the catalogue knows the P1b activity actions')
+    check(not Catalog.actionSupported('teleport'),'an unknown action is not supported by the catalogue')
+    local camp=policy({id='camp',priority=1,when={always={}},['then']={action='rest',max_turns=5}})
+    check(Catalog.verify(camp),'a rest rule is semantically compatible')
+    local explore=policy({id='explore',priority=1,when={always={}},['then']={action='auto_explore'}})
+    check(Catalog.verify(explore),'an auto_explore rule is semantically compatible')
+    local descend=policy({id='descend',priority=1,when={always={}},['then']={action='change_level'}})
+    local ok,errors=Catalog.verify(descend)
+    check(ok==nil and errors[1].code=='change_level_not_enabled',
+        'the catalogue refuses change_level without explicit permission')
+    descend.permissions={change_level=true}
+    check(Catalog.verify(descend),'the catalogue accepts change_level once enabled')
+    local summary=Catalog.summary()
+    check(#summary.actions>=6,'the capability summary lists the action adapters')
+end
+
 print('Auto-combat catalog: '..checks..' checks passed')

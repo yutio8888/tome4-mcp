@@ -140,6 +140,7 @@ function M.dryRun(svc,args)
         decision=decision.decision,layer=decision.layer,critical=decision.critical==true,
         reason=decision.reason,
         rule=decision.rule,action=decision.action,talent=decision.talent,
+        max_turns=decision.max_turns,
         target=decision.target,bound_target=bound_target,target_distance=target_distance,
         binding=binding,results=decision.results or {},unsupported=Json.array()})
 end
