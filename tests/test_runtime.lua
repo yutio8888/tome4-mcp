@@ -159,9 +159,16 @@ p.enoughEnergy=nativeAt('/engine/Actor.lua','function(self) return true end')
 p.runStop=function(self) self.running=nil end
 g.level.entities={p,enemy}
 p.can_see_cache={[enemy]={['nil/nil']={true}}}
+enemy.reaction=-1
 act('explore-blocked',{type='auto_explore'});g:tick();g:display()
 check(status('explore-blocked').code=='enemies_in_sight' and status('explore-blocked').action_ok==false,
     'auto-explore refuses with a visible hostile')
+-- A visible friendly escort is not hostile and must not block auto-explore.
+enemy.reaction=1
+p.running=nil
+act('explore-friendly',{type='auto_explore'});g:tick();g:display()
+check(status('explore-friendly').code~='enemies_in_sight','a friendly escort does not block auto-explore')
+p.running=nil;g:tick();g:display()
 g.level.entities={p}
 act('explore',{type='auto_explore'});g:tick();g:display()
 check(p.running~=nil and status('explore').status~='failed','auto-explore starts the native run')

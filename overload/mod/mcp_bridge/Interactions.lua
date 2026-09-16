@@ -92,7 +92,7 @@ end
 function M.reownAll(old,new)
     if not old or not new or old==new then return end
     for _,h in pairs(dialogs) do
-        if h.root==old then
+        if h.root==old and liveDialog(h.game,h.dialog) then
             h.root=new;h.owner={root=new}
             h.game.paused=true
             issue(h)
@@ -179,13 +179,31 @@ end
 -- revision: observing a popup is a read, not a game mutation. Used lazily from
 -- snapshot because some dialogs (the death menu) call Dialog.init before they
 -- build their list UI, so the eager adoption cannot see it yet.
+-- Native buttons of a popup (for example Dialog:yesnoPopup Yes/No) as real
+-- options, so answering selects the button instead of only pressing EXIT.
+local function buttonOptions(d)
+    local options={}
+    for _,entry in ipairs(d.uis or {}) do
+        local ui=entry.ui
+        if type(ui)=='table' and type(ui.fct)=='function' and not ui.hidden and not ui.hide
+            and not entry.hidden and not entry.hide and ui.visible~=false then
+            options[#options+1]={label=Details.text(ui.text,128) or ('Option '..(#options+1)),
+                apply=function() ui.fct() end}
+        end
+    end
+    return #options>0 and options or nil
+end
 function M.adoptNative(d,root)
     if not root or dialogs[d] then return dialogs[d] end
     local list=d and d.c_list
+    local buttons=buttonOptions(d)
     local h
     if type(list)=='table' and type(list.list)=='table' and #list.list>0 and type(list.onSelect)=='function' then
         h={owner={root=root},game=root.game,dialog=d,kind='dialog.choice',
             prompt=Details.text(d.title,512),options=nil,cancel=nil,list=list}
+    elseif buttons then
+        h={owner={root=root},game=root.game,dialog=d,kind='dialog.choice',
+            prompt=Details.text(d.title,512),text=M.noticeText(d),options=buttons,cancel=nil}
     else
         local close=d and d.key and d.key.virtuals and d.key.virtuals.EXIT
         if type(close)~='function' then close=nativeClose(d) end
@@ -244,6 +262,11 @@ function M.adoptNotice(d,root)
     local list=d.c_list
     if type(list)=='table' and type(list.list)=='table' and #list.list>0 and type(list.onSelect)=='function' then
         M.openDialog(d,'dialog.choice',d.title,nil,nil,nil,list,{root=root})
+        return dialogs[d]
+    end
+    local buttons=buttonOptions(d)
+    if buttons then
+        M.openDialog(d,'dialog.choice',d.title,M.noticeText(d),buttons,nil,nil,{root=root})
         return dialogs[d]
     end
     if root.command then
@@ -496,7 +519,9 @@ function M.apply(h,prepared)
         elseif h.list then
             h.list.sel=prepared.index
             h.list:onSelect()
-            h.dialog.key:triggerVirtual('ACCEPT')
+            -- Select the entry directly; a native dialog may not bind ACCEPT.
+            if type(h.list.onUse)=='function' then h.list:onUse()
+            else h.dialog.key:triggerVirtual('ACCEPT') end
         else prepared.option.apply() end
         -- Native options can keep a dialog open; ask again with a fresh ID.
         if M.valid(h) then issue(h) end

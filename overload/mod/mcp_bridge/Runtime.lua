@@ -87,6 +87,9 @@ local RELEASE_HINTS={unsupported_interaction='a native UI the bridge cannot driv
 -- Human hints for common terminal command codes; the code stays authoritative.
 local COMMAND_HINTS={native_rejected='the native action refused; see native_message or the player-visible log',
     blocked='the move did not change position and spent no energy',
+    native_progression_rejected='the native level-up dialog refused; check the static prerequisites and point pools',
+    native_progression_mismatch='the native level-up result did not match the spending; the point pool was left unchanged',
+    explore_interrupted='native auto-explore stopped at a popup or notice; check observe interaction/dialogs and respond or dismiss',
     target_out_of_range='the target is outside the talent range',
     target_not_adjacent='the target is not adjacent',
     insufficient_class_points='no class talent points remain',
@@ -197,7 +200,7 @@ local function commandView(command,include_map,response_id,options_offset)
     for _,key in ipairs{'command_id','seq','status','code','energy_spent','native_return','world_tick_before',
         'world_tick_after','revision_before','revision_after','snapshot','snapshot_availability','interruption','uncertain',
         'turns_executed','max_turns','stop_reason','native_message','level_changed','target_geometry',
-        'points_spent','points_returned','point_pool','previous_value','new_value'} do out[key]=command[key] end
+        'points_spent','points_returned','point_pool','previous_value','new_value','missing'} do out[key]=command[key] end
     -- action_ok is derived from the terminal status so it can never contradict
     -- it (a fatal blow reports status=failed, action_ok=false). A Lua
     -- `or` chain would collapse false to nil, so branch explicitly.
@@ -270,6 +273,7 @@ local function finish(s,command,status,code)
         command.execution_released=true
         if root then
             command.native_task=NativeTasks.describe(root)
+            if s.session_root and root~=s.session_root then Interactions.reownAll(root,s.session_root) end
             NativeTasks.release(root);Interactions.release(root);Tracker.release(root)
             if s.execution==root then s.execution=nil end
             command.invocation=nil
@@ -731,9 +735,14 @@ local function settle(s)
     if phase=='needs_input' then
         if command.action.type=='auto_explore' then
             -- A native notice (trap/door/item) interrupted auto-explore. Stop the
-            -- run and report a clean stop; keep the lease so the agent can
-            -- observe the popup and answer it with respond/dismiss.
+            -- run and report a clean stop with the popup that caused it; keep the
+            -- lease so the agent can observe it and answer with respond/dismiss.
             stopRun(s,command,'interaction')
+            local top=s.game.dialogs and s.game.dialogs[#s.game.dialogs]
+            if top then
+                command.native_message=command.native_message or Details.text(top.title,128)
+                command.stop_reason=command.stop_reason or 'native_popup'
+            end
             finish(s,command,command.action_ok and 'completed' or 'failed','explore_interrupted')
         else
             local reason=command.handoff_requested or 'unsupported_interaction'
@@ -758,6 +767,20 @@ local function settle(s)
         else finish(s,command,command.action_ok and 'completed' or 'failed',command.code) end
     end
 end
+-- The native RUN_AUTO guard is reactionToward(actor) < 0. A visible escort or
+-- summon is not hostile, so it must not refuse auto-explore.
+local function hostileVisible(g,p,actor)
+    if actor==p or type(actor)~='table' or not actor.__is_actor or not Observer.visible(g,actor) then return false end
+    if type(p.reactionToward)=='function' then
+        local info=debug.getinfo(p.reactionToward,'S')
+        if info~=nil and type(info.source)=='string' and info.source:sub(-#'/mod/class/Actor.lua')=='/mod/class/Actor.lua' then
+            local ok,r=pcall(p.reactionToward,p,actor)
+            if ok and type(r)=='number' then return r<0 end
+        end
+    end
+    if type(actor.reaction)=='number' then return actor.reaction<0 end
+    return actor.faction~=nil and actor.faction~=p.faction
+end
 -- Start a native auto-explore run and advance it until energy is spent. The run
 -- continues across turns; the command owns it, so nativePhase settles and a
 -- revoke/stop cancels it. Getters are called only when audited and native.
@@ -778,9 +801,11 @@ local function autoExploreStart(s,command,p)
     end
     -- Mirror the native RUN_AUTO guard: a visible hostile refuses the command.
     for _,actor in pairs(s.game.level.entities or {}) do
-        if actor~=p and actor.__is_actor and Observer.visible(s.game,actor) then
+        if hostileVisible(s.game,p,actor) then
             return {ok=false,code='enemies_in_sight',
-                native_message='You may not auto-explore with enemies in sight.',energy_spent=0}
+                native_message='You may not auto-explore with enemies in sight ('
+                    ..(Details.text(actor.name,48) or 'hostile')..').',energy_spent=0,
+                hint='defeat or lose sight of the hostile first; escorts and allies do not block auto-explore'}
         end
     end
     local energy=p.energy.value
@@ -866,6 +891,7 @@ local function execute(s,command)
     end
     if not command.energy_measured then command.energy_spent=result.energy_spent or 0 end
     command.native_return=result.native_return;command.action_ok=result.ok;command.code=result.code
+    command.missing=result.missing
     command.action_code=result.code
     command.level_changed=result.level_changed
     command.native_message=Details.text(result.native_message,512) or command.native_message
@@ -963,9 +989,15 @@ local function dispatch(s,request)
             end
             s.control_token=identifier('control');bump(s)
             local root=invocation(s)
-            if root and s.active==root.command and root.command.input_owner=='orphaned'
-                and root.player==s.game.player and root.level==s.game.level then
-                root.command.input_owner='remote';root.command.control_token=s.control_token
+            if root and s.active==root.command and root.player==s.game.player and root.level==s.game.level then
+                if root.command.input_owner=='orphaned' then
+                    root.command.input_owner='remote';root.command.control_token=s.control_token
+                elseif root.command.input_owner=='manual' and not NativeTasks.current(root)
+                    and #(s.game.dialogs or {})==0 then
+                    -- The popup that forced the manual handoff is gone; reclaim.
+                    root.command.input_owner='remote';root.command.control_token=s.control_token
+                    root.command.handoff_requested=nil
+                end
             end
         elseif invocation(s) then
             local command=invocation(s).command
@@ -1020,7 +1052,7 @@ local function dispatch(s,request)
         if a.sections~=nil then
             if type(a.sections)~='table' or a.sections==Json.null then return fail('invalid_sections') end
             local allowed={player=true,map=true,ground=true,actors=true,talents=true,events=true,dialogs=true,
-            effects=true,sustains=true,resources=true,stats=true,ground_effects=true}
+            scene=true,effects=true,sustains=true,resources=true,stats=true,ground_effects=true}
             for _,name in ipairs(a.sections) do if not allowed[name] then return fail('invalid_sections') end end
         end
         if a.detail~=nil and a.detail~='summary' and a.detail~='full' then return fail('invalid_detail') end
@@ -1134,7 +1166,13 @@ local function dispatch(s,request)
         return {dismissed=true,snapshot=snapshot(s)}
     elseif op=='abandon' then
         if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
-        if not s.native_error then
+        -- Recovery for an isolated session, or for a pending command stuck in a
+        -- manual handoff with no native task/dialog left to answer.
+        local stuck_root=s.active and s.active.invocation
+        local stuck=s.active~=nil and (s.active.input_owner=='manual' or s.active.status=='needs_input')
+            and not NativeTasks.current(stuck_root) and #(s.game.dialogs or {})==0
+            and not Interactions.current(s.session_root)
+        if not s.native_error and not stuck then
             return fail('not_isolated',nil,{details={hint='the session is not isolated; observe/act work normally'}})
         end
         -- Explicit recovery: discard the failed invocation and clear isolation.

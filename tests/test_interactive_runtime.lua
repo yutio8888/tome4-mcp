@@ -391,5 +391,18 @@ local h2=Interactions.adoptNative(death2,sroot)
 check(h2~=nil and Interactions.valid(h2),'a session-root popup handle is valid without a player')
 check(Interactions.current(sroot)==h2,'the session-root popup is the current interaction')
 check(Interactions.describe(sroot,{revision=1}).options[1].label=='Resurrect','the death menu options are described')
+-- A native popup with buttons (yesnoPopup) exposes its real buttons, so an
+-- answer selects Open/Leave instead of only pressing EXIT.
+local clicked=false
+local button_dialog={title='sealed door',uis={
+    {ui={text='Open',fct=function() clicked=true end}},
+    {ui={text='Leave',fct=function() end}}},key={virtuals={}}}
+local broot={game=menu_game,interactions={},command={responses={},consumed_interactions={},interaction_sequence=0}}
+menu_game.dialogs={button_dialog}
+local bh=Interactions.adoptNative(button_dialog,broot)
+check(bh~=nil and bh.kind=='dialog.choice' and #bh.options==2,'a native button popup exposes its buttons as options')
+check(Interactions.describe(broot,{revision=1}).options[1].label=='Open','the button labels are described')
+Interactions.apply(bh,{type='option',index=1,option=bh.options[1]})
+check(clicked,'selecting a button option calls the native callback')
 
 print('Interactive Runtime: '..count..' checks passed')
