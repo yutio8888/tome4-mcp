@@ -761,8 +761,8 @@ local function autoExploreStart(s,command,p)
             and info.source:sub(-#suffix)==suffix
     end
     if not nativeAt(p.autoExplore,'/mod/class/interface/PlayerExplore.lua')
-        or not nativeAt(p.runStep,'/engine/interface/Player.lua')
-        or not nativeAt(p.enoughEnergy,'/engine/interface/Player.lua') then
+        or not nativeAt(p.runStep,'/engine/interface/PlayerRun.lua')
+        or not nativeAt(p.enoughEnergy,'/engine/Actor.lua') then
         return {ok=false,code='auto_explore_unavailable',energy_spent=0}
     end
     if (s.game.zone and s.game.zone.no_autoexplore) or (s.game.level and s.game.level.no_autoexplore) then

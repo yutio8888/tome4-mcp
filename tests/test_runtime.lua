@@ -154,8 +154,8 @@ check(status('unowned-rest').status~='failed','the command proceeds after cancel
 g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
 local function nativeAt(suffix,body) return assert(loadstring('return '..body,'@'..suffix))() end
 p.autoExplore=nativeAt('/mod/class/interface/PlayerExplore.lua','function(self) self.running={explore="unseen",cnt=0} return true end')
-p.runStep=nativeAt('/engine/interface/Player.lua','function(self) self.running.cnt=self.running.cnt+1 return self.running.cnt<3 end')
-p.enoughEnergy=nativeAt('/engine/interface/Player.lua','function(self) return true end')
+p.runStep=nativeAt('/engine/interface/PlayerRun.lua','function(self) self.running.cnt=self.running.cnt+1 return self.running.cnt<3 end')
+p.enoughEnergy=nativeAt('/engine/Actor.lua','function(self) return true end')
 p.runStop=function(self) self.running=nil end
 g.level.entities={p,enemy}
 p.can_see_cache={[enemy]={['nil/nil']={true}}}
