@@ -110,6 +110,27 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(not_isolated.is_error)
             self.assertEqual(not_isolated.structured_content["error"]["code"], "not_isolated")
 
+    async def test_policy_dry_run_is_typed_and_forwarded(self):
+        app = create_server(BridgeClient(token=self.game.token, port=self.game.port))
+        async with Client(app) as client:
+            tools = (await client.list_tools()).tools
+            policy_tool = next(tool for tool in tools if tool.name == "tome.policy")
+            self.assertIn("dry_run", policy_tool.input_schema["properties"]["policy_op"]["enum"])
+            await client.call_tool("tome.connect")
+            before = len(self.game.requests)
+            rejected = await client.call_tool(
+                "tome.policy", {"session_id": "s1", "policy_op": "not_an_op"})
+            self.assertTrue(rejected.is_error)
+            self.assertEqual(len(self.game.requests), before)
+            document = {"schema": "tome-auto-combat/v1", "id": "p1", "name": "p1",
+                        "rules": []}
+            result = await client.call_tool(
+                "tome.policy", {"session_id": "s1", "policy_op": "dry_run", "policy": document})
+            self.assertTrue(result.structured_content["ok"])
+            sent = [r for r in self.game.requests if r["op"] == "policy"][-1]
+            self.assertEqual(sent["args"]["policy_op"], "dry_run")
+            self.assertEqual(sent["args"]["policy"], document)
+
     async def test_answers_are_strict_and_reach_native_protocol_once(self):
         self.game.interaction_steps=2
         app=create_server(BridgeClient(token=self.game.token,port=self.game.port))

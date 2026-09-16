@@ -59,3 +59,21 @@ the rest are explicit decisions or playtest preconditions, not defects.
   (c) coverage of the not-yet-observed codes (`budget_exhausted`,
   `action_denied`, `action_uncertain`, `player_interaction`, `control_lost`),
   plus in-session save/load and level-change persistence.
+
+## P1a close-out (dry-run pass)
+
+`dry_run` was the last P1a deliverable; it ships in
+[docs/tome-mcp-0.9.0-p1a-dry-run.md](tome-mcp-0.9.0-p1a-dry-run.md). The
+following were audited and are **decisions for later phases**, not P1a defects:
+
+12. **Sustain `min_resource_pct` is advisory.** The controller does not gate
+    `set_sustain` on it; native `set_sustain` rejects an under-resourced
+    activation and the rejection is counted, capped and logged (no energy
+    spent). Honouring the threshold is P1b resource tuning.
+13. **`flee_below_hp_pct` is inert.** P1a ships no default auto-retreat
+    (§15.1); the field stays editable for the future `move{retreat}` rule.
+14. **§15 row wording vs §15.1 whitelist.** §15 mentions
+    Searing/Shadow Blast/Starfall; the frozen §15.1 whitelist supersedes it, so
+    no Shadow Blast/Starfall adapter is in P1a.
+15. **§10 log replay metadata** (tick/revision/level_instance_id) is now
+    recorded; closed in the dry-run pass rather than deferred.

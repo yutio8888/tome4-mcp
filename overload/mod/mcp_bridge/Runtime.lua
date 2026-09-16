@@ -447,6 +447,14 @@ function M.reset(g)
     -- Policy authoring/certification surface. Execution is wired separately;
     -- the service reports execution_not_available until the host adapter lands.
     s.auto_combat=AutoCombat.new{}
+    -- Planning-level dry runs only need audited reads, so this host is wired
+    -- unconditionally and never depends on allow_auto_combat_execution.
+    s.auto_combat.dry_run_host_factory=function(svc,policy) return buildAutoCombatReadHost(s,policy) end
+    -- Replay-grade log metadata (design §10): the world tick, session revision
+    -- and level instance are tagged on every decision-log entry.
+    s.auto_combat.log_context=function()
+        return {tick=(s.game and s.game.turn) or 0,revision=s.revision,level_instance_id=s.level_id}
+    end
     -- A character carries its draft/approved policy; reading a character never
     -- resumes automatic action.
     if g.player and type(g.player.auto_combat_policy)=='table' then
@@ -860,11 +868,9 @@ local function hostileVisible(g,p,actor)
     if type(actor.reaction)=='number' then return actor.reaction<0 end
     return actor.faction~=nil and actor.faction~=p.faction
 end
--- Live controller host. Every read is bounded and audited; nothing here runs a
--- dynamic getter, RNG or talent callback. The executor reuses Actions.execute
--- under a synthetic command (see the changed() guard) and never becomes the
--- remote invocation slot.
-buildAutoCombatHost=function(s,policy)
+-- Audited read-only reads shared by the live host and the planning dry-run
+-- host. Nothing here runs a dynamic getter, RNG or talent callback.
+local function autoCombatReads(s,policy)
     local g=s.game
     local function lifePct(actor)
         if actor and Details.finite(actor.life) and Details.finite(actor.max_life) and actor.max_life>0 then
@@ -946,12 +952,24 @@ buildAutoCombatHost=function(s,policy)
                 negative=p.negative and p.negative.current or nil,
                 stamina=p.stamina and p.stamina.current or nil}
         end,
+        snapshot_meta=function()
+            return {revision=s.revision,level_instance_id=s.level_id}
+        end,
     }
     reads.enemy_ids=function()
         local ids={}
         for _,entry in ipairs(reads.hostiles()) do ids[#ids+1]=entry.id end
         return ids
     end
+    return reads
+end
+
+-- Live controller host. The executor reuses Actions.execute under a synthetic
+-- command (see the changed() guard) and never becomes the remote invocation
+-- slot.
+buildAutoCombatHost=function(s,policy)
+    local g=s.game
+    local reads=autoCombatReads(s,policy)
     reads.execute=function(attempt)
         local target
         if attempt.bound_target then target=Observer.resolve(g,meta(s),attempt.bound_target) end
@@ -988,6 +1006,12 @@ buildAutoCombatHost=function(s,policy)
         return {status='rejected',code=result.code,energy_spent=spent}
     end
     return AutoCombatHost.new(reads)
+end
+
+-- Planning-only host: the same audited reads without the executor, so dry_run is
+-- available regardless of `allow_auto_combat_execution`.
+buildAutoCombatReadHost=function(s,policy)
+    return AutoCombatHost.new(autoCombatReads(s,policy))
 end
 
 -- Start a native auto-explore run and advance it until energy is spent. The run
@@ -1275,7 +1299,7 @@ local function dispatch(s,request)
                     execution=(config and config.settings and config.settings.tome_mcp_bridge
                         and config.settings.tome_mcp_bridge.allow_auto_combat_execution==true) or false,
                     source='auto_combat',baseline='p1a',
-                    policy_ops=Json.array{'status','validate','set_draft','approve','activate','deactivate',
+                    policy_ops=Json.array{'status','validate','dry_run','set_draft','approve','activate','deactivate',
                         'start','stop','pause','resume','log','presets','preset','export','import'}}},snapshot=snap}
         local ok,reason=Compat.check(s.game)
         result.capabilities.native_compatibility={compatible=ok==true,reason=reason,providers='runtime_checked'}
@@ -1343,7 +1367,8 @@ local function dispatch(s,request)
         return view
     elseif op=='policy' then
         if type(a.policy_op)~='string' then return fail('invalid_argument','policy_op is required') end
-        if s.access_mode~='control' and a.policy_op~='status' and a.policy_op~='log' then
+        if s.access_mode~='control' and a.policy_op~='status' and a.policy_op~='log'
+            and a.policy_op~='dry_run' then
             return fail('read_only_connection')
         end
         local result=AutoCombat.handle(s.auto_combat,a.policy_op,a)

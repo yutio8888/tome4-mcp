@@ -58,7 +58,8 @@ end
 
 -- control arbitration ----------------------------------------------------------
 do
-    local svc=Service.new({host_factory=fakeHost})
+    local svc=Service.new({host_factory=fakeHost,
+        log_context=function() return {tick=7,revision=3,level_instance_id='level-2'} end})
     local d=Service.handle(svc,'set_draft',{policy=policy()})
     Service.handle(svc,'approve',{expected_hash=d.draft_hash})
     Service.handle(svc,'activate',{})
@@ -83,6 +84,8 @@ do
     check(log.ok and #log.events>=1 and log.events[1].kind=='acted','the service log records the step')
     check(log.events[1].rule_results~=nil and log.events[1].resources_before~=nil,
         'the log entry carries the rule trace and resource snapshot')
+    check(log.events[1].tick==7 and log.events[1].revision==3 and log.events[1].level_instance_id=='level-2',
+        'the log entry is tagged with world tick, revision and level instance (design 10)')
     local status=Service.handle(svc,'status',{})
     check(status.ok and type(status.last_decisions)=='table','status carries a bounded last_decisions tail')
     check(log.events[1].native_result=='ok','the action log records the native result')
@@ -124,6 +127,94 @@ do
     Service.handle(svc,'start',{})
     Service.step(svc)
     check(svc.arbiter.owner=='manual','a no-enemy self-stop returns control')
+end
+
+-- dry_run: planning-level evaluation is a pure read --------------------------
+local function readOnlyHost(state)
+    return {
+        phase=function() return 'ready' end,
+        snapshot_meta=function() return {revision=42,level_instance_id='level-3'} end,
+        snapshot=function(selector)
+            if selector=='self' then
+                return {hp_pct=80,enemy_count=1,binding_selector='self',bound_target=nil}
+            end
+            return {hp_pct=80,enemy_count=1,binding_selector=selector,
+                bound_target='e1',enemy_distance=3,enemy_hp_pct=45}
+        end,
+        request=function() state.executed=true;error('dry run must not execute') end,
+    }
+end
+
+do
+    local state={executed=false}
+    local svc=Service.new{dry_run_host_factory=function() return readOnlyHost(state) end}
+    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    local dry=Service.handle(svc,'dry_run',{})
+    check(dry.ok and dry.dry_run==true and dry.executed==false and dry.side_effects=='none',
+        'dry_run reports that nothing ran')
+    check(dry.decision=='act' and dry.rule=='beam' and dry.talent=='T_MOONLIGHT_RAY'
+        and dry.action=='use_talent' and dry.target=='nearest_hostile',
+        'dry_run previews the winning rule, action and talent')
+    check(dry.bound_target=='e1' and dry.target_distance==3,
+        'dry_run binds the same target the condition was checked against')
+    check(type(dry.results)=='table' and #dry.results>=1 and dry.results[1].rule=='beam'
+        and dry.results[1].result=='true',
+        'dry_run returns the per-rule trace')
+    check(dry.critical==false and dry.layer=='normal','dry_run reports the layer and critical flag')
+    check(dry.snapshot and dry.snapshot.revision==42 and dry.snapshot.level_instance_id=='level-3',
+        'dry_run carries snapshot metadata')
+    check(dry.policy_source=='draft' and dry.policy_hash==d.draft_hash,
+        'dry_run defaults to the draft when nothing is running or approved')
+    check(state.executed==false,'dry_run never touched the executor')
+    check(Service.status(svc).control_owner=='manual','dry_run does not take the lease')
+end
+
+do
+    -- The running policy wins over approved/draft; an explicit policy wins over all.
+    local svc=Service.new{dry_run_host_factory=function() return readOnlyHost({}) end}
+    Service.handle(svc,'set_draft',{policy=policy()})
+    Service.handle(svc,'approve',{})
+    Service.handle(svc,'activate',{})
+    check(Service.handle(svc,'dry_run',{}).policy_source=='running','dry_run prefers the running policy')
+    local other=policy{id='p2'}
+    local explicit=Service.handle(svc,'dry_run',{policy=other})
+    check(explicit.ok and explicit.policy_source=='request','an explicit policy overrides the stored versions')
+    check(Service.handle(svc,'dry_run',{policy={schema='x'}}).error.code=='invalid_policy',
+        'dry_run validates the policy like any other op')
+    check(Service.handle(Service.new{dry_run_host_factory=function() return readOnlyHost({}) end},
+        'dry_run',{}).error.code=='no_policy','dry_run without any policy is refused')
+    check(Service.handle(Service.new{},'dry_run',{policy=policy()}).error.code=='snapshot_unavailable',
+        'dry_run without a read host is refused')
+end
+
+do
+    -- Emergency pause and target rebinding are reported without acting.
+    local low=Service.new{dry_run_host_factory=function()
+        return {snapshot=function() return {hp_pct=10,enemy_count=1} end,
+            snapshot_meta=function() return {revision=1,level_instance_id='level-1'} end}
+    end}
+    Service.handle(low,'set_draft',{policy=policy()})
+    local paused=Service.handle(low,'dry_run',{})
+    check(paused.decision=='pause' and paused.reason=='no_emergency_action'
+        and paused.layer=='emergency' and paused.critical==true,
+        'dry_run reports an emergency pause reason and layer')
+
+    local hold=Service.new{dry_run_host_factory=function()
+        return {snapshot=function() return {hp_pct=80,enemy_count=0} end}
+    end}
+    Service.handle(hold,'set_draft',{policy=policy()})
+    check(Service.handle(hold,'dry_run',{}).reason=='no_rule_matched','dry_run reports a hold reason')
+
+    local heal={schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35},targeting={default='nearest_hostile'},
+        rules={{id='heal',priority=1,when={enemy_count={ge=1}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}}}}
+    local rebind=Service.new{dry_run_host_factory=function() return readOnlyHost({}) end}
+    Service.handle(rebind,'set_draft',{policy=heal})
+    local rebound=Service.handle(rebind,'dry_run',{})
+    check(rebound.decision=='act' and rebound.binding.rebound==true
+        and rebound.binding.selector=='self' and rebound.bound_target==nil,
+        'dry_run re-binds a non-default selector and reports the bound target')
 end
 
 -- Presets, import/export and character persistence.

@@ -22,6 +22,7 @@ function M.add(log,event)
     if type(event)~='table' then return nil end
     local entry={seq=log.next_seq,kind=event.kind or 'event',reason=event.reason,
         rule=event.rule,talent=event.talent,target=event.target,native_result=event.native_result,
+        tick=event.tick,revision=event.revision,level_instance_id=event.level_instance_id,
         rule_results=bounded(event.rule_results,32),rejections=bounded(event.rejections,8),
         resources_before=event.resources_before,resources_after=event.resources_after,
         generation=event.generation,policy_hash=event.policy_hash}

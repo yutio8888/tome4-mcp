@@ -9,6 +9,8 @@ local Store=require 'mod.auto_combat.PolicyStore'
 local Arbiter=require 'mod.auto_combat.ControlArbiter'
 local Log=require 'mod.auto_combat.PolicyLog'
 local Combat=require 'mod.auto_combat.AutoCombat'
+local Evaluator=require 'mod.auto_combat.PolicyEvaluator'
+local Json=require 'mod.mcp_bridge.Json'
 local Presets=require 'mod.auto_combat.PolicyPresets'
 local PolicyIO=require 'mod.auto_combat.PolicyIO'
 local M={}
@@ -18,6 +20,7 @@ function M.new(options)
     options=options or {}
     return {store=Store.new(),arbiter=Arbiter.new(),log=Log.new(options.log_limit or 256),
         strict=options.strict~=false,controller=nil,host_factory=options.host_factory,
+        dry_run_host_factory=options.dry_run_host_factory,log_context=options.log_context,
         revision=0}
 end
 
@@ -28,6 +31,24 @@ local function ok(payload)
     payload=payload or {}
     payload.ok=true
     return payload
+end
+
+-- Optional replay metadata (world tick / revision / level) injected by the
+-- runtime; the service stays engine-agnostic and simply tags log entries.
+local function logContext(svc)
+    if type(svc.log_context)=='function' then
+        local ok,ctx=pcall(svc.log_context)
+        if ok and type(ctx)=='table' then return ctx end
+    end
+    return {}
+end
+
+local function withContext(svc,event)
+    local ctx=logContext(svc)
+    if ctx.tick~=nil then event.tick=ctx.tick end
+    if ctx.revision~=nil then event.revision=ctx.revision end
+    if ctx.level_instance_id~=nil then event.level_instance_id=ctx.level_instance_id end
+    return event
 end
 
 function M.status(svc)
@@ -51,6 +72,76 @@ function M.validate(svc,policy)
     local compatible,semantic=Catalog.verify(policy)
     if not compatible then return fail('invalid_policy',{errors=semantic}) end
     return ok({valid=true,hash=Schema.hash(policy)})
+end
+
+local function findRule(policy,id)
+    for _,rule in ipairs(policy.rules or {}) do if rule.id==id then return rule end end
+    return nil
+end
+
+-- Planning-level validation (design §7): evaluate a policy against the current
+-- audited read snapshot and report what it *would* choose. This is a pure read:
+-- it never calls the executor, spends energy, invokes a talent or opens a dialog,
+-- and it works with live execution disabled because it only needs reads.
+--
+-- Policy resolution: an explicit `args.policy` wins; otherwise running, then
+-- approved, then draft. It is validated exactly like any other policy.
+function M.dryRun(svc,args)
+    args=args or {}
+    local policy=args.policy
+    local source
+    if policy~=nil then
+        source='request'
+    else
+        policy,source=svc.store.running,'running'
+        if policy==nil then policy,source=svc.store.approved,'approved' end
+        if policy==nil then policy,source=svc.store.draft,'draft' end
+    end
+    if policy==nil then return fail('no_policy',{details='no draft, approved or running policy'}) end
+    local checked=M.validate(svc,policy)
+    if not checked.ok then return checked end
+    -- Prefer the read-only host; the live executor host is a safe fallback
+    -- because dry run never calls request()/execute(). Either way this ignores
+    -- `allow_auto_combat_execution`: dry run only needs audited reads.
+    local factory=svc.dry_run_host_factory or svc.host_factory
+    if not factory then return fail('snapshot_unavailable',{details='no audited read host'}) end
+    local host=factory(svc,policy)
+    if not host or type(host.snapshot)~='function' then return fail('snapshot_unavailable') end
+    local policy_hash=Schema.hash(policy)
+    local default_selector=policy.targeting and policy.targeting.default
+    local ctx=host.snapshot(default_selector) or {}
+    ctx.attempts=0
+    ctx.denied={}
+    local decision=Evaluator.evaluate(policy,ctx)
+    -- A rule's condition and the target it acts on must bind the same object, so
+    -- mirror the controller: if the winning rule selects a different target than
+    -- the context, re-bind and re-check before reporting it.
+    local bound_target=ctx.bound_target
+    local target_distance=ctx.enemy_distance
+    local binding={ok=true,selector=ctx.binding_selector}
+    if decision.decision=='act' and decision.target~=nil and ctx.binding_selector~=nil
+        and decision.target~=ctx.binding_selector then
+        local rebound=host.snapshot(decision.target)
+        local rule=findRule(policy,decision.rule)
+        if rebound and rebound.binding_selector==decision.target
+            and rule and Evaluator.evalCondition(rule.when,rebound)==Evaluator.TRUE then
+            bound_target=rebound.bound_target
+            target_distance=rebound.enemy_distance
+            binding={ok=true,selector=decision.target,rebound=true}
+        else
+            bound_target=nil;target_distance=nil
+            binding={ok=false,selector=decision.target,reason='target_rebind_failed'}
+        end
+    end
+    local snapshot=type(host.snapshot_meta)=='function' and host.snapshot_meta() or nil
+    return ok({dry_run=true,executed=false,side_effects='none',
+        policy_hash=policy_hash,schema=Schema.SCHEMA,policy_source=source,
+        snapshot=snapshot,
+        decision=decision.decision,layer=decision.layer,critical=decision.critical==true,
+        reason=decision.reason,
+        rule=decision.rule,action=decision.action,talent=decision.talent,
+        target=decision.target,bound_target=bound_target,target_distance=target_distance,
+        binding=binding,results=decision.results or {},unsupported=Json.array()})
 end
 
 function M.setDraft(svc,policy,expected_hash)
@@ -105,9 +196,9 @@ function M.start(svc)
     local host=svc.host_factory(svc)
     if not host then return fail('execution_not_available') end
     svc.controller=Combat.new(svc.store.running,host,{strict=svc.strict,notify=function(event)
-        Log.add(svc.log,{kind=event.kind,reason=event.reason,rule=event.rule,talent=event.talent,
+        Log.add(svc.log,withContext(svc,{kind=event.kind,reason=event.reason,rule=event.rule,talent=event.talent,
             target=event.target,generation=event.generation,
-            policy_hash=Schema.hash(svc.store.running)})
+            policy_hash=Schema.hash(svc.store.running)}))
     end})
     local started=svc.controller:start()
     return ok({run=started,state=svc.controller.state,generation=svc.controller.generation})
@@ -166,16 +257,16 @@ function M.step(svc)
     -- Pauses and denials are already logged by the controller notify callback,
     -- so only the successful/terminal steps are added here (no duplicates).
     if step.action=='acted' then
-        Log.add(svc.log,{kind=step.action,reason=step.reason,rule=step.rule,talent=step.talent,
+        Log.add(svc.log,withContext(svc,{kind=step.action,reason=step.reason,rule=step.rule,talent=step.talent,
             target=step.bound_target,generation=step.generation,
             native_result=step.outcome and step.outcome.status or nil,
             rule_results=step.results,rejections=step.rejections,
-            resources_before=before,resources_after=after,policy_hash=policy_hash})
+            resources_before=before,resources_after=after,policy_hash=policy_hash}))
     elseif step.action=='stopped' then
         -- The controller ended itself (no visible enemy): return control.
-        Log.add(svc.log,{kind='stopped',reason=step.reason,generation=step.generation,
+        Log.add(svc.log,withContext(svc,{kind='stopped',reason=step.reason,generation=step.generation,
             rule_results=step.results,rejections=step.rejections,
-            resources_before=before,resources_after=after,policy_hash=policy_hash})
+            resources_before=before,resources_after=after,policy_hash=policy_hash}))
         if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,step.reason or 'stopped') end
     end
     return ok({step=step,state=svc.controller.state,generation=svc.controller.generation})
@@ -234,6 +325,7 @@ function M.handle(svc,op,args)
     args=args or {}
     if op=='status' then return M.status(svc) end
     if op=='validate' then return M.validate(svc,args.policy) end
+    if op=='dry_run' then return M.dryRun(svc,args) end
     if op=='set_draft' then return M.setDraft(svc,args.policy,args.expected_hash) end
     if op=='approve' then return M.approve(svc,args.expected_hash) end
     if op=='activate' then return M.activate(svc,args.expected_hash) end

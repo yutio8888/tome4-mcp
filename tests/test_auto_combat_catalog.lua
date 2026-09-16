@@ -19,6 +19,18 @@ end
 
 check(Catalog.supported('T_MOONLIGHT_RAY'),'the whitelist is known to the catalogue')
 check(not Catalog.supported('T_NOT_ALLOWED'),'an unknown talent is not supported')
+do
+    -- The §15.1 talent whitelist and the capability catalogue must not drift:
+    -- every whitelisted talent has an adapter entry, and every declared sustain
+    -- is a sustain in the catalogue.
+    local Schema=require 'mod.auto_combat.PolicySchema'
+    for talent in pairs(Schema.TALENTS) do
+        check(Catalog.supported(talent),'whitelisted talent '..talent..' has a catalogue entry')
+    end
+    for talent in pairs(Schema.SUSTAINS) do
+        check(Catalog.isSustain(talent),'sustain '..talent..' is declared a sustain in the catalogue')
+    end
+end
 check(Catalog.verify(policy()),'an attack talent with a hostile selector is compatible')
 do
     local bad=policy({id='heal',priority=1,when={hp_pct={lt=50}},
@@ -57,6 +69,10 @@ do
     local tail=PolicyLog.tail(log,2)
     check(#tail==2 and tail[1].rule=='r5' and tail[2].rule=='r4','tail is newest first')
     check(tail[1].seq==5 and tail[1].generation==5,'entries keep their sequence and generation')
+    PolicyLog.add(log,{kind='acted',rule='r6',generation=6,tick=9,revision=2,level_instance_id='level-1'})
+    local tagged=PolicyLog.tail(log,1)[1]
+    check(tagged.tick==9 and tagged.revision==2 and tagged.level_instance_id=='level-1',
+        'log entries carry replay metadata when supplied (design 10)')
     local empty=PolicyLog.tail(log,0)
     check(#empty==0,'an empty tail is empty')
 end
