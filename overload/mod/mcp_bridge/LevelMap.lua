@@ -81,21 +81,43 @@ function M.capture(g,meta,options)
         y1=math.min(h-1,y0+max_rows-1)
     end
     local rows,explored=Json.array(),0
+    local known={}
     for y=y0,y1 do
         local parts={}
         for x=0,w-1 do
             local index=x+y*w
             local remembered=active(map.remembers and map.remembers[index])
             local char=charAt(g,p,map,x,y,remembered)
-            if char~='?' then explored=explored+1 end
+            if char~='?' then explored=explored+1;known[index]=true end
             parts[#parts+1]=char
         end
         rows[#rows+1]={y=y,x_start=0,text=table.concat(parts)}
     end
+    -- Frontier = unknown cells adjacent to a known cell: the useful "where can I
+    -- still explore" signal that avoids oscillation between two far cells.
+    local frontier=0
+    for y=math.max(0,y0-1),math.min(h-1,y1+1) do
+        for x=0,w-1 do
+            local index=x+y*w
+            if not known[index] then
+                local adjacent=false
+                for dx=-1,1 do
+                    for dy=-1,1 do
+                        if not (dx==0 and dy==0) then
+                            local nx,ny=x+dx,y+dy
+                            if nx>=0 and ny>=0 and nx<w and ny<h and known[nx+ny*w] then adjacent=true end
+                        end
+                    end
+                end
+                if adjacent then frontier=frontier+1 end
+            end
+        end
+    end
     return {session_id=meta.session_id,level_instance_id=meta.level_instance_id,
         captured_revision=meta.revision,current_revision=meta.revision,historical=false,
         source='native_map',format='rows',w=w,h=h,origin={x=0,y=0},player={x=p.x,y=p.y},
-        explored_count=explored,
+        explored_count=explored,frontier_count=frontier,
+        frontier_scope='unknown cells adjacent to a known cell; the frontier is the useful exploration target',
         terrain_scope='remembered or safely visible terrain plus identified traps and items; '
             ..'no actors, destinations, attributes or callbacks',
         legend=M.LEGEND,rows=rows,returned_rows=#rows,

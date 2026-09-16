@@ -5,6 +5,7 @@ local Details = require 'mod.mcp_bridge.ObservationDetails'
 local Progression = require 'mod.mcp_bridge.Progression'
 local Items = require 'mod.mcp_bridge.Items'
 local Compat = require 'mod.mcp_bridge.NativeCompatibility'
+local Distance = require 'mod.mcp_bridge.Distance'
 local M = {}
 local memories = setmetatable({}, {__mode='k'})
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
@@ -73,6 +74,11 @@ local function actorSummary(g,meta,actor,is_player,detailed)
     local reaction=number(actor.reaction)
     result.reaction=reaction
     result.hostile=reaction~=nil and reaction<0 or nil
+    -- Native grid distance (core.fov.distance), the same metric the native
+    -- target range check uses, so a client need not guess Chebyshev vs Euclidean.
+    if g.player and finite(g.player.x) and finite(g.player.y) and finite(actor.x) and finite(actor.y) then
+        result.distance=number(Distance.grid(g.player.x,g.player.y,actor.x,actor.y))
+    end
     if detailed then Details.actor(actor,result) end
     if is_player then Details.player(g,actor,meta,result,detailed) end
     return result
@@ -206,9 +212,20 @@ function M.inspect(g,meta,kind,id,options)
             -- planner does not have to act before it can see range/cost.
             result.range=q.range;result.radius=q.radius;result.target_shape=q.target_shape
             result.direct_hit=def.direct_hit==true or nil
+            result.range_metric='native core.fov.distance (same metric as the native target range check)'
             result.requires_target=q.requires_target;result.current_costs=q.current_costs
             result.base_costs=q.base_costs;result.affordable=q.affordable
             result.cooldown_remaining=q.cooldown_remaining;result.readiness=q.readiness
+            -- When a target is supplied, report the native-metric distance and
+            -- whether it is inside the talent range, so a client never has to
+            -- guess the metric before casting.
+            local tx,ty=options and options.x,options and options.y
+            if target then tx,ty=target.x,target.y end
+            if finite(tx) and finite(ty) and g.player and finite(g.player.x) and finite(g.player.y) then
+                local target_distance=Distance.grid(g.player.x,g.player.y,tx,ty)
+                result.target_distance=number(target_distance)
+                if type(q.range)=='number' then result.in_range=target_distance<=q.range end
+            end
             if q.target_shape~=nil or q.radius~=nil or q.range~=nil then
                 local scope,residual=Details.damageScope(q.target_shape,def.direct_hit,def.radius)
                 result.damage_scope=scope

@@ -72,6 +72,7 @@ check(snapshot.player.stats.str.base==11 and snapshot.player.stats.str.bonus==1 
 check(snapshot.player.life_regen==0.25 and snapshot.player.resources.stamina.regen==1 and snapshot.player.regeneration_is_raw,'raw regeneration')
 check(snapshot.control_source==meta.control_source and snapshot.battle_companion==meta.battle_companion,'existing control source and BC metadata retained')
 check(#snapshot.actors==1 and snapshot.actors[1].name=='Visible enemy','visible actor only')
+check(snapshot.actors[1].distance==1,'actors carry the native grid distance')
 check(snapshot.player.inventory_count==1 and snapshot.player.equipment_count==1
     and snapshot.player.inventory==nil,'compact snapshot keeps inventory counts only')
 local player_details=assert(Observer.inspect(g,meta,'character','self'))

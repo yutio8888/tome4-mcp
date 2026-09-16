@@ -38,6 +38,7 @@ check(cap.rows[1].text:sub(1,1)=='#' and cap.coverage.y_min==0 and cap.capture_c
 -- 2. an unremembered and unseen cell stays unknown.
 check(cap.rows[5].text:sub(5,5)=='?','unexplored terrain stays unknown')
 check(cap.explored_count==1,'explored count counts authorized cells')
+check(cap.frontier_count>=1,'frontier counts unknown cells adjacent to known terrain')
 
 -- 3. ESP-only seens does not disclose terrain (no infovs).
 g,p,map=fixture()
