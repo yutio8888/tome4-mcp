@@ -81,8 +81,11 @@ function M.evalCondition(cond,ctx)
         return known==nil and UNKNOWN or (known and TRUE or FALSE)
     end
     if name=='has_effect' then
-        local has=ctx.has_effect and ctx.has_effect(value.effect,value.who)
+        local has=ctx.has_effect and ctx.has_effect(value.effect,value.who or 'self')
         return has==nil and UNKNOWN or (has and TRUE or FALSE)
+    end
+    if name=='ally_count' then
+        local op,rhs=comparison(value); return compare(ctx.ally_count,op,rhs)
     end
     if name=='enemy_count' then
         local op,rhs=comparison(value); return compare(ctx.enemy_count,op,rhs)
@@ -119,8 +122,10 @@ function M.evalCondition(cond,ctx)
         return ctx.enemy_rank>=4 and TRUE or FALSE
     end
     if name=='computed' then
-        local computed=ctx.computed and ctx.computed(value.field)
-        return computed==nil and UNKNOWN or (computed and TRUE or FALSE)
+        -- Numeric comparison over the audited panel getters (design §5.2/§5.6).
+        local op,rhs=comparison(value)
+        local have=ctx.computed and ctx.computed(value.field)
+        return compare(have,op,rhs)
     end
     return UNKNOWN
 end

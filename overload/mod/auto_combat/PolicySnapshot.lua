@@ -86,12 +86,22 @@ function M.build(host,policy,selector)
     ctx.resource_value=host.resource_value
     ctx.talent_known=host.talent_known
     ctx.cooldown_ready=host.cooldown_ready
-    ctx.has_effect=host.has_effect
     ctx.computed=host.computed
+    -- `has_effect` resolves `who=target` against the same bound target the
+    -- action will use. The id is captured by closure and set after selection.
+    local bound_target_id
+    ctx.has_effect=function(effect,who)
+        if type(host.has_effect)~='function' then return nil end
+        return host.has_effect(effect,who,bound_target_id)
+    end
     local hostiles_read=type(host.hostiles)=='function'
     local hostiles=hostiles_read and host.hostiles() or {}
     ctx.hostile_count=#hostiles
     ctx.enemy_count=#hostiles
+    if type(host.allies)=='function' then
+        local allies=host.allies()
+        if type(allies)=='table' then ctx.ally_count=#allies end
+    end
     if origin then
         local nearest=hostiles_read and M.nearestDistance(origin,hostiles) or nil
         ctx.nearest_enemy_distance=nearest
@@ -104,6 +114,7 @@ function M.build(host,policy,selector)
     local bound=M.select(selector,hostiles,origin)
     if bound then
         ctx.bound_target=bound.id
+        bound_target_id=bound.id
         ctx.enemy_hp_pct=bound.hp_pct
         ctx.enemy_rank=bound.rank
         ctx.enemy_level=bound.level

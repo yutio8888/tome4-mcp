@@ -23,8 +23,7 @@ local function native(fn,suffix)
 end
 
 function M.computed(actor)
-    if type(actor)~='table' then return nil,'actor_unavailable' end
-    local unknown=Json.array()
+    if type(actor)~='table' then return nil,'actor_unavailable' end    local unknown=Json.array()
     -- Call an audited native getter; nil (and a note in `unknown`) otherwise.
     local function value(name,suffix,...)
         local fn=actor[name]
@@ -97,5 +96,19 @@ function M.computed(actor)
         result.resists[t]=value('combatGetResist',COMBAT,t)
     end
     return result
+end
+
+-- Resolve a finite-enum field id (e.g. `crit.spell`, `resists.FIRE`) from a
+-- `computed` result. Pure traversal; nil for a missing/unknown value so the
+-- caller fail-closes to `unknown`.
+function M.field(values,field)
+    if type(values)~='table' or type(field)~='string' then return nil end
+    local current=values
+    for part in field:gmatch('[^.]+') do
+        if type(current)~='table' then return nil end
+        current=current[part]
+    end
+    if finite(current) then return current end
+    return nil
 end
 return M

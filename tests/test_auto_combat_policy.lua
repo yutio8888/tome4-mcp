@@ -256,4 +256,68 @@ do
         'without context_for the default binding applies')
 end
 
+-- P2.5: tooltip-safe getter predicates --------------------------------------
+do
+    -- `computed` is a numeric comparison over a finite enum.
+    local p=basePolicy()
+    p.rules={{id='resist',priority=10,when={computed={field='resists.DARKNESS',ge=50}},
+        ['then']={action='wait'}}}
+    check(Schema.validate(p),'a finite-enum computed predicate is schema-valid')
+    local ctxc=ctx({hp_pct=80,enemy_count=1,
+        computed=function(field) return field=='resists.DARKNESS' and 60 or nil end})
+    check(Evaluator.evaluate(p,ctxc).decision=='act','computed compares numerically')
+    local low=ctx({hp_pct=80,enemy_count=1,
+        computed=function(field) return field=='resists.DARKNESS' and 10 or nil end})
+    check(Evaluator.evaluate(p,low).decision=='hold','computed below the threshold holds')
+    local missing=ctx({hp_pct=80,enemy_count=1,computed=function() return nil end})
+    check(Evaluator.evaluate(p,missing).decision=='hold','an unknown computed getter is unknown, not true')
+
+    local bad=basePolicy()
+    bad.rules={{id='bad',priority=10,when={computed={field='arbitrary.path',gt=1}},
+        ['then']={action='wait'}}}
+    check(not Schema.validate(bad),'an arbitrary computed path is rejected')
+    local noCmp=basePolicy()
+    noCmp.rules={{id='bad',priority=10,when={computed={field='crit.spell'}},
+        ['then']={action='wait'}}}
+    check(not Schema.validate(noCmp),'computed requires exactly one comparison')
+    local badCmp=basePolicy()
+    badCmp.rules={{id='bad',priority=10,when={computed={field='crit.spell',contains=1}},
+        ['then']={action='wait'}}}
+    check(not Schema.validate(badCmp),'computed rejects a non-numeric comparator')
+end
+
+do
+    -- `has_effect` accepts who in {self,target} and requires a bounded string.
+    local p=basePolicy()
+    p.rules={{id='eff',priority=10,when={has_effect={effect='EFF_TEST',who='target'}},
+        ['then']={action='wait'}}}
+    check(Schema.validate(p),'has_effect accepts who=target')
+    p.rules[1].when={has_effect={effect='EFF_TEST'}}
+    check(Schema.validate(p),'has_effect defaults who=self')
+    p.rules[1].when={has_effect={effect='EFF_TEST',who='pet'}}
+    check(not Schema.validate(p),'has_effect rejects an unknown who')
+    p.rules[1].when={has_effect={effect=''}}
+    check(not Schema.validate(p),'has_effect rejects an empty effect')
+
+    local c=ctx({hp_pct=80,enemy_count=1,has_effect=function(effect,who)
+        return who=='target' and effect=='EFF_TEST' end})
+    local pe=basePolicy()
+    pe.rules={{id='eff',priority=10,when={has_effect={effect='EFF_TEST',who='target'}},
+        ['then']={action='wait'}}}
+    check(Evaluator.evaluate(pe,c).decision=='act','has_effect reads the bound target')
+    local unknown=ctx({hp_pct=80,enemy_count=1,has_effect=function() return nil end})
+    check(Evaluator.evaluate(pe,unknown).decision=='hold','an unavailable effect list is unknown')
+end
+
+do
+    local p=basePolicy()
+    p.rules={{id='allies',priority=10,when={ally_count={ge=2}},
+        ['then']={action='wait'}}}
+    check(Schema.validate(p),'ally_count is schema-valid')
+    check(Evaluator.evaluate(p,ctx({hp_pct=80,enemy_count=1,ally_count=3})).decision=='act',
+        'ally_count compares the visible ally count')
+    check(Evaluator.evaluate(p,ctx({hp_pct=80,enemy_count=1,ally_count=1})).decision=='hold',
+        'ally_count below the threshold holds')
+end
+
 print('Auto-combat policy: '..checks..' checks passed')

@@ -111,11 +111,12 @@ P2 ships the bounded tuning slice documented in
     `enemy_is_boss`, `enemy_distance`, and the `highest_rank_hostile` /
     `most_dangerous_hostile` selectors. Target-related conditions are evaluated
     against the action's selector (`opts.context_for`).
-20. **Explicitly excluded**: `has_effect` / `computed` (need an unaudited
-    dynamic getter), `most_dangerous`-by-`computed` (replaced by the audited
-    rank/hp/distance heuristic), `cluster_center`/AoE selffire, and
-    `ally_count`/`map_frontier`/`turn_parity` (reads not assembled in the
-    auto-combat host). Documented rather than silently dropped.
+20. **Explicitly excluded in P2** (updated by P2.5): `has_effect` / `computed`
+    and `ally_count` are now **resolved** by P2.5 (tooltip-safe panel getters;
+    see below). Still excluded: `most_dangerous`-by-`computed` (the audited
+    rank/hp/distance heuristic remains the default), `cluster_center`/AoE
+    selffire, and `map_frontier`/`turn_parity` (not panel data). Documented
+    rather than silently dropped.
 21. **Decision replay**: read-only `tome.policy` op `replay` pages the bounded
     §10 trace oldest-first with a run header; the log stays in-memory runtime
     state and `observe` stays bounded.
@@ -126,6 +127,26 @@ P2 ships the bounded tuning slice documented in
 Items 12–13 (sustain `min_resource_pct`, `flee_below_hp_pct`) remain deferred:
 both are execution-tuning that interacts with native resource/retreat semantics
 and stay out of the bounded P2 slice.
+
+## P2.5 close-out (tooltip-safe getters)
+
+P2.5 wires the player-panel / tooltip-visible getters into the predicate layer
+(doc: [docs/tome-mcp-0.9.0-p2.5-tooltip-getters.md](tome-mcp-0.9.0-p2.5-tooltip-getters.md)):
+
+27. **`computed`** is now a numeric comparison `{field, cmp, value}` over the
+    finite `PolicySchema.COMPUTED_FIELDS` enum (the audited
+    `ActorCombat.computed` panel paths); arbitrary paths are rejected and an
+    overridden/missing getter is `unknown`.
+28. **`has_effect`** (with `who ∈ {self,target}`; target = the bound target the
+    action uses) and **`ally_count`** now read the bounded visible effect list
+    and a bounded visible friendly/neutral `allies()` list; a missing/truncated
+    list is `unknown`.
+29. **Dynamic tooltip text is never a predicate** and never auto-identifies.
+    Informational pure-description reads (audited source + RNG/state tripwire +
+    already-identified entity) remain **excluded** in this slice: the tripwire/
+    allowlist infrastructure is not built yet, so no such source is enabled.
+    `most_dangerous`-by-`computed`, `cluster_center`/AoE and
+    `map_frontier`/`turn_parity` remain excluded as before.
 
 ## P3 first slice (legacy assistant adapter)
 

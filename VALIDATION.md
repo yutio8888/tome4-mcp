@@ -1,5 +1,27 @@
 # MCP Bridge 验收记录
 
+## 0.9.0：自动战斗插件 P2.5（tooltip-safe getters）
+
+日期：2026-09-17。把玩家面板/悬浮可见的 getter 接入谓词层。仍为只读审计；无 RNG、无目标特定解析；执行与 `change_level` 默认关闭。
+
+| 检查层 | 结果 | 证据 |
+| --- | --- | --- |
+| `computed` 有限枚举 | **通过**：`{field,cmp,value}` 数值比较；`PolicySchema.COMPUTED_FIELDS` = `ActorCombat.computed` 面板路径（含 12 种伤害类型的 resists/penetration/affinity/increase）；任意路径被拒；getter 覆盖/缺失→`unknown` | `test_auto_combat_policy.lua`（68）、`test_actor_combat.lua`（22） |
+| `has_effect` | **通过**：`who ∈ {self,target}`，target 为动作绑定的同一目标；有界可见效果列表扫描；缺失/截断→`unknown` | `test_auto_combat_policy.lua`、`test_auto_combat_snapshot.lua`（25） |
+| `ally_count` | **通过**：有界可见友方/中立 `allies()`；无读取→`unknown` | 同上 |
+| 动态提示文本 | **通过（文档化）**：不作为谓词、不自动鉴定；信息性纯描述读取（需绊线）本片不启用 | 设计 §5.6/§8、[P2.5 文档](docs/tome-mcp-0.9.0-p2.5-tooltip-getters.md) |
+| capabilities | **通过**：`capabilities.auto_combat.computed_fields` 暴露枚举 | `Runtime.lua` |
+| 原生 fixture | **通过（31/31，source 与 `dist/*.teaa` 各一次）**：新增 `computed-predicate` 场景 | `tmp/tome-mcp-validation/sessions/p25-check-01/`、`p25-teaa-01/` |
+| 既有套件 | Lua **32 套 / 101,928 checks**、Python **33 通过**、两个 `--check` 生成器绿 | `bash game/addons/tome-mcp-bridge/tests/run.sh` 等 |
+
+正式包 **59 个生产文件**，SHA-256：
+
+```text
+592a1a4685f3aad99e26ffd7373035ed5f79a1881ced191179b183ea49458dd1
+```
+
+未修项（信息性纯描述读取、`most_dangerous`-by-`computed`、`cluster_center`/AoE、`map_frontier`/`turn_parity`）见 [TODO](docs/tome-mcp-0.9.0-auto-combat-todo.md)。
+
 ## 0.9.0：自动战斗插件 P3 首片（assistant 适配器）
 
 日期：2026-09-17。**只生成、人工确认**：把固定版本的旧自动技能助手配置翻译为自动战斗策略草稿。从不执行 assistant 逻辑、从不 approve/activate/start；执行与 `change_level` 默认仍关闭。

@@ -49,6 +49,7 @@ M.EXPECTED={
     ['explore-policy']={'wait_native','stopped'},
     ['sun-paladin-preset']={'valid','compatible','dry_run'},
     ['assistant-import']={'generated','valid','unsupported_reported','stored','refused'},
+    ['computed-predicate']={'act','false_holds','enum_rejected'},
     ['solo-pump']={},
 }
 
@@ -333,6 +334,29 @@ local function assistantImport()
     return compare('assistant-import',signals)
 end
 
+-- 10: tooltip-safe computed predicate through the production dry-run. A
+-- resist/armor-style scalar getter decides a predicate numerically; an
+-- arbitrary path is rejected by the schema; an unavailable getter is unknown.
+local function computedPredicate()
+    local function waitRule(id,value)
+        return policy({{id=id,priority=10,
+            when={computed={field='defense.armor',ge=value}},['then']={action='wait'}}})
+    end
+    local dry=Runtime.autoCombatHandle(game,'dry_run',{policy=waitRule('armored',0)})
+    local acts=dry and dry.ok==true and dry.decision=='act' and dry.rule=='armored'
+    check('computed-predicate:act',acts,dry)
+    local high=Runtime.autoCombatHandle(game,'dry_run',{policy=waitRule('high',1e30)})
+    local holds=high and high.ok==true and high.decision~='act'
+    check('computed-predicate:false',holds,high)
+    local bad=Runtime.autoCombatHandle(game,'dry_run',{policy=policy({{id='bad',priority=10,
+        when={computed={field='arbitrary.path',gt=1}},['then']={action='wait'}}})})
+    local rejected=bad and bad.ok==false and bad.error and bad.error.code=='invalid_policy'
+    check('computed-predicate:enum',rejected,bad)
+    local signals={acts and 'act' or 'no_act',holds and 'false_holds' or 'false_acted',
+        rejected and 'enum_rejected' or 'enum_accepted'}
+    return compare('computed-predicate',signals)
+end
+
 -- 6: with no MCP client, local authorization installs the live pump and the
 -- production executor performs a real native wait action.
 local function soloPumpSetup()
@@ -386,6 +410,7 @@ local function runAll()
         explorePolicy()
         sunPaladinPreset()
         assistantImport()
+        computedPredicate()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok

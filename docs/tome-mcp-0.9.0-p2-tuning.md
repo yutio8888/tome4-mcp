@@ -31,19 +31,21 @@ makes a rule such as `{when:{enemy_is_boss:{}},then:{...,target:"most_dangerous_
 work against the highest-rank hostile instead of the default binding, and keeps
 the §5.3 "condition and action bind the same target" contract.
 
-**Explicitly excluded (with reasons):**
+**Explicitly excluded in P2** (updated by P2.5, see
+[docs/tome-mcp-0.9.0-p2.5-tooltip-getters.md](tome-mcp-0.9.0-p2.5-tooltip-getters.md)):
 
-- `has_effect` / `computed` remain in the schema but the auto-combat host answers
-  them `unknown` (`nil`). A real answer needs a dynamic getter the bridge does
-  not audit yet; exposing one would break the §8 fail-closed read audit.
-- `most_dangerous`-by-`computed`: replaced by the audited rank/hp/distance
-  heuristic above.
+- `has_effect` / `computed` and `ally_count`: **resolved by P2.5** — now backed
+  by the audited `ActorCombat.computed` panel getters (finite enum + numeric
+  comparison) and bounded visible effect/ally reads, fail-closed to `unknown`.
+- `most_dangerous`-by-`computed`: the audited rank/hp/distance heuristic remains
+  the default; nothing rolls RNG.
 - `cluster_center` / AoE selffire placement: needs target geometry and
   `canProject` proof, out of P2.
-- `ally_count`, `map_frontier`, `turn_parity`: the auto-combat host does not
-  assemble friendly/map/turn reads; adding them is a separate audited-read task.
+- `map_frontier`, `turn_parity`: not panel data and not assembled in the
+  auto-combat host.
 
-`capabilities.auto_combat` now lists the supported `predicates` and `selectors`.
+`capabilities.auto_combat` now lists the supported `predicates`, `selectors` and
+`computed_fields`.
 
 ## 2. Decision replay
 

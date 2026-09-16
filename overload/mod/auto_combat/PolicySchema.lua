@@ -26,8 +26,31 @@ M.PREDICATES={always=true,hp_pct=true,resource_pct=true,resource_value=true,
     cooldown_ready=true,talent_known=true,has_effect=true,enemy_count=true,
     nearest_enemy_distance=true,enemy_in_melee=true,enemy_hp_pct=true,computed=true,
     enemy_rank=true,enemy_level=true,enemy_type=true,enemy_is_elite=true,
-    enemy_is_boss=true,enemy_distance=true}
+    enemy_is_boss=true,enemy_distance=true,ally_count=true}
 M.SAFETY_PREDICATES={hp_pct=true,resource_pct=true,resource_value=true,enemy_in_melee=true}
+-- P2.5: `computed` is a numeric comparison over this finite enum (design §5.6).
+-- Ids are exactly the audited `ActorCombat.computed` panel paths; a value is
+-- fail-closed to `unknown` when the native getter is overridden/missing/errored.
+M.DAMAGE_TYPES={'PHYSICAL','FIRE','COLD','LIGHTNING','ACID','NATURE','BLIGHT','LIGHT',
+    'DARKNESS','MIND','TEMPORAL','ARCANE'}
+local COMPUTED_BASE={
+    'stats.str','stats.dex','stats.con','stats.mag','stats.wil','stats.cun','stats.lck',
+    'speeds.global','speeds.movement','speeds.attack','speeds.spell','speeds.mind',
+    'crit.physical','crit.spell','crit.mind','crit.power_pct','crit.multiplier',
+    'power.physical','power.spell','power.mind',
+    'offense.accuracy','offense.apr','offense.damage','offense.damage_range',
+    'defense.defense','defense.defense_ranged','defense.armor','defense.armor_hardiness',
+    'defense.fatigue','saves.physical','saves.spell','saves.mental',
+    'utility.see_stealth','utility.see_invisible','utility.crit_reduction',
+}
+M.COMPUTED_FIELDS={}
+for _,field in ipairs(COMPUTED_BASE) do M.COMPUTED_FIELDS[field]=true end
+for _,t in ipairs(M.DAMAGE_TYPES) do
+    M.COMPUTED_FIELDS['offense.damage_increase.'..t]=true
+    M.COMPUTED_FIELDS['offense.resistance_penetration.'..t]=true
+    M.COMPUTED_FIELDS['offense.damage_affinity.'..t]=true
+    M.COMPUTED_FIELDS['resists.'..t]=true
+end
 M.TALENTS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_HEALING_LIGHT=true,
     T_BARRIER=true,T_TWILIGHT=true,T_MOONLIGHT_RAY=true,T_SEARING_LIGHT=true,T_ATTACK=true,
     T_SUN_BEAM=true,T_WEAPON_OF_LIGHT=true}
@@ -82,7 +105,13 @@ local function validateCondition(cond,path,depth,errors)
         return
     end
     if name=='has_effect' then
-        if type(value.effect)~='string' then errors[#errors+1]={path=path,code='invalid_effect'} end
+        if type(value.effect)~='string' or #value.effect==0 or #value.effect>96 then
+            errors[#errors+1]={path=path,code='invalid_effect'}
+        end
+        if value.who~=nil and value.who~='self' and value.who~='target' then
+            errors[#errors+1]={path=path,code='invalid_effect_who'}
+        end
+        onlyKeys(value,{effect=true,who=true},path,errors)
         return
     end
     if name=='enemy_in_melee' or name=='enemy_is_elite' or name=='enemy_is_boss' then
@@ -96,10 +125,8 @@ local function validateCondition(cond,path,depth,errors)
         onlyKeys(value,{eq=true},path,errors)
         return
     end
-    if name=='computed' then
-        if type(value.field)~='string' then errors[#errors+1]={path=path,code='invalid_computed_field'} end
-        return
-    end
+    -- `computed` falls through to the numeric-comparison validation below; its
+    -- enum check is added to the allowed keys there.
     -- numeric comparisons
     local keys=0
     for _,cmp in ipairs{'lt','le','eq','ge','gt'} do
@@ -114,6 +141,12 @@ local function validateCondition(cond,path,depth,errors)
     if name=='resource_pct' or name=='resource_value' then
         if type(value.resource)~='string' then errors[#errors+1]={path=path,code='invalid_resource'} end
         allowed.resource=true
+    end
+    if name=='computed' then
+        allowed.field=true
+        if type(value.field)~='string' or not M.COMPUTED_FIELDS[value.field] then
+            errors[#errors+1]={path=path,code='unsupported_computed_field'}
+        end
     end
     onlyKeys(value,allowed,path,errors)
 end

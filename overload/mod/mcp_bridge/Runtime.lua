@@ -11,6 +11,7 @@ local Interactions=require 'mod.mcp_bridge.Interactions'
 local Compat=require 'mod.mcp_bridge.NativeCompatibility'
 local NativeTasks=require 'mod.mcp_bridge.NativeTasks'
 local NativeActivity=require 'mod.mcp_bridge.NativeActivity'
+local ActorCombat=require 'mod.mcp_bridge.ActorCombat'
 local CommandLedger=require 'mod.mcp_bridge.CommandLedger'
 local ObservationViews=require 'mod.mcp_bridge.ObservationViews'
 local ObservationCollections=require 'mod.mcp_bridge.ObservationCollections'
@@ -27,6 +28,7 @@ local function sortedKeys(t)
 end
 local AUTO_PREDICATES=sortedKeys(PolicySchema.PREDICATES)
 local AUTO_SELECTORS=sortedKeys(PolicySchema.SELECTORS)
+local AUTO_COMPUTED_FIELDS=sortedKeys(PolicySchema.COMPUTED_FIELDS)
 local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304,MAX_RECENT_SNAPSHOTS=16,SNAPSHOT_BYTE_BUDGET=4194304}
 local state, serial
 serial=0
@@ -825,6 +827,7 @@ end
 -- host. Nothing here runs a dynamic getter, RNG or talent callback.
 local function autoCombatReads(s,policy)
     local g=s.game
+    local computed_memo
     local function lifePct(actor)
         if actor and Details.finite(actor.life) and Details.finite(actor.max_life) and actor.max_life>0 then
             return actor.life/actor.max_life*100
@@ -880,10 +883,56 @@ local function autoCombatReads(s,policy)
             if not Details.finite(cooldown) then return nil end
             return cooldown<=0
         end,
-        -- Effect/computed checks are left unknown in P1a: they would need a
-        -- dynamic getter the bridge does not audit yet.
-        has_effect=function() return nil end,
-        computed=function() return nil end,
+        -- P2.5: player-panel / tooltip-visible values. `computed` reads the
+        -- audited ActorCombat getters (fail-closed to nil/unknown) and is
+        -- memoized per session revision so a rule loop does not re-run the
+        -- getter set on every predicate.
+        computed=function(field)
+            local p=g.player
+            if not p then return nil end
+            if not computed_memo or computed_memo.revision~=s.revision then
+                computed_memo={revision=s.revision,values=ActorCombat.computed(p)}
+            end
+            return ActorCombat.field(computed_memo.values,field)
+        end,
+        -- Bounded visible effect scan. `who='target'` resolves the bound target
+        -- the action will use. A missing/truncated list is `unknown`.
+        has_effect=function(effect,who,bound_id)
+            local p=g.player
+            if not p then return nil end
+            local actor
+            if who=='target' then
+                actor=bound_id and Observer.resolve(g,meta(s),bound_id) or nil
+                if not actor then return nil end
+            else
+                actor=p
+            end
+            local list,truncated=Details.effects(actor,24)
+            if truncated then return nil end
+            local wanted=type(effect)=='string' and effect:lower() or ''
+            for _,entry in ipairs(list or {}) do
+                if entry.id==effect then return true end
+                if type(entry.name)=='string' and entry.name:lower()==wanted then return true end
+            end
+            return false
+        end,
+        -- Bounded visible friendly/neutral actors (escorts, summons, allies),
+        -- reusing the same visibility predicate as hostiles.
+        allies=function()
+            local p=g.player
+            local out={}
+            if not p or not g.level then return out end
+            local session_meta=meta(s)
+            for _,actor in pairs(g.level.entities or {}) do
+                if actor~=p and type(actor)=='table' and actor.__is_actor
+                    and not actor.dead and Observer.visible(g,actor)
+                    and not NativeActivity.hostileVisible(g,p,actor) then
+                    out[#out+1]={id=Observer.actorId(session_meta,actor),x=actor.x,y=actor.y,
+                        hp_pct=lifePct(actor)}
+                end
+            end
+            return out
+        end,
         hostiles=function()
             local p=g.player
             local out={}
@@ -1189,6 +1238,7 @@ local function dispatch(s,request)
                     native_activities=Json.array{'rest','auto_explore'},
                     predicates=Json.array(AUTO_PREDICATES),
                     selectors=Json.array(AUTO_SELECTORS),
+                    computed_fields=Json.array(AUTO_COMPUTED_FIELDS),
                     change_level='opt_in',
                     policy_ops=Json.array{'status','validate','dry_run','set_draft','approve','activate','deactivate',
                         'start','stop','pause','resume','log','replay','presets','preset','export','import','import_assistant'}}},snapshot=snap}
