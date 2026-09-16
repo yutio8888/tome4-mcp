@@ -48,9 +48,12 @@ local defs={
     T_S={id='T_S',name='Sustain',mode='sustained',activate=function() end,deactivate=function() end},
     T_P={id='T_P',name='Passive',mode='passive'},
     T_ATTACK={id='T_ATTACK',name='Attack',mode='activated',action=function() end,target=function() end},
+    T_COMMAND_STAFF={id='T_COMMAND_STAFF',name='Command Staff',mode='activated',action=function() end},
 }
-local p={talents_def=defs,talents={T_A=1,T_S=2,T_P=1,T_ATTACK=1},talents_cd={T_S=4},sustain_talents={T_S={}},useTalent=function() end}
+local p={talents_def=defs,talents={T_A=1,T_S=2,T_P=1,T_ATTACK=1,T_COMMAND_STAFF=1},talents_cd={T_S=4},sustain_talents={T_S={}},useTalent=function() end}
 check(Actions.admit(p,'T_A','activated')~=nil,'activated talent admitted')
+check(select(2,Actions.admit(p,'T_COMMAND_STAFF','activated'))=='talent_interaction_unsupported',
+    'T_COMMAND_STAFF is refused (native chat would freeze the game)')
 check(select(2,Actions.admit(p,'T_A','sustained'))=='talent_mode_unsupported','mode mismatch rejected')
 check(select(2,Actions.admit(p,'T_P','activated'))=='talent_mode_unsupported','passive rejected')
 check(select(2,Actions.admit(p,'T_MISSING','activated'))=='talent_not_learned','unlearned rejected')

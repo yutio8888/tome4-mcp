@@ -84,7 +84,8 @@ local function meta(s)
         history=s.ledger and s.ledger:history() or Json.null,
         phase=phase,actionable=(phase=='ready' and s.control_token~=nil) or false,
         control_lease=s.control_token and 'held' or 'released',
-        needs_reconnect=(s.access_mode=='control' and not s.control_token) and true or nil,
+        needs_reconnect=(s.access_mode=='control' and not s.control_token and not s.native_error) and true or nil,
+        recovery=s.native_error and 'fresh_load_required' or nil,
         control_source=s.control_token and 'remote' or localCombat(s) and 'battle_companion' or 'manual',
         battle_companion=summary}
 end

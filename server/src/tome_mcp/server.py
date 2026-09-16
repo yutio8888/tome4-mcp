@@ -204,7 +204,11 @@ the next interaction on the SAME command. Only the top native layer is exposed.
 Never repeat the original attack, move or pickup to dismiss its notice.
 A talent can produce zero, one, or several input requests. awaiting_input is a pause, not
 a completed command. Call tome.respond with the SAME command_id, the current
-interaction_id/revision, a unique response_id, and a typed answer. Use only the
+interaction_id/revision, a unique response_id, and a typed answer. The answer MUST
+include its `type` field (for example {"type":"option","option_id":...}); omitting it is
+rejected. T_COMMAND_STAFF is reported unsupported (talent_interaction_unsupported):
+its native command-staff chat resumes the talent body coroutine and raises a native
+Lua error that freezes the game, so it is refused before execution. Use only the
 answer_types offered by the request. Retain BOTH IDs after an uncertain response;
 reconnect explicitly and query status(command_id, response_id), never start the
 talent again or submit another answer ID to retry it. Option IDs belong to this

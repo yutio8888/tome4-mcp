@@ -9,6 +9,11 @@ local Distance = require 'mod.mcp_bridge.Distance'
 local M = {}
 local attack_spec={target='actor',source='data/talents/misc/misc.lua',action_adapter='attack',
     description='Use the attack action with target_id to make a native ordinary attack, including native alternate attacks.'}
+-- Native talents whose interaction callback resumes the talent body coroutine
+-- directly (data/chats/command-staff.lua does coroutine.resume(co, true)).
+-- That conflicts with the bridge's wrapped body coroutine and raises a native
+-- Lua error which freezes the game; refuse them so an agent cannot trigger it.
+local UNSUPPORTED_TALENT_INTERACTIONS={T_COMMAND_STAFF=true}
 local function finite(value) return type(value)=='number' and value==value and value>-math.huge and value<math.huge end
 local function stringId(value) return type(value)=='string' and #value>0 and #value<=256 and not value:find('%z') end
 local function coordinate(value) return type(value)=='number' and value%1==0 and value>=0 and value<=2147483647 end
@@ -29,6 +34,7 @@ function M.admit(player,id,mode)
     local level=player and player.talents and player.talents[id]
     if not finite(level) or level<=0 then return nil,'talent_not_learned' end
     if type(t)~='table' or t.id~=id then return nil,'invalid_talent' end
+    if UNSUPPORTED_TALENT_INTERACTIONS[id] then return nil,'talent_interaction_unsupported' end
     if t.mode~=mode then return nil,'talent_mode_unsupported' end
     if mode=='activated' and type(t.action)~='function'
         or mode=='sustained' and (type(t.activate)~='function' or type(t.deactivate)~='function') then
