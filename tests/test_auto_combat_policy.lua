@@ -47,7 +47,7 @@ do
     check(not Schema.validate(p),'unsupported selector is rejected')
 end
 do
-    local p=basePolicy();p.limits={max_actions_per_tick=2}
+    local p=basePolicy();p.limits={max_actions_per_tick=5}
     check(not Schema.validate(p),'a policy cannot relax the hard attempt cap')
 end
 do

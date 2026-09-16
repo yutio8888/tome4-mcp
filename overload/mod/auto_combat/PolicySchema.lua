@@ -19,7 +19,7 @@ M.TALENTS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_HEALING_LIGHT=true,
     T_BARRIER=true,T_TWILIGHT=true,T_MOONLIGHT_RAY=true,T_SEARING_LIGHT=true,T_ATTACK=true}
 M.SUSTAINS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true}
 -- Compile-time hard caps; a policy may only lower these.
-M.HARD={max_actions_per_tick=1,max_instant_per_tick=3,max_consecutive_actions=200,
+M.HARD={max_actions_per_tick=4,max_instant_per_tick=3,max_consecutive_actions=200,
     max_rules=64,max_depth=8,max_candidates=32}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end

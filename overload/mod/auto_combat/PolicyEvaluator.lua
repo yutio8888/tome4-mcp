@@ -132,7 +132,7 @@ end
 function M.evaluate(policy,ctx)
     ctx=ctx or {}
     local limits=policy.limits or {}
-    local maxActions=limits.max_actions_per_tick or Schema.HARD.max_actions_per_tick
+    local maxActions=limits.max_actions_per_tick or 1
     local attempts=ctx.attempts or 0
     local safety=policy.safety or {}
     local critical=M.critical(policy,ctx.hp_pct)
@@ -154,13 +154,17 @@ function M.evaluate(policy,ctx)
     end
     local unknownRule
     for _,rule in ipairs(eligible) do
-        local value=M.evalCondition(rule.when,ctx)
-        if value==TRUE then
-            local target=rule['then'].target or (policy.targeting and policy.targeting.default)
-            return {decision='act',rule=rule.id,action=rule['then'].action,talent=rule['then'].talent,
-                target=target,critical=critical,emergency=rule.emergency==true}
-        elseif value==UNKNOWN and isSafety(rule.when) then
-            unknownRule=unknownRule or rule
+        -- A rule denied earlier in the same action opportunity is skipped, not
+        -- retried as-is (and not mistaken for an unknown safety condition).
+        if not (ctx.denied and ctx.denied[rule.id]) then
+            local value=M.evalCondition(rule.when,ctx)
+            if value==TRUE then
+                local target=rule['then'].target or (policy.targeting and policy.targeting.default)
+                return {decision='act',rule=rule.id,action=rule['then'].action,talent=rule['then'].talent,
+                    target=target,critical=critical,emergency=rule.emergency==true}
+            elseif value==UNKNOWN and isSafety(rule.when) then
+                unknownRule=unknownRule or rule
+            end
         end
     end
     if critical then

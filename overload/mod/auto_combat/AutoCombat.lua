@@ -1,0 +1,179 @@
+-- GPL-3.0-or-later. Auto-combat controller state machine (P1a).
+--
+-- The controller is a pure state machine over an injected host, so every
+-- execution contract from the design doc is unit-testable without the engine:
+--
+--   host.phase()             -> 'ready' | 'settling' | 'native_pending' | 'waiting_player'
+--   host.opportunity_id()    -> number that changes only on a new action opportunity
+--   host.snapshot()          -> ctx table for PolicyEvaluator (hp_pct, resource_*, ...)
+--   host.enemy_ids()         -> array of stable visible hostile ids (strict mode)
+--   host.request(attempt)    -> {status='ok'|'rejected'|'native_pending'|'uncertain'|'error', energy_spent=bool}
+--   host.notify(event)       -> nil (native UI / log)
+--
+-- Generation numbers guard deferred work: a step captured under generation N is
+-- stale once the controller pauses/resumes/stops (generation > N).
+local Evaluator=require 'mod.auto_combat.PolicyEvaluator'
+local M={}
+
+function M.new(policy,host,options)
+    options=options or {}
+    return setmetatable({
+        policy=policy,host=host,state='stopped',reason=nil,generation=0,
+        attempts=0,instant_attempts=0,opportunity=0,opportunity_id=nil,
+        strict=options.strict~=false,denied={},known_enemies=nil,
+        max_attempts=(policy.limits and policy.limits.max_actions_per_tick) or 1,
+        notify=options.notify or (host and host.notify),
+    },{__index=M})
+end
+
+function M:isStale(generation) return generation~=self.generation end
+
+function M:newOpportunity()
+    self.attempts=0; self.instant_attempts=0; self.denied={}
+    self.opportunity=self.opportunity+1
+end
+
+function M:refreshOpportunity()
+    if not (self.host and self.host.opportunity_id) then return end
+    local oid=self.host.opportunity_id()
+    if oid~=nil and oid~=self.opportunity_id then
+        self.opportunity_id=oid
+        self:newOpportunity()
+    end
+end
+
+-- Strict mode pauses once for a newly visible hostile set. On start/resume the
+-- current set is confirmed, so the same enemies do not re-trigger; later new
+-- enemies still do.
+function M:checkEnemies()
+    if not self.strict or not (self.host and self.host.enemy_ids) then return nil end
+    local ids=self.host.enemy_ids()
+    if type(ids)~='table' then return nil end
+    if not self.known_enemies then
+        self.known_enemies={}
+        for _,id in ipairs(ids) do self.known_enemies[id]=true end
+        return nil
+    end
+    for _,id in ipairs(ids) do
+        if not self.known_enemies[id] then
+            for _,other in ipairs(ids) do self.known_enemies[other]=true end
+            return 'new_enemy'
+        end
+    end
+    return nil
+end
+
+function M:start()
+    if self.state~='stopped' then return {ok=false,code='already_started',state=self.state} end
+    self.generation=self.generation+1
+    self.known_enemies=nil
+    local phase=self.host and self.host.phase and self.host.phase() or 'ready'
+    if phase=='ready' then
+        self.state='running'; self.reason='started'
+        self:newOpportunity()
+        return {ok=true,state=self.state,generation=self.generation,action='schedule_pump'}
+    end
+    self.state='awaiting_ready'; self.reason='start_when_ready'
+    return {ok=true,state=self.state,generation=self.generation,action='wait_for_ready',phase=phase}
+end
+
+function M:stop(reason)
+    self.generation=self.generation+1
+    self.state='stopped'; self.reason=reason or 'stopped'
+    self.known_enemies=nil
+    return {ok=true,state=self.state,generation=self.generation,action='release'}
+end
+
+function M:pause(reason)
+    self.generation=self.generation+1
+    self.state='paused'; self.reason=reason or 'paused'
+    if self.notify then self.notify({kind='paused',reason=self.reason,generation=self.generation}) end
+    return {action='paused',state=self.state,reason=self.reason,generation=self.generation}
+end
+
+function M:resume()
+    if self.state~='paused' and self.state~='waiting_native' and self.state~='awaiting_ready' then
+        return {ok=false,code='not_paused',state=self.state}
+    end
+    self.generation=self.generation+1
+    self.known_enemies=nil  -- strict resume confirms the current enemy set
+    self.state='running'; self.reason='resumed'
+    self:newOpportunity()
+    return {ok=true,state=self.state,generation=self.generation,action='schedule_pump'}
+end
+
+function M:step()
+    if self.state~='running' then return {action='noop',state=self.state} end
+    local generation=self.generation
+    local reason=self:checkEnemies()
+    if reason then return self:pause(reason) end
+    for _=1,8 do
+        local ctx={}
+        if self.host and self.host.snapshot then ctx=self.host.snapshot() or {} end
+        ctx.attempts=self.attempts
+        ctx.denied=self.denied
+        local decision=Evaluator.evaluate(self.policy,ctx)
+        if decision.decision=='pause' then return self:pause(decision.reason) end
+        if decision.decision=='hold' then
+            return {action='hold',state=self.state,generation=generation,reason=decision.reason}
+        end
+        self.attempts=self.attempts+1
+        local outcome=(self.host and self.host.request and self.host.request({
+            rule=decision.rule,action=decision.action,talent=decision.talent,
+            target=decision.target,generation=generation})) or {}
+        if outcome.status=='native_pending' then
+            self.state='waiting_native'; self.reason='native_pending'
+            return {action='wait_native',rule=decision.rule,state=self.state,generation=generation}
+        end
+        if outcome.status=='ok' then
+            return {action='acted',rule=decision.rule,talent=decision.talent,outcome=outcome,
+                state=self.state,generation=generation}
+        end
+        if outcome.status=='rejected' and outcome.energy_spent~=true then
+            -- Explicitly rejected and no energy spent: do not retry as-is in this
+            -- opportunity, but another rule may still be valid.
+            self.denied[decision.rule]=true
+        else
+            return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
+        end
+    end
+    return self:pause('rule_loop_limit')
+end
+
+-- Called at each pumped action opportunity.
+function M:onOpportunity()
+    if self.state=='awaiting_ready' then
+        if not (self.host and self.host.phase and self.host.phase()=='ready') then
+            return {action='wait_for_ready',state=self.state,generation=self.generation}
+        end
+        self.generation=self.generation+1
+        self.state='running'; self.reason='ready'
+        self:newOpportunity()
+    end
+    if self.state=='waiting_native' then
+        local phase=self.host and self.host.phase and self.host.phase() or 'ready'
+        if phase~='ready' then
+            return {action='wait_native',state=self.state,generation=self.generation}
+        end
+        self.state='running'; self.reason='native_settled'
+        self:newOpportunity()  -- a settled native action is a fresh opportunity
+    end
+    if self.state~='running' then return {action='noop',state=self.state} end
+    local phase=self.host and self.host.phase and self.host.phase() or 'ready'
+    if phase=='settling' then return {action='wait',state=self.state,phase=phase} end
+    if phase=='native_pending' then
+        self.state='waiting_native'; self.reason='native_pending'
+        return {action='wait_native',state=self.state,generation=self.generation}
+    end
+    if phase=='waiting_player' then return self:pause('player_interaction') end
+    if phase~='ready' then return {action='wait',state=self.state,phase=phase} end
+    self:refreshOpportunity()
+    return self:step()
+end
+
+function M:status()
+    local hashes=self.policy and require('mod.auto_combat.PolicySchema').hash(self.policy) or nil
+    return {state=self.state,reason=self.reason,generation=self.generation,
+        attempts=self.attempts,opportunity=self.opportunity,policy_hash=hashes}
+end
+return M
