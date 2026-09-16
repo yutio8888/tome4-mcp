@@ -958,6 +958,25 @@ local function dispatch(s,request)
         end
         bump(s)
         return {dismissed=true,snapshot=snapshot(s)}
+    elseif op=='abandon' then
+        if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
+        if not s.native_error then
+            return fail('not_isolated',nil,{details={hint='the session is not isolated; observe/act work normally'}})
+        end
+        -- Explicit recovery: discard the failed invocation and clear isolation.
+        -- This is not a rollback; the native state is left as it is and re-synced.
+        local dropped=s.active and s.active.command_id or nil
+        if s.active then
+            s.active.status='failed';s.active.code='abandoned';s.active.snapshot=nil
+            s.active.snapshot_availability='evicted'
+        end
+        s.active=nil;s.execution=nil
+        s.native_error=nil;s.release_reason='abandoned'
+        sync(s);bump(s)
+        return {recovered=true,abandoned_command=dropped,recovery='discarded_failed_invocation',
+            release_reason='abandoned',
+            details={hint='the failed invocation was discarded; the game state was not rolled back'},
+            snapshot=snapshot(s)}
     elseif op=='stop' then
         if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
         revoke(s,'stopped')

@@ -135,6 +135,11 @@ check(failed.status=='failed' and failed.uncertain and failed.code=='native_tick
 reconnect()
 check(observe().phase=='unavailable','native error remains read-only after reconnect')
 check(act('after_error',{type='wait'}).error.code=='not_ready','native error forbids writes')
+local abandoned=request('abandon',{session_id=hello.session_id,control_token=hello.control_token})
+check(abandoned.result and abandoned.result.recovered
+    and abandoned.result.recovery=='discarded_failed_invocation','abandon clears bridge isolation')
+check(observe().phase~='unavailable' and observe().control_lease=='held','abandon restores a usable session')
+check(request('abandon',{session_id=hello.session_id,control_token=hello.control_token}).error.code=='not_isolated','a second abandon reports not_isolated')
 local old_session=hello.session_id
 g:loaded();g:display();reconnect()
 check(hello.session_id~=old_session and observe().phase=='ready','reload creates usable new session')
