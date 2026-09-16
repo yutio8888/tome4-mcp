@@ -138,6 +138,39 @@ function M.noticeText(d)
     end
     return Details.text(table.concat(parts,'\n'),2048)
 end
+-- The native close/accept handler of a popup, used to answer dialogs the
+-- bridge did not create (for example the death dialog, which has no EXIT
+-- virtual but does have a default key or a button callback).
+local function nativeClose(d)
+    local key=d and d.key
+    local virtuals=key and key.virtuals
+    for _,name in ipairs{'EXIT','ACCEPT','DEFAULT'} do
+        local fn=virtuals and virtuals[name]
+        if type(fn)=='function' then return fn end
+    end
+    local uis=type(d.uis)=='table' and d.uis or {}
+    for _,entry in ipairs(uis) do
+        local ui=type(entry)=='table' and entry.ui
+        if type(ui)=='table' and type(ui.fct)=='function' and not ui.hidden and not ui.hide then return ui.fct end
+    end
+    return nil
+end
+-- Close the topmost native popup through its own handler. Returns ok, code.
+function M.dismissTop(g)
+    local dialogs=type(g.dialogs)=='table' and g.dialogs or {}
+    for i=#dialogs,1,-1 do
+        local d=dialogs[i]
+        if type(d)=='table' and not d.hidden and not d.hide then
+            local close=nativeClose(d)
+            if close then
+                local ok,err=pcall(close)
+                if ok then return true,'native_dialog' end
+                return false,err
+            end
+        end
+    end
+    return false,'no_closeable_dialog'
+end
 function M.openNotice(d,source,title,text,owner)
     local key=d.key
     local close=key and key.virtuals and key.virtuals.EXIT
@@ -149,9 +182,13 @@ end
 -- Adopt an unowned, closeable native popup for the active remote command so the
 -- agent can answer it instead of losing control (round-5 report 3.8).
 function M.adoptNotice(d,root)
-    if not root or type(root.command)~='table' or dialogs[d] then return nil end
-    if root.command.input_owner=='manual' or root.command.handoff_requested then return nil end
+    if not root or dialogs[d] then return nil end
+    if root.command then
+        if type(root.command)~='table' then return nil end
+        if root.command.input_owner=='manual' or root.command.handoff_requested then return nil end
+    end
     local close=d.key and d.key.virtuals and d.key.virtuals.EXIT
+    if type(close)~='function' then close=nativeClose(d) end
     if type(close)~='function' then return nil end
     M.openNotice(d,'nativePopup',d.title,M.noticeText(d),{root=root})
     return dialogs[d]

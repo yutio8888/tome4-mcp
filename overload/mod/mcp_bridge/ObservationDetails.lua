@@ -11,6 +11,8 @@ function M.selffire(typ)
     if type(typ)~='table' then return 'unknown' end
     if type(typ.selffire)=='boolean' then return typ.selffire end
     if typ.selffire~=nil then return 'unknown' end
+    -- A direct-hit talent never includes its origin.
+    if typ.direct_hit==true then return false end
     local shape=typ.type
     if shape=='ball' or shape=='cone' or shape=='wide' then return true end
     if shape=='beam' or shape=='hit' or shape=='bolt' or shape=='arrow' then return false end
@@ -252,10 +254,8 @@ function M.player(g,p,meta,result)
     result.life_regen=M.number(p.life_regen);result.regeneration_is_raw=true
     result.gold=M.number(p.money)
     result.gold_scope='gold is the stored money field'
-    if M.finite(p.max_encumber) then
-        result.encumbrance={max_bonus=M.number(p.max_encumber),
-            scope='stored strength bonus only; current/max encumbrance are engine-computed and not evaluated'}
-    end
+    result.encumbrance={max_bonus=M.number(p.max_encumber),current=M.number(p.encumber),
+        scope='stored fields only; current/max encumbrance are engine-computed and not evaluated'}
     result.cooldowns=Json.array()
     if type(p.talents_cd)=='table' then
         local ids={}

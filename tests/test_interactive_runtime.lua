@@ -353,5 +353,18 @@ local talent=request('inspect',{session_id=hello.session_id,kind='talent',id='T_
 check(talent.range==6 and talent.target_shape=='ball','inspect advertises the static range and shape')
 check(talent.target_geometry and talent.target_geometry.selffire==true,'a ball without selffire defaults to self-fire true')
 check(request('inspect',{session_id=hello.session_id,kind='talent',id='T_NOPE'}).error.code=='unknown_talent','unknown talent id distinct from unlearned')
+local sheet=request('inspect',{session_id=hello.session_id,kind='character',id='self'}).result
+check(type(sheet.encumbrance)=='table','character always exposes encumbrance')
+local Details=require 'mod.mcp_bridge.ObservationDetails'
+check(Details.selffire({type='ball'})==true,'an area shape self-fires by default')
+check(Details.selffire({type='beam'})==false,'a beam does not self-fire')
+check(Details.selffire({type='unknown',direct_hit=true})==false,'direct_hit implies no self-fire')
+check(Details.selffire({type='unknown'})=='unknown','an unknown shape stays unknown')
+check(Details.selffire({type='ball',selffire=false})==false,'an explicit selffire wins')
+local Interactions=require 'mod.mcp_bridge.Interactions'
+local closed_dialog=false
+local fake_game={dialogs={{title='You have died!',key={virtuals={EXIT=function() closed_dialog=true end}},uis={}}}}
+check(Interactions.dismissTop(fake_game)==true and closed_dialog,'dismissTop closes a native dialog through its own handler')
+check(Interactions.dismissTop({dialogs={{title='x',uis={}}}})==false,'an uncloseable dialog is reported as such')
 
 print('Interactive Runtime: '..count..' checks passed')

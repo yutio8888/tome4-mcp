@@ -189,7 +189,7 @@ function M.inspect(g,meta,kind,id,options)
             result.cooldown_remaining=q.cooldown_remaining;result.readiness=q.readiness
             if q.target_shape~=nil or q.radius~=nil or q.range~=nil then
                 result.target_geometry={shape=q.target_shape or 'unknown',radius=q.radius,range=q.range,
-                    selffire=Details.selffire({type=q.target_shape,selffire=q.selffire}),
+                    selffire=Details.selffire({type=q.target_shape,selffire=q.selffire,direct_hit=def.direct_hit}),
                     piercing=q.target_shape=='beam' or nil,
                     source='static talent definition; a dynamic target function can change shape/radius/self-fire at cast time'}
             end

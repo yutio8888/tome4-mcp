@@ -74,6 +74,14 @@ local function nativePhase(s)
     if g.onTickEndExists and g:onTickEndExists() then return 'settling' end
     return 'ready'
 end
+local RELEASE_HINTS={unsupported_interaction='a native UI the bridge cannot drive is open; observe.dialogs lists it and it may be answered with tome.dismiss',
+    terminal='the game reached a terminal state (for example death)',
+    dialog='a native dialog took input ownership',
+    scene_changed='the level or the controlled player changed',
+    disconnected='the client transport disconnected',
+    stopped='control was stopped explicitly',
+    control_replaced='another client took control',
+    saving='a native save is in progress'}
 local function meta(s)
     local controller=companion()
     local raw=controller and type(controller.observation)=='function' and controller.observation(s.game.player)
@@ -86,6 +94,9 @@ local function meta(s)
         control_lease=s.control_token and 'held' or 'released',
         needs_reconnect=(s.access_mode=='control' and not s.control_token and not s.native_error) and true or nil,
         recovery=s.native_error and 'fresh_load_required' or nil,
+        release_reason=(not s.control_token) and s.release_reason or nil,
+        release_hint=(not s.control_token) and s.release_reason
+            and (RELEASE_HINTS[s.release_reason] or 'control was released') or nil,
         control_source=s.control_token and 'remote' or localCombat(s) and 'battle_companion' or 'manual',
         battle_companion=summary}
 end
@@ -97,6 +108,8 @@ local function snapshot(s,radius,options)
     result.actionable=m.actionable
     result.control_lease=m.control_lease
     result.needs_reconnect=m.needs_reconnect
+    result.release_reason=m.release_reason
+    result.release_hint=m.release_hint
     if s.session_root then
         local h=Interactions.current(s.session_root)
         if h then result.interaction=Interactions.describe(s.session_root,m) end
@@ -113,6 +126,7 @@ local function snapshot(s,radius,options)
         end
         local identity={session_id=true,level_instance_id=true,revision=true,world_tick=true,phase=true,
             actionable=true,control_lease=true,needs_reconnect=true,control_source=true,battle_companion=true,
+            release_reason=true,release_hint=true,
             history=true,collection_refs=true,pending_command=true,interaction=true,scene=true}
         for key in pairs(result) do
             if not identity[key] and not keep[key] and not (key=='player' and next(sub)) then result[key]=nil end
@@ -138,7 +152,10 @@ local function commandView(command,include_map,response_id,options_offset)
     for _,key in ipairs{'command_id','seq','status','code','energy_spent','native_return','world_tick_before',
         'world_tick_after','revision_before','revision_after','snapshot','snapshot_availability','interruption','uncertain',
         'turns_executed','max_turns','stop_reason','native_message','level_changed','target_geometry',
-        'points_spent','points_returned','point_pool','previous_value','new_value','action_ok'} do out[key]=command[key] end
+        'points_spent','points_returned','point_pool','previous_value','new_value'} do out[key]=command[key] end
+    -- action_ok is derived from the terminal status so it can never contradict
+    -- it (a fatal blow reports status=failed, action_ok=false).
+    out.action_ok=(command.status=='completed' and true) or (command.status=='failed' and false) or nil
     if command.protocol then
         out.revision=state.revision;out.input_owner=command.input_owner
         out.accepted=true;out.seq=command.seq
@@ -238,6 +255,7 @@ end
 local function revoke(s,reason,resumable_scene)
     local changed=s.control_token~=nil
     s.control_token=nil
+    s.release_reason=reason
     local active=s.active
     if active and active.status=='queued' then
         bump(s);finish(s,active,'cancelled',reason)
@@ -917,7 +935,13 @@ local function dispatch(s,request)
         if s.native_error then return fail(s.native_error) end
         if not s.session_root then return fail('no_pending_interaction',nil,{details={hint='no native popup is waiting; observe.interaction lists one when present'}}) end
         local h=Interactions.current(s.session_root)
-        if not h then return fail('no_pending_interaction',nil,{details={hint='no native popup is waiting; observe.interaction lists one when present'}}) end
+        if not h then
+            -- A native dialog the bridge never adopted (for example death) can
+            -- still be closed through its own handler.
+            local closed,close_code=Interactions.dismissTop(s.game)
+            if closed then bump(s);return {dismissed=true,scope='native_dialog',snapshot=snapshot(s)} end
+            return fail('no_pending_interaction',nil,{details={hint='no session interaction is waiting; observe.interaction lists one and observe.dialogs lists native popups'}})
+        end
         if a.interaction_id~=nil and a.interaction_id~=h.interaction_id then
             return fail('interaction_expired',nil,{interaction_id=h.interaction_id})
         end
