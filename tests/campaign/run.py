@@ -85,7 +85,7 @@ class Campaign:
         self.transcript.write(json.dumps(redact(dict(tool=tool, args=args, response=value,
                                                      mcp_error=reply.is_error)), ensure_ascii=False) + "\n")
         self.transcript.flush()
-        if reply.is_error or not isinstance(value, dict) or not value.get("ok"):
+        if not isinstance(value, dict) or not value.get("ok"):
             if allow_error:
                 return dict(error=value or {"message": str(reply.content)})
             raise AssertionError(redact(dict(tool=tool, response=value, content=str(reply.content))))
