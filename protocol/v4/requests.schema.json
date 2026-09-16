@@ -9,7 +9,7 @@
   "properties": {
     "v": { "const": 4 },
     "id": { "type": "string", "minLength": 1, "x-max-utf8-bytes": 256 },
-    "op": { "type": "string", "enum": ["connect", "connect_observer", "observe", "inspect", "list_collection", "act", "respond", "status", "stop"] },
+    "op": { "type": "string", "enum": ["connect", "connect_observer", "observe", "inspect", "list_collection", "act", "respond", "status", "stop", "dismiss", "abandon", "level_map"] },
     "args": { "$ref": "#/$defs/Args" }
   },
   "$defs": {
@@ -22,7 +22,10 @@
         { "$ref": "#/$defs/ActArgs" },
         { "$ref": "#/$defs/RespondArgs" },
         { "$ref": "#/$defs/StatusArgs" },
-        { "$ref": "#/$defs/StopArgs" }
+        { "$ref": "#/$defs/StopArgs" },
+        { "$ref": "#/$defs/DismissArgs" },
+        { "$ref": "#/$defs/AbandonArgs" },
+        { "$ref": "#/$defs/LevelMapArgs" }
       ]
     },
     "ConnectArgs": {
@@ -140,6 +143,49 @@
       "properties": {
         "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
         "control_token": { "$ref": "common.schema.json#/$defs/ControlToken" }
+      }
+    },
+    "DismissArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "control_token", "answer"],
+      "properties": {
+        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
+        "control_token": { "$ref": "common.schema.json#/$defs/ControlToken" },
+        "interaction_id": { "type": ["string", "null"] },
+        "expected_revision": { "type": ["integer", "null"], "minimum": 1 },
+        "answer": { "type": "object" },
+        "include_map": { "type": "boolean" }
+      }
+    },
+    "AbandonArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "control_token"],
+      "properties": {
+        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
+        "control_token": { "$ref": "common.schema.json#/$defs/ControlToken" }
+      }
+    },
+    "LevelMapArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id"],
+      "properties": {
+        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
+        "source": { "type": "string", "enum": ["native_map"] },
+        "format": { "type": "string", "enum": ["rows", "region"] },
+        "region": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y", "width", "height"],
+          "properties": {
+            "x": { "type": "integer", "minimum": 0 },
+            "y": { "type": "integer", "minimum": 0 },
+            "width": { "type": "integer", "minimum": 1, "maximum": 64 },
+            "height": { "type": "integer", "minimum": 1, "maximum": 64 }
+          }
+        }
       }
     }
   }

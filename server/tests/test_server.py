@@ -86,7 +86,7 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
         app = create_server(BridgeClient(token=self.game.token, port=self.game.port))
         async with Client(app) as client:
             tools = (await client.list_tools()).tools
-            self.assertEqual(len(tools), 10)
+            self.assertEqual(len(tools), 11)
             self.assertTrue(all(tool.output_schema for tool in tools))
             self.assertNotIn("token", next(t for t in tools if t.name == "tome.connect").input_schema["properties"])
             result = (await client.call_tool("tome.connect")).structured_content
@@ -103,6 +103,8 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(bad_radius.is_error)
             abandoned = await client.call_tool("tome.abandon", {"session_id": "s1", "control_token": "c1"})
             self.assertEqual(abandoned.structured_content["result"]["recovery"], "discarded_failed_invocation")
+            level_map = await client.call_tool("tome.map", {"session_id": "s1"})
+            self.assertEqual(level_map.structured_content["result"]["w"], 5)
             self.game.abandon_not_isolated = True
             not_isolated = await client.call_tool("tome.abandon", {"session_id": "s1", "control_token": "c1"})
             self.assertTrue(not_isolated.is_error)
@@ -141,7 +143,7 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             env={**os.environ, "PYTHONPATH": str(source), "TOME_MCP_PORT": str(self.game.port), "TOME_MCP_TOKEN": self.game.token},
         )
         async with Client(params) as client:
-            self.assertEqual(len((await client.list_tools()).tools), 10)
+            self.assertEqual(len((await client.list_tools()).tools), 11)
             connected = await client.call_tool("tome.connect", {})
             self.assertTrue(connected.structured_content["ok"])
             observed = await client.call_tool("tome.observe", {"session_id": "s1"})
@@ -185,7 +187,7 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             env={**os.environ, "PYTHONPATH": str(source), "TOME_MCP_PORT": str(self.game.port), "TOME_MCP_TOKEN": self.game.token},
         )
         async with Client(params, mode="legacy") as client:
-            self.assertEqual(len((await client.list_tools()).tools), 10)
+            self.assertEqual(len((await client.list_tools()).tools), 11)
             connected = await client.call_tool("tome.connect", {})
             self.assertTrue(connected.structured_content["ok"])
             result = await client.call_tool("tome.act", action_args())

@@ -13,6 +13,7 @@ local NativeTasks=require 'mod.mcp_bridge.NativeTasks'
 local CommandLedger=require 'mod.mcp_bridge.CommandLedger'
 local ObservationViews=require 'mod.mcp_bridge.ObservationViews'
 local ObservationCollections=require 'mod.mcp_bridge.ObservationCollections'
+local LevelMap=require 'mod.mcp_bridge.LevelMap'
 local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304,MAX_RECENT_SNAPSHOTS=16,SNAPSHOT_BYTE_BUDGET=4194304}
 local state, serial
 serial=0
@@ -970,6 +971,19 @@ local function dispatch(s,request)
             view.compact=true
         end
         return view
+    elseif op=='level_map' then
+        if a.source~=nil and a.source~='native_map' then return fail('unsupported_map_source') end
+        if a.format~=nil and a.format~='rows' and a.format~='region' then return fail('invalid_map_format') end
+        local region=a.region
+        if region~=nil or a.format=='region' then
+            if type(region)~='table' or region==Json.null then return fail('invalid_region') end
+            local result,code=LevelMap.region(s.game,meta(s),region)
+            if not result then return fail(code) end
+            return result
+        end
+        local result,code=LevelMap.capture(s.game,meta(s),a)
+        if not result then return fail(code) end
+        return result
     elseif op=='list_collection' then
         local req=a.request
         if type(req)~='table' or req==Json.null then return fail('invalid_request') end

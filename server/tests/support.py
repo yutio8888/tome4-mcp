@@ -78,6 +78,12 @@ class FakeGame:
                     reply['result']=record
                     if self.drop_response_reply:
                         continue
+                elif op == "level_map":
+                    reply["result"] = {"source": args.get("source", "native_map"), "format": args.get("format", "rows"),
+                                       "level_instance_id": "l1", "w": 5, "h": 5,
+                                       "rows": [{"y": 0, "x_start": 0, "text": "....."}],
+                                       "legend": {"?": "unknown", ".": "passable terrain"},
+                                       "capture_complete": True}
                 elif op == "abandon":
                     if self.abandon_not_isolated:
                         reply.update(ok=False, error={"code": "not_isolated", "message": "not isolated",

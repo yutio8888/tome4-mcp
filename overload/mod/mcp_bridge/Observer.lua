@@ -28,6 +28,18 @@ local function native(fn,suffix)
         and info.source:sub(-#suffix)==suffix
 end
 function M.reset() memories=setmetatable({}, {__mode='k'}) end
+-- The exact terrain-visibility predicate used by the window capture: FOV plus
+-- the light/actor guard, with the audited wilderness branch. Shared so the
+-- full-level map cannot drift from the window.
+function M.terrainVisible(g,p,map,x,y)
+    if not p or not map or not finite(x) or not finite(y) then return false end
+    if not active(grid(map.seens,map,x,y)) or active(p.blind) then return false end
+    if wildernessVision(g,p,map) then return true end
+    if not grid(map.infovs,map,x,y) then return false end
+    local cell=map.map and map.map[x+y*map.w]
+    local actor=cell and cell[map.ACTOR or 3]
+    return (not actor or actor==p or active(grid(map.lites,map,x,y))) and true or false
+end
 function M.actorId(meta, actor)
     return meta.session_id..':'..meta.level_instance_id..':actor-'..tostring(actor.uid)
 end
@@ -127,7 +139,6 @@ function M.capture(g,meta,radius,options)
     local x0,y0=math.max(0,p.x-radius),math.max(0,p.y-radius)
     local x1,y1=math.min(map.w-1,p.x+radius),math.min(map.h-1,p.y+radius)
     local memory=memories[map] or {};memories[map]=memory
-    local wilderness=wildernessVision(g,p,map)
     local rows,cells=Json.array(),Json.array()
     for y=y0,y1 do
         local row={}
@@ -138,9 +149,7 @@ function M.capture(g,meta,radius,options)
             -- In dungeons ESP sets seens without revealing terrain. Require FOV; with an
             -- actor also require static light. This deliberately under-reports
             -- terrain beneath actors seen only by torchlight.
-            local visible=active(grid(map.seens,map,x,y)) and not active(p.blind)
-                and (wilderness or grid(map.infovs,map,x,y)
-                    and (not actor or actor==p or grid(map.lites,map,x,y))) and true or false
+            local visible=M.terrainVisible(g,p,map,x,y)
             local tile={x=x,y=y,visible=visible,known=false}
             if visible then
                 local terrain=cell[map.TERRAIN or 1] or {}

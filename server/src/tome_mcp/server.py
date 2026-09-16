@@ -150,6 +150,13 @@ Identifier = Annotated[str, Field(min_length=1, max_length=128)]
 CommandId = Annotated[str, Field(pattern=r"^cmd-[1-9][0-9]*$", max_length=32)]
 
 
+class Region(StrictModel):
+    x: Annotated[int, Field(ge=0)]
+    y: Annotated[int, Field(ge=0)]
+    width: Annotated[int, Field(ge=1, le=64)]
+    height: Annotated[int, Field(ge=1, le=64)]
+
+
 class ListFirst(StrictModel):
     type: Literal["first"]
     collection: Literal["inventory", "equipment", "actors", "talents", "effects", "ground_items",
@@ -273,6 +280,18 @@ cooldown recovery; it is not a command to add health directly.
 A native popup raised outside a command (sealed door confirm, lore, running, death)
 appears as a top-level `interaction` in observe and is answered with `tome.dismiss`
 (no command_id); use `tome.respond` only for command-owned interactions.
+
+`tome.map` reads the player's level map (source=native_map): remembered or safely
+visible terrain plus identified traps and items, never out-of-sight actors and
+never destinations or map attributes. It mirrors the native map rendering, so the
+terrain under a remembered cell is the current terrain (a door opened out of
+sight shows open). format=rows returns the whole level as normalized one-byte
+rows; a modded map above the vanilla maximum (17500 cells) is returned as a band
+around the player with truncated=true, truncation_reason and coverage bounds.
+format=region returns a rectangle of at most 64 detailed cells. The alphabet is:
+? unknown/unauthorized, . passable, # blocked, + known door, > known exit,
+: unknown block status, % item, ! identified trap. legend repeats this mapping.
+This native-map layer is distinct from the window-cell `known` above.
 
 Set include_map=false on observe, act or status to omit map cells from replies.
 Every map reports its radius and window bounds; replace only those cells within
@@ -455,6 +474,16 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     async def list_collection(session_id: Identifier, request: ListRequest) -> ToolReply:
         """Read one page of a frozen collection: inventory, equipment, actors, talents, effects, ground_items, progression_categories, progression_talents or compatibility. Start from the first shape in observe.collection_refs, then follow next_cursor. The page is historical when the game revision moved, and the cursor expires on TTL, capacity eviction or a session/level/connection change. This enumerates the allowed set directly; it does not page an already-truncated summary."""
         return reply_result(await call("list_collection", {"session_id": session_id, "request": request.model_dump(exclude_none=True)}))
+
+    @server.tool(name="tome.map", annotations=read)
+    async def level_map(session_id: Identifier, source: Literal["native_map"] = "native_map",
+                        format: Literal["rows", "region"] = "rows",
+                        region: Region | None = None) -> ToolReply:
+        """Read the player's level map for the current level: remembered or safely visible terrain plus identified traps and items (never out-of-sight actors). source=native_map mirrors the native map rendering, so terrain under a remembered cell is the current terrain. format=rows returns the whole level as normalized one-byte rows and is truncated around the player if a modded map exceeds the vanilla maximum; format=region returns at most 64 detailed cells. legend maps every character to its meaning."""
+        args: dict[str, Any] = {"session_id": session_id, "source": source, "format": format}
+        if region is not None:
+            args["region"] = region.model_dump()
+        return reply_result(await call("level_map", args))
 
     @server.tool(name="tome.status", annotations=read)
     async def status(session_id: Identifier, command_id: CommandId, include_map: bool = False,

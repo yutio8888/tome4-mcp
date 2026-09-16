@@ -175,7 +175,7 @@ def check_schema_envelope(protocol: Path) -> list[str]:
     if requests["properties"]["v"].get("const") != 4:
         raise Failure("requests.schema must pin v=4")
     ops = set(requests["properties"]["op"]["enum"])
-    expected = {"connect", "connect_observer", "observe", "inspect", "list_collection", "act", "respond", "status", "stop"}
+    expected = {"connect", "connect_observer", "observe", "inspect", "list_collection", "act", "respond", "status", "stop", "dismiss", "abandon", "level_map"}
     if ops != expected:
         raise Failure(f"request ops disagree: {ops ^ expected}")
     if "$defs" not in requests:
