@@ -176,7 +176,7 @@ local function commandView(command,include_map,response_id,options_offset)
         out.snapshot=snapshot(state)
         out.snapshot_scope='live'
     end
-    if include_map==false and out.snapshot then
+    if include_map~=true and out.snapshot then
         local compact={};for k,v in pairs(out.snapshot) do if k~='map' then compact[k]=v end end
         compact.map=Json.null;out.snapshot=compact
     end
@@ -874,7 +874,8 @@ local function dispatch(s,request)
             effects=true,sustains=true,resources=true,stats=true}
             for _,name in ipairs(a.sections) do if not allowed[name] then return fail('invalid_sections') end end
         end
-        return snapshot(s,a.radius,{include_map=a.include_map,events_after=a.events_after,sections=a.sections})
+        if a.detail~=nil and a.detail~='summary' and a.detail~='full' then return fail('invalid_detail') end
+        return snapshot(s,a.radius,{include_map=a.include_map,events_after=a.events_after,sections=a.sections,detail=a.detail})
     elseif op=='inspect' then
         if not stringId(a.id) or type(a.kind)~='string' then return fail('invalid_inspect') end
         if a.target_id~=nil and not stringId(a.target_id) then return fail('invalid_inspect_target') end

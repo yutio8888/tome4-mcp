@@ -62,8 +62,17 @@ local function actorSummary(g,meta,actor,is_player,detailed)
     result.reaction=reaction
     result.hostile=reaction~=nil and reaction<0 or nil
     if detailed then Details.actor(actor,result) end
-    if is_player then Details.player(g,actor,meta,result) end
+    if is_player then Details.player(g,actor,meta,result,detailed) end
     return result
+end
+local function talentBrief(p,id)
+    -- Compact entry for the default snapshot. Full detail (description,
+    -- activation, static geometry) lives behind inspect(kind="talent").
+    local full=Actions.describe(p,id)
+    return {id=full.id,name=Details.text(full.name),mode=Details.text(full.mode,32),
+        level=full.level,cooldown=full.cooldown,base_cooldown=full.base_cooldown,
+        supported=full.supported,unsupported_reason=full.unsupported_reason,
+        sustained_active=full.sustained_active}
 end
 local function talentSummary(p,id)
     local result=Actions.describe(p,id)
@@ -95,14 +104,15 @@ function M.capture(g,meta,radius,options)
     local p,map=g.player,g.level and g.level.map
     if not p or not map or not finite(p.x) or not finite(p.y) then return Details.bounded(result) end
     radius=finite(radius) and math.max(0,math.min(12,math.floor(radius))) or 8
-    result.player=actorSummary(g,meta,p,true)
+    local detailed=options.detail=='full'
+    result.player=actorSummary(g,meta,p,true,detailed)
     result.ground=Items.ground(g,meta,radius)
     local talent_ids
     talent_ids,result.talents_truncated=Details.keys(p.talents,64,function(id,level)
         return type(id)=='string' and #id<=256 and finite(level) and level>0
     end)
     for _,id in ipairs(talent_ids) do
-        result.talents[#result.talents+1]=talentSummary(p,id)
+        result.talents[#result.talents+1]=detailed and talentSummary(p,id) or talentBrief(p,id)
     end
     for _,actor in pairs(g.level.entities or {}) do
         if actor~=p and actor.__is_actor and M.visible(g,actor) then

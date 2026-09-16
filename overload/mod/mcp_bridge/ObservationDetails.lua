@@ -236,7 +236,7 @@ function M.inventory(g,p,meta)
     end
     return inventory,equipment,inventory_truncated,equipment_truncated
 end
-function M.player(g,p,meta,result)
+function M.player(g,p,meta,result,detailed)
     result.level=M.number(p.level);result.exp=M.number(p.exp);result.exp_next=M.expNext(p)
     result.exp_scope='progress within current level; exp_next is the next-level threshold'
     for _,key in ipairs{'unused_stats','unused_talents','unused_generics','unused_talents_types','unused_prodigies'} do result[key]=M.number(p[key]) end
@@ -304,8 +304,25 @@ function M.player(g,p,meta,result)
             result.sustains[#result.sustains+1]={id=tid,name=type(def)=='table' and M.text(def.name,64) or nil}
         end
     end
-    result.inventory,result.equipment,result.inventory_truncated,result.equipment_truncated=M.inventory(g,p,meta)
-    result.inventory_scope='owned items; raw known names and identified scalar properties only'
+    if detailed then
+        result.inventory,result.equipment,result.inventory_truncated,result.equipment_truncated=M.inventory(g,p,meta)
+        result.inventory_scope='owned items; raw known names and identified scalar properties only'
+    else
+        local inv,equip=0,0
+        for inven_id,inven in pairs(p.inven or {}) do
+            if type(inven)=='table' then
+                local def=p.inven_def and p.inven_def[inven_id] or {}
+                local is_equipment=inven.worn==true or def.is_worn==true or def.is_shown_equip==true
+                local n=0
+                for slot,obj in pairs(inven) do
+                    if type(slot)=='number' and slot>0 and slot%1==0 and type(obj)=='table' then n=n+1 end
+                end
+                if is_equipment then equip=equip+n else inv=inv+n end
+            end
+        end
+        result.inventory_count=inv;result.equipment_count=equip
+        result.inventory_scope='counts only; enumerate with tome.list collection=inventory or equipment'
+    end
 end
 function M.terrain(terrain,p)
     local result={name=M.text(terrain.name,48) or 'unknown',

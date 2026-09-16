@@ -385,13 +385,16 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     @server.tool(name="tome.observe", annotations=read)
     async def observe(session_id: Identifier, radius: Annotated[int, Field(ge=1, le=12)] = 8,
                       include_map: bool = True, events_after: Annotated[int, Field(ge=0)] | None = None,
-                      sections: list[str] | None = None) -> ToolReply:
+                      sections: list[str] | None = None,
+                      detail: Literal["summary", "full"] | None = None) -> ToolReply:
         """Read player-view state, scene, progression, inventory and visible log events without advancing the game. Set include_map=false for a compact snapshot. Pass events.cursor as events_after for subsequent event pages; respect gap/has_more. sections selects top-level domains (player, map, ground, actors, talents, events, dialogs) and keeps identity metadata; omit it for the full snapshot. Map bounds describe only this response's window."""
         args = {"session_id": session_id, "radius": radius, "include_map": include_map}
         if events_after is not None:
             args["events_after"] = events_after
         if sections is not None:
             args["sections"] = sections
+        if detail is not None:
+            args["detail"] = detail
         return reply_result(await call("observe", args))
 
     @server.tool(name="tome.inspect", annotations=read)
@@ -417,7 +420,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
         expected_revision: Annotated[int, Field(ge=0)],
         action: Action,
         wait_ms: Annotated[int, Field(ge=0, le=10000)] = 2000,
-        include_map: bool = True,
+        include_map: bool = False,
     ) -> ToolReply:
         """Submit one native action with revision checking and game-side deduplication. Poll up to wait_ms for a decision boundary. If pending or uncertain, use status with the SAME command_id; never resend under a new ID. Move may bump-attack or trigger native terrain interactions. Talent support comes from capabilities."""
         args = {
@@ -437,7 +440,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
         return reply_result(await call("list_collection", {"session_id": session_id, "request": request.model_dump(exclude_none=True)}))
 
     @server.tool(name="tome.status", annotations=read)
-    async def status(session_id: Identifier, command_id: CommandId, include_map: bool = True,
+    async def status(session_id: Identifier, command_id: CommandId, include_map: bool = False,
                      response_id: Identifier | None = None,
                      options_offset: Annotated[int, Field(ge=0, le=2147483647)] | None = None) -> ToolReply:
         """Read the original command result without executing it again. Use after a pending act or after explicitly reconnecting following an uncertain result."""
@@ -453,7 +456,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
                       interaction_id: Identifier, response_id: Identifier,
                       expected_revision: Annotated[int, Field(ge=1)], answer: Answer,
                       wait_ms: Annotated[int, Field(ge=0, le=10000)] = 2000,
-                      include_map: bool = True) -> ToolReply:
+                      include_map: bool = False) -> ToolReply:
         """Answer the current native interaction exactly once. Keep the original command_id and a unique response_id. Wait for the next input or command result; on uncertainty query those IDs, never repeat the talent. Cancel preserves native cancellation semantics and can produce further effects or questions."""
         args = {"session_id": session_id, "control_token": control_token, "command_id": command_id,
                 "interaction_id": interaction_id, "response_id": response_id,
@@ -467,7 +470,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     async def dismiss(session_id: Identifier, control_token: Identifier, answer: Answer,
                       interaction_id: Identifier | None = None,
                       expected_revision: Annotated[int, Field(ge=1)] | None = None,
-                      include_map: bool = True) -> ToolReply:
+                      include_map: bool = False) -> ToolReply:
         """Dismiss or answer a native popup raised outside a command (sealed door, lore, running, death screen). observe exposes it as a top-level interaction; use only the answer types it offers. This has no command_id; use tome.respond for command-owned interactions."""
         args: dict[str, Any] = {"session_id": session_id, "control_token": control_token,
                                 "answer": answer.model_dump(), "include_map": include_map}
