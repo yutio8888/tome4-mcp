@@ -729,8 +729,16 @@ local function settle(s)
         end
     end
     if phase=='needs_input' then
-        local reason=command.handoff_requested or 'unsupported_interaction'
-        revoke(s,reason);finish(s,command,'needs_input',reason)
+        if command.action.type=='auto_explore' then
+            -- A native notice (trap/door/item) interrupted auto-explore. Stop the
+            -- run and report a clean stop; keep the lease so the agent can
+            -- observe the popup and answer it with respond/dismiss.
+            stopRun(s,command,'interaction')
+            finish(s,command,command.action_ok and 'completed' or 'failed','explore_interrupted')
+        else
+            local reason=command.handoff_requested or 'unsupported_interaction'
+            revoke(s,reason);finish(s,command,'needs_input',reason)
+        end
     elseif phase=='terminal' then
         revoke(s,'terminal');finish(s,command,'failed','terminal')
     elseif s.level~=command.level or s.player~=command.player then
