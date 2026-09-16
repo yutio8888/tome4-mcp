@@ -112,7 +112,13 @@ function M.dryRun(svc,args)
     local ctx=host.snapshot(default_selector) or {}
     ctx.attempts=0
     ctx.denied={}
-    local decision=Evaluator.evaluate(policy,ctx)
+    local decision=Evaluator.evaluate(policy,ctx,{context_for=function(selector)
+        if selector==default_selector then return ctx end
+        local rc=host.snapshot(selector) or {}
+        rc.attempts=0
+        rc.denied={}
+        return rc
+    end})
     -- A rule's condition and the target it acts on must bind the same object, so
     -- mirror the controller: if the winning rule selects a different target than
     -- the context, re-bind and re-check before reporting it.
@@ -276,6 +282,35 @@ end
 function M.log(svc,limit)
     return ok({events=Log.tail(svc.log,limit or 32),status=Log.status(svc.log)})
 end
+-- Replay/export the §10 decision trace: an ascending, cursor-paged slice plus a
+-- header describing the run's policy/state context. This is a decision trace,
+-- not a deterministic re-execution: raw inputs and adapter versions are not
+-- stored, and the log is deliberately in-memory runtime state (never saved).
+function M.replay(svc,args)
+    args=args or {}
+    local after=args.after_seq or 0
+    local limit=args.limit or 64
+    if type(after)~='number' or after<0 or after~=after then
+        return fail('invalid_argument',{details='after_seq'})
+    end
+    if type(limit)~='number' or limit<1 or limit>256 or limit~=limit then
+        return fail('invalid_argument',{details='limit'})
+    end
+    local entries=Log.slice(svc.log,after,limit)
+    local header={
+        schema=Schema.SCHEMA,
+        policy_hash=svc.store.running and Schema.hash(svc.store.running) or nil,
+        session_revision=svc.revision,
+        control_owner=svc.arbiter.owner,
+        run_state=svc.controller and svc.controller.state or 'stopped',
+        generation=svc.controller and svc.controller.generation or nil,
+        log_limit=svc.log.limit,
+    }
+    local next_seq=after
+    if entries[#entries] then next_seq=entries[#entries].seq end
+    return ok({replay=true,executed=false,side_effects='none',header=header,
+        entries=entries,next_seq=next_seq,status=Log.status(svc.log)})
+end
 
 -- Built-in presets and import/export -----------------------------------------
 function M.presets(svc)
@@ -336,6 +371,7 @@ function M.handle(svc,op,args)
     if op=='pause' then return M.pause(svc,args.reason) end
     if op=='resume' then return M.resume(svc) end
     if op=='log' then return M.log(svc,args.limit) end
+    if op=='replay' then return M.replay(svc,args) end
     if op=='presets' then return M.presets(svc) end
     if op=='preset' then return M.preset(svc,args.name) end
     if op=='export' then return M.export(svc) end

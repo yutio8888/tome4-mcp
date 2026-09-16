@@ -229,7 +229,13 @@ function M:step()
         local ctx=self:context(default_selector)
         ctx.attempts=self.attempts
         ctx.denied=self.denied
-        local decision=Evaluator.evaluate(self.policy,ctx)
+        local decision=Evaluator.evaluate(self.policy,ctx,{context_for=function(selector)
+            if selector==default_selector then return ctx end
+            local rc=self:context(selector)
+            rc.attempts=self.attempts
+            rc.denied=self.denied
+            return rc
+        end})
         if decision.decision=='pause' then
             self:record({kind='paused',reason=decision.reason,rule=decision.rule})
             local paused=self:pause(decision.reason)

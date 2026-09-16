@@ -44,6 +44,22 @@ function M.tail(log,limit)
     return out
 end
 
+-- Ascending, cursor-based slice for replay/export. Bounded by `limit`; entries
+-- with seq > after_seq, oldest first, so a client can page a whole run.
+function M.slice(log,after_seq,limit)
+    limit=limit or 64
+    after_seq=after_seq or 0
+    local out={}
+    for index=1,#log.entries do
+        local entry=log.entries[index]
+        if entry.seq>after_seq then
+            out[#out+1]=entry
+            if #out>=limit then break end
+        end
+    end
+    return out
+end
+
 function M.status(log)
     return {count=#log.entries,limit=log.limit,total=log.total,
         first_seq=log.entries[1] and log.entries[1].seq,

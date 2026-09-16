@@ -17,7 +17,16 @@ local ObservationCollections=require 'mod.mcp_bridge.ObservationCollections'
 local LevelMap=require 'mod.mcp_bridge.LevelMap'
 local AutoCombat=require 'mod.auto_combat.AutoCombatService'
 local AutoCombatHost=require 'mod.auto_combat.AutoCombatHost'
+local PolicySchema=require 'mod.auto_combat.PolicySchema'
 local buildAutoCombatHost
+local function sortedKeys(t)
+    local out={}
+    for key in pairs(t) do out[#out+1]=key end
+    table.sort(out)
+    return out
+end
+local AUTO_PREDICATES=sortedKeys(PolicySchema.PREDICATES)
+local AUTO_SELECTORS=sortedKeys(PolicySchema.SELECTORS)
 local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304,MAX_RECENT_SNAPSHOTS=16,SNAPSHOT_BYTE_BUDGET=4194304}
 local state, serial
 serial=0
@@ -882,7 +891,10 @@ local function autoCombatReads(s,policy)
             local session_meta=meta(s)
             for _,actor in pairs(g.level.entities or {}) do
                 if NativeActivity.hostileVisible(g,p,actor) then
-                    out[#out+1]={id=Observer.actorId(session_meta,actor),x=actor.x,y=actor.y,hp_pct=lifePct(actor)}
+                    out[#out+1]={id=Observer.actorId(session_meta,actor),x=actor.x,y=actor.y,hp_pct=lifePct(actor),
+                        rank=Details.number(actor.rank),
+                        level=actor.hide_level_tooltip and nil or Details.number(actor.level),
+                        type=Details.text(actor.type,48)}
                 end
             end
             return out
@@ -1175,9 +1187,11 @@ local function dispatch(s,request)
                     source='auto_combat',baseline='p1b',
                     actions=Json.array{'use_talent','attack','wait','rest','auto_explore','change_level'},
                     native_activities=Json.array{'rest','auto_explore'},
+                    predicates=Json.array(AUTO_PREDICATES),
+                    selectors=Json.array(AUTO_SELECTORS),
                     change_level='opt_in',
                     policy_ops=Json.array{'status','validate','dry_run','set_draft','approve','activate','deactivate',
-                        'start','stop','pause','resume','log','presets','preset','export','import'}}},snapshot=snap}
+                        'start','stop','pause','resume','log','replay','presets','preset','export','import'}}},snapshot=snap}
         local ok,reason=Compat.check(s.game)
         result.capabilities.native_compatibility={compatible=ok==true,reason=reason,providers='runtime_checked'}
         if not ok then result.capabilities.talents=Json.array() end
@@ -1245,7 +1259,7 @@ local function dispatch(s,request)
     elseif op=='policy' then
         if type(a.policy_op)~='string' then return fail('invalid_argument','policy_op is required') end
         if s.access_mode~='control' and a.policy_op~='status' and a.policy_op~='log'
-            and a.policy_op~='dry_run' then
+            and a.policy_op~='dry_run' and a.policy_op~='replay' then
             return fail('read_only_connection')
         end
         local result=AutoCombat.handle(s.auto_combat,a.policy_op,a)

@@ -197,12 +197,12 @@ do
     local c=AutoCombat.new(p,host); c:start()
     local step=c:onOpportunity()
     check(step.action=='stopped' and step.reason=='no_available_action' and #host.requests==0,
-        'a rule whose bound target fails its own condition is denied, not fired')
-    local denied=false
-    for _,note in ipairs(host.notifications) do
-        if note.kind=='denied' and note.rule=='finish' then denied=true end
+        'a target-specific condition is evaluated against the action selector, not fired')
+    local seen=false
+    for _,row in ipairs(step.results or {}) do
+        if row.rule=='finish' and row.result=='false' then seen=true end
     end
-    check(denied,'a denied rule is recorded in the decision log')
+    check(seen,'the mismatched rule is recorded as false in the decision trace')
     host=bindingHost({nearest_hostile={id='near',hp_pct=20},lowest_hp_hostile={id='low',hp_pct=10}})
     c=AutoCombat.new(p,host); c:start()
     step=c:onOpportunity()

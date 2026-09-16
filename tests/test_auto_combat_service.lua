@@ -94,6 +94,32 @@ do
     check(svc.arbiter.owner=='manual','stop releases the lease')
 end
 
+-- Decision replay: bounded, cursor-paged, ascending -------------------------
+do
+    local svc=Service.new({host_factory=fakeHost,
+        log_context=function() return {tick=1,revision=1,level_instance_id='level-1'} end})
+    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{})
+    Service.handle(svc,'start',{})
+    Service.step(svc)
+    Service.step(svc)
+    local replay=Service.handle(svc,'replay',{limit=1})
+    check(replay.ok and replay.replay==true and replay.executed==false and replay.side_effects=='none',
+        'replay is a read that executes nothing')
+    check(#replay.entries==1,'replay bounds the page size')
+    check(replay.entries[1].seq<=replay.next_seq,'replay returns the oldest page and a cursor')
+    check(replay.header and replay.header.schema and replay.header.run_state~=nil
+        and replay.header.policy_hash~=nil,'replay carries a run header')
+    local second=Service.handle(svc,'replay',{after_seq=replay.next_seq,limit=8})
+    check(second.ok and (second.entries[1]==nil or second.entries[1].seq>replay.next_seq),
+        'the replay cursor advances')
+    check(Service.handle(svc,'replay',{after_seq=-1}).error.code=='invalid_argument',
+        'replay validates the cursor')
+    check(Service.handle(svc,'replay',{limit=999}).error.code=='invalid_argument',
+        'replay bounds the page size')
+end
+
 do
     -- A pause is logged exactly once (the notify callback owns it).
     local svc=Service.new({host_factory=function()

@@ -206,4 +206,54 @@ do
         'the evaluator returns the rest max_turns to the executor')
 end
 
+-- P2 audited target-selection predicates ------------------------------------
+do
+    local p=basePolicy()
+    p.rules={{id='rank',priority=10,when={enemy_rank={ge=2}},
+        ['then']={action='attack',target='nearest_hostile'}}}
+    check(Schema.validate(p),'enemy_rank is schema-valid')
+    check(Evaluator.evaluate(p,ctx({enemy_rank=2})).decision=='act','enemy_rank compares the bound target')
+    check(Evaluator.evaluate(p,ctx({enemy_rank=1})).decision=='hold','enemy_rank below the threshold holds')
+
+    p.rules={{id='level',priority=10,when={enemy_level={le=5}},
+        ['then']={action='attack',target='nearest_hostile'}}}
+    check(Schema.validate(p),'enemy_level is schema-valid')
+    check(Evaluator.evaluate(p,ctx({enemy_level=3})).decision=='act','enemy_level compares')
+
+    p.rules={{id='type',priority=10,when={enemy_type={eq='undead'}},
+        ['then']={action='attack',target='nearest_hostile'}}}
+    check(Schema.validate(p),'enemy_type is schema-valid')
+    check(Evaluator.evaluate(p,ctx({enemy_type='undead'})).decision=='act','enemy_type matches')
+    check(Evaluator.evaluate(p,ctx({enemy_type='animal'})).decision=='hold','enemy_type mismatch holds')
+    check(Evaluator.evaluate(p,ctx({enemy_type=nil})).decision=='hold','enemy_type unknown holds')
+
+    p.rules={{id='dist',priority=10,when={enemy_distance={le=3}},
+        ['then']={action='attack',target='nearest_hostile'}}}
+    check(Schema.validate(p),'enemy_distance is schema-valid')
+    check(Evaluator.evaluate(p,ctx({enemy_distance=2})).decision=='act','enemy_distance compares the bound target')
+
+    local bad=basePolicy()
+    bad.rules={{id='bad',priority=10,when={enemy_type={lt=3}},
+        ['then']={action='attack',target='nearest_hostile'}}}
+    check(not Schema.validate(bad),'enemy_type rejects a numeric comparison')
+end
+
+do
+    -- P2 per-selector condition evaluation: a target-specific condition is
+    -- checked against the selector the action will bind, not the default one.
+    local p=basePolicy()
+    p.rules={{id='boss',priority=10,when={enemy_is_boss={}},
+        ['then']={action='use_talent',talent='T_SUN_BEAM',target='most_dangerous_hostile'}}}
+    local near_ctx=ctx({hp_pct=80,enemy_count=2,enemy_rank=2})
+    local boss_ctx=ctx({hp_pct=80,enemy_count=2,enemy_rank=4})
+    local decision=Evaluator.evaluate(p,near_ctx,{context_for=function(selector)
+        if selector=='most_dangerous_hostile' then return boss_ctx end
+        return near_ctx
+    end})
+    check(decision.decision=='act' and decision.rule=='boss' and decision.target=='most_dangerous_hostile',
+        'context_for evaluates the condition against the action selector')
+    check(Evaluator.evaluate(p,near_ctx).decision=='hold',
+        'without context_for the default binding applies')
+end
+
 print('Auto-combat policy: '..checks..' checks passed')

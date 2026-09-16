@@ -1,0 +1,101 @@
+{
+  "date": "2026-09-17",
+  "harness": "tests/test_auto_combat_ab.lua",
+  "policies": [
+    "baseline:anorithil_p1a",
+    "tuned:anorithil-p2-tuned (adds enemy_is_boss + most_dangerous_hostile boss rule)"
+  ],
+  "scenarios": [
+    "low-hp",
+    "boss-visible",
+    "no-enemy",
+    "ray-cooldown"
+  ],
+  "rows": [
+    {
+      "action": "use_talent",
+      "decision": "act",
+      "layer": "emergency",
+      "policy": "baseline",
+      "rule": "heal",
+      "scenario": "low-hp",
+      "talent": "T_HEALING_LIGHT",
+      "target": "self"
+    },
+    {
+      "action": "use_talent",
+      "decision": "act",
+      "layer": "emergency",
+      "policy": "tuned",
+      "rule": "heal",
+      "scenario": "low-hp",
+      "talent": "T_HEALING_LIGHT",
+      "target": "self"
+    },
+    {
+      "action": "use_talent",
+      "decision": "act",
+      "layer": "normal",
+      "policy": "baseline",
+      "rule": "ray",
+      "scenario": "boss-visible",
+      "talent": "T_MOONLIGHT_RAY",
+      "target": "nearest_hostile"
+    },
+    {
+      "action": "use_talent",
+      "decision": "act",
+      "layer": "normal",
+      "policy": "tuned",
+      "rule": "boss",
+      "scenario": "boss-visible",
+      "talent": "T_MOONLIGHT_RAY",
+      "target": "most_dangerous_hostile"
+    },
+    {
+      "decision": "hold",
+      "layer": "normal",
+      "policy": "baseline",
+      "reason": "no_rule_matched",
+      "scenario": "no-enemy"
+    },
+    {
+      "decision": "hold",
+      "layer": "normal",
+      "policy": "tuned",
+      "reason": "no_rule_matched",
+      "scenario": "no-enemy"
+    },
+    {
+      "action": "wait",
+      "decision": "act",
+      "layer": "normal",
+      "policy": "baseline",
+      "rule": "recover",
+      "scenario": "ray-cooldown",
+      "target": "nearest_hostile"
+    },
+    {
+      "action": "wait",
+      "decision": "act",
+      "layer": "normal",
+      "policy": "tuned",
+      "rule": "recover",
+      "scenario": "ray-cooldown",
+      "target": "nearest_hostile"
+    }
+  ],
+  "differences": [
+    {
+      "scenario": "boss-visible",
+      "baseline": {
+        "rule": "ray",
+        "target": "nearest_hostile"
+      },
+      "tuned": {
+        "rule": "boss",
+        "target": "most_dangerous_hostile"
+      }
+    }
+  ]
+}

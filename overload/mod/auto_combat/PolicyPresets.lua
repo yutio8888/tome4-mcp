@@ -44,6 +44,45 @@ M.PRESETS={
                 ['then']={action='wait'}},
         },
     },
+    -- P2 second pilot build. Sun Paladin shares the celestial/positive energy
+    -- pool with the Anorithil but uses the ranged single-target Sun Ray and the
+    -- Weapon of Light sustain. The boss rule exercises the P2 rank predicate and
+    -- `most_dangerous_hostile` selector.
+    sun_paladin_p2={
+        schema='tome-auto-combat/v1',id='sun-paladin-p2',name='Sun Paladin (P2 pilot)',
+        class='celestial/sun-paladin',
+        limits={max_actions_per_tick=2},
+        safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=true,
+            pause_on_unknown_safety=true,max_selffire_risk=0},
+        targeting={default='nearest_hostile'},
+        sustains={
+            {talent='T_CHANT_OF_FORTRESS',priority=20,min_resource_pct=20},
+            {talent='T_WEAPON_OF_LIGHT',priority=15,min_resource_pct=20},
+        },
+        rules={
+            {id='heal',priority=100,emergency=true,
+                when={all={{hp_pct={lt=50}},{talent_known={talent='T_HEALING_LIGHT'}}}},
+                ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
+            {id='barrier',priority=90,
+                when={all={{hp_pct={lt=70}},{talent_known={talent='T_BARRIER'}},
+                    {cooldown_ready={talent='T_BARRIER'}}}},
+                ['then']={action='use_talent',talent='T_BARRIER',target='self'}},
+            {id='smite-boss',priority=80,
+                when={all={{enemy_is_boss={}},{talent_known={talent='T_SUN_BEAM'}},
+                    {cooldown_ready={talent='T_SUN_BEAM'}}}},
+                ['then']={action='use_talent',talent='T_SUN_BEAM',target='most_dangerous_hostile'}},
+            {id='sun-beam',priority=60,
+                when={all={{enemy_count={ge=1}},{nearest_enemy_distance={le=7}},
+                    {talent_known={talent='T_SUN_BEAM'}},
+                    {cooldown_ready={talent='T_SUN_BEAM'}}}},
+                ['then']={action='use_talent',talent='T_SUN_BEAM',target='nearest_hostile'}},
+            {id='melee',priority=50,when={enemy_in_melee={}},
+                ['then']={action='attack',target='nearest_hostile'}},
+            {id='recover',priority=1,
+                when={all={{enemy_count={ge=1}},{['not']={cooldown_ready={talent='T_SUN_BEAM'}}}}},
+                ['then']={action='wait'}},
+        },
+    },
 }
 
 function M.get(name) return M.PRESETS[name] end

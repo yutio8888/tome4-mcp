@@ -36,6 +36,26 @@ function M.select(selector,hostiles,origin)
         end
         return best or sorted[1]
     end
+    -- Rank-first selectors. `most_dangerous_hostile` is an audited heuristic
+    -- (highest rank, then lowest hp, then nearest); it deliberately does not use
+    -- the unaudited `computed` values the design reserves for a later phase.
+    if selector=='highest_rank_hostile' or selector=='most_dangerous_hostile' then
+        local best
+        for _,entry in ipairs(sorted) do
+            if best==nil then best=entry
+            else
+                local rank=finite(entry.rank) and entry.rank or 0
+                local bestrank=finite(best.rank) and best.rank or 0
+                if rank>bestrank then best=entry
+                elseif rank==bestrank and selector=='most_dangerous_hostile' then
+                    local hp=finite(entry.hp_pct) and entry.hp_pct or math.huge
+                    local besthp=finite(best.hp_pct) and best.hp_pct or math.huge
+                    if hp<besthp then best=entry end
+                end
+            end
+        end
+        return best or sorted[1]
+    end
     if selector=='self' then return nil end
     return sorted[1]  -- default: nearest_hostile
 end
@@ -85,6 +105,9 @@ function M.build(host,policy,selector)
     if bound then
         ctx.bound_target=bound.id
         ctx.enemy_hp_pct=bound.hp_pct
+        ctx.enemy_rank=bound.rank
+        ctx.enemy_level=bound.level
+        ctx.enemy_type=bound.type
         ctx.enemy_distance=origin and finite(bound.x) and Distance.grid(origin.x,origin.y,bound.x,bound.y) or nil
     end
     return ctx

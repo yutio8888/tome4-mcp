@@ -16,8 +16,12 @@ M.ENTRIES={
     T_SEARING_LIGHT={kind='attack',target='hostile',shape='ball',resource='positive',
         friendlyfire_risk='area'},
     T_ATTACK={kind='attack',target='hostile',shape='hit'},
+    -- P2 second pilot: Sun Paladin (celestial/sun + celestial/light).
+    T_SUN_BEAM={kind='attack',target='hostile',shape='hit',resource='positive'},
+    T_WEAPON_OF_LIGHT={kind='sustain',target='self',resource='positive'},
 }
-M.HOSTILE_SELECTORS={nearest_hostile=true,lowest_hp_hostile=true}
+M.HOSTILE_SELECTORS={nearest_hostile=true,lowest_hp_hostile=true,
+    highest_rank_hostile=true,most_dangerous_hostile=true}
 M.SELF_SELECTORS={self=true}
 
 -- Action-level adapters. P1a actions plus the P1b native activities.
