@@ -96,4 +96,12 @@ do
     check(Footprint.count(set)==0,'an empty set has no grids')
 end
 
+-- A supplied native context that cannot expand is unknown, not the model.
+do
+    local set,backend=Footprint.expand(spec('beam',{target={x=3,y=0}}),{native={}})
+    check(set==nil and backend=='native_failed','a native expansion failure is unknown, not the model')
+    local headless=Footprint.expand(spec('beam',{target={x=3,y=0}}),{})
+    check(headless~=nil,'an explicitly headless context still uses the pure model')
+end
+
 print('Effect footprint: '..checks..' checks passed')

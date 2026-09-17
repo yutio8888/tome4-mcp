@@ -58,10 +58,16 @@ end
 do
     local flame=Manifest.entry('T_FLAME')
     check(#flame.union==3,'Flame declares the conservative bolt/beam/widebeam union')
-    local ground
-    for _,component in ipairs(flame.components) do if component.phase=='ground' then ground=component end end
+    local bolt,ground
+    for _,component in ipairs(flame.components) do
+        if component.id=='flame_bolt' then bolt=component end
+        if component.phase=='ground' then ground=component end
+    end
+    check(bolt and bolt.delivery=='projectile','Flame\'s below-TL5 bolt is a projectile branch')
     check(ground and ground.when and ground.when.kind=='attr' and ground.when.id=='burning_wake',
         'Flame Burning Wake is a conditional ground component')
+    check(ground.duration==4 and ground.per_grid==true,
+        'Burning Wake is a duration-4 zone on every projected grid')
     check(ground.selffire=='unknown' and ground.friendlyfire==100,'Flame ground keeps its dynamic SF and default FF')
 end
 do

@@ -100,7 +100,7 @@ M.ENTRIES={
         union={'bolt','beam','widebeam'},
         components={
             {id='cursor',phase='cursor',delivery='project',shape='widebeam',range=10,radius=1,center='target'},
-            {id='flame_bolt',phase='instant',delivery='project',shape='bolt',range=10,center='target',
+            {id='flame_bolt',phase='instant',delivery='projectile',shape='bolt',range=10,center='target',
                 when={kind='talent_level',below=5},
                 selffire=100,friendlyfire=100,
                 provenance={selffire=TARGET_DEFAULT,friendlyfire=TARGET_DEFAULT}},
@@ -112,7 +112,8 @@ M.ENTRIES={
                 when={kind='attr',id='archmage_widebeam'},
                 selffire=0,friendlyfire='unknown',
                 provenance={selffire=EXPLICIT,friendlyfire=CURATED}},
-            {id='ground',phase='ground',delivery='map_effect',shape='ball',center='target',radius=0,
+            {id='ground',phase='ground',delivery='map_effect',shape='ball',center='target',radius=0,duration=4,
+                per_grid=true,
                 when={kind='attr',id='burning_wake'},
                 selffire='unknown',friendlyfire=100,
                 provenance={selffire=CURATED,friendlyfire=MAP_DEFAULT}},

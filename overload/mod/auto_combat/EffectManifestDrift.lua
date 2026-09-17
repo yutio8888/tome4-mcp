@@ -57,25 +57,38 @@ function M.verify(sources,read,digest,expected)
     return true
 end
 
--- Identity/closure: an entry that claims a native target builder must actually
--- expose one under `talents_def`, and an action-local entry must not. This
--- catches a target function being added, removed or replaced between sessions
--- even when the data file hash is unchanged (an addon overlay).
+-- Identity/closure: every entry that declares a native builder must expose the
+-- *pinned* builder function (same source path and definition line), and every
+-- entry that declares an action-local target must not expose one. A same-type
+-- replacement loaded from another file/line fails closed, and a missing
+-- definition fails closed instead of being skipped.
 function M.identity(manifest,getDef)
     if type(manifest)~='table' or type(manifest.ENTRIES)~='table' or type(getDef)~='function' then
         return nil,M.REASON,'identity_unavailable'
     end
-    for talent,entry in pairs(manifest.ENTRIES) do
-        local def=getDef(talent)
-        if def~=nil then
-            local has_builder=type(def.target)=='function'
-            local wants=entry.conformance and entry.conformance.builder or false
-            local forbids=entry.conformance and entry.conformance.builder==false or false
-            if wants and not has_builder then
-                return nil,M.REASON,talent..':builder_missing'
-            end
-            if forbids and has_builder then
-                return nil,M.REASON,talent..':builder_unexpected'
+    local names={}
+    for talent in pairs(manifest.ENTRIES) do names[#names+1]=talent end
+    table.sort(names)
+    for _,talent in ipairs(names) do
+        local entry=manifest.ENTRIES[talent]
+        local expects=entry.conformance
+        if expects and expects.builder~=nil then
+            local def=getDef(talent)
+            if type(def)~='table' then return nil,M.REASON,talent..':definition_missing' end
+            local builder=def.target
+            if expects.builder then
+                if type(builder)~='function' then return nil,M.REASON,talent..':builder_missing' end
+                local pin=entry.source and entry.source.builder
+                if type(pin)~='table' or type(pin.path)~='string' or type(pin.line)~='number' then
+                    return nil,M.REASON,talent..':builder_unpinned'
+                end
+                local info=debug.getinfo(builder,'S')
+                if type(info)~='table' or info.what~='Lua'
+                    or info.source~='@'..pin.path or info.linedefined~=pin.line then
+                    return nil,M.REASON,talent..':builder_replaced'
+                end
+            else
+                if builder~=nil then return nil,M.REASON,talent..':builder_unexpected' end
             end
         end
     end

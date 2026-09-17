@@ -587,8 +587,10 @@ local function guardRealSpec()
     local original=def.target
     local signals={}
     -- A builder-provided self-hitting ball must reject with the builder as the
-    -- source, even though the catalog would not flag it as a self-hit.
-    def.target=function() return {type='ball',range=100,radius=10,selffire=true,friendlyfire=true} end
+    -- source even though the catalog would not flag it as a self-hit. The flame
+    -- bolt branch is a player projectile, so the self-hit needs the projectile
+    -- opt-in.
+    def.target=function() return {type='ball',range=100,radius=10,selffire=true,friendlyfire=true,player_selffire=true} end
     local selfhit=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
     check('guard-real-spec:self',selfhit and selfhit.reason=='selffire_risk'
         and selfhit.detail and selfhit.detail.source=='builder' and selfhit.detail.phase=='instant',selfhit)
@@ -619,10 +621,43 @@ local function sameSet(a,b)
 end
 
 -- V2-3: the production footprint backend must reproduce the real
--- ActorProject:project grid collection for every audited shape.
+-- ActorProject:project grid collection for every audited shape, including a
+-- corner that actually triggers the blocked-corner branch. Native block
+-- callbacks return (block, hit, hit_radius); the corner oracle needs the
+-- three-return form, so the corner cases are non-tautological rather than an
+-- ordinary path stop.
 function M.effectFootprintParity()
     local p=game.player
     local ctx={game=game,source=p}
+    local is_hex=util.isHex() and true or false
+    check('effect-footprint:map-mode',is_hex==false,{mode=is_hex and 'hex' or 'square',
+        note='ToME 1.7.6 is a square grid; assert rather than assume'})
+    local function blocker(cellFn)
+        local corners=0
+        local fn=function(typ,lx,ly,for_highlights)
+            if for_highlights then corners=corners+1 end
+            return cellFn(lx,ly,for_highlights==true)
+        end
+        return fn,function() return corners end,function() corners=0 end
+    end
+    local function simpleBlock(bx,by)
+        return function(lx,ly)
+            if lx==bx and ly==by then return true,true,true end
+            return false,true,true
+        end
+    end
+    local function allCorner(lx,ly,corner)
+        if corner then return true,true,false end
+        return false,true,true
+    end
+    local function lateCorner(lx,ly,corner)
+        if corner and core.fov.distance(p.x,p.y,lx,ly)>=2 then return true,true,false end
+        return false,true,true
+    end
+    local boltFn,boltCorners,boltReset=blocker(simpleBlock(p.x+2,p.y))
+    local beamFn,beamCorners,beamReset=blocker(simpleBlock(p.x+2,p.y))
+    local cornerFn,cornerCorners,cornerReset=blocker(allCorner)
+    local laterFn,laterCorners,laterReset=blocker(lateCorner)
     local cases={
         {name='hit',spec={type='hit',range=20,no_restrict=true},target={x=p.x+4,y=p.y}},
         {name='bolt',spec={type='bolt',range=20,no_restrict=true},target={x=p.x+5,y=p.y}},
@@ -633,12 +668,14 @@ function M.effectFootprintParity()
         {name='widebeam2',spec={type='widebeam',range=20,radius=2,no_restrict=true},target={x=p.x+3,y=p.y+2}},
         {name='cone1',spec={type='cone',range=20,radius=1,no_restrict=true},target={x=p.x+4,y=p.y}},
         {name='cone2',spec={type='cone',range=20,radius=2,no_restrict=true},target={x=p.x+3,y=p.y+2}},
-        {name='bolt_block',spec={type='bolt',range=20,no_restrict=true,
-            block_path=function(typ,lx,ly) return lx==p.x+2 and ly==p.y end},target={x=p.x+5,y=p.y}},
-        {name='beam_block',spec={type='beam',range=20,no_restrict=true,
-            block_path=function(typ,lx,ly) return lx==p.x+2 and ly==p.y end},target={x=p.x+5,y=p.y}},
-        {name='corner',spec={type='beam',range=20,no_restrict=true,
-            block_path=function(typ,lx,ly) return lx==p.x+2 and ly==p.y+1 end},target={x=p.x+5,y=p.y+3}},
+        {name='bolt_block',spec={type='bolt',range=20,no_restrict=true,block_path=boltFn},
+            target={x=p.x+5,y=p.y},reset=boltReset,corners=boltCorners},
+        {name='beam_block',spec={type='beam',range=20,no_restrict=true,block_path=beamFn},
+            target={x=p.x+5,y=p.y},reset=beamReset,corners=beamCorners},
+        {name='corner_first',spec={type='beam',range=20,no_restrict=true,block_path=cornerFn},
+            target={x=p.x+5,y=p.y+3},reset=cornerReset,corners=cornerCorners,corner=true},
+        {name='corner_later',spec={type='beam',range=20,no_restrict=true,block_path=laterFn},
+            target={x=p.x+6,y=p.y+4},reset=laterReset,corners=laterCorners,corner=true},
     }
     local all=true
     for _,case in ipairs(cases) do
@@ -646,12 +683,35 @@ function M.effectFootprintParity()
         for key,value in pairs(case.spec) do spec[key]=value end
         spec.target={x=case.target.x,y=case.target.y}
         local native=EffectFootprint.native(ctx,spec)
-        local recorded=p:project(spec,case.target.x,case.target.y,function() return false end,0)
+        if case.reset then case.reset() end
+        local recorded,stop_x,stop_y=p:project(spec,case.target.x,case.target.y,function() return false end,0)
         local match=native~=nil and sameSet(native,recorded)
-        check('effect-footprint:'..case.name,match,
-            {native=EffectFootprint.count(native),recorded=EffectFootprint.count(recorded)})
+        local corners=case.corners and case.corners() or 0
+        check('effect-footprint:'..case.name,match and (not case.corner or corners>0),
+            {native=EffectFootprint.count(native),recorded=EffectFootprint.count(recorded),
+                corners=corners,stop={x=stop_x,y=stop_y}})
+        if case.corner then
+            check('effect-footprint:'..case.name..':corner',corners>0 and stop_x~=nil,
+                {corners=corners,stop={x=stop_x,y=stop_y}})
+        end
         if not match then all=false end
     end
+    -- The production guard, not only M.native, must use the native backend.
+    local NPC=require('mod.class.NPC')
+    local ally=NPC.new{name='effect ally',type='humanoid',subtype='human',display='a',
+        color=colors.GREEN,faction='players',level_range={1,1},max_life=100,life_rating=0,
+        rank=1,size_category=1,ai='none',never_move=true,
+        stats={str=10,dex=10,mag=10,con=10},combat={dam=1,atk=1,apr=0},
+        combat_armor=0,combat_def=0,infravision=10}
+    ally:resolve();ally:resolve(nil,true);ally.life=ally.max_life
+    game.zone:addEntity(game.level,ally,'actor',p.x+2,p.y)
+    local host=Runtime.buildAutoCombatHostFor(game,policy({WAIT}))
+    local bound=host and host.snapshot('nearest_hostile').bound_target
+    local verdict=bound and host.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=bound})
+    check('effect-footprint:guard-native',verdict and verdict.reason=='selffire_risk'
+        and verdict.detail and verdict.detail.footprint_backend=='native',verdict)
+    if not (verdict and verdict.detail and verdict.detail.footprint_backend=='native') then all=false end
+    game.level:removeEntity(ally,true)
     return compare('effect-footprint-parity',{all and 'parity_ok' or 'parity_failed'})
 end
 

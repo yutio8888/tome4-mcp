@@ -1,8 +1,10 @@
 # Auto-combat v2 effect manifest, native-equivalent footprint, drift-safe guard
 
-Status: implemented on `main` (`f9b34c2`); branch/PR pending review. This round
-executes `docs/tome-mcp-0.9.0-selffire-investigation.md` §6–§9 and closes TODO
-#54 (versioned component manifest, exact footprint parity, composed
+Status: implemented on **PR [#13](https://github.com/yutio8888/tome4-mcp/pull/13)**
+(rev 2, reviewed head reported to the dispatcher); **not merged**. The actual
+`main` base is `f9b34c2` and the branch stays unmerged until review accepts it.
+This round executes `docs/tome-mcp-0.9.0-selffire-investigation.md` §6–§9 and
+closes TODO #54 (versioned component manifest, exact footprint parity, composed
 projectile/ground risk, source-drift detection). `allow_auto_combat_execution`
 is unchanged (`false`).
 
@@ -60,29 +62,60 @@ identity/closure check also catches a target builder added, removed or replaced
 under an unchanged data hash. `generate_effect_manifest.py --check` fails CI on
 drift.
 
+## Rev 2 review fixes (V2-REV-01 … V2-REV-07)
+
+All seven independent-review findings are fixed with a regression test that
+would have failed before:
+
+- **V2-REV-01** `talent_level` variants use the audited effective level
+  (`self:getTalentLevel(t)`, mastery/alterations), registered through
+  `NativeCompatibility`; an unavailable/overridden/erroring getter leaves the
+  branch conservative. Regression: raw 2 + effective 3 keeps Sun Ray's radius-2
+  secondary active.
+- **V2-REV-02** drift runs before the hostile/self early return; a missing live
+  `fs`/`md5` is a failure, not a pass; `identity()` now requires every declared
+  definition and matches the builder's source path + definition line (a
+  same-type replacement on another file/line fails); the guard fails closed on a
+  throwing or non-table builder instead of using stale manifest geometry.
+- **V2-REV-03** a supplied native context that cannot expand returns unknown
+  (`native_failed`), never the approximate model; the model is reserved for an
+  explicitly headless context (no `core.fov`).
+- **V2-REV-04** each membership carries the effective projectile opt-in
+  (`typ.player_selffire` OR `player.allow_player_selffire`); Flame's below-TL5
+  bolt is `delivery='projectile'`; Burning Wake is a duration-4 per-grid zone.
+- **V2-REV-05** the probe's corner cases use a three-return `block_path` and
+  count the corner callback (`for_highlights=true`); two distinct branches now
+  trigger (first-step and later-step). It asserts the square map mode and that
+  the **production guard** reports `footprint_backend='native'`.
+- **V2-REV-06** persistent-ground self risk requires SF ∧ FF; FF alone is the
+  friendly risk (adds the SF=100/FF=0 safe case).
+- **V2-REV-07** this status now locates the work on PR #13, not on `main`.
+
 ## Native evidence
 
 | Layer | Session | Result |
 | --- | --- | --- |
-| Auto-combat probe (source) | `v2-final-src` | **74/74**, incl. 12 `effect-footprint:*` parity cases + 3 `manifest-drift:*` |
-| Auto-combat probe (`dist`) | `v2-final-dist` | **74/74** |
-| Native acceptance (source) | `v2-final-accept-src` | **100/100** |
-| Native acceptance (`dist`) | `v2-final-accept-dist` | **100/100** |
+| Auto-combat probe (source) | `v2-rev2-src` | **79/79**, incl. 13 footprint cases + 3 `manifest-drift:*` |
+| Auto-combat probe (`dist`) | `v2-rev2-dist` | **79/79** |
+| Native acceptance (source) | `v2-rev2-accept-src` | **100/100** |
+| Native acceptance (`dist`) | `v2-rev2-accept-dist` | **100/100** |
 
 Footprint parity compares the production backend against the real
 `ActorProject:project` grid set for `hit`, `bolt`, `beam`, `ball` (r1/r2),
-`widebeam` (r1/r2), `cone` (r1/r2) and explicit `block_path` cases (bolt/beam
-stop, corner). All 12 matched exactly.
+`widebeam` (r1/r2), `cone` (r1/r2) and explicit three-return `block_path` cases
+(bolt/beam stop, first-step corner, later-step corner). All 13 matched exactly;
+both corner cases report a non-zero corner-callback count and the expected stop
+set. The production guard reports `footprint_backend='native'`.
 
 Lua suites: full `tests/run.sh` green, including the new
-`test_effect_manifest` (238), `test_effect_manifest_drift` (13),
-`test_effect_footprint` (22), `test_effect_risk` (28) and
-`test_auto_combat_guard` (17). Python: 39/39. All three `--check` generators green.
+`test_effect_manifest` (240), `test_effect_manifest_drift` (18),
+`test_effect_footprint` (24), `test_effect_risk` (29) and
+`test_auto_combat_guard` (26). Python: 39/39. All three `--check` generators green.
 
 `dist/tome-mcp-bridge.teaa` repackaged:
 
 ```
-sha256 = c96faee23db2b7d218295a97ecc1f728d334483ca4e0c62a5bd7b932ee2f7cbd
+sha256 = ceb1e3799b827b6d9bc192b9bdb5c3e0407053e10f4e6514260617f793e27518
 ```
 
 (`main` baseline artifact `4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29`.)
@@ -101,5 +134,7 @@ wire field changed.
   `T_STARFALL`) are documented under `EffectManifest.UNSUPPORTED` with their
   reason; they still need a pinned `spellFriendlyFire` input closure plus full
   ground modelling before re-admission.
-- `EffectFootprint.model` is a pure approximation used only off-engine; the
-  in-game guard uses the native backend, which the probe shows is exact.
+- `EffectFootprint.model` is a pure approximation used only for an explicitly
+  headless context (no `core.fov`); the in-game guard uses the native backend and
+  fails closed (`native_failed`) if it cannot expand, which the probe shows is
+  exact.

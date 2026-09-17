@@ -51,9 +51,10 @@ function M.component(component,membership)
     local m=membership or {}
     local sf,ff=M.flag(component.selffire),M.flag(component.friendlyfire)
     if component.phase=='ground' then
-        -- No expiry prediction: any positive/unknown probability is future risk
-        -- for the caster and every friendly/neutral that can enter the zone.
-        if positive(sf) then
+        -- Native `Map:updateEffects` applies both filters to the caster and only
+        -- the friendly-fire filter to allies. A persistent zone is future risk
+        -- whenever a required filter is positive/unknown.
+        if positive(sf) and positive(ff) then
             return {phase='ground',component=component.id or 'ground',risk='self',
                 selffire=sf,friendlyfire=ff,provenance=component.provenance}
         end

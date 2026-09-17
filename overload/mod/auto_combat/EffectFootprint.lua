@@ -287,12 +287,15 @@ function M.native(ctx,spec)
     return set
 end
 
--- Choose the native backend when the engine geometry is available, else the
--- pure model. `opts.native` is the {game=,source=} context.
+-- Choose the native backend when a native context is supplied; a native
+-- expansion failure returns unknown rather than silently degrading to the
+-- approximate model. `M.model` is used only for an explicitly headless context
+-- (no `opts.native`).
 function M.expand(spec,opts)
     if type(opts)=='table' and opts.native then
         local set=M.native(opts.native,spec)
         if set~=nil then return set,'native' end
+        return nil,'native_failed'
     end
     local set=M.model(spec,opts)
     if set~=nil then return set,'model' end

@@ -1,34 +1,34 @@
 # MCP Bridge 验收记录
 
-## 0.9.0：自动战斗 v2 效果清单（V2-1 … V2-6）
+## 0.9.0：自动战斗 v2 效果清单（V2-1 … V2-6，rev 2）
 
-日期：2026-09-17。基于 `main@f9b34c2`，执行 `docs/tome-mcp-0.9.0-selffire-investigation.md` §6–§9。执行与 `allow_auto_combat_execution` 仍为关闭。
+日期：2026-09-17。基于 `main@f9b34c2` 的分支 `feat/v2-effect-manifest`（PR #13，未合并），执行 `docs/tome-mcp-0.9.0-selffire-investigation.md` §6–§9。执行与 `allow_auto_combat_execution` 仍为关闭。rev 2 修复独立评审的 V2-REV-01…07，每条都有回归测试。
 
 | ID | 结果 | 证据 |
 | --- | --- | --- |
-| V2-1 组件清单 | **通过**：`EffectManifest`（`tome-auto-combat-adapters/v2`）为每个技能提供 cursor + instant/projectile/secondary/ground 独立组件、delivery/footprint/SF/FF/player-override、来源（文件+md5+行）与声明式变体 | `test_effect_manifest.lua`（238）、`tools/generate_effect_manifest.py --check` |
-| V2-2 守卫 | **通过**：`AutoCombatGuard` 只从规范组件推导风险，变体仅用已审计标量读取（否则保守并集），D2（0 拒绝 / >0 暂停）；不再读旧单形状字段 | `test_auto_combat_guard.lua`（17）、`test_runtime.lua`（171）、原生 `guard-real-spec` |
-| V2-3 footprint 对等 | **通过**：原生探针对真实 `ActorProject:project` 逐格比对 hit/bolt/beam/ball/widebeam/cone + blocking/corner，12/12 完全一致（source 与 dist） | `v2-final-src`、`v2-final-dist`（`effect-footprint:*`） |
-| V2-4 组合风险 | **通过**：玩家投射物仅按 override 自伤；持续地面即使当前为空，正/未知 SF/FF 也拒绝或暂停；self 需 SF∧FF，友军只需 FF | `test_effect_risk.lua`（28）、`test_auto_combat_guard.lua` |
-| V2-5 源漂移 | **通过**：生成器固定 20 个技能文件 + 5 个引擎语义文件的 md5 与定义行；不匹配返回 `adapter_source_drift` 且不使用过期元数据；builder identity/closure 校验 | `test_effect_manifest_drift.lua`（13）、原生 `manifest-drift` |
-| V2-6 整体 | **通过**：Lua 全绿、Python 39、两个 `--check` 与效果清单 `--check` 绿；auto-combat 探针 source/dist 各 74/74；原生验收 source/dist 各 100/100；重新打包 | 下表 |
+| V2-1 组件清单 | **通过**：`EffectManifest`（`tome-auto-combat-adapters/v2`）为每个技能提供 cursor + instant/projectile/secondary/ground 独立组件、delivery/footprint/SF/FF/player-override、来源（文件+md5+定义行+builder 行）与声明式变体 | `test_effect_manifest.lua`（240）、`tools/generate_effect_manifest.py --check` |
+| V2-2 守卫 | **通过**：`AutoCombatGuard` 只从规范组件推导风险；变体用已审计有效技能等级（`getTalentLevel`）；builder 抛出/非表、缺失定义、漂移均 fail-closed（且先于 self/hostile 早退）；D2 不变 | `test_auto_combat_guard.lua`（26）、`test_runtime.lua`（172）、原生 `guard-real-spec` |
+| V2-3 footprint 对等 | **通过**：原生探针对真实 `ActorProject:project` 逐格比对 hit/bolt/beam/ball/widebeam/cone + 三返回 `block_path`（bolt/beam 停止、first-step 与 later-step corner），13/13 完全一致；断言方格地图模式；生产守卫报告 `footprint_backend=native` | `v2-rev2-src`、`v2-rev2-dist`（`effect-footprint:*`） |
+| V2-4 组合风险 | **通过**：成员按有效投射物 override（`player_selffire`/`allow_player_selffire`）组合；Flame sub-TL5 为 projectile；Burning Wake 为 duration-4 per-grid 地面；地面 self 需 SF∧FF、友军只需 FF | `test_effect_risk.lua`（29）、`test_auto_combat_guard.lua` |
+| V2-5 源漂移 | **通过**：生成器固定 20 个技能文件 + 6 个引擎语义文件（含 `ActorTalents.lua`）的 md5、定义行与 builder 行；同名替换/缺失定义/缺 hash 服务均 `adapter_source_drift` | `test_effect_manifest_drift.lua`（18）、原生 `manifest-drift` |
+| V2-6 整体 | **通过**：Lua 全绿、Python 39、三个 `--check` 绿；auto-combat 探针 source/dist 各 79/79；原生验收 source/dist 各 100/100；重新打包 | 下表 |
 
 原生证据：
 
 | 层 | 会话 | 结果 |
 | --- | --- | --- |
-| Auto-combat 探针（source） | `v2-final-src` | **74/74**（含 12 footprint parity + 3 drift） |
-| Auto-combat 探针（dist） | `v2-final-dist` | **74/74** |
-| 原生验收（source） | `v2-final-accept-src` | **100/100** |
-| 原生验收（dist） | `v2-final-accept-dist` | **100/100** |
+| Auto-combat 探针（source） | `v2-rev2-src` | **79/79**（含 13 footprint parity + 3 drift） |
+| Auto-combat 探针（dist） | `v2-rev2-dist` | **79/79** |
+| 原生验收（source） | `v2-rev2-accept-src` | **100/100** |
+| 原生验收（dist） | `v2-rev2-accept-dist` | **100/100** |
 
 正式包 **66 个生产文件**，SHA-256：
 
 ```text
-c96faee23db2b7d218295a97ecc1f728d334483ca4e0c62a5bd7b932ee2f7cbd
+ceb1e3799b827b6d9bc192b9bdb5c3e0407053e10f4e6514260617f793e27518
 ```
 
-（基线 `4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29`。）冻结不变量保持：紧急层、预算、目标绑定、`native_pending`、手动撤销、只读 `dry_run` 不变；无协议/服务端字段变化，仅 `capabilities.adapter_version` 变为 v2。未决：动态技能（Fireflash/Flameshock/Shadow Blast/Starfall）留作 TODO #55。详见 [V2 文档](docs/tome-mcp-0.9.0-v2-effect-manifest.md)。
+（rev 1 包 `c96faee23db2b7d218295a97ecc1f728d334483ca4e0c62a5bd7b932ee2f7cbd`；基线 `4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29`。）冻结不变量保持：紧急层、预算、目标绑定、`native_pending`、手动撤销、只读 `dry_run` 不变；无协议/服务端字段变化，仅 `capabilities.adapter_version` 变为 v2。未决：动态技能（Fireflash/Flameshock/Shadow Blast/Starfall）留作 TODO #55。详见 [V2 文档](docs/tome-mcp-0.9.0-v2-effect-manifest.md)。
 
 ## 0.9.0：自动战斗插件 Wave 2（接口/契约）
 

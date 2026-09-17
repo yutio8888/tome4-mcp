@@ -1046,20 +1046,37 @@ buildAutoCombatHost=function(s,policy,opts)
     local function manifestDrift()
         local override=opts and opts.drift
         if type(override)=='function' then return override() end
+        -- Missing live hash services is a failed check, not a pass: the adapter
+        -- must not run on unverified metadata. Headless callers inject
+        -- `opts.drift` explicitly.
         local has_md5,md5=pcall(require,'md5')
         local reader=type(fs)=='table' and type(fs.readAll)=='function' and fs.readAll or nil
-        if not has_md5 or type(md5.sumhexa)~='function' or type(reader)~='function' then
-            -- Headless/unit context: the audited source cannot be read here, so
-            -- the check is reported unverified rather than fabricated. The live
-            -- game always has fs+md5 and performs the strict check below.
-            return true,'drift_unverified'
-        end
+        local digest=has_md5 and type(md5.sumhexa)=='function' and md5.sumhexa or nil
         return ManifestDrift.ensure(s,{sources=EffectManifest.SOURCES,read=reader,
-            digest=md5.sumhexa,expected={game_version=EffectManifest.GAME_VERSION},
+            digest=digest,expected={game_version=EffectManifest.GAME_VERSION},
             manifest=EffectManifest,identity=function(talent)
                 local def=g.player and g.player.talents_def
                 return type(def)=='table' and def[talent] or nil
             end})
+    end
+    -- Audited effective talent level (`self:getTalentLevel(t)`). Raw invested
+    -- points ignore mastery/alterations; an unavailable, overridden or erroring
+    -- getter returns 'unknown' so the variant stays conservative.
+    local function effectiveTalentLevel(talent,def)
+        local p=g.player
+        if type(p)~='table' or type(p.getTalentLevel)~='function' then return 'unknown' end
+        if not Compat.hasDependency('guard.talentLevel') then
+            Compat.registerDependency('guard.talentLevel','talent_query',p.getTalentLevel,
+                '/engine/interface/ActorTalents.lua','effective talent level',
+                EffectManifest.SOURCES.engine and EffectManifest.SOURCES.engine.actor_talents
+                    and EffectManifest.SOURCES.engine.actor_talents.md5,
+                'function _M:getTalentLevel',{})
+        end
+        local fn=Compat.dependency('guard.talentLevel',p.getTalentLevel)
+        if type(fn)~='function' or type(def)~='table' then return 'unknown' end
+        local ok,value=pcall(fn,p,def)
+        if not ok or type(value)~='number' or value~=value then return 'unknown' end
+        return value
     end
     local guard=Guard.build{
         game=g,policy=policy,source=g.player,
@@ -1086,7 +1103,12 @@ buildAutoCombatHost=function(s,policy,opts)
             return false
         end,
         details=Details,
-        native={game=g,source=g.player},
+        -- A native footprint context is supplied only when the engine geometry
+        -- is actually loaded; otherwise the call is explicitly headless and the
+        -- pure model is used. A supplied context that fails to expand is unknown
+        -- (never silently the model).
+        native=(type(core)=='table' and type(core.fov)=='table') and {game=g,source=g.player} or nil,
+        talentLevel=effectiveTalentLevel,
         drift=manifestDrift,
     }
     local function safetyGuard(attempt)
@@ -1830,10 +1852,10 @@ function M.setAutoCombatExecution(g,enabled)
 end
 -- Test/native fixture seam: build the production host (audited reads + real
 -- executor) for the current session without installing the live pump.
-function M.buildAutoCombatHostFor(g,policy)
+function M.buildAutoCombatHostFor(g,policy,opts)
     local s=state
     if not s or s.game~=g then return nil end
-    return buildAutoCombatHost(s,policy)
+    return buildAutoCombatHost(s,policy,opts)
 end
 -- Test/production seam: the read-only planning host for the current session.
 function M.buildAutoCombatReadHostFor(g,policy)

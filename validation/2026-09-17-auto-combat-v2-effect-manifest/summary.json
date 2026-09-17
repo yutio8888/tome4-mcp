@@ -1,10 +1,18 @@
 {
-  "round": "round 6 - v2 effect manifest, native-equivalent footprint, drift-safe guard",
+  "round": "round 6 rev 2 - v2 effect manifest, native-equivalent footprint, drift-safe guard (independent-review fixes V2-REV-01..07)",
   "date": "2026-09-17",
   "branch": "feat/v2-effect-manifest",
   "pr": "#13 (https://github.com/yutio8888/tome4-mcp/pull/13)",
   "main_base": "f9b34c25a3370ae63460fda7862ae357a2864b8f",
-  "head_commit": "updated after the final source-provenance field; see PR head",
+  "review_findings_fixed": {
+    "V2-REV-01": "audited effective talent level (getTalentLevel) for variants; unavailable -> conservative",
+    "V2-REV-02": "drift before self/hostile; missing fs/md5 fails; builder identity source+line; missing definition; throwing/non-table builder fails closed",
+    "V2-REV-03": "native expansion failure returns unknown, never the model; model reserved for explicitly headless contexts",
+    "V2-REV-04": "membership carries the projectile self opt-in; Flame bolt is projectile; Burning Wake duration-4 per-grid",
+    "V2-REV-05": "three-return block_path corner cases (first/later step) + square-map assertion + production guard reports footprint_backend=native",
+    "V2-REV-06": "ground self risk requires SF AND FF; SF=100/FF=0 safe case added",
+    "V2-REV-07": "status locates the work on PR #13, not on main"
+  },
   "manifest": {
     "version": "tome-auto-combat-adapters/v2",
     "schema": "tome-auto-combat/v1",
@@ -12,44 +20,45 @@
     "game_version": "1.7.6",
     "entries": 21,
     "pinned_talent_files": 20,
-    "pinned_engine_files": ["engine/Target.lua", "engine/interface/ActorProject.lua", "engine/Map.lua", "engine/utils.lua", "mod/class/Actor.lua"]
+    "pinned_engine_files": ["engine/Target.lua", "engine/interface/ActorProject.lua", "engine/Map.lua", "engine/utils.lua", "mod/class/Actor.lua", "engine/interface/ActorTalents.lua"]
   },
   "tests": {
-    "lua_suites": "pass: effect manifest 238, effect manifest drift 13, effect footprint 22, effect risk 28, auto-combat guard 17, runtime 171, catalog 50, pilots 61, friendly fire 35, ...",
+    "lua_suites": "pass: effect manifest 240, effect manifest drift 18, effect footprint 24, effect risk 29, auto-combat guard 26, runtime 172, catalog 50, pilots 61, ...",
     "python": 39,
     "protocol_check": "OK",
     "native_seams_check": "OK",
     "effect_manifest_check": "OK",
     "native_auto_combat_probe_source": {
-      "session": "v2-final-src",
-      "checks": 74,
-      "new_footprint_parity": 12,
+      "session": "v2-rev2-src",
+      "checks": 79,
+      "new_footprint_parity_cases": 13,
       "new_drift_checks": 3,
       "failures": 0,
-      "game_log_sha256": "6610a540149f82dfac859b28d5cbb1d201d06c0abc14de301096b2c8a7c8b4f6"
+      "game_log_sha256": "98739d47cdc584ef123d725c47e332e6362ccda6fcc1efdc4206ccf354750a48"
     },
     "native_auto_combat_probe_dist": {
-      "session": "v2-final-dist",
-      "checks": 74,
+      "session": "v2-rev2-dist",
+      "checks": 79,
       "failures": 0,
-      "game_log_sha256": "25c54e059d1c9ea6922c64202d1de045558adf5955738a4395e45954acb45fd5"
+      "game_log_sha256": "ea5f0f2c14ea10360a64b2682ff93ce72766a8628a22f7fa7e7f2ce9b316c0d1"
     },
     "native_acceptance_source": {
-      "session": "v2-final-accept-src",
+      "session": "v2-rev2-accept-src",
       "checks": 100,
-      "game_log_sha256": "d79a2bfc0802b52abb58113f3e9bcf84008a30b2dc350e524843cdb2c85b2d3d"
+      "game_log_sha256": "86570b3f22724bc7cf41be01a129f8ad868f86af613aab8ff2cf59a1d0a80162"
     },
     "native_acceptance_dist": {
-      "session": "v2-final-accept-dist",
+      "session": "v2-rev2-accept-dist",
       "checks": 100,
-      "game_log_sha256": "62a5e21d740a36d3409251cb5c8fd90b5f9fda88b9e7e37ed2d3c768a1568a8e"
+      "game_log_sha256": "819b29ecbbbd575297b34f0f1f7dc7d92f572334d97d09ab407cd6753d6b0d05"
     }
   },
   "dist": {
     "path": "dist/tome-mcp-bridge.teaa",
-    "sha256": "c96faee23db2b7d218295a97ecc1f728d334483ca4e0c62a5bd7b932ee2f7cbd",
+    "sha256": "ceb1e3799b827b6d9bc192b9bdb5c3e0407053e10f4e6514260617f793e27518",
+    "previous_sha256": "c96faee23db2b7d218295a97ecc1f728d334483ca4e0c62a5bd7b932ee2f7cbd",
     "baseline_sha256": "4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29",
-    "manifest_sha256": "f95acc0b11a84f1d1c29b3042dbea7abd9decc4276c7b38ecd7bca9cc8faa5b7"
+    "manifest_sha256": "06711253dfc6389da2ea98500ed79f7060828b14bf970f2a0048600996ce4654"
   },
   "invariants": [
     "allow_auto_combat_execution stays false",

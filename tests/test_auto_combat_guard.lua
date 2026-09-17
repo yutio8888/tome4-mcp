@@ -10,21 +10,38 @@ local function check(value,message) checks=checks+1;assert(value,message) end
 
 local function build(opts)
     opts=opts or {}
-    local p={uid=1,x=2,y=2,life=100,max_life=100,talents={},
+    local p={uid=1,x=2,y=2,life=100,max_life=100,talents=opts.talents or {},
         canProject=function() return true end,
         attr=opts.attr or function() return nil end}
+    for key,value in pairs(opts.player_fields or {}) do p[key]=value end
     local target={uid=2,x=opts.tx or 5,y=opts.ty or 2,life=100,max_life=100,reaction=-1}
     local allies=opts.allies or {}
     local g={player=p,level={map={w=10,h=10},entities={p,target}}}
+    -- Default native builders matching each entry's conformance geometry, so a
+    -- scenario that does not care about the builder still exercises the
+    -- production path; scenarios override `defs` when they need to.
+    local defs=opts.defs
+    if defs==nil then
+        defs={}
+        for talent,entry in pairs(Manifest.ENTRIES) do
+            local conformance=entry.conformance
+            if conformance and conformance.builder then
+                defs[talent]={id=talent,target=function(self,t)
+                    return {type=conformance.shape,range=entry.range,radius=entry.radius}
+                end}
+            end
+        end
+    end
     local ctx={
         game=g,policy=opts.policy or {safety={max_selffire_risk=0}},source=p,
         resolve=function() return target end,
         allies=function() return allies end,
         visible=function() return true end,
         known=function() return true end,
-        getDef=function(id) return opts.defs and opts.defs[id] or nil end,
+        getDef=function(id) return defs[id] end,
         blockPath=opts.blockPath or function() return false end,
-        details=Details,native=nil,
+        details=Details,native=opts.native,
+        talentLevel=opts.talentLevel,
         drift=opts.drift or function() return true end,
     }
     return Guard.build(ctx),p,target
@@ -72,10 +89,13 @@ do
 end
 
 -- Flame: the Burning Wake ground zone is future risk even when empty.
+-- The live builder resolves the bolt/beam/widebeam branch; use a beam here so
+-- the ground component is the only remaining risk.
 do
-    local noWake=build{attr=function(_,id) return nil end}
+    local beamDef={T_FLAME={id='T_FLAME',target=function() return {type='beam',range=10} end}}
+    local noWake=build{attr=function(_,id) return nil end,defs=beamDef}
     check(noWake(attempt('T_FLAME'))==nil,'Flame without Burning Wake passes')
-    local wake=build{attr=function(_,id) if id=='burning_wake' then return 5 end end}
+    local wake=build{attr=function(_,id) if id=='burning_wake' then return 5 end end,defs=beamDef}
     local result=wake(attempt('T_FLAME'))
     check(result and result.reason=='selffire_risk' and result.detail.phase=='ground',
         'an active Burning Wake ground zone rejects even when empty')
@@ -88,6 +108,59 @@ do
     local guard=build{attr=function() return 'unknown' end,allies={{uid=9,x=3,y=2}}}
     local result=guard(attempt('T_FLAME'))
     check(result and result.reason=='selffire_risk','an unresolved branch keeps the conservative union')
+end
+
+-- V2-REV-01: variants use the effective talent level (mastery/alterations),
+-- never raw invested points.
+do
+    local ally={uid=9,x=6,y=2}
+    local mastered=build{talents={T_SUN_BEAM=2},talentLevel=function() return 3 end,allies={ally}}
+    local result=mastered(attempt('T_SUN_BEAM'))
+    check(result and result.reason=='selffire_risk' and result.detail.phase=='secondary',
+        'effective level 3 with raw 2 still checks the Sun Ray secondary ball')
+    local below=build{talents={T_SUN_BEAM=2},talentLevel=function() return 2 end,allies={ally}}
+    check(below(attempt('T_SUN_BEAM'))==nil,'effective level 2 leaves the secondary inactive')
+    local unavailable=build{talents={T_SUN_BEAM=2},allies={ally}}
+    check(unavailable(attempt('T_SUN_BEAM'))~=nil,
+        'an unavailable effective level retains the conservative secondary')
+end
+
+-- V2-REV-02: builder invocation failure is a compatibility fault, not a reason
+-- to fall back to stale manifest geometry; self-target actions are not exempt
+-- from drift.
+do
+    local throwing=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=function() error('boom') end}}}
+    local first=throwing(attempt('T_MOONLIGHT_RAY'))
+    check(first and first.reason=='adapter_builder_failed','a throwing builder fails closed')
+    local nonTable=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=function() return 'nope' end}}}
+    local second=nonTable(attempt('T_MOONLIGHT_RAY'))
+    check(second and second.reason=='adapter_builder_failed','a non-table builder fails closed')
+    local drifted=build{drift=function() return nil,'adapter_source_drift','hash' end}
+    local third=drifted(attempt('T_HEAL'))
+    check(third and third.reason=='adapter_source_drift','a self-target action is not exempt from drift')
+end
+
+-- V2-REV-03: a native expansion failure is unknown, not an approximate model.
+do
+    local guard=build{native={},allies={{uid=9,x=3,y=2}}}
+    local result=guard(attempt('T_MOONLIGHT_RAY'))
+    check(result and result.reason=='selffire_risk',
+        'a native expansion failure rejects instead of using the model')
+end
+
+-- V2-REV-04: the player projectile opt-in is composed by the guard.
+do
+    local function flameBuild(allow)
+        local defs={T_FLAME={id='T_FLAME',target=function()
+            return {type='ball',range=10,radius=5,selffire=true,friendlyfire=true} end}}
+        local guard=build{defs=defs,talentLevel=function() return 1 end,
+            player_fields={allow_player_selffire=allow}}
+        return guard(attempt('T_FLAME'))
+    end
+    local optedIn=flameBuild(true)
+    check(optedIn and optedIn.reason=='selffire_risk',
+        'a player projectile with the opt-in is a self risk')
+    check(flameBuild(false)==nil,'a player projectile without the opt-in suppresses the self-hit')
 end
 
 -- D2: risk tolerance only chooses reject vs pause, never authorises a cast.

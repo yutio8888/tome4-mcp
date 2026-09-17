@@ -55,10 +55,12 @@ local ground=comp{phase='ground',delivery='map_effect'}
 local detail=Risk.component(ground,membership{self=false,friendlies=0})
 check(detail~=nil and detail.phase=='ground' and detail.risk=='self',
     'a positive-SF ground zone rejects even with an empty footprint')
-check(Risk.component(comp{phase='ground',delivery='map_effect',selffire=0},membership{})~=nil,
-    'a positive-FF ground zone rejects even with an empty footprint')
 check(Risk.component(comp{phase='ground',delivery='map_effect',selffire=0,friendlyfire=0},membership{})==nil,
     'a fully safe ground zone passes')
+check(Risk.component(comp{phase='ground',delivery='map_effect',selffire=100,friendlyfire=0},membership{})==nil,
+    'a ground zone with SF=100/FF=0 is safe for self and allies')
+check(Risk.component(comp{phase='ground',delivery='map_effect',selffire=0},membership{})~=nil,
+    'a positive-FF ground zone rejects even with an empty footprint')
 check(Risk.component(comp{phase='ground',delivery='map_effect',selffire='unknown'},membership{})~=nil,
     'an unknown-SF ground zone rejects')
 check(Risk.component(comp{phase='ground',delivery='map_effect',selffire=0,friendlyfire='unknown'},membership{})~=nil,

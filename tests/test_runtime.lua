@@ -611,11 +611,16 @@ do
 
     -- AC-03: the version-pinned guard over the real bound target.
     p.x,p.y=2,2
+    -- The production guard requires the pinned native builder for a
+    -- builder-backed entry; supply one in this headless fixture.
+    local saved_defs=p.talents_def
+    p.talents_def={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',
+        target=function() return {type='beam',range=10} end}}
     local ally={uid=99,name='ally',__is_actor=true,x=3,y=2,life=100,max_life=100,reaction=1,attr=p.attr}
     enemy.x,enemy.y=4,2;enemy.reaction=-1
     g.level.entities={[1]=p,[2]=ally,[3]=enemy}
     g.level.map.map[12][3]=p;g.level.map.map[13][3]=ally;g.level.map.map[14][3]=enemy
-    local live=Runtime.buildAutoCombatHostFor(g,pl)
+    local live=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
     local ctx=live.snapshot('nearest_hostile')
     local target=ctx and ctx.bound_target
     check(target~=nil,'the hostile target binds for the guard test')
@@ -624,12 +629,13 @@ do
         'max_selffire_risk=0 rejects a beam with an ally in the line')
     local soft=Runtime.buildAutoCombatHostFor(g,{schema='tome-auto-combat/v1',id='p2',name='unit',
         limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=50},
-        targeting={default='nearest_hostile'},rules=pl.rules})
+        targeting={default='nearest_hostile'},rules=pl.rules},{drift=function() return true end})
     local pausable=soft.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
     check(pausable and pausable.action=='pause' and pausable.reason=='selffire_risk',
         'max_selffire_risk>0 pauses on the same risk')
     check(live.guard({action='use_talent',talent='T_SEARING_LIGHT',bound_target=target})==nil,
         'a single-target adapter passes the ally guard')
+    p.talents_def=saved_defs
 
     -- AC-07: the standalone lease is part of hasControl (native automatic
     -- talents are suppressed without any MCP control token).
@@ -659,8 +665,14 @@ do
     g.level.map.map[12][3]=p;g.level.map.map[14][3]=ally;g.level.map.map[16][3]=enemy
     local saved_def,saved_talents,saved_attr=p.talents_def,p.talents,p.attr
     p.talents={T_FLAME=1}
-    local live=Runtime.buildAutoCombatHostFor(g,pl)
+    local live=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
     local target=live.snapshot('nearest_hostile').bound_target
+    -- V2-REV-02: without live hash services the adapter is disabled, not
+    -- silently trusted. This host uses the real (absent) fs/md5 path.
+    local undrifted=Runtime.buildAutoCombatHostFor(g,pl)
+    local disabled=undrifted.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
+    check(disabled and disabled.reason=='adapter_source_drift',
+        'missing live hash services reject with adapter_source_drift')
     -- The builder spec wins over the catalog: a friendly-safe ball over a beam
     -- catalog entry passes even though the catalog would warn about the ally line.
     p.talents_def={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',

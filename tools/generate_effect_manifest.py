@@ -51,6 +51,14 @@ TALENTS = {
     "T_ATTACK": ("data/talents/misc/misc.lua", "Attack"),
 }
 
+# Talents whose `t.target` builder the guard reads. The generator pins the exact
+# `target = function` line so runtime identity can reject a same-type
+# replacement loaded from another source/line.
+BUILDER_TALENTS = {
+    "T_MOONLIGHT_RAY", "T_SUN_BEAM", "T_FLAME", "T_BLOOD_GRASP",
+    "T_SHATTERING_BLOW", "T_ATTACK",
+}
+
 # Engine / module semantics files the filter and footprint model is pinned to.
 # These are the exact Lua files whose bodies the guard's semantics depend on;
 # a mismatch disables the adapter rather than trusting stale metadata.
@@ -60,6 +68,7 @@ ENGINE_FILES = {
     "map": ("engine/Map.lua", "game/engines/default/engine/Map.lua"),
     "utils": ("engine/utils.lua", "game/engines/default/engine/utils.lua"),
     "actor": ("mod/class/Actor.lua", "game/modules/tome/class/Actor.lua"),
+    "actor_talents": ("engine/interface/ActorTalents.lua", "game/engines/default/engine/interface/ActorTalents.lua"),
 }
 
 
@@ -74,6 +83,16 @@ def _definition_line(text: str, name: str) -> int:
         if pattern.search(line):
             return index
     raise SystemExit(f"talent name literal not found for {name!r}")
+
+
+def _builder_line(text: str, definition_line: int) -> int:
+    """First `target = function` line at/after the talent definition line."""
+    lines = text.splitlines()
+    pattern = re.compile(r'^\s*target\s*=\s*function')
+    for index in range(definition_line - 1, len(lines)):
+        if pattern.search(lines[index]):
+            return index + 1
+    raise SystemExit("target builder line not found after the definition line")
 
 
 def generate(game_root: Path | None = None) -> str:
@@ -102,9 +121,13 @@ def generate(game_root: Path | None = None) -> str:
         text = path.read_text()
         data = path.read_bytes()
         line = _definition_line(text, name)
+        builder = ''
+        if talent in BUILDER_TALENTS:
+            builder_line = _builder_line(text, line)
+            builder = f",builder={{path='/{relative}',line={builder_line}}}"
         lines.append(
             f"        {talent}={{files={{{{path='/{relative}',md5='{_md5(data)}'}}}},"
-            f"line={line}}},")
+            f"line={line}{builder}}},")
     lines.append("    },")
     lines.append("}")
     return "\n".join(lines) + "\n"

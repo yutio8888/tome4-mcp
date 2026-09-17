@@ -58,10 +58,18 @@ local function footprintFor(component,ctx,target)
     return set,backend,tx,ty
 end
 
-local function memberships(component,set,ctx)
+local function playerOverride(component,typ,ctx)
+    if component.delivery~='projectile' then return true end
+    if component.player_selffire==false then return false end
+    if component.player_selffire==true then return true end
+    return ctx.details.playerSelfOverride(ctx.source,typ or {})
+end
+
+local function memberships(component,set,ctx,typ)
     local p=ctx.source
     local m={}
-    if set==nil then return {self='unknown',friendlies='unknown'} end
+    m.player_override=playerOverride(component,typ,ctx)
+    if set==nil then return {self='unknown',friendlies='unknown',player_override=m.player_override} end
     m.self=Footprint.at(set,p.x,p.y) and true or false
     local ff=Risk.flag(component.friendlyfire)
     if ff==0 then
@@ -70,7 +78,6 @@ local function memberships(component,set,ctx)
     end
     local count=0
     local unknown=false
-    local seen={}
     for _,ally in ipairs(ctx.allies() or {}) do
         if finite(ally.x) and finite(ally.y) then
             if Footprint.at(set,ally.x,ally.y) then count=count+1 end
@@ -88,13 +95,6 @@ local function memberships(component,set,ctx)
     end
     m.friendlies=unknown and 'unknown' or count
     return m
-end
-
-local function playerOverride(component,typ,ctx)
-    if component.delivery~='projectile' then return true end
-    if component.player_selffire==false then return false end
-    if component.player_selffire==true then return true end
-    return ctx.details.playerSelfOverride(ctx.source,typ or {})
 end
 
 -- Public pure conformance helper: the observed native cursor must belong to the
@@ -132,12 +132,14 @@ function M.build(ctx)
         local policy=ctx.policy
         local maxRisk=policy and policy.safety and policy.safety.max_selffire_risk
         local hard=(maxRisk==nil or maxRisk<=0)
-        if entry.target~='hostile' then return nil end
-        -- Source drift disables the adapter; stale metadata is never used.
+        -- Source drift disables the adapter; stale metadata is never used. It is
+        -- checked before the hostile/self branch so a self-target talent is not
+        -- silently exempt from the disable.
         local driftOk,driftReason,driftDetail=ctx.drift()
         if driftOk~=true then
             return verdict(hard,'adapter_source_drift',{reason=driftReason,detail=driftDetail})
         end
+        if entry.target~='hostile' then return nil end
         local target
         if attempt.bound_target then target=ctx.resolve(attempt.bound_target) end
         if not target then return verdict(hard,'target_lost') end
@@ -150,13 +152,24 @@ function M.build(ctx)
         -- manifest remains the canonical source for secondary/ground/variants.
         local typ,builderSource=nil,'manifest'
         local def=ctx.getDef(talent)
-        if type(def)=='table' then
+        local expectsBuilder=entry.conformance and entry.conformance.builder
+        if type(def)=='table' and def.target~=nil then
             local builder=def.target
-            if type(builder)=='table' then typ=builder;builderSource='builder'
+            if type(builder)=='table' then
+                typ=builder;builderSource='builder'
             elseif type(builder)=='function' then
+                -- A throwing or non-table builder is a compatibility fault, not
+                -- a reason to fall back to stale manifest geometry.
                 local ok,value=pcall(builder,p,def)
-                if ok and type(value)=='table' then typ=value;builderSource='builder' end
+                if not ok or type(value)~='table' then
+                    return verdict(hard,'adapter_builder_failed',{talent=talent,error=ok and 'non_table' or 'error'})
+                end
+                typ=value;builderSource='builder'
+            else
+                return verdict(hard,'adapter_builder_failed',{talent=talent,error='non_callable'})
             end
+        elseif expectsBuilder==true then
+            return verdict(hard,'adapter_builder_missing',{talent=talent})
         end
         local range=entry.range
         if typ and finite(typ.range) then range=typ.range end
@@ -178,8 +191,13 @@ function M.build(ctx)
         local membershipsBy={}
         local providers={
             talentLevel=function()
-                local level=p.talents and p.talents[talent]
-                return finite(level) and level or nil
+                -- Effective level (`self:getTalentLevel(t)`), never raw points:
+                -- a raw investment can be lower than the effective level through
+                -- mastery/alterations. Unavailable -> unknown -> conservative.
+                if type(ctx.talentLevel)~='function' then return 'unknown' end
+                local ok,value=pcall(ctx.talentLevel,talent,ctx.getDef(talent))
+                if not ok then return 'unknown' end
+                return value
             end,
             readAttr=function(id)
                 if type(p.attr)~='function' then return 'unknown' end
@@ -209,7 +227,7 @@ function M.build(ctx)
                     local set,backend,tx,ty=footprintFor(resolved,ctx,target)
                     resolved.footprint_backend=backend
                     components[#components+1]=resolved
-                    membershipsBy[resolved.id or resolved.phase]=memberships(resolved,set,ctx)
+                    membershipsBy[resolved.id or resolved.phase]=memberships(resolved,set,ctx,typ)
                     membershipsBy[resolved.id or resolved.phase].tx=tx
                     membershipsBy[resolved.id or resolved.phase].ty=ty
                 end
@@ -230,6 +248,7 @@ function M.build(ctx)
         detail.source=builderSource
         detail.explicit_override=resolvedComponent and resolvedComponent.builder_source=='builder' or false
         detail.provenance=resolvedComponent and resolvedComponent.provenance or nil
+        detail.footprint_backend=resolvedComponent and resolvedComponent.footprint_backend or nil
         return verdict(hard,'selffire_risk',detail)
     end
 
