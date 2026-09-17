@@ -2,7 +2,7 @@
   "round": "round 4 - class/build pilots",
   "date": "2026-09-17",
   "branch": "feat/auto-combat-class-pilots",
-  "pr": "pending",
+  "pr": "#11 (https://github.com/yutio8888/tome4-mcp/pull/11)",
   "main_base": "24f121e",
   "pilots": {
     "archmage_arcane_p2": [

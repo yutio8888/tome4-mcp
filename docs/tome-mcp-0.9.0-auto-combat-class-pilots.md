@@ -87,3 +87,8 @@ sustains.
   `6b86d296bbc3eaa6969c232f078cec81212fdd05bf27e024498701903572c459`.
 
 Raw evidence stays under `tmp/tome-mcp-validation/sessions/`.
+
+## Build / review
+
+Branch `feat/auto-combat-class-pilots`, PR #11
+(https://github.com/yutio8888/tome4-mcp/pull/11).
