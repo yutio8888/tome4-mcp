@@ -273,3 +273,25 @@ build was soaked in-game (`diag-fix-01`): `recover` waits advanced the tick
 (170→180→190→200), `max_consecutive_settling=0`, no `no_available_action`. The
 P2 (45) and P3 (46) are resolved in the round-3 follow-up
 ([docs/tome-mcp-0.9.0-auto-combat-round3-followup.md](tome-mcp-0.9.0-auto-combat-round3-followup.md)).
+
+## Round 4: class/build pilots (2026-09-17)
+
+Status doc: [docs/tome-mcp-0.9.0-auto-combat-class-pilots.md](tome-mcp-0.9.0-auto-combat-class-pilots.md).
+
+48. **Three new pilots shipped.** `archmage_arcane_p2` (`T_FLAME`, `T_HEAL`,
+    `T_ARCANE_POWER`, `T_SHIELDING`), `corruptor_blight_p2` (`T_SOUL_ROT`,
+    `T_BLOOD_GRASP`, `T_DARK_RITUAL`), `berserker_p2` (`T_SHATTERING_BLOW`,
+    `T_BERSERKER_RAGE`, `T_DAUNTING_PRESENCE`, `T_ADRENALINE_SURGE`). All
+    source-verified, schema/catalogue-validated, evaluator-tested and exercised
+    in the native probe (52/52 source + dist).
+49. **Deferred/narrowed candidates (not defects).** Corruptor
+    `T_HEALING_INVERSION` (utility, wrong tree) and `T_DRAIN` (level-scaled
+    range) dropped as damage adapters; Archmage `T_FIREFLASH` (self-fire ball
+    rejected by the risk guard) and `T_FLAMESHOCK` (range-0 cone without explicit
+    selffire) dropped; Bulwark dropped because its activated defensive option is a
+    target-required range-0 area and the rest are sustains. Recorded in the
+    status doc with reasons.
+50. **Remaining P2 adapter work.** More classes (e.g. a caster with a clean
+    ranged single-target heal, or a melee class with a real self-heal) and
+    resource-recovery rules (`T_DRAIN`/`T_TWILIGHT`-style) remain future work;
+    `allow_auto_combat_execution` still defaults to `false`.

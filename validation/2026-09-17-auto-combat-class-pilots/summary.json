@@ -1,0 +1,56 @@
+{
+  "round": "round 4 - class/build pilots",
+  "date": "2026-09-17",
+  "branch": "feat/auto-combat-class-pilots",
+  "pr": "#11 (https://github.com/yutio8888/tome4-mcp/pull/11)",
+  "main_base": "24f121e",
+  "pilots": {
+    "archmage_arcane_p2": [
+      "T_FLAME",
+      "T_HEAL",
+      "T_ARCANE_POWER",
+      "T_SHIELDING"
+    ],
+    "corruptor_blight_p2": [
+      "T_SOUL_ROT",
+      "T_BLOOD_GRASP",
+      "T_DARK_RITUAL"
+    ],
+    "berserker_p2": [
+      "T_SHATTERING_BLOW",
+      "T_BERSERKER_RAGE",
+      "T_DAUNTING_PRESENCE",
+      "T_ADRENALINE_SURGE"
+    ]
+  },
+  "tests": {
+    "lua_suites": "pass (auto-combat pilots 57, policy 80, controller 82, service 94, runtime 167, ...)",
+    "python": 39,
+    "protocol_check": "OK",
+    "native_auto_combat_probe_source": {
+      "session": "ac-pilots-final-src",
+      "checks": 52,
+      "game_log_sha256": "76c813ea3edd8e37459d56c7ee77989a5db0dfbef9e5d15a7563f1887faa2ebf"
+    },
+    "native_auto_combat_probe_dist": {
+      "session": "ac-pilots-dist-01",
+      "checks": 52,
+      "game_log_sha256": "dbf6b6b1e5424b679d80adab19524e3ca360bb4e0eb19a311de7eb42b995be00"
+    },
+    "native_acceptance_source": {
+      "session": "native-pilots-src-01",
+      "checks": 100,
+      "game_log_sha256": "efd72723dbbe7c3d740560db5c037d9066a25565c7b40b43391e1cff8a47ac0b"
+    },
+    "native_acceptance_dist": {
+      "session": "native-pilots-dist-01",
+      "checks": 100,
+      "game_log_sha256": "2d12f66e40b71a1f473abf543f2e7aed10a58fb7f7623efd9bc803444112c1c6"
+    }
+  },
+  "dist": {
+    "path": "dist/tome-mcp-bridge.teaa",
+    "sha256": "6b86d296bbc3eaa6969c232f078cec81212fdd05bf27e024498701903572c459",
+    "manifest_sha256": "83a8c3e5d59e28c50be20d7560f7a42a8c3966505dea68034455c0ba16d741e1"
+  }
+}

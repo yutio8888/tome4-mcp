@@ -51,6 +51,7 @@ M.EXPECTED={
     ['assistant-import']={'generated','valid','unsupported_reported','stored','refused'},
     ['computed-predicate']={'act','false_holds','enum_rejected'},
     ['production-reads']={'has_control','scalar_resource','guard_wired'},
+    ['pilot-presets']={'ok','ok','ok','cast'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['solo-pump']={},
 }
@@ -498,6 +499,67 @@ local function soloPumpCheck()
     return true
 end
 
+-- 12 (round 4): the new class pilots. Force-learn each pilot's kit on the
+-- probe actor, prove Actions.admit accepts it, dry-run the preset against the
+-- real snapshot, and cast one main damage talent through the production host
+-- (guard + Actions.execute + native useTalent).
+local function pilotPresets()
+    local Actions=require 'mod.mcp_bridge.Actions'
+    local p=game.player
+    local function learn(id)
+        if not p:knowTalent(id) then p:learnTalent(id,true) end
+        return p:knowTalent(id)==true
+    end
+    local specs={
+        {preset='archmage_arcane_p2',resource='mana',
+            talents={'T_FLAME','T_HEAL','T_ARCANE_POWER','T_SHIELDING'}},
+        {preset='corruptor_blight_p2',resource='vim',
+            talents={'T_SOUL_ROT','T_BLOOD_GRASP','T_DARK_RITUAL'}},
+        {preset='berserker_p2',resource='stamina',
+            talents={'T_SHATTERING_BLOW','T_BERSERKER_RAGE','T_DAUNTING_PRESENCE','T_ADRENALINE_SURGE'}},
+    }
+    local signals={}
+    for _,spec in ipairs(specs) do
+        local preset=Presets.get(spec.preset)
+        local admitted=true
+        for _,id in ipairs(spec.talents) do
+            if not learn(id) then admitted=false end
+        end
+        for _,id in ipairs(spec.talents) do
+            local mode=Catalog.isSustain(id) and 'sustained' or 'activated'
+            if not Actions.admit(p,id,mode) then admitted=false end
+        end
+        -- A live read host built from the current snapshot; the resource
+        -- predicate must see the unlocked pool (force-learn provides it).
+        local max=p['max_'..spec.resource]
+        if max then p[spec.resource]=max end
+        local read=Runtime.buildAutoCombatReadHostFor(game,preset)
+        local known=true
+        for _,id in ipairs(spec.talents) do
+            if read.talent_known(id)~=true then known=false end
+        end
+        local dry=Runtime.autoCombatHandle(game,'dry_run',{policy=preset})
+        local ok=dry and dry.ok==true and dry.executed==false and dry.side_effects=='none'
+            and dry.decision~=nil
+        check(spec.preset..':admitted',admitted,{})
+        check(spec.preset..':known',known,{})
+        check(spec.preset..':dry-run',ok,dry)
+        signals[#signals+1]=(admitted and known and ok) and 'ok' or 'bad'
+    end
+    -- One real executor cast: the Archmage flame through the production host.
+    local arch=Presets.get('archmage_arcane_p2')
+    local host=Runtime.buildAutoCombatHostFor(game,arch)
+    local ctx=host and host.snapshot('nearest_hostile')
+    local bound=ctx and ctx.bound_target
+    if p.max_mana then p.mana=p.max_mana end
+    local outcome=bound and host.request({action='use_talent',talent='T_FLAME',
+        target='nearest_hostile',bound_target=bound})
+    local cast=outcome~=nil and (outcome.status=='ok' or outcome.status=='native_pending')
+    check('pilot-presets:cast',cast,{outcome=outcome,bound=bound})
+    signals[#signals+1]=cast and 'cast' or 'cast_failed'
+    return compare('pilot-presets',signals)
+end
+
 local function runAll()
     local ok,err=pcall(function()
         startWhenReady()
@@ -511,6 +573,7 @@ local function runAll()
         assistantImport()
         computedPredicate()
         productionReads()
+        pilotPresets()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok
