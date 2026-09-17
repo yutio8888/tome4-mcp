@@ -77,7 +77,7 @@ stop, corner). All 12 matched exactly.
 Lua suites: full `tests/run.sh` green, including the new
 `test_effect_manifest` (238), `test_effect_manifest_drift` (13),
 `test_effect_footprint` (22), `test_effect_risk` (28) and
-`test_auto_combat_guard` (17). Python: 39/39. Both `--check` generators green.
+`test_auto_combat_guard` (17). Python: 39/39. All three `--check` generators green.
 
 `dist/tome-mcp-bridge.teaa` repackaged:
 
