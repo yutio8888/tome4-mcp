@@ -118,6 +118,8 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("dry_run", policy_tool.input_schema["properties"]["policy_op"]["enum"])
             self.assertIn("replay", policy_tool.input_schema["properties"]["policy_op"]["enum"])
             self.assertIn("import_assistant", policy_tool.input_schema["properties"]["policy_op"]["enum"])
+            self.assertIn("get", policy_tool.input_schema["properties"]["policy_op"]["enum"])
+            self.assertIn("clear", policy_tool.input_schema["properties"]["policy_op"]["enum"])
             self.assertIn("store", policy_tool.input_schema["properties"])
             self.assertIn("after_seq", policy_tool.input_schema["properties"])
             await client.call_tool("tome.connect")
@@ -150,6 +152,20 @@ class MCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(sent["args"]["policy_op"], "import_assistant")
             self.assertEqual(sent["args"]["document"], assistant)
             self.assertEqual(sent["args"]["store"], True)
+
+    async def test_error_envelope_carries_category_scope_recovery(self):
+        from tome_mcp.bridge import BridgeError
+        env = BridgeError("stale_revision", "stale revision").as_dict()
+        self.assertEqual(env["code"], "stale_revision")
+        self.assertEqual(env["category"], "state")
+        self.assertEqual(env["acceptance_scope"], "command")
+        self.assertEqual(env["recovery"], "observe_before_resubmit")
+        self.assertIn("accepted", env)
+        self.assertIn("uncertain", env)
+        unknown = BridgeError("not_a_registered_code", "x").as_dict()
+        self.assertEqual(unknown["category"], "protocol")
+        self.assertEqual(unknown["acceptance_scope"], "not_applicable")
+        self.assertTrue(unknown["recovery"])
 
     async def test_answers_are_strict_and_reach_native_protocol_once(self):
         self.game.interaction_steps=2

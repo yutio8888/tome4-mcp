@@ -5,89 +5,240 @@
   "$comment": "Spec v1.0 section 2.1/8.1/11. Internal TCP protocol only; the external MCP protocol is negotiated by the SDK.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["v", "id", "op", "args"],
+  "required": [
+    "v",
+    "id",
+    "op",
+    "args"
+  ],
   "properties": {
-    "v": { "const": 4 },
-    "id": { "type": "string", "minLength": 1, "x-max-utf8-bytes": 256 },
-    "op": { "type": "string", "enum": ["connect", "connect_observer", "observe", "inspect", "list_collection", "act", "respond", "status", "stop", "dismiss", "abandon", "level_map"] },
-    "args": { "$ref": "#/$defs/Args" }
+    "v": {
+      "const": 4
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "x-max-utf8-bytes": 256
+    },
+    "op": {
+      "type": "string",
+      "enum": [
+        "connect",
+        "connect_observer",
+        "observe",
+        "inspect",
+        "list_collection",
+        "act",
+        "respond",
+        "status",
+        "stop",
+        "dismiss",
+        "abandon",
+        "level_map",
+        "policy",
+        "policy_log"
+      ]
+    },
+    "args": {
+      "$ref": "#/$defs/Args"
+    }
   },
   "$defs": {
     "Args": {
       "oneOf": [
-        { "$ref": "#/$defs/ConnectArgs" },
-        { "$ref": "#/$defs/ObserveArgs" },
-        { "$ref": "#/$defs/InspectArgs" },
-        { "$ref": "#/$defs/ListArgs" },
-        { "$ref": "#/$defs/ActArgs" },
-        { "$ref": "#/$defs/RespondArgs" },
-        { "$ref": "#/$defs/StatusArgs" },
-        { "$ref": "#/$defs/StopArgs" },
-        { "$ref": "#/$defs/DismissArgs" },
-        { "$ref": "#/$defs/AbandonArgs" },
-        { "$ref": "#/$defs/LevelMapArgs" }
+        {
+          "$ref": "#/$defs/ConnectArgs"
+        },
+        {
+          "$ref": "#/$defs/ObserveArgs"
+        },
+        {
+          "$ref": "#/$defs/InspectArgs"
+        },
+        {
+          "$ref": "#/$defs/ListArgs"
+        },
+        {
+          "$ref": "#/$defs/ActArgs"
+        },
+        {
+          "$ref": "#/$defs/RespondArgs"
+        },
+        {
+          "$ref": "#/$defs/StatusArgs"
+        },
+        {
+          "$ref": "#/$defs/StopArgs"
+        },
+        {
+          "$ref": "#/$defs/DismissArgs"
+        },
+        {
+          "$ref": "#/$defs/AbandonArgs"
+        },
+        {
+          "$ref": "#/$defs/LevelMapArgs"
+        },
+        {
+          "$ref": "#/$defs/PolicyArgs"
+        },
+        {
+          "$ref": "#/$defs/PolicyLogArgs"
+        }
       ]
     },
     "ConnectArgs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["token"],
-      "properties": { "token": { "type": "string", "minLength": 1 } }
+      "required": [
+        "token"
+      ],
+      "properties": {
+        "token": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     },
     "ObserveArgs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_id"],
+      "required": [
+        "session_id"
+      ],
       "properties": {
-        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
-        "radius": { "type": "integer", "minimum": 1, "maximum": 12 },
-        "include_map": { "type": "boolean" },
-        "events_after": { "$ref": "common.schema.json#/$defs/EventCursor" },
-        "sections": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/SessionId"
+        },
+        "radius": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "include_map": {
+          "type": "boolean"
+        },
+        "events_after": {
+          "$ref": "common.schema.json#/$defs/EventCursor"
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "summary",
+            "full"
+          ]
+        }
       }
     },
     "InspectArgs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_id", "kind", "id"],
+      "required": [
+        "session_id",
+        "kind",
+        "id"
+      ],
       "properties": {
-        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
-        "kind": { "type": "string", "enum": ["talent", "actor", "progression", "item", "compatibility"] },
-        "id": { "$ref": "common.schema.json#/$defs/EntityId" },
-        "target_id": { "$ref": "common.schema.json#/$defs/EntityId" },
-        "x": { "$ref": "common.schema.json#/$defs/Coordinate" },
-        "y": { "$ref": "common.schema.json#/$defs/Coordinate" }
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/SessionId"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "talent",
+            "actor",
+            "character",
+            "progression",
+            "item",
+            "compatibility"
+          ]
+        },
+        "id": {
+          "$ref": "common.schema.json#/$defs/EntityId"
+        },
+        "target_id": {
+          "$ref": "common.schema.json#/$defs/EntityId"
+        },
+        "x": {
+          "$ref": "common.schema.json#/$defs/Coordinate"
+        },
+        "y": {
+          "$ref": "common.schema.json#/$defs/Coordinate"
+        },
+        "computed": {
+          "type": "boolean"
+        }
       }
     },
     "ListArgs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_id", "request"],
+      "required": [
+        "session_id",
+        "request"
+      ],
       "properties": {
-        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/SessionId"
+        },
         "request": {
           "oneOf": [
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["type", "collection"],
+              "required": [
+                "type",
+                "collection"
+              ],
               "properties": {
-                "type": { "const": "first" },
+                "type": {
+                  "const": "first"
+                },
                 "collection": {
                   "type": "string",
-                  "enum": ["inventory", "equipment", "actors", "talents", "effects", "ground_items", "progression_categories", "progression_talents", "compatibility"]
+                  "enum": [
+                    "inventory",
+                    "equipment",
+                    "actors",
+                    "talents",
+                    "effects",
+                    "ground_items",
+                    "progression_categories",
+                    "progression_talents",
+                    "compatibility"
+                  ]
                 },
-                "page_size": { "type": "integer", "minimum": 1, "maximum": 64 },
-                "filter": { "type": "object" }
+                "page_size": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 64
+                },
+                "filter": {
+                  "type": "object"
+                }
               }
             },
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["type", "cursor"],
+              "required": [
+                "type",
+                "cursor"
+              ],
               "properties": {
-                "type": { "const": "next" },
-                "cursor": { "$ref": "common.schema.json#/$defs/Cursor" }
+                "type": {
+                  "const": "next"
+                },
+                "cursor": {
+                  "$ref": "common.schema.json#/$defs/Cursor"
+                }
               }
             }
           ]
@@ -97,94 +248,327 @@
     "ActArgs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_id", "control_token", "command_id", "expected_revision", "action"],
+      "required": [
+        "session_id",
+        "control_token",
+        "command_id",
+        "expected_revision",
+        "action"
+      ],
       "properties": {
-        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
-        "control_token": { "$ref": "common.schema.json#/$defs/ControlToken" },
-        "command_id": { "$ref": "common.schema.json#/$defs/CommandId" },
-        "expected_revision": { "$ref": "common.schema.json#/$defs/Revision" },
-        "action": { "type": "object", "required": ["type"] },
-        "wait_ms": { "type": "integer", "minimum": 0, "maximum": 10000 },
-        "include_map": { "type": "boolean" }
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/SessionId"
+        },
+        "control_token": {
+          "$ref": "common.schema.json#/$defs/ControlToken"
+        },
+        "command_id": {
+          "$ref": "common.schema.json#/$defs/CommandId"
+        },
+        "expected_revision": {
+          "$ref": "common.schema.json#/$defs/Revision"
+        },
+        "action": {
+          "type": "object",
+          "required": [
+            "type"
+          ]
+        },
+        "wait_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "include_map": {
+          "type": "boolean"
+        }
       }
     },
     "RespondArgs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_id", "control_token", "command_id", "interaction_id", "response_id", "expected_revision", "answer"],
+      "required": [
+        "session_id",
+        "control_token",
+        "command_id",
+        "interaction_id",
+        "response_id",
+        "expected_revision",
+        "answer"
+      ],
       "properties": {
-        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
-        "control_token": { "$ref": "common.schema.json#/$defs/ControlToken" },
-        "command_id": { "$ref": "common.schema.json#/$defs/CommandId" },
-        "interaction_id": { "type": "string", "minLength": 1, "x-max-utf8-bytes": 256 },
-        "response_id": { "$ref": "common.schema.json#/$defs/ResponseId" },
-        "expected_revision": { "$ref": "common.schema.json#/$defs/Revision" },
-        "answer": { "type": "object", "required": ["type"] },
-        "wait_ms": { "type": "integer", "minimum": 0, "maximum": 10000 },
-        "include_map": { "type": "boolean" }
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/SessionId"
+        },
+        "control_token": {
+          "$ref": "common.schema.json#/$defs/ControlToken"
+        },
+        "command_id": {
+          "$ref": "common.schema.json#/$defs/CommandId"
+        },
+        "interaction_id": {
+          "type": "string",
+          "minLength": 1,
+          "x-max-utf8-bytes": 256
+        },
+        "response_id": {
+          "$ref": "common.schema.json#/$defs/ResponseId"
+        },
+        "expected_revision": {
+          "$ref": "common.schema.json#/$defs/Revision"
+        },
+        "answer": {
+          "type": "object",
+          "required": [
+            "type"
+          ]
+        },
+        "wait_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "include_map": {
+          "type": "boolean"
+        }
       }
     },
     "StatusArgs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_id", "command_id"],
+      "required": [
+        "session_id",
+        "command_id"
+      ],
       "properties": {
-        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
-        "command_id": { "$ref": "common.schema.json#/$defs/CommandId" },
-        "response_id": { "$ref": "common.schema.json#/$defs/ResponseId" },
-        "include_map": { "type": "boolean" },
-        "options_offset": { "type": "integer", "minimum": 0 }
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/SessionId"
+        },
+        "command_id": {
+          "$ref": "common.schema.json#/$defs/CommandId"
+        },
+        "response_id": {
+          "$ref": "common.schema.json#/$defs/ResponseId"
+        },
+        "include_map": {
+          "type": "boolean"
+        },
+        "options_offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "compact": {
+          "type": "boolean"
+        }
       }
     },
     "StopArgs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_id", "control_token"],
+      "required": [
+        "session_id",
+        "control_token"
+      ],
       "properties": {
-        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
-        "control_token": { "$ref": "common.schema.json#/$defs/ControlToken" }
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/SessionId"
+        },
+        "control_token": {
+          "$ref": "common.schema.json#/$defs/ControlToken"
+        }
       }
     },
     "DismissArgs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_id", "control_token", "answer"],
+      "required": [
+        "session_id",
+        "control_token",
+        "answer"
+      ],
       "properties": {
-        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
-        "control_token": { "$ref": "common.schema.json#/$defs/ControlToken" },
-        "interaction_id": { "type": ["string", "null"] },
-        "expected_revision": { "type": ["integer", "null"], "minimum": 1 },
-        "answer": { "type": "object" },
-        "include_map": { "type": "boolean" }
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/SessionId"
+        },
+        "control_token": {
+          "$ref": "common.schema.json#/$defs/ControlToken"
+        },
+        "interaction_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expected_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "answer": {
+          "type": "object"
+        },
+        "include_map": {
+          "type": "boolean"
+        }
       }
     },
     "AbandonArgs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_id", "control_token"],
+      "required": [
+        "session_id",
+        "control_token"
+      ],
       "properties": {
-        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
-        "control_token": { "$ref": "common.schema.json#/$defs/ControlToken" }
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/SessionId"
+        },
+        "control_token": {
+          "$ref": "common.schema.json#/$defs/ControlToken"
+        }
       }
     },
     "LevelMapArgs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["session_id"],
+      "required": [
+        "session_id"
+      ],
       "properties": {
-        "session_id": { "$ref": "common.schema.json#/$defs/SessionId" },
-        "source": { "type": "string", "enum": ["native_map"] },
-        "format": { "type": "string", "enum": ["rows", "region"] },
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/SessionId"
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "native_map"
+          ]
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "rows",
+            "region"
+          ]
+        },
         "region": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["x", "y", "width", "height"],
+          "required": [
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
           "properties": {
-            "x": { "type": "integer", "minimum": 0 },
-            "y": { "type": "integer", "minimum": 0 },
-            "width": { "type": "integer", "minimum": 1, "maximum": 64 },
-            "height": { "type": "integer", "minimum": 1, "maximum": 64 }
+            "x": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "y": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64
+            }
           }
+        }
+      }
+    },
+    "PolicyArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "policy_op"
+      ],
+      "properties": {
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/SessionId"
+        },
+        "policy_op": {
+          "type": "string",
+          "enum": [
+            "status",
+            "validate",
+            "dry_run",
+            "set_draft",
+            "approve",
+            "activate",
+            "deactivate",
+            "start",
+            "stop",
+            "pause",
+            "resume",
+            "log",
+            "replay",
+            "presets",
+            "preset",
+            "export",
+            "import",
+            "import_assistant",
+            "get",
+            "clear"
+          ]
+        },
+        "policy": {
+          "type": "object"
+        },
+        "config": {
+          "type": "object"
+        },
+        "expected_hash": {
+          "type": "string",
+          "minLength": 1,
+          "x-max-utf8-bytes": 256
+        },
+        "reason": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "after_seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "name": {
+          "type": "string"
+        },
+        "document": {
+          "type": "string"
+        },
+        "store": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PolicyLogArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id"
+      ],
+      "properties": {
+        "session_id": {
+          "$ref": "common.schema.json#/$defs/SessionId"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
         }
       }
     }

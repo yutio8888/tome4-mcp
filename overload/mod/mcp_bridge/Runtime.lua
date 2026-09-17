@@ -14,6 +14,7 @@ local NativeActivity=require 'mod.mcp_bridge.NativeActivity'
 local ActorCombat=require 'mod.mcp_bridge.ActorCombat'
 local Distance=require 'mod.mcp_bridge.Distance'
 local CommandLedger=require 'mod.mcp_bridge.CommandLedger'
+local ErrorRegistry=require 'mod.mcp_bridge.ErrorRegistry'
 local ObservationViews=require 'mod.mcp_bridge.ObservationViews'
 local ObservationCollections=require 'mod.mcp_bridge.ObservationCollections'
 local LevelMap=require 'mod.mcp_bridge.LevelMap'
@@ -1260,9 +1261,9 @@ local function executeResponse(s,command,receipt)
     bump(s)
 end
 local function fail(code,message,details)
-    local error={code=code,message=message or code:gsub('_',' ')}
-    if details then for key,value in pairs(details) do error[key]=value end end
-    return nil,error
+    -- INT-02: every emitted code carries category/acceptance_scope/recovery
+    -- (and accepted/uncertain defaults) from the generated registry.
+    return nil,ErrorRegistry.envelope(code,message,details)
 end
 local function dispatch(s,request)
     if type(request.v)~='number' or not stringId(request.id) or type(request.op)~='string'
@@ -1311,13 +1312,13 @@ local function dispatch(s,request)
         local snap=snapshot(s)
         local result={session_id=s.session_id,control_token=s.control_token or Json.null,revision=s.revision,mode=s.access_mode,
             protocol_version=4,history=s.ledger:history(),
-            capabilities={protocol=4,actions=Json.array{'move','wait','attack','use_talent','set_sustain','use_item','change_level','rest',
+            capabilities={protocol=4,actions=Json.array{'move','wait','attack','use_talent','set_sustain','use_item','change_level','rest','auto_explore',
                     'spend_stat','learn_talent','learn_category','unlearn_talent','pickup','equip','unequip'},
                 connection_modes=Json.array{'control','observe'},
                 talents=Actions.capabilities(s.game.player),
                 talent_execution='native_interactive',
                 interactions=Json.array{'target.grid','target.direction','dialog.confirm','dialog.choice','dialog.notice','inventory.select'},
-                native_tasks=Json.array{'task.rest'},
+                native_tasks=Json.array{'task.rest','task.auto_explore'},
                 multi_step=true,unknown_interaction='manual_handoff',
                 limits={responses_per_command=Interactions.MAX_RESPONSES,options_per_page=Interactions.PAGE_SIZE},
                 talent_query=true,talent_prefill=Json.array{'actor','position'},
@@ -1331,6 +1332,7 @@ local function dispatch(s,request)
                     use_item={implementation='supported',scope='owned_item_native_use'},
                     change_level={implementation='supported',scope='native_exit_command'},
                     rest={implementation='supported',scope='native_rest'},
+                    auto_explore={implementation='supported',scope='native_explore'},
                     spend_stat={implementation='supported',scope='native_levelup'},
                     learn_talent={implementation='supported',scope='visible_known_categories',requirements='native_checked',detail_collection='progression_categories'},
                     learn_category={implementation='supported',scope='visible_known_or_lockable_categories',requirements='native_checked',detail_collection='progression_categories'},
@@ -1350,7 +1352,7 @@ local function dispatch(s,request)
                     predicates=Json.array(AUTO_PREDICATES),
                     selectors=Json.array(AUTO_SELECTORS),
                     computed_fields=Json.array(AUTO_COMPUTED_FIELDS),
-                    policy_ops=Json.array{'status','validate','dry_run','set_draft','approve','activate','deactivate',
+                    policy_ops=Json.array{'status','get','clear','validate','dry_run','set_draft','approve','activate','deactivate',
                         'start','stop','pause','resume','log','replay','presets','preset','export','import','import_assistant'}}},snapshot=snap}
         local ok,reason=Compat.check(s.game)
         result.capabilities.native_compatibility={compatible=ok==true,reason=reason,providers='runtime_checked'}
@@ -1419,7 +1421,7 @@ local function dispatch(s,request)
     elseif op=='policy' then
         if type(a.policy_op)~='string' then return fail('invalid_argument','policy_op is required') end
         if s.access_mode~='control' and a.policy_op~='status' and a.policy_op~='log'
-            and a.policy_op~='dry_run' and a.policy_op~='replay'
+            and a.policy_op~='dry_run' and a.policy_op~='replay' and a.policy_op~='get'
             and a.policy_op~='import_assistant' then
             return fail('read_only_connection')
         end
@@ -1437,7 +1439,7 @@ local function dispatch(s,request)
         -- Persist the character-facing policy after a write; never the running
         -- state or control.
         if a.policy_op=='set_draft' or a.policy_op=='approve' or a.policy_op=='activate'
-            or a.policy_op=='deactivate' or a.policy_op=='import'
+            or a.policy_op=='deactivate' or a.policy_op=='import' or a.policy_op=='clear'
             or (a.policy_op=='import_assistant' and a.store==true) then
             if s.game and s.game.player then
                 s.game.player.auto_combat_policy=AutoCombat.saveState(s.auto_combat)
@@ -1661,7 +1663,8 @@ local function receive(s,request)
     local ok,result,err=pcall(dispatch,s,request)
     local response={v=4,id=type(request.id)=='string' and request.id or Json.null}
     if not ok then
-        revoke(s,'bridge_error');response.ok=false;response.error={code='bridge_error',message='The bridge could not process this request.'}
+        revoke(s,'bridge_error');response.ok=false
+        response.error=ErrorRegistry.envelope('bridge_error','The bridge could not process this request.')
         print('[MCP Bridge] request error: '..tostring(result))
     elseif err then response.ok=false;response.error=err
     else response.ok=true;response.result=result end

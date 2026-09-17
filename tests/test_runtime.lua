@@ -603,4 +603,25 @@ do
     Runtime.autoCombatHandle(g,'deactivate',{})
     check(not Runtime.hasControl(p),'releasing the lease removes hasControl')
 end
+-- Wave 2: capability alignment (INT-05) and the full error envelope (INT-02).
+do
+    Runtime.reset(g);g:display()
+    local h=request('connect',{token='unit-test-token'}).result
+    local caps=h.capabilities
+    local function has(list,value)
+        for _,v in ipairs(list or {}) do if v==value then return true end end
+        return false
+    end
+    check(has(caps.actions,'auto_explore'),'capabilities.actions lists remote auto_explore')
+    check(caps.action_support.auto_explore and caps.action_support.auto_explore.implementation=='supported',
+        'action_support describes auto_explore')
+    check(has(caps.native_tasks,'task.auto_explore'),'native_tasks lists task.auto_explore')
+    check(caps.auto_combat and has(caps.auto_combat.policy_ops,'get') and has(caps.auto_combat.policy_ops,'clear'),
+        'auto_combat capabilities list get and clear')
+    local bad=request('policy',{session_id=h.session_id,policy_op='validate',policy={schema='x'}})
+    check(bad.error and bad.error.code=='invalid_policy','an invalid policy is refused')
+    check(bad.error.category and bad.error.acceptance_scope and bad.error.recovery,
+        'the error envelope carries category/acceptance_scope/recovery (INT-02)')
+    check(bad.error.uncertain==false or bad.error.uncertain==true,'the error envelope carries uncertain')
+end
 print('Runtime: '..count..' checks passed')

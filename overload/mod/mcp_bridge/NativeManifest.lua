@@ -7,4 +7,5 @@ return {player_md5='3cad1f6e18051479dc7ead3598098378',
     actor_md5='073c82289c99dec963d3be9de89ed68a',
     entity_md5='c2e69c97c91a7d40de012dc1dd3261b9',
     resources_md5='657bcd9ee37175fcd64b0a1fa1788c82',
+    stats_md5='73b62ad912ffaf287e36363c58aeb7a6',
     combat_md5='2e458d48c383927339a5aa665e08d8d2'}

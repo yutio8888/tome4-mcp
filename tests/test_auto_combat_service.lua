@@ -129,6 +129,37 @@ do
     check(started.ok and svc.controller.policy.id=='p2','start runs the replacement policy')
 end
 
+-- INT-04/D8: approve CASes the draft, activate CASes the approved version. ---
+do
+    local svc=Service.new()
+    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    check(Service.handle(svc,'approve',{expected_hash='deadbeef'}).error.code=='policy_conflict',
+        'approve conflicts on a stale draft hash')
+    local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    check(ap.ok,'approve accepts the current draft hash')
+    -- Change the draft so the draft hash differs from the approved hash.
+    local d2=Service.handle(svc,'set_draft',{policy=policy({id='p2'}),expected_hash=d.draft_hash})
+    check(Service.handle(svc,'activate',{expected_hash=d2.draft_hash}).error.code=='policy_conflict',
+        'activate conflicts if given the draft hash (its CAS is the approved hash)')
+    check(Service.handle(svc,'activate',{expected_hash=ap.approved_hash}).ok,
+        'activate accepts the approved hash')
+end
+
+-- INT-06/D10: get returns the three versions; clear empties the draft only. ---
+do
+    local svc=Service.new()
+    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
+    local got=Service.handle(svc,'get',{})
+    check(got.ok and got.draft and got.approved and got.running,'get returns the three actual versions')
+    check(got.draft_hash==d.draft_hash and got.approved_hash==ap.approved_hash and got.running_hash~=nil,
+        'get returns the three hashes')
+    local cleared=Service.handle(svc,'clear',{})
+    check(cleared.ok and svc.store.draft==nil,'clear empties the draft')
+    check(svc.store.approved~=nil and svc.store.running~=nil,'clear never deletes approved or running')
+end
+
 -- Decision replay: bounded, cursor-paged, ascending -------------------------
 do
     local svc=Service.new({host_factory=fakeHost,

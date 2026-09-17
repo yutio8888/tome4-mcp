@@ -84,20 +84,27 @@ local function validateCondition(cond,path,depth,errors)
     if type(cond)~='table' then errors[#errors+1]={path=path,code='invalid_condition'};return end
     if cond.all then
         if not isArray(cond.all) then errors[#errors+1]={path=path,code='invalid_all'};return end
+        onlyKeys(cond,{all=true},path,errors)
         for i,c in ipairs(cond.all) do validateCondition(c,path..'.all['..i..']',depth+1,errors) end
         return
     end
     if cond.any then
         if not isArray(cond.any) then errors[#errors+1]={path=path,code='invalid_any'};return end
+        onlyKeys(cond,{any=true},path,errors)
         for i,c in ipairs(cond.any) do validateCondition(c,path..'.any['..i..']',depth+1,errors) end
         return
     end
-    if cond['not']~=nil then validateCondition(cond['not'],path..'.not',depth+1,errors) return end
+    if cond['not']~=nil then
+        onlyKeys(cond,{['not']=true},path,errors)
+        validateCondition(cond['not'],path..'.not',depth+1,errors)
+        return
+    end
     local name,value
     for k,v in pairs(cond) do name,value=k,v;break end
     if name==nil or not M.PREDICATES[name] then
         errors[#errors+1]={path=path,code='unknown_predicate',field=tostring(name)};return
     end
+    onlyKeys(cond,{[name]=true},path,errors)
     if name=='always' then return end
     if type(value)~='table' then errors[#errors+1]={path=path,code='invalid_predicate_value'};return end
     if name=='cooldown_ready' or name=='talent_known' then
@@ -216,6 +223,28 @@ function M.validate(policy)
             if policy.targeting.default~=nil and not M.SELECTORS[policy.targeting.default] then
                 errors[#errors+1]={path='targeting.default',code='unsupported_selector'}
             end
+            local tie=policy.targeting.tie_break
+            if tie~=nil then
+                if type(tie)~='table' or tie==Json.null then
+                    errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break'}
+                else
+                    for index,key in ipairs(tie) do
+                        if key~='distance' and key~='hp' and key~='uid' then
+                            errors[#errors+1]={path='targeting.tie_break['..index..']',code='unsupported_tie_break'}
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if policy.logging~=nil then
+        if type(policy.logging)~='table' then errors[#errors+1]={path='logging',code='invalid_logging'}
+        else
+            onlyKeys(policy.logging,{ring_size=true,log_rejections=true},'logging',errors)
+            numberField(policy.logging,'ring_size',1,4096,'logging',errors,true)
+            if policy.logging.log_rejections~=nil and type(policy.logging.log_rejections)~='boolean' then
+                errors[#errors+1]={path='logging.log_rejections',code='invalid_boolean'}
+            end
         end
     end
     if not isArray(policy.rules) or #policy.rules==0 then
@@ -253,6 +282,28 @@ function M.validate(policy)
                     end
                     if action=='rest' then
                         numberField(rule['then'],'max_turns',1,1000,path..'[then]',errors,true)
+                    end
+                    if action=='use_talent' then
+                        if rule['then'].max_turns~=nil then
+                            errors[#errors+1]={path=path..'.then.max_turns',code='unexpected_max_turns'}
+                        end
+                    elseif action=='attack' then
+                        if rule['then'].talent~=nil then
+                            errors[#errors+1]={path=path..'.then.talent',code='unexpected_talent'}
+                        end
+                        if rule['then'].max_turns~=nil then
+                            errors[#errors+1]={path=path..'.then.max_turns',code='unexpected_max_turns'}
+                        end
+                    elseif action=='wait' then
+                        if rule['then'].talent~=nil then
+                            errors[#errors+1]={path=path..'.then.talent',code='unexpected_talent'}
+                        end
+                        if rule['then'].target~=nil then
+                            errors[#errors+1]={path=path..'.then.target',code='unexpected_target'}
+                        end
+                        if rule['then'].max_turns~=nil then
+                            errors[#errors+1]={path=path..'.then.max_turns',code='unexpected_max_turns'}
+                        end
                     end
                     if M.ACTIVITY_ACTIONS[action] then
                         -- Native activities bind no talent/target (only `rest`
