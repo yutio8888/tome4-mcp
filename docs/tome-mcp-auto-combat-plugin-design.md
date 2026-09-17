@@ -390,8 +390,9 @@ pause/no-change-level 行为，但执行器**不再全局施加**这两项限制
   **fail-closed 为 `unknown`**（实现见 `ActorCombat.computed` + `ActorCombat.field`，谓词枚举见 §5.6）。
   动态 getter 与动态提示文本**可读**（不要求无 RNG/无副作用）；唯一红线是不得提交动作、不得
   暴露玩家未获知信息（见 §8.3）。谓词优先使用可回放的标量面板 getter 以获得稳定诊断。
-- **审计 getter**：planner 使用的计算属性纳入 `NativeCompatibility` 的 digest/identity/closure（复用
-  `ActorCombat` 的 fail-closed 思路）；被覆盖/缺失 → `unknown`。
+- **getter 无严格审计**：planner 直接以游戏内实际 getter/builder 为正常入口；**不要求**证明其未被替换
+  （Lua 动态、其它 addon 可替换，本项目不为他人实现负责）。getter 报错/缺失/返回 `nil` → 该值 `unknown`。
+  `NativeCompatibility` 的摘要/身份信息可作为**策展重审提示或可选遥测**，**不得作为运行期门禁**。
 - **能力目录**：每个受支持技能一个 version-pinned adapter，声明：
   - 静态几何（`range/radius/shape/target_type`）与 `direct_hit`；
   - 目标选择要求（如必须是 hostile/单体/AoE 最少目标数）；

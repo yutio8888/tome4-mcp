@@ -13,14 +13,18 @@ descriptor. Keep an explicit manifest entry for every admitted talent. Do **not*
 try to discover and admit movement talents by inspecting `is_teleport`, target
 shape, or talent name.
 
-The useful runtime derivation is narrower: an audited `t.target` /
-`getTalentTarget` can provide the live cursor table (shape, range, radius and
-projection flags) for a prompt already identified by the curated adapter. It
-cannot establish actor-versus-grid semantics, prove that a missing builder means
-“no prompt”, or discover the order of prompts built inside `action`. The factory
-therefore removes repeated descriptor boilerplate, while the source review of
-the native action and all outcome branches remains the largest manual step for
-each new talent.
+**Use the game's live getters/builders as normal entrypoints, with no strict
+audit.** Planning calls the actual `t.target`/`getTalentTarget`/`getTalentRange`/
+`getTalentLevel`/... functions to obtain geometry. Because Lua is dynamic any
+function may be replaced by another addon; the project cannot and does not
+guarantee that a runtime entry is the pristine native implementation, and is
+**not responsible for other plugins' broken implementations**. So there is **no
+identity/digest/closure gate**: a getter that errors, is missing or returns `nil`
+simply means the value is not obtainable (`movement_derivation_unknown`/
+`unknown`) and the action is unavailable. The live builder still cannot establish
+actor-versus-grid semantics or the order of prompts built inside `action`, so
+those stay **curated**; the source review of the action and its branches remains
+the largest manual step for each new talent.
 
 This preserves the anti-goal “no generic all-teleport adapter”: the current
 contract requires every prompt to be represented by a source-pinned target plan,
@@ -66,29 +70,25 @@ and current execution rejects multi-prompt plans rather than guessing
 
 ## 3. What runtime derivation can and cannot prove
 
-### 3.1 Safe derivation boundary
+### 3.1 Live-getter boundary (v1.6): no strict audit
 
-`getTalentTarget` only calls or returns `t.target`; it does not inspect the talent
-body (`game/engines/default/engine/interface/ActorTalents.lua:1062-1071`). The
-read policy explicitly permits calling an audited dynamic builder and permits
-RNG consumption, but forbids calling an action-commit entry or exposing
-player-unknown information
-(`docs/tome-mcp-auto-combat-plugin-design.md:424-443`). Therefore the proposed
-probe may:
+Planning calls the game's actual builder/getter functions directly
+(`t.target`/`getTalentTarget`, `getTalentRange`, `getTalentLevel`, `getStat`,
+spell-power helpers, ...) to obtain geometry and scalar parameters. There is **no
+identity/digest/closure gate** on them.
 
-1. call the source-pinned builder under `pcall`;
-2. return an allowlisted cursor view such as `type`, `range`, `radius`,
-   `pass_terrain`, `requires_knowledge`, `selffire`, and `friendlyfire`;
-3. compare that result with template conformance; and
-4. call explicitly curated, source-pinned scalar getters such as `getRange` or
-   `getRadius` to resolve numeric envelope parameters.
-
-It must not call `useTalent` or `t.action` as a discovery probe. `useTalent`
-runs `preUseTalent`, the action body, post-use hooks, cooldown logic, and the
-native action lifecycle (`game/engines/default/engine/interface/ActorTalents.lua:168-202`).
-Intercepting the first prompt by executing the action would therefore be a real
-submission path, not a read-only classifier.
-
+- Lua is dynamic: any function may be replaced by another addon at runtime. The
+  project **cannot and does not guarantee** that a runtime entry is the pristine
+  native implementation, and is **not responsible for other plugins' broken
+  implementations**. Requiring proof of an unbounded transitive closure is both
+  impossible and out of scope.
+- A getter that **errors, is missing, or returns `nil`** means the value is not
+  obtainable → `movement_derivation_unknown`/`unknown` and the action is
+  unavailable. This is a real "value not obtainable" condition, **not** a purity
+  or identity claim.
+- Source digests/identity may be retained as an **advisory re-review hint or
+  optional telemetry**, but they are **never a runtime gate**.
+- It must not call `useTalent` or `t.action` as a discovery probe.
 ### 3.2 Feasibility by class
 
 | Class | What the builder reveals | What it does not reveal | Conclusion |
@@ -270,16 +270,14 @@ preserves the existing rule that `native_pending` is tracked without resubmissio
 
 Extend the generated source record for each movement adapter with:
 
-- whole-file MD5 plus talent definition line (already generated);
-- live `t.action` source/line and session-baseline `rawequal` identity;
-- live `t.target` source/line and identity when present, or a pinned declaration
-  that no public builder exists;
-- every dynamic talent getter used by a parameter (`getRange`, `getRadius`,
-  effective-level/state getter) with source/line/identity;
-- engine/module providers used by derivation and execution:
-  `ActorTalents.getTalentTarget`, `getTalentRange`, `getTalentRadius`,
-  `getTalentLevel`, actor `attr`, `canProject`, the module
-  `Actor.teleportRandom`, and `util.findFreeGrid` when applicable; and
+- whole-file MD5 plus talent definition line (already generated) — kept as an
+  **advisory re-review hint/telemetry**, never a runtime gate;
+- live `t.action`/`t.target` source/line (advisory);
+- the live getters used by a parameter (`getRange`, `getRadius`,
+  effective-level/state getters) are called directly at planning time with **no
+  identity gate**; a missing/erroring getter yields `movement_derivation_unknown`;
+- engine/module helpers invoked by the action (`canProject`, `teleportRandom`,
+  `findFreeGrid`, ...) are ordinary calls; and
 - the action-commit/targeting seams already checked by `NativeCompatibility`.
 
 The present generator pins complete engine semantics files and selected talent
