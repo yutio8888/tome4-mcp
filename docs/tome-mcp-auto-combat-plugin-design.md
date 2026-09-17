@@ -280,6 +280,21 @@ flowchart LR
 `computed.resists.FIRE`、`computed.offense.resistance_penetration.FIRE`、`computed.defense.fatigue`、
 `computed.stats.mag`、`computed.speeds.movement` 等。这些值来自**已审计的 getter**（§8）。
 
+**字段是有限枚举，不是任意路径**（P2.5）：`computed` 是**数值比较** `{field, cmp, value}`，
+`field` 必须属于固定枚举（`PolicySchema.COMPUTED_FIELDS`，即 `ActorCombat.computed` 暴露的
+角色面板路径）；枚举外路径是 schema 错误。getter 被覆盖/缺失/报错时该字段为 `unknown`，
+绝不猜测。`has_effect`（`who ∈ {self,target}`，target 为动作将绑定的同一目标）与
+`ally_count` 同样来自有界的可见读取，数据不可得时为 `unknown`。
+
+**Getter 安全判据（P2.5，玩家面板/悬浮可见）：** 一次读取是安全的，当且仅当
+(a) 玩家可在角色面板或悬浮/提示框中看到该值，且 (b) 它来自**已审计的原生 getter/标量字段**，
+在 getter 被覆盖/缺失/报错时 **fail-closed 为 `unknown`**。标量面板数据（属性、速度、暴击、力量、
+命中/APR/伤害、防御/护甲/疲劳、豁免、抗性/穿透/亲和、视力、生命、等级/rank、效果列表、技能冷却/
+消耗/射程的静态值）安全。动态渲染的提示文本**不得**用于决定谓词，也不得自动鉴定物品；
+它仅允许作为**信息性读取**（供 planner 理解），且必须满足：来源为已审计原生函数、
+经 RNG/状态**绊线**验证为纯函数、且实体已鉴定/已知；无绊线则保持排除（见 §8）。
+谓词只使用无 RNG 的标量面板 getter。
+
 ### 5.7 自伤（selffire）建模（重要）
 - 只有技能**显式**声明 `selffire` 才是确定值；缺省的面积形状为 `unknown`。
 - adapter 记录**实际伤害语义**，而不是只看目标光标形状：
@@ -342,6 +357,12 @@ flowchart LR
 
 - **数据 only**：策略不含可执行内容；执行器是实现方，不是策略的一部分。
 - **只读玩家已知**：快照只含玩家可见信息（可见敌人/自身/已知地图）；不读隐藏实体、未识别物品属性。
+- **Getter 安全判据（P2.5，玩家面板/悬浮可见）**：一次读取安全 iff (a) 玩家可在角色面板或
+  悬浮/提示框中看到该值，且 (b) 来自**已审计的原生 getter/标量字段**，被覆盖/缺失/报错时
+  **fail-closed 为 `unknown`**（实现见 `ActorCombat.computed` + `ActorCombat.field`，谓词枚举见 §5.6）。
+  **动态提示文本不得决定谓词**：它不得用于任何 `when` 条件，也不得自动鉴定实体；仅当来源为
+  已审计原生函数、经 RNG/状态**绊线**证明为纯函数、且实体已鉴定/已知时，才可作为 planner 的
+  信息性读取；无可用绊线的来源保持排除。谓词只使用无 RNG 的标量面板 getter。
 - **审计 getter**：planner 使用的计算属性纳入 `NativeCompatibility` 的 digest/identity/closure（复用
   `ActorCombat` 的 fail-closed 思路）；被覆盖/缺失 → `unknown`。
 - **能力目录**：每个受支持技能一个 version-pinned adapter，声明：

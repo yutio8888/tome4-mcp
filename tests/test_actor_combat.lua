@@ -39,6 +39,20 @@ check(c.saves.physical==41 and c.saves.spell==29 and c.saves.mental==24,'physica
 check(c.utility.see_stealth==9 and c.utility.crit_reduction==7,'vision and crit reduction')
 check(#c.unknown==0,'an all-native actor has no unknown getters')
 
+-- P2.5: finite-enum traversal must agree with the computed table.
+local Schema=require 'mod.auto_combat.PolicySchema'
+check(ActorCombat.field(c,'crit.spell')==15,'field resolves a nested computed path')
+check(ActorCombat.field(c,'resists.FIRE')==18,'field resolves a per-damage-type path')
+check(ActorCombat.field(c,'offense.resistance_penetration.FIRE')==6,'field resolves a deep enum path')
+check(ActorCombat.field(c,'stats.str')==40,'field resolves a stats path')
+check(ActorCombat.field(c,'nonsense.path')==nil,'an unknown field path resolves to nil')
+check(ActorCombat.field(nil,'crit.spell')==nil,'a missing computed table resolves to nil')
+local unresolved=0
+for field in pairs(Schema.COMPUTED_FIELDS) do
+    if ActorCombat.field(c,field)==nil then unresolved=unresolved+1 end
+end
+check(unresolved==0,'every computed enum id resolves on an all-native actor')
+
 -- Fail closed: an overridden getter is neither trusted nor called into the block.
 actor.combatArmor=function() return 999 end
 local c2=ActorCombat.computed(actor)

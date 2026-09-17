@@ -1,0 +1,13 @@
+{
+  "date": "2026-09-17",
+  "predicates": [
+    "computed",
+    "has_effect",
+    "ally_count"
+  ],
+  "computed_enum_source": "PolicySchema.COMPUTED_FIELDS == ActorCombat.computed leaf paths",
+  "criterion": "player-panel/hover visible + audited native getter + fail-closed unknown",
+  "dynamic_tooltip_text": "never a predicate; informational pure-description reads excluded in this slice",
+  "native_scenario": "computed-predicate",
+  "dist_sha256": "592a1a4685f3aad99e26ffd7373035ed5f79a1881ced191179b183ea49458dd1"
+}

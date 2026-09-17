@@ -116,4 +116,23 @@ do
     check(ctx.enemy_distance==2,'the bound target exposes its own distance')
 end
 
+do
+    -- P2.5 reads: bounded ally count, bound-target effects and numeric computed.
+    local calls={}
+    local h=host({allies=function() return {{id='a1'},{id='a2'}} end,
+        computed=function(field) calls.computed=field; return field=='crit.spell' and 42 or nil end,
+        has_effect=function(effect,who,bound)
+            calls.effect={effect,who,bound};return who=='target'
+        end})
+    local p2={targeting={default='lowest_hp_hostile'},rules={}}
+    local ctx=Snapshot.build(h,p2)
+    check(ctx.ally_count==2,'the snapshot forwards the bounded ally count')
+    check(ctx.bound_target=='low' and ctx.has_effect('EFF','target')==true
+        and calls.effect[3]=='low','has_effect resolves who=target against the bound target')
+    check(ctx.computed('crit.spell')==42 and calls.computed=='crit.spell',
+        'computed forwards the finite-enum field')
+    local noallies=Snapshot.build(host(),p2)
+    check(noallies.ally_count==nil,'a missing ally read stays unknown')
+end
+
 print('Auto-combat snapshot: '..checks..' checks passed')
