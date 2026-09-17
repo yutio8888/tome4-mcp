@@ -962,23 +962,67 @@ local function autoCombatReads(s,policy,opts)
         if not ok then return nil,false end
         return value,true
     end
-    -- MAF-REV-02: the transitive helper closure used by the admitted builders
-    -- and dynamic getters. `getTalentRange` dispatches through each talent's
-    -- live `range` function, which in turn calls the engine scaling helpers.
-    -- Each is identity-checked (first-seen `rawequal`) before the outer closure
-    -- runs; `NativeCompatibility` adds the source/digest audit in production.
+    -- MAF-REV-02: the complete transitive helper closure used by the admitted
+    -- builders and dynamic getters. `getTalentRange` dispatches through each
+    -- talent's live `range` function, which calls `combatTalentScale`/
+    -- `combatTalentLimit`/`combatTalentSpellDamage`; those call `getTalentLevel`,
+    -- which calls `getTalentLevelRaw`/`alterTalentLevelRaw`/`getTalentMastery`;
+    -- `combatTalentSpellDamage` also calls `combatSpellpower` (->
+    -- `combatSpellpowerRaw`/`rescaleCombatStats`) and `rescaleDamage`. Every
+    -- present helper is identity/source-checked before the outer closure runs.
+    local function helper(path,declaration,source)
+        return {path=path,declaration=declaration,source=source}
+    end
     local MOVEMENT_HELPERS={
-        getTalentRange={path='/engine/interface/ActorTalents.lua',
-            declaration='function _M:getTalentRange',source='actor_talents'},
-        combatTalentScale={path='/mod/class/interface/Combat.lua',
-            declaration='function _M:combatTalentScale',source='combat'},
-        combatLimit={path='/mod/class/interface/Combat.lua',
-            declaration='function _M:combatLimit',source='combat'},
-        combatTalentSpellDamage={path='/mod/class/interface/Combat.lua',
-            declaration='function _M:combatTalentSpellDamage',source='combat'},
-        combatTalentLimit={path='/mod/class/interface/Combat.lua',
-            declaration='function _M:combatTalentLimit',source='combat'},
+        getTalentLevel={candidates={helper('/engine/interface/ActorTalents.lua',
+            'function _M:getTalentLevel','actor_talents')}},
+        getTalentLevelRaw={candidates={helper('/engine/interface/ActorTalents.lua',
+            'function _M:getTalentLevelRaw','actor_talents')}},
+        alterTalentLevelRaw={candidates={helper('/mod/class/Actor.lua',
+            'function _M:alterTalentLevelRaw','actor'),
+            helper('/engine/interface/ActorTalents.lua',
+                'function _M:alterTalentLevelRaw','actor_talents')}},
+        getTalentMastery={candidates={helper('/engine/interface/ActorTalents.lua',
+            'function _M:getTalentMastery','actor_talents')}},
+        getTalentRange={candidates={helper('/engine/interface/ActorTalents.lua',
+            'function _M:getTalentRange','actor_talents')}},
+        combatTalentScale={candidates={helper('/mod/class/interface/Combat.lua',
+            'function _M:combatTalentScale','combat')}},
+        combatTalentLimit={candidates={helper('/mod/class/interface/Combat.lua',
+            'function _M:combatTalentLimit','combat')}},
+        combatLimit={candidates={helper('/mod/class/interface/Combat.lua',
+            'function _M:combatLimit','combat')}},
+        combatTalentSpellDamage={candidates={helper('/mod/class/interface/Combat.lua',
+            'function _M:combatTalentSpellDamage','combat')}},
+        combatSpellpower={candidates={helper('/mod/class/interface/Combat.lua',
+            'function _M:combatSpellpower','combat')}},
+        combatSpellpowerRaw={candidates={helper('/mod/class/interface/Combat.lua',
+            'function _M:combatSpellpowerRaw','combat')}},
+        rescaleCombatStats={candidates={helper('/mod/class/interface/Combat.lua',
+            'function _M:rescaleCombatStats','combat')}},
+        rescaleDamage={candidates={helper('/mod/class/interface/Combat.lua',
+            'function _M:rescaleDamage','combat')}},
     }
+    -- Audit one helper through its candidate pins. Returns true, or false,reason.
+    -- `reason=='dependency_source_unreadable'` means only the native fs/md5
+    -- service is missing (headless harness); every other failure (wrong source,
+    -- changed body, replacement) is a real rejection.
+    local function auditMovementHelper(name,fn,spec)
+        local lastReason
+        for _,candidate in ipairs(spec.candidates) do
+            local id='movement.helper.'..name..':'..candidate.source
+            if not Compat.hasDependency(id) then
+                local digest=EffectManifest.SOURCES.engine and EffectManifest.SOURCES.engine[candidate.source]
+                    and EffectManifest.SOURCES.engine[candidate.source].md5
+                Compat.registerDependency(id,'talent_query',fn,candidate.path,
+                    'movement derivation helper',digest,candidate.declaration)
+            end
+            local verified,reason=Compat.dependency(id,fn)
+            if type(verified)=='function' then return true end
+            lastReason=reason
+        end
+        return false,lastReason or 'dependency_not_registered'
+    end
     local function verifyMovementHelpers()
         local p=g.player
         if type(p)~='table' then return nil,'actor_unavailable' end
@@ -986,23 +1030,23 @@ local function autoCombatReads(s,policy,opts)
             local fn=p[name]
             if type(fn)=='function' then
                 local baseline=movementHelperBaselines[name]
-                if baseline==nil then
-                    movementHelperBaselines[name]=fn
-                elseif not rawequal(baseline,fn) then
+                if baseline~=nil and not rawequal(baseline,fn) then
                     return nil,'movement_helper_replaced:'..name
                 end
-                local id='movement.helper.'..name
-                if not Compat.hasDependency(id) then
-                    local digest=EffectManifest.SOURCES.engine and spec.source
-                        and EffectManifest.SOURCES.engine[spec.source]
-                        and EffectManifest.SOURCES.engine[spec.source].md5
-                    Compat.registerDependency(id,'talent_query',fn,spec.path,
-                        'movement derivation helper',digest,spec.declaration)
+                local ok,reason=auditMovementHelper(name,fn,spec)
+                if not ok then
+                    -- Only a missing native hash service may be bypassed by an
+                    -- injected-drift headless harness; a wrong-source/body or
+                    -- replaced helper is always rejected.
+                    local hashUnavailable=(reason=='dependency_source_unreadable')
+                    if not (hashUnavailable and opts and type(opts.drift)=='function') then
+                        return nil,'movement_helper_unverified:'..name..':'..tostring(reason)
+                    end
                 end
-                local verified,reason=Compat.dependency(id,fn)
-                if type(verified)~='function' and not (opts and type(opts.drift)=='function') then
-                    return nil,reason or 'movement_helper_unverified:'..name
-                end
+                -- Record the baseline only after the object passed (or the
+                -- hash-unavailable fallback accepted it), so a rejected object
+                -- never becomes the trusted baseline.
+                if baseline==nil then movementHelperBaselines[name]=fn end
             end
         end
         return true

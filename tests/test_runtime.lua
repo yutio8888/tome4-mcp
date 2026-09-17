@@ -15,6 +15,11 @@ core={game={getTime=function() return 123 end}}
 local Runtime=require 'mod.mcp_bridge.Runtime'
 local forbidden=assert(loadstring('return function() error("observer invoked native callback") end','@/mod/class/Actor.lua'))()
 local attr=assert(loadstring('return function() error("observer invoked attr") end','@/engine/Entity.lua'))()
+-- Build a fixture method at an audited engine source path so the movement helper
+-- identity check accepts it via the headless hash-unavailable fallback.
+local function engineFn(source,src)
+    return assert(loadstring(src,'@'..source))()
+end
 local base={
     display=function() end,
     tick=function(g)
@@ -677,7 +682,8 @@ do
     -- read, but make the absent `phase_door_force_precise` attribute a definite
     -- false (a successful read) rather than an error.
     p.attr=assert(loadstring('return function(self,name) return nil end','@/engine/Entity.lua'))()
-    p.getTalentLevel=function(self,def) return def and def.probe_level or 1 end
+    p.getTalentLevel=engineFn('/engine/interface/ActorTalents.lua',
+        'return function(self,def) return def and def.probe_level or 1 end')
     p.talents_def=p.talents_def or {}
     p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',probe_level=1,
         getRange=function() return 6 end,getRadius=function() return 1 end}
@@ -735,7 +741,8 @@ do
                 destination={selector='native_random',accept={visibility='any',passability='native',
                     hazard='any',landing='allow_random'}}}}}}
     local getterCalls=0
-    p.getTalentLevel=function(self,def) return 1 end
+    p.getTalentLevel=engineFn('/engine/interface/ActorTalents.lua',
+        'return function(self,def) return 1 end')
     p.talents_def=p.talents_def or {}
     p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',
         getRange=function() getterCalls=getterCalls+1;error('getter must not run') end,
@@ -749,47 +756,62 @@ do
         'a failed drift preflight disables the movement adapter before planning')
     check(getterCalls==0,'the pinned dynamic getter is not called before the preflight passes')
 end
--- MAF-REV-02 transitive-helper regression: the pinned builder dispatches through
--- a live `range` function and the engine scaling helpers. A replacement helper
--- must be rejected (as adapter_source_drift) without being called.
+-- MAF-REV-02 transitive-helper closure regression. The pinned builder dispatches
+-- through getTalentRange -> the talent range -> combatTalentScale -> getTalentLevel
+-- -> getTalentLevelRaw/alterTalentLevelRaw/getTalentMastery. A replacement at any
+-- level is rejected as adapter_source_drift without being called.
 do
-    Runtime.reset(g);g:display()
+    local Compat=require 'mod.mcp_bridge.NativeCompatibility'
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local plan={action='use_talent',talent='T_SKIRMISHER_VAULT',
+        destination={selector='position',x=3,y=2,accept=accept}}
     local pl={schema='tome-auto-combat/v1',id='helper',name='unit',limits={max_actions_per_tick=1},
         safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='nearest_hostile'},
         rules={{id='vault',priority=1,when={always={}},
-            ['then']={action='use_talent',talent='T_SKIRMISHER_VAULT',
-                destination={selector='position',x=3,y=2,accept={visibility='any',
-                    passability='native',hazard='any',landing='allow_random'}}}}}}
-    p.x,p.y=2,2
-    p.getTalentLevel=function(self,def) return 5 end
+            ['then']={action='use_talent',talent='T_SKIRMISHER_VAULT',destination={
+                selector='position',x=3,y=2,accept=accept}}}}}
     local saved_defs=p.talents_def
-    local scale_calls=0
-    p.combatTalentScale=function(self,t,lo,hi) scale_calls=scale_calls+1; return lo end
-    p.getTalentRange=function(self,def)
-        if type(def.range)=='function' then return def.range(self,def) end
-        return def.range
-    end
     local range_fn=assert(loadstring(
         'return function(self,t) return math.floor(self:combatTalentScale(t,3,8)) end',
         '@/data/talents/techniques/acrobatics.lua'))()
-    p.talents_def=p.talents_def or {}
-    p.talents_def.T_SKIRMISHER_VAULT={id='T_SKIRMISHER_VAULT',mode='activated',range=range_fn,
-        target=function(self,t) return {type='beam',range=self:getTalentRange(t)} end}
-    local host=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
-    local first,firstErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
-        destination={selector='position',x=3,y=2,accept={visibility='any',passability='native',
-            hazard='any',landing='allow_random'}}})
-    check(first and first.plan and scale_calls>0,
-        'the pinned builder dispatches through the live scaling helper')
+    local function setup(level,scale)
+        p.x,p.y=2,2
+        p.getTalentLevel=level
+        p.combatTalentScale=scale
+        p.getTalentRange=engineFn('/engine/interface/ActorTalents.lua',
+            'return function(self,def) if type(def.range)=="function" then return def.range(self,def) end return def.range end')
+        p.talents_def=p.talents_def or {}
+        p.talents_def.T_SKIRMISHER_VAULT={id='T_SKIRMISHER_VAULT',mode='activated',range=range_fn,
+            target=function(self,t) return {type='beam',range=self:getTalentRange(t)} end}
+        return Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
+    end
+    -- Phase 1: a replacement present on the very first plan is rejected without
+    -- being called (the reviewer's probe).
+    Runtime.reset(g);g:display();Compat.resetDependencies()
     local replacement_calls=0
-    p.combatTalentScale=function() replacement_calls=replacement_calls+1
-        error('replacement helper must not run') end
-    local second,secondErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
-        destination={selector='position',x=3,y=2,accept={visibility='any',passability='native',
-            hazard='any',landing='allow_random'}}})
-    check(second==nil and secondErr and secondErr.reason=='adapter_source_drift',
-        'a replaced transitive helper is adapter_source_drift')
-    check(replacement_calls==0,'the replaced transitive helper is rejected without being called')
+    local host=setup(function() replacement_calls=replacement_calls+1
+        error('replacement getTalentLevel must not run') end,
+        engineFn('/mod/class/interface/Combat.lua','return function(self,t,lo,hi) return lo end'))
+    local bad,badErr=host.plan(plan)
+    check(bad==nil and badErr and badErr.reason=='adapter_source_drift',
+        'a first-plan replaced getTalentLevel is adapter_source_drift')
+    check(replacement_calls==0,'the replaced getTalentLevel is rejected without being called')
+    -- Phase 2: the audited chain plans (and dispatches through getTalentLevel).
+    Runtime.reset(g);g:display();Compat.resetDependencies()
+    local host2=setup(engineFn('/engine/interface/ActorTalents.lua',
+            'return function(self,def) return 5 end'),
+        engineFn('/mod/class/interface/Combat.lua','return function(self,t,lo,hi) return lo end'))
+    local ok,okErr=host2.plan(plan)
+    check(ok and ok.plan and okErr==nil,'the audited helper chain plans')
+    -- Phase 3: a mid-chain scaling helper replaced after a legitimate plan is
+    -- rejected without being called.
+    local scale_calls=0
+    p.combatTalentScale=function() scale_calls=scale_calls+1
+        error('replacement combatTalentScale must not run') end
+    local bad2,bad2Err=host2.plan(plan)
+    check(bad2==nil and bad2Err and bad2Err.reason=='adapter_source_drift',
+        'a replaced mid-chain combatTalentScale is adapter_source_drift')
+    check(scale_calls==0,'the replaced scaling helper is rejected without being called')
     p.talents_def=saved_defs
 end
 -- Round-5 correction: the guard reads the real target spec from the audited

@@ -62,7 +62,7 @@ M.EXPECTED={
     ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
-    ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact'},
+    ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','helper_replaced'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
     ['solo-pump']={},
@@ -1073,6 +1073,22 @@ local function movementFactoryChecks()
     signals[#signals+1]=vaultOk and 'vault_exact' or 'vault_missing'
     check('movement-factory:vault-exact',vaultOk,{reason=vaultErr and vaultErr.reason})
     p.talents.T_SKIRMISHER_VAULT=saved_vault
+    -- MAF-REV-02: a replaced transitive getTalentLevel is rejected without being
+    -- called (the baseline was established by the plans above).
+    local helper_replaced=false
+    do
+        local saved_level=p.getTalentLevel
+        local calls=0
+        p.getTalentLevel=function() calls=calls+1
+            error('replacement getTalentLevel must not run') end
+        local plan,planErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
+            destination={selector='position',x=p.x+1,y=p.y,accept=accept}})
+        helper_replaced=plan==nil and planErr and planErr.reason=='adapter_source_drift'
+        check('movement-factory:helper-replaced',helper_replaced,{reason=planErr and planErr.reason})
+        check('movement-factory:helper-replaced-not-called',calls==0,{calls=calls})
+        p.getTalentLevel=saved_level
+    end
+    signals[#signals+1]=helper_replaced and 'helper_replaced' or 'helper_replaced_missing'
     return compare('movement-factory',signals)
 end
 

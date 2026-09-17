@@ -124,42 +124,47 @@ are invoked only after `EffectManifestDrift.identity` has verified them.
 `Runtime.autoCombatReads.plan` builds the provider; `buildAutoCombatHost` reuses
 the same audited `manifestDrift`/`effectiveTalentLevel` for the guard.
 
-**Transitive helper closure (MAF-REV-02 rev 3).** The pinned target builder
+**Transitive helper closure (MAF-REV-02 rev 3/4).** The pinned target builder
 immediately dispatches through `self:getTalentRange(t)` (→ the talent's live
-`def.range`) and the engine scaling helpers (`combatTalentScale`, `combatLimit`,
-`combatTalentSpellDamage`, `combatTalentLimit`). The generator now also pins
+`def.range`) and the engine scaling helpers. The generator now also pins
 `ranges={range={path,line}}` for every builder-backed movement talent, and
 `EffectManifestDrift.identity` rejects a replaced `def.range` before the builder
-runs. At runtime `verifyMovementHelpers` identity-checks `getTalentRange` and the
-scaling helpers (first-seen `rawequal`, plus a `NativeCompatibility` dependency
-with the engine file digest/declaration) before invoking the outer builder or
-getter closure; a replaced helper becomes `adapter_source_drift` without being
-called.
+runs. At runtime `verifyMovementHelpers` identity-checks the **complete method
+closure** before invoking the outer builder or getter: `getTalentRange`,
+`combatTalentScale`, `combatTalentLimit`, `combatLimit`, `combatTalentSpellDamage`,
+`combatSpellpower`, `combatSpellpowerRaw`, `rescaleCombatStats`, `rescaleDamage`,
+and the talent-level chain `getTalentLevel`, `getTalentLevelRaw`,
+`alterTalentLevelRaw`, `getTalentMastery`. Each present helper is checked with a
+first-seen `rawequal` baseline plus a `NativeCompatibility` source/digest/
+declaration audit. A wrong-source/body or replaced helper is `adapter_source_drift`
+**before it is called**; only a missing native hash service (`dependency_source_unreadable`)
+may be bypassed by an injected-drift headless harness, and even then only after
+the `rawequal` baseline check. A rejected object never becomes the trusted
+baseline.
 
 ## 6. Evidence
 
 Final artifact: `dist/tome-mcp-bridge.teaa`
-`63cc6ee1f0683f2c01f3edf71ba7da92417473723c00c101ccebac01da04dd2b`
-(baseline `d34bef117aa41d281f39ed07a121614fe229ea39ac76eb39f934e9549b9baff3`).
+`100082399c8e2d1d197a457fa118a85475b9575006659669e9d60fd87d7529dd`
+(baseline `63cc6ee1f0683f2c01f3edf71ba7da92417473723c00c101ccebac01da04dd2b`).
 `allow_auto_combat_execution` remains `false` (read-only unless explicitly set).
 
-- `tests/test_auto_combat_movement_factory.lua` — 86 checks: template defaults and
+- `tests/test_auto_combat_movement_factory.lua` — 94 checks: template defaults and
   closed/fixed-field/negative-envelope rejections, discriminant-closed condition
-  and matrix/unsupported records, the full Phase Door matrix (both axes pre-read,
-  TL4+ known → `unsupported_target_plan`, either unknown → `movement_variant_unknown`),
-  preflight ordering, live builder geometry/conformance/range, occupancy
-  empty/actor/unknown, `Distance.grid` bounds for `position`/`relative`/scan
-  (cardinal+diagonal, min/max/outside under the native circular metric), range 0
-  as an empty domain, and action/getter/range drift negatives.
-- `tests/test_effect_manifest_drift.lua` — 46 checks, now including `def.range`
-  pins and a replaced-`range` identity rejection.
-- `tests/test_runtime.lua` — 186 checks, including a production-path regression
-  where a replaced transitive `combatTalentScale` is `adapter_source_drift` and is
-  never called.
+  and matrix/unsupported records, **dense-array validation** for `conditions`,
+  `branches`, `axes` and the request lists (named/sparse keys rejected), the full
+  Phase Door matrix, preflight ordering, live builder geometry/conformance/range,
+  occupancy empty/actor/unknown, `Distance.grid` bounds for
+  `position`/`relative`/scan, range 0 as an empty domain, and drift negatives.
+- `tests/test_effect_manifest_drift.lua` — 46 checks, including `def.range` pins
+  and a replaced-`range` identity rejection.
+- `tests/test_runtime.lua` — 188 checks, including a first-plan replaced
+  `getTalentLevel` (and a mid-chain replaced `combatTalentScale`) that is
+  `adapter_source_drift` with zero replacement calls, plus the audited chain
+  planning successfully.
 - Full Lua suite 41/41 green; Python 39/39; the three generator `--check` runs
   exit 0.
 - Native probes (source + `dist`) settle the task and assert final postconditions:
-  auto-combat probe 114/114 each (including `movement-talents:door-execute` and
-  `movement-factory:*`: precise-grid, unknown-attribute, Dimensional Step
-  empty/actor/unknown, Vault live-range `toward`, Vault out-of-range rejection and
-  Vault exact), full native acceptance 100/100 each. Raw output is under `tmp/s1/`.
+  auto-combat probe 116/116 each (including `movement-factory:helper-replaced`
+  and all rev-2/3 movement checks), full native acceptance 100/100 each. Raw
+  output is under `tmp/s1/`.

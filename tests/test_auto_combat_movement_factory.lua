@@ -391,6 +391,32 @@ do
     check(u==nil and uerr.detail=='unknown_unsupported_field','an unsupported record rejects an undeclared field')
     local r,rerr=Factory.matrix({{when={kind='always'},unsupported={missing='x',reason='y',requests={{'bogus'}}}}})
     check(r==nil and rerr.detail=='bad_variant_request_kind','an unsupported request list is closed')
+    -- MAF-REV-05: nested collections are dense `1..n` arrays, not just prefixes.
+    local function rejectMatrix(m)
+        local out,err=Factory.matrix(m)
+        return out==nil and err.reason=='movement_adapter_invalid'
+    end
+    check(rejectMatrix({{when={kind='all',conditions={[1]={kind='always'},
+        named={kind='always'}}},template='self_random_teleport',
+        params={radius=1,landing_proof='p'}}}),'a named condition child is rejected')
+    check(rejectMatrix({{when={kind='all',conditions={[1]={kind='always'},
+        [3]={kind='always'}}},template='self_random_teleport',
+        params={radius=1,landing_proof='p'}}}),'a sparse condition list is rejected')
+    check(rejectMatrix({{when={kind='always'},unsupported={missing='x',reason='y',
+        requests={[1]={'actor'},named={'grid'}}}}}),'a named outer request sequence is rejected')
+    check(rejectMatrix({{when={kind='always'},unsupported={missing='x',reason='y',
+        requests={[1]={'actor'},[3]={'grid'}}}}}),'a sparse outer request list is rejected')
+    check(rejectMatrix({{when={kind='always'},unsupported={missing='x',reason='y',
+        requests={{'actor',named='grid'}}}}}),'a named inner request kind is rejected')
+    check(rejectMatrix({{when={kind='always'},unsupported={missing='x',reason='y',
+        requests={{'actor',[3]='grid'}}}}}),'a sparse inner request list is rejected')
+    check(rejectMatrix({[1]={when={kind='always'},template='self_random_teleport',
+        params={radius=1,landing_proof='p'}},[3]={when={kind='always'},
+        template='self_random_teleport',params={radius=1,landing_proof='p'}}}),
+        'a sparse branches list is rejected')
+    local ax,axErr=Factory.matrix({{when={kind='always'},template='self_random_teleport',
+        params={radius=1,landing_proof='p'}}},{[1]={kind='attr',id='x'},named={kind='attr',id='y'}})
+    check(ax==nil and axErr.reason=='movement_adapter_invalid','a named axis is rejected')
 end
 
 -- 9. Drift: action + getter identity pins fail closed ------------------------

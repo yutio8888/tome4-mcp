@@ -57,7 +57,8 @@ local function finite(n) return type(n)=='number' and n==n and n>-math.huge and 
 -- mere missing value, so it must be surfaced as `adapter_source_drift`.
 local function isDriftReason(why)
     return type(why)=='string' and (why:find('replaced',1,true)~=nil
-        or why:find('drift',1,true)~=nil)
+        or why:find('drift',1,true)~=nil
+        or why:find('unverified',1,true)~=nil)
 end
 
 local function copyArray(src)
@@ -100,6 +101,27 @@ local function checkEnum(value,set)
     return type(value)=='string' and set[value]==true
 end
 
+-- A closed list is a dense `1..n` integer-keyed array. Non-integer keys and holes
+-- are rejected instead of being silently ignored by `#`/`ipairs`.
+local function validateArray(list,minLen)
+    if type(list)~='table' then return false,'not_array' end
+    local maxKey=0
+    local count=0
+    for key in pairs(list) do
+        if type(key)~='number' or key%1~=0 or key<1 then return false,'non_integer_key' end
+        if key>maxKey then maxKey=key end
+        count=count+1
+    end
+    if minLen and maxKey<minLen then return false,'too_short' end
+    if count~=maxKey then return false,'hole' end
+    for i=1,maxKey do
+        if list[i]==nil then return false,'hole' end
+    end
+    return true,maxKey
+end
+
+M.validateArray=validateArray
+
 -- Discriminant-closed condition records: each kind allows only the fields it
 -- actually consumes. A field belonging to another kind is rejected rather than
 -- silently ignored.
@@ -122,10 +144,11 @@ local function validateWhen(when,depth)
     if when.kind=='always' then
         return true
     elseif when.kind=='all' or when.kind=='any' then
-        if type(when.conditions)~='table' or #when.conditions==0 then return false,'bad_condition_list' end
+        local arrayOk=validateArray(when.conditions,1)
+        if not arrayOk then return false,'bad_condition_list' end
         for _,child in ipairs(when.conditions) do
-            local ok,why=validateWhen(child,depth+1)
-            if not ok then return false,why end
+            local nextOk,why=validateWhen(child,depth+1)
+            if not nextOk then return false,why end
         end
         return true
     elseif when.kind=='talent_level' then
@@ -292,11 +315,13 @@ end
 -- that are always resolved before any branch is selected, so an unknown axis is
 -- `movement_variant_unknown` even when no branch would test it.
 function M.matrix(branches,axes)
-    if type(branches)~='table' or #branches==0 then
-        return nil,{reason=M.REASON_INVALID,detail='empty_matrix'}
+    local branchesOk=validateArray(branches,1)
+    if not branchesOk then
+        return nil,{reason=M.REASON_INVALID,detail='bad_branches'}
     end
     if axes~=nil then
-        if type(axes)~='table' or #axes==0 then
+        local axesOk=validateArray(axes,1)
+        if not axesOk then
             return nil,{reason=M.REASON_INVALID,detail='bad_axes'}
         end
         for _,axis in ipairs(axes) do
@@ -342,11 +367,11 @@ function M.matrix(branches,axes)
                 return nil,{reason=M.REASON_INVALID,detail='bad_variant_typed_reason',index=index}
             end
             if unsupported.requests~=nil then
-                if type(unsupported.requests)~='table' then
+                if not validateArray(unsupported.requests,1) then
                     return nil,{reason=M.REASON_INVALID,detail='bad_variant_requests',index=index}
                 end
                 for _,requests in ipairs(unsupported.requests) do
-                    if type(requests)~='table' or #requests==0 then
+                    if not validateArray(requests,1) then
                         return nil,{reason=M.REASON_INVALID,detail='bad_variant_requests',index=index}
                     end
                     for _,request in ipairs(requests) do
