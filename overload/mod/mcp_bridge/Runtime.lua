@@ -1034,6 +1034,31 @@ local function autoCombatReads(s,policy)
                     return nil
                 end,
                 talentLevel=plannerTalentLevel,
+                -- S1 factory state-variant reads. A successful `attr` read is
+                -- definite (its value may be nil/false/0); an unavailable or
+                -- erroring reader returns `known=false` so the variant stays
+                -- fail-closed (`movement_variant_unknown`).
+                attr=function(id)
+                    if type(player)~='table' or type(player.attr)~='function' then return nil,false end
+                    local ok,value=pcall(player.attr,player,id)
+                    if not ok then return nil,false end
+                    return value,true
+                end,
+                -- S1 dynamic envelope getter (for example Phase Door's
+                -- `getRange`/`getRadius`). Called on the live talent definition
+                -- after the guard's drift check pins the same object; a
+                -- missing/erroring/non-finite getter is a typed derivation
+                -- unknown, never a fabricated constant.
+                talentGetter=function(talent,name)
+                    if type(player)~='table' or type(player.talents_def)~='table' then return nil end
+                    local def=player.talents_def[talent]
+                    if type(def)~='table' then return nil end
+                    local getter=def[name]
+                    if type(getter)~='function' then return nil end
+                    local ok,value=pcall(getter,player,def)
+                    if not ok or type(value)~='number' or value~=value then return nil end
+                    return value
+                end,
                 knowledge=function(x,y)
                     if not map or not Details.finite(x) or not Details.finite(y)
                         or not Details.finite(map.w) or not Details.finite(map.h) then

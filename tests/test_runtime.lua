@@ -669,10 +669,18 @@ do
     p.x,p.y=2,2;enemy.x,enemy.y=3,2
     g.level.map.map[12][3]=p;g.level.map.map[13][3]=enemy
     -- Phase Door is level-scoped; a known effective level lets the planner's
-    -- variant check pass (an unknown level now fails closed).
+    -- variant check pass (an unknown level now fails closed). The `attr` reader
+    -- returns a definite absent attribute, and the def pins the audited dynamic
+    -- getters the factory resolves.
+    local saved_attr=p.attr
+    -- Keep the audited Entity.lua source so `Observer.visible` still trusts the
+    -- read, but make the absent `phase_door_force_precise` attribute a definite
+    -- false (a successful read) rather than an error.
+    p.attr=assert(loadstring('return function(self,name) return nil end','@/engine/Entity.lua'))()
     p.getTalentLevel=function(self,def) return def and def.probe_level or 1 end
     p.talents_def=p.talents_def or {}
-    p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',probe_level=1}
+    p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',probe_level=1,
+        getRange=function() return 6 end,getRadius=function() return 1 end}
     local live2=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
     local bound=live2.snapshot('nearest_hostile').bound_target
     local planned=live2.plan({action='move',destination=pl.rules[1]['then'].destination,bound_target=bound})
@@ -708,6 +716,7 @@ do
         destination={selector='native_random',
             accept={visibility='any',passability='native',hazard='any',landing='deterministic'}}})
     check(strict==nil,'a deterministic-landing policy rejects the random teleport as policy, not a plugin veto')
+    p.attr=saved_attr
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
 end
 -- Round-5 correction: the guard reads the real target spec from the audited

@@ -92,16 +92,25 @@ for talent,entry in pairs(Manifest.ENTRIES) do
     end
 end
 -- Movement entries declare their exact native request/landing classification
--- and carry no damage components (the guard skips them by source-pinned kind).
-for _,talent in ipairs{'T_RUSH','T_SKIRMISHER_CUNNING_ROLL','T_PHASE_DOOR'} do
+-- (or a closed state-variant matrix) and carry no damage components (the guard
+-- skips them by source-pinned kind).
+for _,talent in ipairs{'T_RUSH','T_SKIRMISHER_CUNNING_ROLL','T_SKIRMISHER_VAULT','T_DIMENSIONAL_STEP','T_PHASE_DOOR'} do
     local entry=Manifest.entry(talent)
     check(entry~=nil and entry.kind=='movement','movement entry for '..talent)
-    check(type(entry.movement)=='table' and type(entry.movement.target_requests)=='table',
-        'movement adapter declares its target requests for '..talent)
+    check(type(entry.movement)=='table','movement adapter declared for '..talent)
+    check(#Manifest.requestSequences(entry)>0,'movement adapter declares its target requests for '..talent)
+    check(Manifest.SOURCES.talents[talent].action~=nil,'movement action pinned for '..talent)
 end
-check(Manifest.entry('T_PHASE_DOOR').movement.landing=='random','Phase Door is a random teleport')
 check(Manifest.entry('T_SKIRMISHER_CUNNING_ROLL').movement.landing=='exact','Tumble is an exact grid move')
+check(Manifest.entry('T_SKIRMISHER_VAULT').movement.landing=='exact','Vault is an exact grid move')
 check(Manifest.entry('T_RUSH').movement.landing=='bounded_alternatives','Rush is an actor-anchored line move')
+-- Phase Door is a closed matrix: the no-prompt and precise-grid branches are
+-- single-prompt; the TL4+ branch is the ordered-queue capability gap.
+local phaseDoorSequences=Manifest.requestSequences(Manifest.entry('T_PHASE_DOOR'))
+check(#phaseDoorSequences==2 and phaseDoorSequences[1][1]=='none' and phaseDoorSequences[2][1]=='grid',
+    'Phase Door declares the no-prompt and precise-grid request sequences')
+check(Manifest.entry('T_PHASE_DOOR').movement.variants~=nil,'Phase Door declares a state-variant matrix')
+check(Manifest.SOURCES.talents['T_PHASE_DOOR'].getters~=nil,'Phase Door pins its dynamic getters')
 check(Manifest.compat(Manifest.entry('T_FLAME')).shape=='widebeam','Flame compat reports the widest union member')
 check(Manifest.compat(Manifest.entry('T_SOUL_ROT')).delivery=='projectile','Soul Rot compat keeps the projectile delivery')
 check(Manifest.compat(Manifest.entry('T_BLOOD_GRASP')).friendlyfire_risk=='none','a safe bolt has no derived line risk')
@@ -136,12 +145,16 @@ do
         end
         return nil
     end
-    for _,talent in ipairs({'T_PHASE_DOOR','T_BLINK_RUNE','T_SKIRMISHER_VAULT',
+    for _,talent in ipairs({'T_PHASE_DOOR','T_BLINK_RUNE',
         'T_DIMENSIONAL_STEP','T_SHADOWSTEP','T_GIANT_LEAP','T_DISPLACEMENT_SHIELD'}) do
         local entry=unsupportedEntry(talent)
         check(entry~=nil and entry.missing and entry.reason and entry.scope,
             talent..' has a structured unsupported entry')
     end
+    check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupported')
+    local step=unsupportedEntry('T_DIMENSIONAL_STEP')
+    check(step~=nil and step.missing=='moving_or_swapping_another_actor',
+        'Dimensional Step TL5 is the swap capability gap')
     local shield=unsupportedEntry('T_DISPLACEMENT_SHIELD')
     check(shield~=nil and shield.missing=='source_reviewed_effect_adapter',
         'Displacement Shield is listed as an unreviewed effect adapter')

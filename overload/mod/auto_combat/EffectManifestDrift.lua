@@ -66,6 +66,28 @@ end
 local baselines={}
 local active_key=nil
 
+-- Verify one pinned function object: it must be a Lua function defined at the
+-- pinned source path/line, and its first-seen identity must not change within
+-- the session. `key` namespaces the trusted baseline (builder/getter/action).
+-- The same object is accepted repeatedly; a distinct object (even a
+-- byte-identical dump with a different captured upvalue) is rejected and never
+-- overwrites the baseline.
+local function checkPinnedFn(obj,pin,key)
+    if type(obj)~='function' then return false end
+    local info=debug.getinfo(obj,'S')
+    if type(info)~='table' or info.what~='Lua'
+        or info.source~='@'..pin.path or info.linedefined~=pin.line then
+        return false
+    end
+    local baseline=baselines[key]
+    if baseline==nil then
+        baselines[key]=obj
+    elseif not rawequal(baseline,obj) then
+        return false
+    end
+    return true
+end
+
 -- Identity/closure: every manifest entry must expose its declared target
 -- expectation. `conformance.builder` is `true` (a pinned native builder),
 -- `false` (an action-local target, so no builder) or `'none'` (a self/no-target
@@ -109,6 +131,31 @@ function M.identity(manifest,getDef)
         else
             -- `false` and `'none'` both require the absence of a target builder.
             if builder~=nil then return nil,M.REASON,talent..':builder_unexpected' end
+        end
+        -- S1: every movement adapter pins its `action` body and its dynamic
+        -- getters. A missing/misplaced/replaced object disables the adapter
+        -- before commit; this is the same identity mechanism as the builder.
+        if entry.kind=='movement' then
+            local actionPin=entry.source and entry.source.action
+            if type(actionPin)~='table' or type(actionPin.path)~='string' or type(actionPin.line)~='number' then
+                return nil,M.REASON,talent..':action_unpinned'
+            end
+            if not checkPinnedFn(def.action,actionPin,talent..':action') then
+                return nil,M.REASON,talent..':action_replaced'
+            end
+            local getterPins=entry.source and entry.source.getters or {}
+            local getterNames={}
+            for getter in pairs(getterPins) do getterNames[#getterNames+1]=getter end
+            table.sort(getterNames)
+            for _,getter in ipairs(getterNames) do
+                local pin=getterPins[getter]
+                if type(pin)~='table' or type(pin.path)~='string' or type(pin.line)~='number' then
+                    return nil,M.REASON,talent..':getter_unpinned:'..getter
+                end
+                if not checkPinnedFn(def[getter],pin,talent..':getter:'..getter) then
+                    return nil,M.REASON,talent..':getter_replaced:'..getter
+                end
+            end
         end
     end
     return true

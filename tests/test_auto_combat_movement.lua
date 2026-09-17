@@ -194,25 +194,36 @@ do
     check(multi==nil and multiErr and multiErr.reason=='unsupported_target_plan',
         'a multi-prompt target plan is a typed capability gap, not silently ignored')
     -- A level-limited adapter variant is rejected with the published reason.
+    local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+    local doorMatrix=Factory.matrix({
+        {when={kind='all',conditions={{kind='talent_level',below=4},
+            {kind='attr',id='phase_door_force_precise',truthy=false}}},
+            template='self_random_teleport',params={radius={getter='getRange'},min_radius=0,
+                landing_proof='test'}},
+        {when={kind='talent_level',at_least=4},unsupported={scope='effective_talent_level>=4',
+            missing='actor_then_grid_target_plan',reason='test'}},
+    })
     local variant,variantErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
         destination={selector='native_random',accept=accept()}},
-        {origin=function() return {x=2,y=2} end,talentLevel=function() return 4 end},
-        {target_requests={'none'},landing='random',
-            unsupported_variants={{at_least=4,scope='effective_talent_level>=4',
-                missing='actor_then_grid_target_plan'}}})
+        {origin=function() return {x=2,y=2} end,talentLevel=function() return 4 end,
+            attr=function() return nil,true end},doorMatrix)
     check(variant==nil and variantErr and variantErr.reason=='unsupported_movement_variant'
         and variantErr.missing=='actor_then_grid_target_plan',
         'a level-limited adapter variant is rejected with its typed reason')
-    -- MFT-REV-08: an unknown/overridden effective level fails closed too.
+    -- An unknown/overridden effective level or attribute fails closed instead of
+    -- submitting the no-prompt leaf.
     local unknownLevel,unknownErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
         destination={selector='native_random',accept=accept()}},
-        {origin=function() return {x=2,y=2} end,talentLevel=function() return 'unknown' end},
-        {target_requests={'none'},landing='random',
-            unsupported_variants={{at_least=4,scope='effective_talent_level>=4',
-                missing='actor_then_grid_target_plan'}}})
-    check(unknownLevel==nil and unknownErr and unknownErr.reason=='unsupported_movement_variant'
-        and unknownErr.unknown==true,
-        'an unknown effective level fails closed for a level-scoped variant (MFT-REV-08)')
+        {origin=function() return {x=2,y=2} end,talentLevel=function() return 'unknown' end,
+            attr=function() return nil,true end},doorMatrix)
+    check(unknownLevel==nil and unknownErr and unknownErr.reason=='movement_variant_unknown',
+        'an unknown effective level fails closed (movement_variant_unknown)')
+    local unknownAttr,unknownAttrErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',accept=accept()}},
+        {origin=function() return {x=2,y=2} end,talentLevel=function() return 1 end,
+            attr=function() return nil,false end},doorMatrix)
+    check(unknownAttr==nil and unknownAttrErr and unknownAttrErr.reason=='movement_variant_unknown',
+        'an unknown phase_door_force_precise read fails closed (movement_variant_unknown)')
 end
 
 -- 4. Production controller wiring: a plain step reaches the executor ----------

@@ -1,0 +1,98 @@
+json: 62 checks passed
+Command ledger: 100288 checks passed
+Observation views: 120 checks passed
+transport: 31 checks passed
+Actions: 69 checks passed
+Talent query/prefill: 58 checks passed
+Query purity: 13 checks passed
+Resource filter: 3 checks passed
+Journal: 30 checks passed
+Observer: 97 checks passed; stress snapshot 194866 bytes
+Level map: 23 checks passed
+Actor combat: 22 checks passed
+Progression: 235 checks passed
+Items: 97 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Tasks: 65 checks passed
+Invocations: 29 checks passed
+Auto-combat policy: 97 checks passed
+Auto-combat pilots: 61 checks passed
+Friendly fire: 40 checks passed
+Effect manifest: 348 checks passed
+Effect manifest drift: 30 checks passed
+Effect footprint: 30 checks passed
+Effect risk: 29 checks passed
+Auto-combat guard: 45 checks passed
+Auto-combat movement: 34 checks passed
+Auto-combat controller: 82 checks passed
+Auto-combat catalog: 60 checks passed
+Auto-combat snapshot: 25 checks passed
+Auto-combat service: 94 checks passed
+Auto-combat A/B: 10 checks passed; divergent scenarios: 1 (boss-visible)
+Auto-combat assistant adapter: 44 checks passed
+Auto-combat execution: 12 checks passed
+Auto-combat host: 12 checks passed
+Auto-combat IO: 26 checks passed
+Auto-combat editor model: 37 checks passed
+Native activity: 17 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Runtime: 179 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Interactive Runtime: 122 checks passed
+[CHAT] selected	Rendered answer	function: 0x7f4876452c60	done
+Chat: 20 checks passed
+Native compatibility: 16 checks passed

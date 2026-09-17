@@ -24,6 +24,7 @@
 -- acceptance reason (`visibility`/`passability`/`hazard`/`landing`) -- never a
 -- strategic refusal.
 local Distance=require 'mod.mcp_bridge.Distance'
+local Factory=require 'mod.auto_combat.MovementAdapterFactory'
 local M={}
 
 M.SELECTORS={toward=true,away=true,preferred_distance=true,position=true,relative=true,
@@ -217,9 +218,30 @@ function M.planTalent(request,provider,bound,movement,origin)
         if annotation.in_bounds==false then
             return nil,{reason='destination_out_of_bounds',x=x,y=y,annotation=annotation}
         end
+        -- S1 factory: a grid request is not automatically a deterministic
+        -- landing. A `bounded_alternatives`/`random` adapter (Blink, Dimensional
+        -- Step, Phase Door precise-grid) chooses the actual endpoint natively, so
+        -- the annotation must report the declared envelope before policy
+        -- acceptance. `exact` stays deterministic.
+        annotation.selector=request.selector
+        if movement and movement.landing~='exact' then
+            local landing={kind=movement.landing=='random' and 'random' or 'bounded',
+                center={x=x,y=y}}
+            if finite(movement.radius) then landing.radius=movement.radius end
+            if finite(movement.min_radius) then landing.min_radius=movement.min_radius end
+            if movement.fallback_center then
+                local fcenter=movement.fallback_center=='self' and {x=origin.x,y=origin.y} or {x=x,y=y}
+                landing.fallback={kind='random',center=fcenter}
+                if finite(movement.fallback_radius) then landing.fallback.radius=movement.fallback_radius end
+                annotation.reasons[#annotation.reasons+1]='los_fallback_envelope'
+            end
+            annotation.landing=landing
+            annotation.confidence='source_'..tostring(movement.landing)
+            annotation.reasons[#annotation.reasons+1]='native_random_landing'
+            annotation.reasons[#annotation.reasons+1]='hidden_occupancy_not_inspected'
+        end
         local ok,reason=M.accepts(request.accept,annotation)
         if not ok then return nil,{reason=reason,annotation=annotation} end
-        annotation.selector=request.selector
         annotation.reasons[#annotation.reasons+1]='native_builder_validates_request'
         return {kind='grid',x=x,y=y,annotation=annotation}
     end
@@ -279,24 +301,21 @@ local function nativeLandingAnnotation(movement,anchor)
         reasons={'actor_anchored_landing','landing_derived_by_native'}}
 end
 
--- A source-pinned adapter may declare level/variant forms it cannot drive (for
--- example Phase Door TL4+ actor-then-grid). The runtime rejects those with the
--- same typed reason the catalog publishes (MFT-REV-08).
-local function unsupportedVariant(movement,provider,talent)
-    if type(movement)~='table' or type(movement.unsupported_variants)~='table' then return nil end
-    local level=provider.talentLevel and provider.talentLevel(talent) or nil
-    if type(level)~='number' then
-        -- MFT-REV-08: an unknown/overridden effective-level getter must fail
-        -- closed. The plugin cannot tell whether the unsupported prompt variant
-        -- applies, so it must not submit the no-prompt adapter.
-        local first=movement.unsupported_variants[1]
-        return {unknown=true,at_least=first and first.at_least,
-            scope=first and first.scope,missing=first and first.missing}
-    end
-    for _,variant in ipairs(movement.unsupported_variants) do
-        if variant.at_least and level>=variant.at_least then return variant end
-    end
-    return nil
+-- A source-pinned adapter may declare state variants (for example Phase Door's
+-- effective-level x `phase_door_force_precise` matrix). Resolve exactly one
+-- descriptor through the closed factory; an unknown/ambiguous condition is a
+-- typed `movement_variant_unknown` and never falls back to a leaf. A known but
+-- unimplemented branch (TL4+ actor-then-grid before the ordered prompt queue) is
+-- published as the capability reason the factory supplied.
+local function resolveMovement(movement,provider,talent)
+    if movement==nil then return nil end
+    local reads={talentLevel=provider.talentLevel,attr=provider.attr,
+        talentGetter=provider.talentGetter}
+    local resolved,err=Factory.resolveVariant(movement,talent,reads)
+    if not resolved then return nil,err end
+    local bounds,boundErr=Factory.resolveBounds(resolved,talent,reads)
+    if not bounds then return nil,boundErr end
+    return bounds
 end
 
 -- Consume an ordered target plan: the executor pre-fills one native prompt, so
@@ -387,11 +406,14 @@ function M.plan(attempt,provider,movement)
         end
         return M.planStep(attempt.destination,provider,attempt.bound_target,origin)
     end
-    local variant=unsupportedVariant(movement,provider,attempt.talent)
-    if variant then
-        return nil,{reason='unsupported_movement_variant',talent=attempt.talent,
-            scope=variant.scope,missing=variant.missing,at_least=variant.at_least,
-            unknown=variant.unknown or nil}
+    local variantErr
+    movement,variantErr=resolveMovement(movement,provider,attempt.talent)
+    if variantErr then
+        -- Propagate the typed reason unchanged; the caller publishes the same
+        -- typed capability/variant reason. An unknown condition stays fail
+        -- closed (`movement_variant_unknown`); a known unimplemented branch is
+        -- `unsupported_movement_variant`.
+        return nil,variantErr
     end
     if type(attempt.target_plan)=='table' then
         if #attempt.target_plan~=1 then

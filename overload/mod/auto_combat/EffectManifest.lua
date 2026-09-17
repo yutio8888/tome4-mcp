@@ -15,6 +15,7 @@
 -- The module is static data plus pure derived helpers: it never calls the
 -- engine, a talent builder or RNG.
 local Sources=require 'mod.auto_combat.EffectManifestSources'
+local Factory=require 'mod.auto_combat.MovementAdapterFactory'
 local M={}
 M.VERSION='tome-auto-combat-adapters/v2'
 M.SCHEMA='tome-auto-combat/v1'
@@ -235,24 +236,60 @@ M.ENTRIES={
     -- the guard skips it (there is no damage footprint to model for a plain
     -- step or teleport). `landing` values: exact | bounded_alternatives | random
     -- | source_defined. Unknown bounds stay absent (`unknown`), never invented.
+    --
+    -- S1 factory: every admitted entry is expanded by the closed
+    -- `MovementAdapterFactory` from a source-reviewed template plus explicit
+    -- per-talent parameters. The factory only removes boilerplate; it never
+    -- scans the game. State variants (Phase Door, Dimensional Step) are closed
+    -- matrices resolved at plan time by `MovementAdapterFactory.resolveVariant`.
     T_RUSH={kind='movement',target='hostile',resource='stamina',
-        movement={target_requests={'actor'},delivery='line_move',landing='bounded_alternatives',
-            center='actor',traverses=true,relocates_other=false},
+        movement=Factory.expand('actor_charge',{
+            landing_proof='the action computes the last legal line cell before the bound actor'}),
         components={},conformance={builder=true}},
     T_SKIRMISHER_CUNNING_ROLL={kind='movement',target='grid',resource='stamina',
-        movement={target_requests={'grid'},delivery='line_move',landing='exact',
-            center='requested_grid',traverses=true,relocates_other=false},
+        movement=Factory.expand('grid_move_exact',{delivery='line_move',traverses=true,
+            landing_proof='forces the exact requested grid after native blocked/projection checks'}),
         components={},conformance={builder=true}},
+    T_SKIRMISHER_VAULT={kind='movement',target='grid',resource='stamina',
+        movement=Factory.expand('grid_move_exact',{delivery='leap',traverses=false,
+            landing_proof='forces the exact requested grid after launch/blocked/projection checks'}),
+        components={},conformance={builder=true}},
+    T_DIMENSIONAL_STEP={kind='movement',target='grid',resource='paradox',
+        movement=Factory.matrix({
+            {when={kind='talent_level',below=5},template='grid_move_bounded',
+                params={delivery='teleport',traverses=false,radius=5,min_radius=0,
+                    landing_proof='teleportRandom(x,y,0) falls back to findFreeGrid radius 5'}},
+            {when={kind='talent_level',at_least=5},
+                unsupported={scope='effective_talent_level>=5',
+                    missing='moving_or_swapping_another_actor',
+                    reason='TL5 may swap the bound actor; typed two-subject semantics are not implemented'}},
+        }),
+        components={},conformance={builder=true}},
+    -- Phase Door's prompt program depends on effective level AND the
+    -- `phase_door_force_precise` attribute. The old level-only gate was wrong:
+    -- the grid prompt appears below TL4 when that attribute is set. An unknown
+    -- level or attribute is `movement_variant_unknown` (fail closed); TL4+
+    -- actor(+grid) prompts remain the ordered-queue capability gap.
     T_PHASE_DOOR={kind='movement',target='self',resource='mana',
-        movement={target_requests={'none'},delivery='teleport',landing='random',
-            center='self',radius=6,min_radius=1,
-            -- The no-prompt form is the only form this adapter drives. TL4+
-            -- branches to a target prompt and TL5 to a landing prompt; those
-            -- variants are published as unsupported with the same typed reason
-            -- the runtime rejects them with (MFT-REV-03/08).
-            unsupported_variants={{at_least=4,scope='effective_talent_level>=4',
-                missing='actor_then_grid_target_plan',
-                reason='Phase Door prompts for a target at TL4+ and a landing at TL5; the executor pre-fills one native prompt only'}}},
+        movement=Factory.matrix({
+            {when={kind='all',conditions={
+                    {kind='talent_level',below=4},
+                    {kind='attr',id='phase_door_force_precise',truthy=false}}},
+                template='self_random_teleport',
+                params={radius={getter='getRange'},min_radius=0,
+                    landing_proof='no prompt below effective TL4 without phase_door_force_precise'}},
+            {when={kind='all',conditions={
+                    {kind='talent_level',below=4},
+                    {kind='attr',id='phase_door_force_precise',truthy=true}}},
+                template='grid_move_bounded',
+                params={delivery='teleport',traverses=false,radius={getter='getRadius'},min_radius=0,
+                    fallback_center='self',fallback_radius={getter='getRange'},fallback_when='los_fizzle',
+                    landing_proof='grid prompt below TL4 under the precise attribute'}},
+            {when={kind='talent_level',at_least=4},
+                unsupported={scope='effective_talent_level>=4',
+                    missing='actor_then_grid_target_plan',
+                    reason='Phase Door prompts for a target at TL4+ and a landing at TL5; the executor pre-fills one native prompt only'}},
+        }),
         components={},conformance={builder=false}},
 }
 
@@ -269,17 +306,16 @@ function M.source(talent) return Sources.talents[talent] end
 M.UNSUPPORTED={
     {talent='T_PHASE_DOOR',scope='effective_talent_level>=4',
         missing='actor_then_grid_target_plan',
-        reason='the no-prompt random self teleport is driven; target/landing prompts are not'},
-    {talent='T_BLINK_RUNE',scope='any',missing='source_reviewed_movement_adapter',
-        reason='visible grid request with a random fallback; adapter not source-reviewed'},
-    {talent='T_SKIRMISHER_VAULT',scope='any',missing='source_reviewed_movement_adapter',
-        reason='grid landing plus a visible adjacent launch actor; adapter not source-reviewed'},
-    {talent='T_DIMENSIONAL_STEP',scope='any',missing='source_reviewed_movement_adapter',
-        reason='requested-grid teleport with a possible actor swap; adapter not source-reviewed'},
+        reason='the no-prompt and precise-grid single-prompt forms are driven; the TL4+ actor and TL5 actor-then-grid prompts need the ordered queue'},
+    {talent='T_BLINK_RUNE',scope='any',missing='stable_native_talent_id',
+        reason='the native inscription id is slot-indexed (T_RUNE:_BLINK_1..6); no single stable id to source-pin'},
+    {talent='T_DIMENSIONAL_STEP',scope='effective_talent_level>=5',
+        missing='moving_or_swapping_another_actor',
+        reason='TL5 may swap the bound actor; typed two-subject destination/effect semantics are not implemented'},
     {talent='T_SHADOWSTEP',scope='any',missing='source_reviewed_movement_adapter',
-        reason='actor-anchored random teleport plus an attack; adapter not source-reviewed'},
+        reason='actor-anchored random teleport plus an attack; movement/effect composition is a later slice'},
     {talent='T_GIANT_LEAP',scope='any',missing='source_reviewed_movement_adapter',
-        reason='requested-grid movement with an alternate landing and radius effect; adapter not source-reviewed'},
+        reason='requested-grid movement with an alternate landing and radius effect; movement/effect composition is a later slice'},
     {talent='T_DISPLACEMENT_SHIELD',scope='any',missing='source_reviewed_effect_adapter',
         reason='actor-target shield that does not relocate the player; effect adapter not source-reviewed'},
     {talent='*',scope='any',missing='moving_or_swapping_another_actor',
@@ -288,6 +324,26 @@ M.UNSUPPORTED={
 
 function M.entry(talent) return M.ENTRIES[talent] end
 function M.supported(talent) return talent~=nil and M.ENTRIES[talent]~=nil end
+
+-- Every distinct target-request sequence a movement adapter can resolve to. A
+-- variant matrix has one sequence per executable branch; a static adapter has
+-- exactly one. Used by the pure policy validator, which cannot read runtime
+-- state and therefore accepts a plan that matches any declared branch.
+function M.requestSequences(entry)
+    local movement=entry and entry.movement
+    if type(movement)~='table' then return {} end
+    if movement.variants then
+        local out={}
+        for _,variant in ipairs(movement.variants) do
+            if variant.movement and type(variant.movement.target_requests)=='table' then
+                out[#out+1]=variant.movement.target_requests
+            end
+        end
+        return out
+    end
+    if type(movement.target_requests)=='table' then return {movement.target_requests} end
+    return {}
+end
 function M.isSustain(talent)
     local entry=M.ENTRIES[talent]
     return entry~=nil and entry.kind=='sustain'
@@ -429,29 +485,46 @@ function M.verify(policy)
             local plan=rule['then'].target_plan
             local movement=entry.kind=='movement' and entry.movement or nil
             if type(plan)=='table' then
-                if not (movement and type(movement.target_requests)=='table') then
+                local sequences=M.requestSequences(entry)
+                if movement==nil or #sequences==0 then
                     errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_not_supported',
                         talent=rule['then'].talent}
                 else
-                    local expected=movement.target_requests
-                    if #plan~=#expected then
-                        errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_mismatch',
-                            expected=table.concat(expected,','),got=#plan}
-                    else
-                        for step=1,#plan do
-                            if plan[step].request~=expected[step] then
-                                errors[#errors+1]={path=path..'.then.target_plan['..step..']',
-                                    code='target_plan_mismatch',expected=expected[step],
-                                    got=plan[step].request}
-                            elseif expected[step]=='actor' and plan[step].selector~=nil
-                                and selector~=nil and plan[step].selector~=selector then
-                                -- MFT-REV-03: an actor step selector must agree with
-                                -- the action binding; contradictory data is not
-                                -- silently discarded.
-                                errors[#errors+1]={path=path..'.then.target_plan['..step..'].selector',
-                                    code='target_plan_selector_mismatch',
-                                    expected=selector,got=plan[step].selector}
+                    -- A variant matrix may declare several executable request
+                    -- sequences; the static validator cannot read runtime state,
+                    -- so a plan is valid when it matches any declared sequence
+                    -- exactly (same length, same kinds, consistent selectors).
+                    local matched=false
+                    local selectorMismatch=nil
+                    for _,expected in ipairs(sequences) do
+                        if #plan==#expected then
+                            local stepOk=true
+                            local mismatch=nil
+                            for step=1,#plan do
+                                if plan[step].request~=expected[step] then stepOk=false break end
+                                if expected[step]=='actor' and plan[step].selector~=nil
+                                    and selector~=nil and plan[step].selector~=selector then
+                                    stepOk=false
+                                    mismatch={path=path..'.then.target_plan['..step..'].selector',
+                                        code='target_plan_selector_mismatch',
+                                        expected=selector,got=plan[step].selector}
+                                    break
+                                end
                             end
+                            if stepOk then matched=true break end
+                            if mismatch and selectorMismatch==nil then selectorMismatch=mismatch end
+                        end
+                    end
+                    if not matched then
+                        if selectorMismatch then
+                            errors[#errors+1]=selectorMismatch
+                        elseif #sequences==1 and #plan~=#sequences[1] then
+                            errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_mismatch',
+                                expected=table.concat(sequences[1],','),got=#plan}
+                        else
+                            errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_mismatch',
+                                expected=#sequences==1 and table.concat(sequences[1],',')
+                                    or 'one_of_declared_variants'}
                         end
                     end
                 end
