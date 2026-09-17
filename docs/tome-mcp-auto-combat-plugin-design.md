@@ -275,8 +275,9 @@ visibility/passability/hazard/landing 接受条件。多次原生选目标用与
   撤退、拉开距离、传送或换层；策略对其后果负责。
 - 插件报告 player-known 的 reachability/visibility/passability/hazard/landing 信息。视野外、随机或安全性
   未知的落点按**不确定性标注**，并由策略接受条件决定；不得据此读取隐藏状态。
-- 移动与效果信息**合取求值**：两部分都必须可计算且都被策略接受。已知自伤/友伤风险由策略容忍度决定；
-  风险 footprint 无法确定时仅禁用该动作。`max_selffire_risk` 的度量与内置 preset 默认必须单独冻结。
+- 移动与效果信息**合取求值**：两部分都必须可计算且都被策略接受。`max_selffire_risk` 是**策略字段**：
+  已知自伤/友伤风险只**报告**，是否拒绝由策略阈值决定；内置 preset 默认保守（`0`），但插件**不再硬编码**
+  为全局拒绝；只有**风险 footprint 无法确定**时才 fail-closed 禁用该动作。（Q4 已定，v1.6。）
 - owner/场景/lease/revision、未经审计入口或 getter/builder、source drift、预算、原生拒绝或动作完成状态
   不明属于**执行完整性边界**，策略不得放宽。
 - `change_level` 成功或开始场景迁移后总是暂停并重置旧场景状态，要求显式重新启动。
