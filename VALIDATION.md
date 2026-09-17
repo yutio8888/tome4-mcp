@@ -6,9 +6,9 @@
 
 | ID | 结果 | 证据 |
 | --- | --- | --- |
-| V2-1 组件清单 | **通过**：`EffectManifest`（`tome-auto-combat-adapters/v2`）为每个技能提供 cursor + instant/projectile/secondary/ground 独立组件、delivery/footprint/SF/FF/player-override、来源（文件+md5+行）与声明式变体 | `test_effect_manifest.lua`（217）、`tools/generate_effect_manifest.py --check` |
+| V2-1 组件清单 | **通过**：`EffectManifest`（`tome-auto-combat-adapters/v2`）为每个技能提供 cursor + instant/projectile/secondary/ground 独立组件、delivery/footprint/SF/FF/player-override、来源（文件+md5+行）与声明式变体 | `test_effect_manifest.lua`（238）、`tools/generate_effect_manifest.py --check` |
 | V2-2 守卫 | **通过**：`AutoCombatGuard` 只从规范组件推导风险，变体仅用已审计标量读取（否则保守并集），D2（0 拒绝 / >0 暂停）；不再读旧单形状字段 | `test_auto_combat_guard.lua`（17）、`test_runtime.lua`（171）、原生 `guard-real-spec` |
-| V2-3 footprint 对等 | **通过**：原生探针对真实 `ActorProject:project` 逐格比对 hit/bolt/beam/ball/widebeam/cone + blocking/corner，12/12 完全一致（source 与 dist） | `v2-effect-manifest-src3`、`v2-effect-manifest-dist`（`effect-footprint:*`） |
+| V2-3 footprint 对等 | **通过**：原生探针对真实 `ActorProject:project` 逐格比对 hit/bolt/beam/ball/widebeam/cone + blocking/corner，12/12 完全一致（source 与 dist） | `v2-final-src`、`v2-final-dist`（`effect-footprint:*`） |
 | V2-4 组合风险 | **通过**：玩家投射物仅按 override 自伤；持续地面即使当前为空，正/未知 SF/FF 也拒绝或暂停；self 需 SF∧FF，友军只需 FF | `test_effect_risk.lua`（28）、`test_auto_combat_guard.lua` |
 | V2-5 源漂移 | **通过**：生成器固定 20 个技能文件 + 5 个引擎语义文件的 md5 与定义行；不匹配返回 `adapter_source_drift` 且不使用过期元数据；builder identity/closure 校验 | `test_effect_manifest_drift.lua`（13）、原生 `manifest-drift` |
 | V2-6 整体 | **通过**：Lua 全绿、Python 39、两个 `--check` 与效果清单 `--check` 绿；auto-combat 探针 source/dist 各 74/74；原生验收 source/dist 各 100/100；重新打包 | 下表 |
@@ -17,15 +17,15 @@
 
 | 层 | 会话 | 结果 |
 | --- | --- | --- |
-| Auto-combat 探针（source） | `v2-effect-manifest-src3` | **74/74**（含 12 footprint parity + 3 drift） |
-| Auto-combat 探针（dist） | `v2-effect-manifest-dist` | **74/74** |
-| 原生验收（source） | `v2-effect-manifest-accept-src` | **100/100** |
-| 原生验收（dist） | `v2-effect-manifest-accept-dist` | **100/100** |
+| Auto-combat 探针（source） | `v2-final-src` | **74/74**（含 12 footprint parity + 3 drift） |
+| Auto-combat 探针（dist） | `v2-final-dist` | **74/74** |
+| 原生验收（source） | `v2-final-accept-src` | **100/100** |
+| 原生验收（dist） | `v2-final-accept-dist` | **100/100** |
 
 正式包 **66 个生产文件**，SHA-256：
 
 ```text
-8c7fd4c25aa38269ed8ed330ae2b96fe2ade414090dfb92cef7316bba17fddd5
+c96faee23db2b7d218295a97ecc1f728d334483ca4e0c62a5bd7b932ee2f7cbd
 ```
 
 （基线 `4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29`。）冻结不变量保持：紧急层、预算、目标绑定、`native_pending`、手动撤销、只读 `dry_run` 不变；无协议/服务端字段变化，仅 `capabilities.adapter_version` 变为 v2。未决：动态技能（Fireflash/Flameshock/Shadow Blast/Starfall）留作 TODO #55。详见 [V2 文档](docs/tome-mcp-0.9.0-v2-effect-manifest.md)。

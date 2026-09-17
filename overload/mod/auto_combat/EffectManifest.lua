@@ -161,6 +161,11 @@ M.ENTRIES={
     T_ADRENALINE_SURGE=selfEntry('buff',nil),
 }
 
+-- Attach the generated source identity to every entry so a component can
+-- carry its provenance without a second lookup. Static data; no engine access.
+for talent,entry in pairs(M.ENTRIES) do entry.source=Sources.talents[talent] end
+function M.source(talent) return Sources.talents[talent] end
+
 -- The v2 capability catalogue does not re-admit the dynamic talents
 -- (Fireflash/Flameshock/Shadow Blast/Starfall). They remain a documented
 -- follow-up: their SF formula inputs and ground components are not yet pinned.

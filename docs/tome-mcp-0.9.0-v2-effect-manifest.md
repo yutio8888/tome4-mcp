@@ -64,10 +64,10 @@ drift.
 
 | Layer | Session | Result |
 | --- | --- | --- |
-| Auto-combat probe (source) | `v2-effect-manifest-src3` | **74/74**, incl. 12 `effect-footprint:*` parity cases + 3 `manifest-drift:*` |
-| Auto-combat probe (`dist`) | `v2-effect-manifest-dist` | **74/74** |
-| Native acceptance (source) | `v2-effect-manifest-accept-src` | **100/100** |
-| Native acceptance (`dist`) | `v2-effect-manifest-accept-dist` | **100/100** |
+| Auto-combat probe (source) | `v2-final-src` | **74/74**, incl. 12 `effect-footprint:*` parity cases + 3 `manifest-drift:*` |
+| Auto-combat probe (`dist`) | `v2-final-dist` | **74/74** |
+| Native acceptance (source) | `v2-final-accept-src` | **100/100** |
+| Native acceptance (`dist`) | `v2-final-accept-dist` | **100/100** |
 
 Footprint parity compares the production backend against the real
 `ActorProject:project` grid set for `hit`, `bolt`, `beam`, `ball` (r1/r2),
@@ -75,14 +75,14 @@ Footprint parity compares the production backend against the real
 stop, corner). All 12 matched exactly.
 
 Lua suites: full `tests/run.sh` green, including the new
-`test_effect_manifest` (217), `test_effect_manifest_drift` (13),
+`test_effect_manifest` (238), `test_effect_manifest_drift` (13),
 `test_effect_footprint` (22), `test_effect_risk` (28) and
 `test_auto_combat_guard` (17). Python: 39/39. Both `--check` generators green.
 
 `dist/tome-mcp-bridge.teaa` repackaged:
 
 ```
-sha256 = 8c7fd4c25aa38269ed8ed330ae2b96fe2ade414090dfb92cef7316bba17fddd5
+sha256 = c96faee23db2b7d218295a97ecc1f728d334483ca4e0c62a5bd7b932ee2f7cbd
 ```
 
 (`main` baseline artifact `4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29`.)

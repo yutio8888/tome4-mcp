@@ -23,6 +23,7 @@ end
 for talent,entry in pairs(Manifest.ENTRIES) do
     local pin=Manifest.SOURCES.talents[talent]
     check(pin~=nil,'source pin exists for '..talent)
+    check(entry.source==pin,'the entry carries its source identity')
     check(pin.line and pin.line>0,'source definition line pinned for '..talent)
     check(type(pin.files)=='table' and #pin.files>=1,'source files pinned for '..talent)
     for _,file in ipairs(pin.files) do
