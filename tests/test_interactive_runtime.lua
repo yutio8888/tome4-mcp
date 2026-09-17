@@ -353,16 +353,25 @@ check(trimmed.player.effects~=nil and trimmed.player.inventory==nil,'effects sec
 check(request('observe',{session_id=hello.session_id,sections={'bogus'}}).error.code=='invalid_sections','unknown section rejected')
 local talent=request('inspect',{session_id=hello.session_id,kind='talent',id='T_FIXTURE'}).result
 check(talent.range==6 and talent.target_shape=='ball','inspect advertises the static range and shape')
-check(talent.target_geometry and talent.target_geometry.selffire=='unknown','a ball without an explicit selffire stays unknown')
+check(talent.target_geometry and talent.target_geometry.selffire==true,'a ball without an explicit selffire reports the engine default true')
 check(request('inspect',{session_id=hello.session_id,kind='talent',id='T_NOPE'}).error.code=='unknown_talent','unknown talent id distinct from unlearned')
 local sheet=request('inspect',{session_id=hello.session_id,kind='character',id='self'}).result
 check(type(sheet.encumbrance)=='table','character always exposes encumbrance')
 local Details=require 'mod.mcp_bridge.ObservationDetails'
-check(Details.selffire({type='ball'})=='unknown','a missing area-shape selffire is unknown, not a self-hit claim')
-check(Details.selffire({type='beam'})==false,'a beam does not self-fire')
-check(Details.selffire({type='unknown',direct_hit=true})=='unknown','direct_hit alone must not claim self-fire safety (Searing Light)')
-check(Details.selffire({type='unknown'})=='unknown','an unknown shape stays unknown')
+check(Details.selffire({type='ball'})==true,'a missing area-shape selffire reports the engine default true')
+check(Details.selffire({type='beam'})==true,'a beam reports the engine default true (geometry excludes the origin)')
+check(Details.selffire({type='cone'})==false,'the cone transform forces selffire=false')
+check(Details.selffire({type='unknown',direct_hit=true})==true,'direct_hit does not change the engine default')
+check(Details.selffire({type='unknown'})==true,'an unknown shape still reports the engine default')
 check(Details.selffire({type='ball',selffire=false})==false,'an explicit selffire wins')
+check(Details.selffire({type='ball',selffire=40})==40,'a numeric selffire is preserved')
+check(Details.friendlyfire({type='beam'})==true,'a missing friendlyfire reports the engine default true')
+check(Details.friendlyfire({type='ball',friendlyfire=false})==false,'an explicit friendlyfire wins')
+check(Details.footprintContainsOrigin({x=1,y=1},'beam',nil,10,5,1)==false,'a beam excludes its origin')
+check(Details.footprintContainsOrigin({x=1,y=1},'ball',2,nil,2,1)==true,'a ball contains the origin within its radius')
+check(Details.footprintContainsOrigin({x=1,y=1},'ball',2,nil,5,1)==false,'a ball excludes a farther origin')
+check(Details.footprintContainsOrigin({x=1,y=1},'widebeam',1,10,5,1)==true,'a radius-1 widebeam can contain the origin')
+check(Details.footprintContainsOrigin({x=1,y=1},'hit',nil,nil,3,1)==false,'a hit does not contain the origin')
 local Interactions=require 'mod.mcp_bridge.Interactions'
 local closed_dialog=false
 local fake_game={dialogs={}}

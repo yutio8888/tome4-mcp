@@ -25,13 +25,23 @@ for _,talent in ipairs(NEW_SUSTAINS) do
     check(Schema.SUSTAINS[talent]==true,'schema lists the sustain '..talent)
     check(Catalog.isSustain(talent),'catalogue marks '..talent..' as a sustain')
 end
--- The hostile damage adapters declare a line/area risk and a range.
-check(Catalog.entry('T_FLAME').shape=='beam' and Catalog.entry('T_FLAME').friendlyfire_risk=='line',
-    'Flame is a beam with a line friendly-fire risk')
-check(Catalog.entry('T_SOUL_ROT').shape=='beam' and Catalog.entry('T_SOUL_ROT').friendlyfire_risk=='line',
-    'Soul Rot is a beam with a line friendly-fire risk')
-check(Catalog.entry('T_BLOOD_GRASP').friendlyfire_risk=='none'
-    and Catalog.entry('T_BLOOD_GRASP').range==10,'Blood Grasp is a self-safe bolt')
+-- The hostile damage adapters declare the corrected source geometry.
+check(Catalog.entry('T_FLAME').shape=='widebeam' and Catalog.entry('T_FLAME').friendlyfire_risk=='line'
+    and Catalog.entry('T_FLAME').selffire==100,'Flame is the conservative wide-line union with default filters')
+check(Catalog.entry('T_SOUL_ROT').shape=='bolt' and Catalog.entry('T_SOUL_ROT').delivery=='projectile'
+    and Catalog.entry('T_SOUL_ROT').friendlyfire_risk=='line','Soul Rot is a projectile bolt')
+check(Catalog.entry('T_BLOOD_GRASP').shape=='bolt' and Catalog.entry('T_BLOOD_GRASP').selffire==0
+    and Catalog.entry('T_BLOOD_GRASP').friendlyfire==0
+    and Catalog.entry('T_BLOOD_GRASP').range==10,'Blood Grasp is a self/friendly-safe bolt')
+check(Catalog.entry('T_MOONLIGHT_RAY').shape=='beam' and Catalog.entry('T_MOONLIGHT_RAY').selffire==100
+    and Catalog.entry('T_MOONLIGHT_RAY').friendlyfire==100,'Moonlight Ray reports the engine filter defaults')
+check(Catalog.entry('T_SEARING_LIGHT').range==7 and Catalog.entry('T_SEARING_LIGHT').cursor.radius==1
+    and Catalog.entry('T_SEARING_LIGHT').ground.selffire==0
+    and Catalog.entry('T_SEARING_LIGHT').ground.duration==4,'Searing Light has a range-7 ball cursor and a safe ground zone')
+check(Catalog.entry('T_SUN_BEAM').secondary.radius==2
+    and Catalog.entry('T_SUN_BEAM').secondary.friendlyfire==100,'Sun Ray models the TL3+ radius-2 secondary')
+check(Catalog.entry('T_ATTACK').delivery=='attackTarget'
+    and Catalog.entry('T_SHATTERING_BLOW').delivery=='attackTarget','melee attacks use attackTarget delivery')
 check(Catalog.entry('T_HEAL').kind=='heal'
     and Catalog.entry('T_HEAL').target=='self','Arcane Reconstruction is a self heal')
 check(Catalog.entry('T_ADRENALINE_SURGE').kind=='buff'

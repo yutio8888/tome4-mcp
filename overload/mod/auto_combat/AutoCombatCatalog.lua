@@ -14,40 +14,62 @@ M.ENTRIES={
     T_HEALING_LIGHT={kind='heal',target='self',resource='positive'},
     T_BARRIER={kind='buff',target='self',resource='positive'},
     T_TWILIGHT={kind='buff',target='self',resource='negative'},
-    T_MOONLIGHT_RAY={kind='attack',target='hostile',shape='beam',range=10,resource='negative',
-        friendlyfire_risk='line'},
-    -- Design §5.7: Searing Light's damage is a single `hit` plus a ground light
-    -- field with selffire/friendlyfire false; the ball cursor is aiming only.
-    T_SEARING_LIGHT={kind='attack',target='hostile',shape='hit',range=10,resource='positive',
-        direct_hit=true,friendlyfire_risk='none'},
-    T_ATTACK={kind='attack',target='hostile',shape='hit',range=1},
-    -- P2 second pilot: Sun Paladin (celestial/sun + celestial/light).
-    T_SUN_BEAM={kind='attack',target='hostile',shape='hit',range=7,resource='positive'},
+    -- Celestial. Moonlight Ray is an immediate beam: missing filters normalize
+    -- to true; the line geometry excludes the origin, so geometric self risk is 0.
+    T_MOONLIGHT_RAY={kind='attack',target='hostile',delivery='project',shape='beam',range=10,
+        resource='negative',selffire=100,friendlyfire=100,friendlyfire_risk='line'},
+    -- Searing Light: the cursor is a ball (range 7, radius 1) but the instant
+    -- damage is a single hostile hit; its radius-1 duration-4 ground light zone
+    -- is explicitly self/friendly safe.
+    T_SEARING_LIGHT={kind='attack',target='hostile',delivery='project',shape='hit',range=7,
+        resource='positive',direct_hit=true,selffire=100,friendlyfire=100,
+        friendlyfire_risk='none',
+        cursor={shape='ball',range=7,radius=1},
+        ground={delivery='map_effect',shape='ball',radius=1,duration=4,selffire=0,friendlyfire=0}},
+    T_ATTACK={kind='attack',target='hostile',delivery='attackTarget',shape='hit',range=1,
+        selffire=0,friendlyfire=0,friendlyfire_risk='none'},
+    -- Sun Ray: base hit; at effective talent level 3+ a radius-2 blindness ball
+    -- (SF 0, FF default 100).
+    T_SUN_BEAM={kind='attack',target='hostile',delivery='project',shape='hit',range=7,
+        resource='positive',selffire=100,friendlyfire=100,friendlyfire_risk='none',
+        secondary={when='talent_level>=3',delivery='project',shape='ball',radius=2,
+            center='target',selffire=0,friendlyfire=100}},
     T_WEAPON_OF_LIGHT={kind='sustain',target='self',resource='positive'},
-    -- P2 third/seventh pilots (round 4). Source-verified from the game talent data.
+    -- P2 class pilots (round 4). Source-verified from the game talent data.
     -- Archmage (spell/arcane + spell/fire + spell/aegis).
-    -- Flame is a bolt below talent level 5 and a beam at/above it; the beam
-    -- descriptor is the conservative superset (the guard checks the line).
-    T_FLAME={kind='attack',target='hostile',shape='beam',range=10,resource='mana',
-        friendlyfire_risk='line'},
+    -- Flame is a bolt below TL5, a beam at/above, and a radius-1 wide-beam in
+    -- Thaumaturgy states. The conservative wide-line union checks the line;
+    -- the wide-beam branch sets selffire=false. Burning Wake adds a radius-0
+    -- ground zone whose SF is dynamic and FF defaults true.
+    T_FLAME={kind='attack',target='hostile',delivery='project',shape='widebeam',range=10,
+        radius=1,resource='mana',selffire=100,friendlyfire=100,friendlyfire_risk='line',
+        union={'bolt','beam','widebeam'},
+        ground={when='burning_wake',delivery='map_effect',shape='ball',radius=0,
+            selffire='unknown',friendlyfire=100}},
     T_HEAL={kind='heal',target='self',resource='mana'},
     T_ARCANE_POWER={kind='sustain',target='self',resource='mana'},
     T_SHIELDING={kind='sustain',target='self',resource='mana'},
     -- Corruptor (corruption/sanguisuge + corruption/vim + corruption/blight +
-    -- corruption/blood).
-    T_SOUL_ROT={kind='attack',target='hostile',shape='beam',range=10,resource='vim',
-        friendlyfire_risk='line'},
-    -- Blood Grasp is a bolt with `friendlyfire=false`: it heals the caster for a
-    -- share of the damage dealt, so it is the Corruptor's self-preservation.
-    T_BLOOD_GRASP={kind='attack',target='hostile',shape='hit',range=10,resource='vim',
-        friendlyfire_risk='none'},
+    -- corruption/blood). Soul Rot is a projectile bolt (missing filters default
+    -- true); Blood Grasp is a bolt with both filters explicitly false.
+    T_SOUL_ROT={kind='attack',target='hostile',delivery='projectile',shape='bolt',range=10,
+        resource='vim',selffire=100,friendlyfire=100,friendlyfire_risk='line'},
+    T_BLOOD_GRASP={kind='attack',target='hostile',delivery='projectile',shape='bolt',range=10,
+        resource='vim',selffire=0,friendlyfire=0,friendlyfire_risk='none'},
     T_DARK_RITUAL={kind='sustain',target='self',resource='vim'},
     -- Berserker (technique/strength-of-the-berserker + technique/conditioning).
-    T_SHATTERING_BLOW={kind='attack',target='hostile',shape='hit',range=1,resource='stamina',
-        friendlyfire_risk='none'},
+    -- Shattering Blow and the basic attack use attackTarget, not a projected
+    -- footprint, so the projection filters do not apply.
+    T_SHATTERING_BLOW={kind='attack',target='hostile',delivery='attackTarget',shape='hit',range=1,
+        resource='stamina',selffire=0,friendlyfire=0,friendlyfire_risk='none'},
     T_BERSERKER_RAGE={kind='sustain',target='self',resource='stamina'},
     T_DAUNTING_PRESENCE={kind='sustain',target='self',resource='stamina'},
     T_ADRENALINE_SURGE={kind='buff',target='self'},
+    -- T_FIREFLASH stays unsupported: its ball projectile sets
+    -- `player_selffire=true` and `selffire=self:spellFriendlyFire()`, so a ball
+    -- that covers the player can self-hit; FF defaults true. Its optional
+    -- Burning Wake ground inherits SF and defaults FF true. It may return once
+    -- the v2 manifest models the player projectile override and ground risk.
 }
 M.HOSTILE_SELECTORS={nearest_hostile=true,lowest_hp_hostile=true,
     highest_rank_hostile=true,most_dangerous_hostile=true}
@@ -104,7 +126,10 @@ function M.summary()
     local talents={}
     for talent,entry in pairs(M.ENTRIES) do
         talents[#talents+1]={talent=talent,kind=entry.kind,target=entry.target,
-            shape=entry.shape,resource=entry.resource,friendlyfire_risk=entry.friendlyfire_risk}
+            delivery=entry.delivery,shape=entry.shape,range=entry.range,radius=entry.radius,
+            resource=entry.resource,selffire=entry.selffire,friendlyfire=entry.friendlyfire,
+            friendlyfire_risk=entry.friendlyfire_risk,
+            has_ground=entry.ground~=nil,has_secondary=entry.secondary~=nil}
     end
     table.sort(talents,function(a,b) return a.talent<b.talent end)
     local actions={}
