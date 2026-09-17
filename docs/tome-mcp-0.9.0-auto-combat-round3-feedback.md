@@ -1,7 +1,8 @@
-# Auto-combat P1a — metric-driven playtest round 3 (INTERIM report)
+# Auto-combat P1a — metric-driven playtest round 3 feedback
 
-Status: interim / in progress. The main play session has ended (character death);
-the fix-confirmation session is still running. No test process is being stopped.
+Status: final. The main play session ended (character death) and the fix
+confirmation passed in-game; a residual `diag-fix-01` soak is left running.
+No test process is being stopped.
 
 ## 1. Session, build, character
 
