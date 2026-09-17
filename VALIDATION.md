@@ -2,7 +2,7 @@
 
 ## 0.9.0：自动战斗 v2 效果清单（V2-1 … V2-6，rev 4）
 
-日期：2026-09-17。基于 `main@f9b34c2` 的分支 `feat/v2-effect-manifest`（PR #13，未合并），执行 `docs/tome-mcp-0.9.0-selffire-investigation.md` §6–§9。执行与 `allow_auto_combat_execution` 仍为关闭。rev 2/3/4 修复独立评审的 V2-REV-01…07，每条都有回归测试；V2-REV-01/03/04/05/06/07 保持 PASS。
+日期：2026-09-17。分支 `feat/v2-effect-manifest`（PR #13，head `6485016`）**已合并到 `main`（merge `96ce7a5`）**，执行 `docs/tome-mcp-0.9.0-selffire-investigation.md` §6–§9。执行与 `allow_auto_combat_execution` 仍为关闭。独立评审 V2-REV-01…07 最终 **7/7 PASS（verdict=merge，无新问题）**，报告 sha256 `e85f1cfa77a9cbe38bf5b06617eb4913c5c639858cd1f0f83edfc6fa95f3e170`；rev 2/3/4 逐条修复并各有回归测试。开发对话在最终 head 独立复跑：Lua 全绿（`effect_manifest` 240、`effect_footprint` 24、`effect_risk` 29、`effect_manifest_drift` 30、`auto_combat_guard` 29、`runtime` 171）、Python 39、三个 `--check` 绿、auto-combat 探针 source/dist 各 **79/79**、原生验收 source/dist 各 **100/100**、最终 `dist` sha256 `3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29`。
 
 | ID | 结果 | 证据 |
 | --- | --- | --- |
