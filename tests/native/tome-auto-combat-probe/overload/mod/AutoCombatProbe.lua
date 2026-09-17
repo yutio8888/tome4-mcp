@@ -61,6 +61,7 @@ M.EXPECTED={
     ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
+    ['movement-factory']={'precise_grid','variant_unknown','dimensional_swap_gap','vault_exact'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
     ['solo-pump']={},
@@ -940,6 +941,57 @@ local function movementPlan()
     return compare('movement',signals)
 end
 
+-- S1 factory: the Phase Door effective-level x `phase_door_force_precise` matrix
+-- and the newly admitted grid adapters, exercised through the production host
+-- (plan only; execution is covered by `movement-talents`).
+local function movementFactoryChecks()
+    forceReady()
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local p=game.player
+    local base_attr=p.attr
+    local host=Runtime.buildAutoCombatHostFor(game,policy({WAIT}),{drift=function() return true end})
+    local signals={}
+    -- `phase_door_force_precise` below TL4 forces the grid prompt.
+    p.attr=function(self,name)
+        if name=='phase_door_force_precise' then return true end
+        return base_attr(self,name)
+    end
+    local precise,preciseErr=host.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='position',x=p.x+2,y=p.y,accept=accept}})
+    local preciseOk=precise and precise.plan and precise.plan.kind=='grid'
+        and precise.plan.annotation.landing.kind=='bounded'
+    signals[#signals+1]=preciseOk and 'precise_grid' or 'precise_missing'
+    check('movement-factory:precise-grid',preciseOk,{reason=preciseErr and preciseErr.reason,
+        kind=precise and precise.plan and precise.plan.kind})
+    -- An unknown precise attribute fails closed instead of submitting no-prompt.
+    p.attr=function() error('probe: unknown precise attribute') end
+    local unknown,unknownErr=host.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',accept=accept}})
+    local unknownOk=unknown==nil and unknownErr and unknownErr.reason=='movement_variant_unknown'
+    signals[#signals+1]=unknownOk and 'variant_unknown' or 'variant_unknown_missing'
+    check('movement-factory:variant-unknown',unknownOk,{reason=unknownErr and unknownErr.reason})
+    p.attr=base_attr
+    -- Effective TL5 Dimensional Step is the typed swap capability gap.
+    if type(p.talents)~='table' then p.talents={} end
+    local saved_step=p.talents.T_DIMENSIONAL_STEP
+    p.talents.T_DIMENSIONAL_STEP=5
+    local swap,swapErr=host.plan({action='use_talent',talent='T_DIMENSIONAL_STEP',
+        destination={selector='position',x=p.x+2,y=p.y,accept=accept}})
+    local swapOk=swap==nil and swapErr and swapErr.reason=='unsupported_movement_variant'
+        and swapErr.missing=='moving_or_swapping_another_actor'
+    signals[#signals+1]=swapOk and 'dimensional_swap_gap' or 'dimensional_swap_missing'
+    check('movement-factory:dimensional-swap',swapOk,{reason=swapErr and swapErr.reason})
+    p.talents.T_DIMENSIONAL_STEP=saved_step
+    -- Vault is an exact grid move (deterministic landing annotation).
+    local vault,vaultErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
+        destination={selector='position',x=p.x+2,y=p.y,accept=accept}})
+    local vaultOk=vault and vault.plan and vault.plan.kind=='grid'
+        and vault.plan.annotation.landing.kind=='deterministic'
+    signals[#signals+1]=vaultOk and 'vault_exact' or 'vault_missing'
+    check('movement-factory:vault-exact',vaultOk,{reason=vaultErr and vaultErr.reason})
+    return compare('movement-factory',signals)
+end
+
 -- MFT-REV-09: drive the three movement talents end to end through the real
 -- executor. Rush (actor target), exact-grid Tumble, and a random self teleport.
 -- MFT-REV-09: the movement-talent run is a small async state machine so each
@@ -1195,6 +1247,7 @@ local function runAll()
         M.manifestDrift()
         M.dynamicTalents()
         movementPlan()
+        movementFactoryChecks()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok

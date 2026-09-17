@@ -165,4 +165,35 @@ do
     check(Manifest.SOURCES.game_version==Manifest.GAME_VERSION,'the live source table is pinned to the manifest version')
 end
 
+-- The real generated table pins an action (and, where needed, dynamic getters)
+-- for every admitted movement adapter, so `EffectManifestDrift.identity` covers
+-- the new descriptors and not only the target builders.
+do
+    for talent,entry in pairs(Manifest.ENTRIES) do
+        if entry.kind=='movement' then
+            local pin=Manifest.SOURCES.talents[talent]
+            check(pin~=nil and type(pin.action)=='table' and type(pin.action.path)=='string'
+                and type(pin.action.line)=='number','movement action pinned for '..talent)
+            for _,movement in ipairs((function()
+                if entry.movement.variants then
+                    local out={}
+                    for _,variant in ipairs(entry.movement.variants) do
+                        if variant.movement then out[#out+1]=variant.movement end
+                    end
+                    return out
+                end
+                return {entry.movement}
+            end)()) do
+                for _,field in ipairs({'radius','min_radius','range','fallback_radius'}) do
+                    local value=movement[field]
+                    if type(value)=='table' and type(value.getter)=='string' then
+                        check(type(pin.getters)=='table' and type(pin.getters[value.getter])=='table',
+                            'dynamic getter '..value.getter..' pinned for '..talent)
+                    end
+                end
+            end
+        end
+    end
+end
+
 print('Effect manifest drift: '..checks..' checks passed')
