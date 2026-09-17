@@ -1,8 +1,8 @@
 # MCP Bridge 验收记录
 
-## 0.9.0：移动/重新定位第一段 rev 4（MFT-REV-03 omitted binding，待评审）
+## 0.9.0：移动/重新定位第一段 + change_level 重新纳入（已合并）
 
-日期：2026-09-17。分支 `feat/movement-first-tranche`（PR #15），rev 4 在 rev 3 `25421dc` 基础上关闭改版复核 `4ba89dc2` 唯一剩余 P1（其余全部 PASS，已保持）。`allow_auto_combat_execution` 保持 `false`。状态：**ready for review**。原始证据见 `tmp/movement-first-tranche/rev4/`。
+日期：2026-09-17。分支 `feat/movement-first-tranche`（PR #15，head `3953788d`）**已合并到 `main`（merge `f770cdd`）**。交付：策略驱动的 `move` + `destination` 选择器与接受条件、有序 `target_plan`、确定性规划器；相邻步 / Rush actor 落点 / 精确网格位移执行；随机传送按**不确定性标注**而非拒绝；`change_level` 随场景生命周期（pause+reset+显式重启）**重新纳入**；Q4 自伤阈值改为**策略可配**（容忍内 permit、超出 reject、仅不可计算 footprint fail-closed）。独立评审最终 **全 PASS（verdict=merge，无新问题）**，报告 sha256 `93801cafec5cacc193de754ddfc9382e904f5e8fd4d8e5201975e177e7e3792b`；rev 2/3/4 逐条修复（6 P1 + 3 P2 + 1 文档 P2）并各有回归。`allow_auto_combat_execution` 保持 `false`。开发对话在最终 head 独立复跑：Lua 40 套全绿、Python 39、三个 `--check` 绿、auto-combat 探针 source/dist 各 **105/105**、原生验收 source/dist 各 **100/100**、最终 `dist` sha256 `688ae61f89fc0452c91b19555f7d4467d319e3883674750054927e01e1445c77`。原始证据见 `tmp/movement-first-tranche/rev4/`。
 
 | 反馈 | 结果 | 修复与回归证据 |
 | --- | --- | --- |
