@@ -6,6 +6,18 @@ root (`/workspace/t-engine4`).
 
 ## Recommendation
 
+> **Maintainer policy override (design §8.3, v1.4):** this project does **not**
+> require RNG/state purity for reads, and audited native dynamic getters/builders
+> (`getTalentTarget`/`t.target`/`preUseTalent`, `canProject`, `spellFriendlyFire`,
+> `desc`, ...) **may be called**; only the action-execution entrypoints
+> (`useTalent`, ...) are the boundary. The two read red lines are: never commit an
+> action, never expose player-unknown information. So the "never call `t.target`
+> at guard time" advice below is **superseded**: calling the audited native target
+> builder to obtain the real `typ` before deciding is allowed. The rest of this
+> document (engine defaults, component separation, ground effects, catalog drift,
+> footprint parity, fail-closed on unavailable getters) stands and is the basis
+> for the v2 work.
+
 Use a **version-pinned, curated effect manifest**, not a guard-time call to an
 arbitrary talent `target` function. A talent adapter must describe the targeting
 cursor separately from every damaging or detrimental component: immediate
