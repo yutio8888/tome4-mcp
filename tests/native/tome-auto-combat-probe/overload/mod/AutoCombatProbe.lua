@@ -786,14 +786,21 @@ function M.dynamicTalents()
     end
     -- DYN-REV-02: a wall between the caster and the bound hostile removes it
     -- from the resolved range-0 cone, so the guard rejects the unreachable target.
-    local terrain=game.level.map(p.x+1,p.y,engine.Map.TERRAIN)
-    local saved_block=terrain and terrain.block_move
-    if terrain then terrain.block_move=true end
+    -- The arena floor grid is shared, so clone it for the single blocked cell.
+    local map=game.level.map
+    local wall_idx=(p.x+1)+p.y*map.w
+    local saved_terrain=map.map[wall_idx] and map.map[wall_idx][engine.Map.TERRAIN]
+    local wall_grid=saved_terrain and saved_terrain:clone()
+    if wall_grid then
+        wall_grid.block_move=true
+        map.map[wall_idx][engine.Map.TERRAIN]=wall_grid
+    end
     local walled=host.guard({action='use_talent',talent='T_FLAMESHOCK',bound_target=bound})
     check('dynamic-talents:flameshock-wall',walled and walled.reason=='target_out_of_range',walled)
-    if terrain then terrain.block_move=saved_block end
-    -- DYN-REV-03: the source-centred ground cone keeps its aim direction and
-    -- matches the real `Map:addEffect` fan geometry.
+    if saved_terrain then map.map[wall_idx][engine.Map.TERRAIN]=saved_terrain end
+    -- DYN-REV-03 / DYN-REV2-01: the source-centred ground cone keeps its aim
+    -- direction and matches the grid set recorded by a real `Map:addEffect`,
+    -- including the engine's boolean-true terrain blocking rule.
     local def=p.talents_def and p.talents_def.T_FLAMESHOCK
     local radius=def and p:getTalentRadius(def) or nil
     local bound_uid=tonumber(tostring(bound):match('actor%-(%d+)$'))
@@ -806,22 +813,49 @@ function M.dynamicTalents()
         local dy=bound_actor.y-p.y
         local spec=Guard.footprintSpec({shape='cone',radius=radius,center='self',direction='target',
             delivery='map_effect'},{x=p.x,y=p.y},{x=bound_actor.x,y=bound_actor.y})
+        -- Record the grid set the real engine builds for the Flameshock ground.
+        local function groundGrids()
+            local e=map:addEffect(p,p.x,p.y,4,'INFERNO',0,radius,
+                {delta_x=dx,delta_y=dy},55,nil,nil,0)
+            local grids=e.grids
+            for i=#map.effects,1,-1 do if map.effects[i]==e then table.remove(map.effects,i) end end
+            map.changed=true
+            return grids
+        end
         local set=EffectFootprint.native({game=game,source=p},spec)
+        local recorded=groundGrids()
         local east=EffectFootprint.at(set,p.x+1,p.y)
-        local map=game.level.map
-        local recorded=core.fov.beam_any_angle_grids(p.x,p.y,radius,55,p.x,p.y,dx,dy,
-            function(_,lx,ly)
-                if not map:isBound(lx,ly) then return true end
-                local trn=map:checkEntity(lx,ly,engine.Map.TERRAIN,'block_move')
-                if trn and not map:checkEntity(lx,ly,engine.Map.TERRAIN,'pass_projectile') then return true end
-                return false
-            end)
         check('dynamic-talents:flameshock-ground-direction',
             set~=nil and east and EffectFootprint.count(set)>1 and sameSet(set,recorded),
-            {count=EffectFootprint.count(set),east=east,recorded=EffectFootprint.count(recorded),
-                dx=dx,dy=dy})
+            {count=EffectFootprint.count(set),recorded=EffectFootprint.count(recorded),east=east,dx=dx,dy=dy})
+        -- Movement-blocking, projectile-passable terrain (e.g. Trollmire STEW):
+        -- the engine's boolean-true rule blocks it; the old pass_projectile-exempt
+        -- rule would not. Clone the shared floor grid for one cell.
+        local terrain_idx=(p.x+2)+p.y*map.w
+        local tile=map.map[terrain_idx] and map.map[terrain_idx][engine.Map.TERRAIN]
+        local stew=tile and tile:clone()
+        if stew then
+            stew.block_move=true
+            stew.pass_projectile=true
+            map.map[terrain_idx][engine.Map.TERRAIN]=stew
+        end
+        local wall_set=EffectFootprint.native({game=game,source=p},spec)
+        local wall_recorded=groundGrids()
+        local old_rule=core.fov.beam_any_angle_grids(p.x,p.y,radius,55,p.x,p.y,dx,dy,
+            function(_,lx,ly)
+                if not map:isBound(lx,ly) then return true end
+                local b=map:checkEntity(lx,ly,engine.Map.TERRAIN,'block_move')
+                if b and not map:checkEntity(lx,ly,engine.Map.TERRAIN,'pass_projectile') then return true end
+                return false
+            end)
+        check('dynamic-talents:map-effect-terrain-parity',
+            stew~=nil and wall_set~=nil and sameSet(wall_set,wall_recorded) and not sameSet(wall_set,old_rule),
+            {count=EffectFootprint.count(wall_set),recorded=EffectFootprint.count(wall_recorded),
+                old=EffectFootprint.count(old_rule),behind=EffectFootprint.at(wall_set,p.x+3,p.y)})
+        if tile then map.map[terrain_idx][engine.Map.TERRAIN]=tile end
     else
         check('dynamic-talents:flameshock-ground-direction',false,{radius=radius,actor=bound_actor~=nil})
+        check('dynamic-talents:map-effect-terrain-parity',false,{radius=radius})
     end
     p.combat_spell_friendlyfire=saved
     return compare('dynamic-talents',signals)

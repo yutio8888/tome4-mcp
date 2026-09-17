@@ -38,27 +38,28 @@
 | --- | --- | --- |
 | DYN-1 源审查 | **通过**：四个技能逐个审查 `target`/action；组件（cursor + instant + ground）与分支记录在 `EffectManifest`；均有 `t.target` builder → `conformance.builder=true` | `test_effect_manifest.lua`（312）、`docs/tome-mcp-0.9.0-v2-dynamic-talents.md` |
 | DYN-2 动态输入 | **通过**：`spellFriendlyFire` 由新审计 provider（`guard.spellFriendlyFire`，`Combat.lua` digest+identity+declaration）解析且为**权威值**：builder 的原始 `selffire` 不得覆盖失败的 provider；不可用/被覆盖/报错 → `unknown`（fail-closed）；`radius={from='target'}` 从真实 builder 取值 | `test_auto_combat_guard.lua`（40）、`test_runtime.lua`（173）、原生 `dynamic-talents:provider` |
-| DYN-3 地面诚实建模 | **通过**：Burning Wake duration-4（Fireflash 冲击球 / Flameshock `center='self', direction='target'` 的方向性 cone）；Shadow Blast 持续 radius-3 球；Starfall 无地面；地面 FF 默认 true → 持久地面保守拒绝；`map_effect` footprint 使用真实 `Map:addEffect` 几何 | `test_effect_footprint.lua`（28）、`test_effect_manifest.lua`、原生 `dynamic-talents:flameshock-ground-direction` |
+| DYN-3 地面诚实建模 | **通过**：Burning Wake duration-4（Fireflash 冲击球 / Flameshock `center='self', direction='target'` 的方向性 cone）；Shadow Blast 持续 radius-3 球；Starfall 无地面；地面 FF 默认 true → 持久地面保守拒绝；`map_effect` footprint 使用真实 `Map:addEffect` 几何（含 boolean-true 地形阻挡） | `test_effect_footprint.lua`（30）、`test_effect_manifest.lua`、原生 `dynamic-talents:flameshock-ground-direction` / `map-effect-terrain-parity` |
 | DYN-4 注册与漂移 | **通过**：四个 entry 带 builder 行/source 引脚，并加入 `PolicySchema.TALENTS`；`Combat.lua` 纳入引擎引脚；builder 替换/变更仍 `adapter_source_drift` | `test_effect_manifest_drift.lua`（30）、`tools/generate_effect_manifest.py --check` |
-| DYN-5 整体 | **通过**：Lua 全绿、Python 39、三个 `--check` 绿；auto-combat 探针 source/dist 各 87/87；原生验收 source/dist 各 100/100；重新打包 | 下表 |
-| DYN-REV-01/02/03 | **通过**：动态 provider 权威（builder 不能覆盖 unknown）；range-0 cone 要求绑定目标在原生 instant footprint 内（近允许 / 远、墙阻挡拒绝）；Flameshock 地面 cone 保留瞄准方向且与 `Map:addEffect` 网格一致 | 见上；“Rev 2 review fixes” |
+| DYN-5 整体 | **通过**：Lua 全绿、Python 39、三个 `--check` 绿；auto-combat 探针 source/dist 各 88/88；原生验收 source/dist 各 100/100；重新打包 | 下表 |
+| DYN-REV-01/02/03 | **通过**：动态 provider 权威（builder 不能覆盖 unknown）；range-0 cone 要求绑定目标在原生 instant footprint 内（近允许 / 远、墙阻挡拒绝）；Flameshock 地面 cone 保留瞄准方向 | 见上 |
+| DYN-REV2-01 | **通过**：`nativeMapEffect` 传入引擎的 boolean `true`（与真实 `Map:addEffect` 一致，无 `pass_projectile` 豁免）；原生回归用真实 `Map:addEffect` 记录网格，并加入 `block_move=true/pass_projectile=true` 地形差异用例（新/记录 17 格 vs 旧规则 19 格） | `test_effect_footprint.lua`（30）、原生 `map-effect-terrain-parity` |
 
 原生证据：
 
 | 层 | 会话 | 结果 |
 | --- | --- | --- |
-| Auto-combat 探针（source） | `v2-dynrev2-src` | **87/87**（含 wall + ground-direction） |
-| Auto-combat 探针（dist） | `v2-dynrev2-dist` | **87/87** |
-| 原生验收（source） | `v2-dynrev2-accept-src` | **100/100** |
-| 原生验收（dist） | `v2-dynrev2-accept-dist` | **100/100** |
+| Auto-combat 探针（source） | `v2-dynrev3-src` | **88/88**（含 wall + ground-direction + terrain parity） |
+| Auto-combat 探针（dist） | `v2-dynrev3-dist` | **88/88** |
+| 原生验收（source） | `v2-dynrev3-accept-src` | **100/100** |
+| 原生验收（dist） | `v2-dynrev3-accept-dist` | **100/100** |
 
 正式包 SHA-256：
 
 ```text
-1c06737021456a84a29b74aeaa5aaed50e5c467adc5b779e013195158b3413d7
+7035d6026488df5e612d72ab4a745bcd2892af25fdfa5f0f2ee7e01282e4c09e
 ```
 
-（rev 1 包 `2860a9fbf7c5a54916a75446a4c94ec3751ee45f5c8d4f4379f0b9d7574131f7`；基线 `3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29`。）保留修复：Flameshock（range=0 自中心 cone）不再被 distance/`canProject` 误拒，但绑定目标必须在原生 instant footprint 内（远/墙阻挡拒绝）；`allow_auto_combat_execution` 仍为关闭。无仍不支持的技能（`EffectManifest.UNSUPPORTED` 为空）。详见 [动态技能文档](docs/tome-mcp-0.9.0-v2-dynamic-talents.md)。
+（rev 2 包 `1c06737021456a84a29b74aeaa5aaed50e5c467adc5b779e013195158b3413d7`；rev 1 包 `2860a9fbf7c5a54916a75446a4c94ec3751ee45f5c8d4f4379f0b9d7574131f7`；基线 `3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29`。）保留修复：Flameshock（range=0 自中心 cone）不再被 distance/`canProject` 误拒，但绑定目标必须在原生 instant footprint 内（远/墙阻挡拒绝）；`allow_auto_combat_execution` 仍为关闭。无仍不支持的技能（`EffectManifest.UNSUPPORTED` 为空）。详见 [动态技能文档](docs/tome-mcp-0.9.0-v2-dynamic-talents.md)。
 
 ## 0.9.0：自动战斗插件 Wave 2（接口/契约）
 

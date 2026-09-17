@@ -1,6 +1,6 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "1c06737021456a84a29b74aeaa5aaed50e5c467adc5b779e013195158b3413d7",
+  "sha256": "7035d6026488df5e612d72ab4a745bcd2892af25fdfa5f0f2ee7e01282e4c09e",
   "files": {
     "README.md": "21ca37fc6d9ab107a7690cb70c16f273f6296522811cadc2b46902e74bac55a3",
     "hooks/load.lua": "8c11d088a300e6ce1a4778c7388ef42a9c868fe60b41fa1e4fde37f667a061f6",
@@ -12,7 +12,7 @@
     "overload/mod/auto_combat/AutoCombatHost.lua": "c1d259a26cda329c7b5db0a9345be1addc416ff60eb42046823a04528c3aabd7",
     "overload/mod/auto_combat/AutoCombatService.lua": "d30fa923fe7a6dd2120d2c32414929a2a088c4f8d049ee99af0faff882fed96f",
     "overload/mod/auto_combat/ControlArbiter.lua": "22c1b40fd80ac46f81bbbe23c93e32922b9ee88a8d9a20c5e59f95b11ecb302e",
-    "overload/mod/auto_combat/EffectFootprint.lua": "636732926c7a5e29d9aa6ee6dce6cda1e6fd0a2aa73ff2be1c8b59a89a5df4d6",
+    "overload/mod/auto_combat/EffectFootprint.lua": "b2cb860000ef55f582c0e6e762db2c7ea6e0798352f722cd156aec425dbb9ee4",
     "overload/mod/auto_combat/EffectManifest.lua": "b852415d3027dd778daa9bba52a167bdcee135f1ecf31d0fca76438af3c28f2e",
     "overload/mod/auto_combat/EffectManifestDrift.lua": "e18c65a702b9171d8d5befbadd6a6cf98eab2a9c4d2fd69c662fe6bef7b180d4",
     "overload/mod/auto_combat/EffectManifestSources.lua": "249dc59ec3fa0a2a17055d03661fe5922e91cc81988127aec89b19c7b17ba370",

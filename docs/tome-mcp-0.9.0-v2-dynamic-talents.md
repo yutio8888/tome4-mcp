@@ -90,30 +90,46 @@ talent has range 0.
   `Map:addEffect` geometry (a directional `beam_any_angle` fan), and a native
   grid-set parity check proves the eastward grid is included.
 
+## Rev 3 review fixes (DYN-REV2-01)
+
+- **DYN-REV2-01** `nativeMapEffect` now passes the engine's boolean **`true`**
+  block argument to `circle_grids`/`beam_any_angle_grids`, exactly as
+  `Map:addEffect` does (`utils.lua` blocks every terrain grid with `block_move`,
+  with **no** `pass_projectile` exemption). The previous custom callback could
+  extend a persistent zone through movement-blocking, projectile-passable
+  terrain. The native regression no longer duplicates production's callback: it
+  records the grid set from a real `Map:addEffect` call, and adds a
+  `block_move=true, pass_projectile=true` terrain case where the boolean-true
+  rule and the old exempt rule differ (new/recorded 17 grids, old rule 19,
+  cell behind the wall excluded). A unit check captures the `block=true`
+  argument for both map-effect helpers.
+
 ## Evidence (DYN-5)
 
 | Layer | Session | Result |
 | --- | --- | --- |
-| Auto-combat probe (source) | `v2-dynrev2-src` | **87/87** (incl. wall + ground-direction) |
-| Auto-combat probe (`dist`) | `v2-dynrev2-dist` | **87/87** |
-| Native acceptance (source) | `v2-dynrev2-accept-src` | **100/100** |
-| Native acceptance (`dist`) | `v2-dynrev2-accept-dist` | **100/100** |
+| Auto-combat probe (source) | `v2-dynrev3-src` | **88/88** (incl. wall, ground-direction, map-effect terrain parity) |
+| Auto-combat probe (`dist`) | `v2-dynrev3-dist` | **88/88** |
+| Native acceptance (source) | `v2-dynrev3-accept-src` | **100/100** |
+| Native acceptance (`dist`) | `v2-dynrev3-accept-dist` | **100/100** |
 
 Lua suites green including `test_effect_manifest` (312),
-`test_auto_combat_guard` (40) and `test_effect_footprint` (28); Python 39/39; all
+`test_auto_combat_guard` (40) and `test_effect_footprint` (30); Python 39/39; all
 three `--check` generators green. Native `dynamic-talents` records
 `spellFriendlyFire=0` resolved, Shadow Blast's ground verdict `phase=ground`,
 `risk=friendly`, FF 100, the wall-blocked Flameshock rejection
-(`outside_instant_footprint`), and the directional ground cone matching
-`beam_any_angle_grids` (east grid included).
+(`outside_instant_footprint`), the directional ground cone matching the real
+`Map:addEffect` (east grid included), and the boolean-true terrain parity case
+(new/recorded 17 grids vs the old rule's 19).
 
 `dist/tome-mcp-bridge.teaa` repackaged:
 
 ```
-sha256 = 1c06737021456a84a29b74aeaa5aaed50e5c467adc5b779e013195158b3413d7
+sha256 = 7035d6026488df5e612d72ab4a745bcd2892af25fdfa5f0f2ee7e01282e4c09e
 ```
 
-(rev 1 package `2860a9fbf7c5a54916a75446a4c94ec3751ee45f5c8d4f4379f0b9d7574131f7`;
+(rev 2 package `1c06737021456a84a29b74aeaa5aaed50e5c467adc5b779e013195158b3413d7`;
+rev 1 package `2860a9fbf7c5a54916a75446a4c94ec3751ee45f5c8d4f4379f0b9d7574131f7`;
 `main` baseline `3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29`.)
 
 ## Still unsupported

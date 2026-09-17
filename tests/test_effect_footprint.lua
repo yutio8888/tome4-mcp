@@ -120,4 +120,23 @@ do
     check(degenerate.target.x==0 and degenerate.target.y==0,'a centre-only component collapses to the caster')
 end
 
+-- DYN-REV2-01: map-effect helpers are called with the engine's boolean-true
+-- block argument (`Map:addEffect` passes `true`), never a custom callback.
+do
+    local real_core=rawget(_G,'core')
+    local captured
+    rawset(_G,'core',{fov={
+        circle_grids=function(x,y,radius,block) captured={shape='ball',block=block}; return {[x]={[y]=true}} end,
+        beam_any_angle_grids=function(x,y,radius,angle,sx,sy,dx,dy,block)
+            captured={shape='cone',block=block,dx=dx,dy=dy}; return {[x]={[y]=true}} end,
+    }})
+    local ctx={game={level={map={isBound=function() return true end}}},source={x=0,y=0}}
+    Footprint.nativeMapEffect(ctx,{shape='ball',target={x=1,y=1},radius=2})
+    check(captured and captured.shape=='ball' and captured.block==true,'a map-effect ball passes block=true')
+    Footprint.nativeMapEffect(ctx,{shape='cone',origin={x=0,y=0},target={x=3,y=0},radius=2})
+    check(captured and captured.shape=='cone' and captured.block==true and captured.dx==3,
+        'a map-effect cone passes block=true and the aim delta')
+    rawset(_G,'core',real_core)
+end
+
 print('Effect footprint: '..checks..' checks passed')

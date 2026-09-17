@@ -182,25 +182,22 @@ end
 
 -- Map-effect (persistent ground) grid sets use the `Map:addEffect` geometry:
 -- a ball is a circle around the centre, and a cone is a source-centred
--- `beam_any_angle` fan whose direction is independent of the centre.
+-- `beam_any_angle` fan whose direction is independent of the centre. The block
+-- argument is the boolean `true` that `Map:addEffect` passes, so the helper's
+-- own predicate (terrain `block_move`, with no `pass_projectile` exemption) is
+-- used; this must not be replaced by a custom callback.
 function M.nativeMapEffect(ctx,spec)
     if type(ctx)~='table' or type(ctx.game)~='table' then return nil end
     local map=ctx.game.level and ctx.game.level.map
     if not map or type(core)~='table' or type(core.fov)~='table' then return nil end
-    local function block(_,lx,ly)
-        if not map:isBound(lx,ly) then return true end
-        local trn_block=map:checkEntity(lx,ly,engine.Map.TERRAIN,'block_move')
-        if trn_block and not map:checkEntity(lx,ly,engine.Map.TERRAIN,'pass_projectile') then return true end
-        return false
-    end
     if spec.shape=='ball' then
-        return core.fov.circle_grids(spec.target.x,spec.target.y,spec.radius or 0,block)
+        return core.fov.circle_grids(spec.target.x,spec.target.y,spec.radius or 0,true)
     end
     if spec.shape=='cone' then
         local dx=spec.target.x-spec.origin.x
         local dy=spec.target.y-spec.origin.y
         return core.fov.beam_any_angle_grids(spec.origin.x,spec.origin.y,spec.radius or 0,
-            spec.angle or 55,spec.origin.x,spec.origin.y,dx,dy,block)
+            spec.angle or 55,spec.origin.x,spec.origin.y,dx,dy,true)
     end
     return nil
 end
