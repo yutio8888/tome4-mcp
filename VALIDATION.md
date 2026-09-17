@@ -30,6 +30,35 @@
 
 （rev 3 包 `fce6831aeb718c07546de628dcc230b86781c17a74f3daa6f3c5b96f008506bd`；rev 2 包 `ceb1e3799b827b6d9bc192b9bdb5c3e0407053e10f4e6514260617f793e27518`；rev 1 包 `c96faee23db2b7d218295a97ecc1f728d334483ca4e0c62a5bd7b932ee2f7cbd`；基线 `4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29`。）冻结不变量保持：紧急层、预算、目标绑定、`native_pending`、手动撤销、只读 `dry_run` 不变；无协议/服务端字段变化，仅 `capabilities.adapter_version` 变为 v2。未决：动态技能（Fireflash/Flameshock/Shadow Blast/Starfall）留作 TODO #55。详见 [V2 文档](docs/tome-mcp-0.9.0-v2-effect-manifest.md)。
 
+## 0.9.0：四动态技能重新纳入（TODO #55，DYN-1 … DYN-5）
+
+日期：2026-09-17。基于 `main@c131389` 的分支 `feat/v2-dynamic-talents`（PR 待审）。`T_FIREFLASH`/`T_FLAMESHOCK`/`T_SHADOW_BLAST`/`T_STARFALL` 从 `EffectManifest.UNSUPPORTED` 移入 v2 组件清单。
+
+| ID | 结果 | 证据 |
+| --- | --- | --- |
+| DYN-1 源审查 | **通过**：四个技能逐个审查 `target`/action；组件（cursor + instant + ground）与分支记录在 `EffectManifest`；均有 `t.target` builder → `conformance.builder=true` | `test_effect_manifest.lua`（312）、`docs/tome-mcp-0.9.0-v2-dynamic-talents.md` |
+| DYN-2 动态输入 | **通过**：`spellFriendlyFire` 由新审计 provider（`guard.spellFriendlyFire`，`Combat.lua` digest+identity+declaration）解析；不可用/被覆盖/报错 → `unknown`（fail-closed）；`radius={from='target'}` 从真实 builder 取值 | `test_auto_combat_guard.lua`（35）、原生 `dynamic-talents:provider` |
+| DYN-3 地面诚实建模 | **通过**：Burning Wake duration-4（Fireflash 冲击球 / Flameshock 以施法者为中心的 cone）；Shadow Blast 持续 radius-3 球；Starfall 无地面；地面 FF 默认 true → 持久地面保守拒绝 | `test_effect_manifest.lua`、`test_auto_combat_guard.lua`、原生 `dynamic-talents` |
+| DYN-4 注册与漂移 | **通过**：四个 entry 带 builder 行/source 引脚，并加入 `PolicySchema.TALENTS`；`Combat.lua` 纳入引擎引脚；builder 替换/变更仍 `adapter_source_drift` | `test_effect_manifest_drift.lua`（30）、`tools/generate_effect_manifest.py --check` |
+| DYN-5 整体 | **通过**：Lua 全绿、Python 39、三个 `--check` 绿；auto-combat 探针 source/dist 各 85/85；原生验收 source/dist 各 100/100；重新打包 | 下表 |
+
+原生证据：
+
+| 层 | 会话 | 结果 |
+| --- | --- | --- |
+| Auto-combat 探针（source） | `v2-dyn-src` | **85/85**（含 `dynamic-talents:*`） |
+| Auto-combat 探针（dist） | `v2-dyn-dist` | **85/85** |
+| 原生验收（source） | `v2-dyn-accept-src` | **100/100** |
+| 原生验收（dist） | `v2-dyn-accept-dist` | **100/100** |
+
+正式包 SHA-256：
+
+```text
+2860a9fbf7c5a54916a75446a4c94ec3751ee45f5c8d4f4379f0b9d7574131f7
+```
+
+（基线 `3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29`。）保留修复：Flameshock（range=0 自中心 cone）不再被 distance/`canProject` 误拒；`allow_auto_combat_execution` 仍为关闭。无仍不支持的技能（`EffectManifest.UNSUPPORTED` 为空）。详见 [动态技能文档](docs/tome-mcp-0.9.0-v2-dynamic-talents.md)。
+
 ## 0.9.0：自动战斗插件 Wave 2（接口/契约）
 
 日期：2026-09-17。修复独立评审的 INT-01 … INT-06 与 SAFE-01（桥接/协议接口层）。Wave 2 在 Wave 1 合入后串行执行；未重做执行安全。执行与 `change_level` 默认仍关闭。

@@ -58,6 +58,7 @@ M.EXPECTED={
     ['guard-real-spec']={'pristine_ok','mutation_drift','restored_ok','grasp_safe'},
     ['effect-footprint-parity']={'parity_ok'},
     ['manifest-drift']={'verified','hash_rejected','identity_ok'},
+    ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['solo-pump']={},
 }
@@ -743,6 +744,48 @@ function M.manifestDrift()
     return compare('manifest-drift',signals)
 end
 
+-- TODO #55: the four re-admitted dynamic talents. The production guard must
+-- read their real builders, resolve the audited spellFriendlyFire input, and
+-- apply the persistent-ground rules (Shadow Blast's ground has default-true FF).
+function M.dynamicTalents()
+    local p=game.player
+    for _,talent in ipairs({'T_FLAMESHOCK','T_FIREFLASH','T_SHADOW_BLAST','T_STARFALL'}) do
+        if not p:knowTalent(talent) then p:learnTalent(talent,true) end
+    end
+    local saved=p.combat_spell_friendlyfire
+    p.combat_spell_friendlyfire=200 -- force spellFriendlyFire to 0
+    local host=Runtime.buildAutoCombatHostFor(game,policy({WAIT}))
+    local bound=host and host.snapshot('nearest_hostile').bound_target
+    local signals={}
+    if not bound then
+        check('dynamic-talents:setup',false,{bound=bound})
+        p.combat_spell_friendlyfire=saved
+        return compare('dynamic-talents',{'no_setup'})
+    end
+    local friendly=select(2,pcall(p.spellFriendlyFire,p))
+    local provider_ok=type(friendly)=='number' and friendly>=0 and friendly<=100
+    check('dynamic-talents:provider',provider_ok,{spellFriendlyFire=friendly})
+    signals[#signals+1]=provider_ok and 'provider_ok' or 'provider_bad'
+    local expectations={T_FLAMESHOCK=false,T_FIREFLASH=false,T_SHADOW_BLAST='ground',T_STARFALL=false}
+    for _,talent in ipairs({'T_FLAMESHOCK','T_FIREFLASH','T_SHADOW_BLAST','T_STARFALL'}) do
+        local verdict=host.guard({action='use_talent',talent=talent,bound_target=bound})
+        local drift=verdict and (verdict.reason=='adapter_source_drift' or verdict.reason=='unsupported_adapter'
+            or verdict.reason=='adapter_builder_failed' or verdict.reason=='adapter_builder_missing')
+        local expected_phase=expectations[talent]
+        local phase_ok
+        if expected_phase==false then
+            phase_ok=(verdict==nil) or (verdict.reason=='selffire_risk')
+        else
+            phase_ok=verdict and verdict.reason=='selffire_risk' and verdict.detail
+                and verdict.detail.phase==expected_phase
+        end
+        check('dynamic-talents:'..talent,(not drift) and phase_ok,{verdict=verdict,drift=drift})
+        signals[#signals+1]=(not drift) and (talent..':ok') or (talent..':drift')
+    end
+    p.combat_spell_friendlyfire=saved
+    return compare('dynamic-talents',signals)
+end
+
 local function runAll()
     local ok,err=pcall(function()
         startWhenReady()
@@ -760,6 +803,7 @@ local function runAll()
         guardRealSpec()
         M.effectFootprintParity()
         M.manifestDrift()
+        M.dynamicTalents()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok

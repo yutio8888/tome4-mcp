@@ -119,6 +119,75 @@ M.ENTRIES={
                 provenance={selffire=CURATED,friendlyfire=MAP_DEFAULT}},
         }},
     T_HEAL=selfEntry('heal','mana'),
+    -- Re-admitted dynamic talents (TODO #55). All four expose a `t.target`
+    -- builder, so the guard reads the live builder for the instant component
+    -- (including its `spellFriendlyFire()` value and dynamic radius). The SF of
+    -- the persistent Burning Wake / Shadow Blast ground components is resolved
+    -- from the audited `spellFriendlyFire` getter; if that is unavailable the
+    -- value is `unknown` and the component fails closed.
+    -- Flameshock: source-centred cone (range 0, radius 4..8, explicit
+    -- selffire=false) plus an optional source-centred Burning Wake cone
+    -- (duration 4, SF spellFriendlyFire, default-true FF).
+    T_FLAMESHOCK={kind='attack',target='hostile',resource='mana',range=0,
+        cursor={shape='cone'},
+        conformance={shape='cone',builder=true},
+        components={
+            {id='cursor',phase='cursor',delivery='project',shape='cone',center='target'},
+            {id='instant',phase='instant',delivery='project',shape='cone',center='target',
+                selffire=0,friendlyfire=100,
+                provenance={selffire=EXPLICIT,friendlyfire=TARGET_DEFAULT}},
+            {id='ground',phase='ground',delivery='map_effect',shape='cone',center='self',
+                radius={from='target'},
+                when={kind='attr',id='burning_wake'},
+                duration=4,
+                selffire={dynamic='spellFriendlyFire'},friendlyfire=100,
+                provenance={selffire=CURATED,friendlyfire=MAP_DEFAULT}},
+        }},
+    -- Fireflash: ball projectile (range 7, radius 2..5, player_selffire=true,
+    -- dynamic SF) plus an optional impact-centred Burning Wake ball (duration 4,
+    -- radius = talent radius, SF = the target spec's SF, default-true FF).
+    T_FIREFLASH={kind='attack',target='hostile',resource='mana',range=7,
+        cursor={shape='ball',range=7},
+        conformance={shape='ball',builder=true},
+        components={
+            {id='cursor',phase='cursor',delivery='projectile',shape='ball',range=7,center='target'},
+            {id='instant',phase='instant',delivery='projectile',shape='ball',range=7,center='target',
+                player_selffire=true,
+                selffire={dynamic='spellFriendlyFire'},friendlyfire=100,
+                provenance={selffire=CURATED,friendlyfire=TARGET_DEFAULT,player_selffire=EXPLICIT}},
+            {id='ground',phase='ground',delivery='map_effect',shape='ball',center='target',
+                radius={from='target'},
+                when={kind='attr',id='burning_wake'},
+                duration=4,
+                selffire={dynamic='spellFriendlyFire'},friendlyfire=100,
+                provenance={selffire=CURATED,friendlyfire=MAP_DEFAULT}},
+        }},
+    -- Shadow Blast: immediate radius-3 ball (dynamic SF, default-true FF) plus a
+    -- persistent radius-3 ball (duration up to 9, dynamic SF, default-true FF).
+    T_SHADOW_BLAST={kind='attack',target='hostile',resource='negative',range=6,radius=3,
+        cursor={shape='ball',range=6,radius=3},
+        conformance={shape='ball',radius=3,builder=true},
+        components={
+            {id='cursor',phase='cursor',delivery='project',shape='ball',range=6,radius=3,center='target'},
+            {id='instant',phase='instant',delivery='project',shape='ball',range=6,radius=3,center='target',
+                selffire={dynamic='spellFriendlyFire'},friendlyfire=100,
+                provenance={selffire=CURATED,friendlyfire=TARGET_DEFAULT}},
+            {id='ground',phase='ground',delivery='map_effect',shape='ball',center='target',radius=3,
+                duration=9,
+                selffire={dynamic='spellFriendlyFire'},friendlyfire=100,
+                provenance={selffire=CURATED,friendlyfire=MAP_DEFAULT,duration=CURATED}},
+        }},
+    -- Starfall: immediate ball (radius 1..2, dynamic SF, default-true FF); no
+    -- persistent ground component.
+    T_STARFALL={kind='attack',target='hostile',resource='negative',range=6,
+        cursor={shape='ball',range=6},
+        conformance={shape='ball',builder=true},
+        components={
+            {id='cursor',phase='cursor',delivery='project',shape='ball',range=6,center='target'},
+            {id='instant',phase='instant',delivery='project',shape='ball',range=6,center='target',
+                selffire={dynamic='spellFriendlyFire'},friendlyfire=100,
+                provenance={selffire=CURATED,friendlyfire=TARGET_DEFAULT}},
+        }},
     T_ARCANE_POWER=selfEntry('sustain','mana'),
     T_SHIELDING=selfEntry('sustain','mana'),
     -- Soul Rot builds its bolt inside the action (no `t.target`); the missing
@@ -168,15 +237,10 @@ M.ENTRIES={
 for talent,entry in pairs(M.ENTRIES) do entry.source=Sources.talents[talent] end
 function M.source(talent) return Sources.talents[talent] end
 
--- The v2 capability catalogue does not re-admit the dynamic talents
--- (Fireflash/Flameshock/Shadow Blast/Starfall). They remain a documented
--- follow-up: their SF formula inputs and ground components are not yet pinned.
-M.UNSUPPORTED={
-    T_FIREFLASH='dynamic_selffire_formula',
-    T_FLAMESHOCK='dynamic_ground_selffire',
-    T_SHADOW_BLAST='dynamic_selffire_formula',
-    T_STARFALL='dynamic_selffire_formula',
-}
+-- Every whitelisted talent is now modelled; the dynamic talents were
+-- re-admitted under the v2 manifest (TODO #55). Kept as an explicit empty table
+-- so capability consumers still have a stable field.
+M.UNSUPPORTED={}
 
 function M.entry(talent) return M.ENTRIES[talent] end
 function M.supported(talent) return talent~=nil and M.ENTRIES[talent]~=nil end
@@ -248,8 +312,10 @@ function M.compat(entry)
             elseif component.delivery=='attackTarget' then delivery=delivery or 'attackTarget'
             elseif not delivery then delivery='project' end
             local sf=component.selffire
+            if type(sf)=='table' then sf='unknown' end
             if sf~=nil and (selffire==nil or (tonumber(sf) or 100)>(tonumber(selffire) or 0)) then selffire=sf end
             local ff=component.friendlyfire
+            if type(ff)=='table' then ff='unknown' end
             if ff~=nil and (friendlyfire==nil or (tonumber(ff) or 100)>(tonumber(friendlyfire) or 0)) then friendlyfire=ff end
         end
     end

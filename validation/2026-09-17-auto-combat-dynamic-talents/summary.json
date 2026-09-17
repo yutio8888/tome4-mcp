@@ -1,0 +1,69 @@
+{
+  "round": "TODO #55 - re-admit the four dynamic talents under the v2 effect manifest (DYN-1..5)",
+  "date": "2026-09-17",
+  "branch": "feat/v2-dynamic-talents",
+  "pr": "pending",
+  "main_base": "c131389 (post-v2-merge)",
+  "talents": {
+    "re_admitted": [
+      "T_FIREFLASH",
+      "T_FLAMESHOCK",
+      "T_SHADOW_BLAST",
+      "T_STARFALL"
+    ],
+    "still_unsupported": []
+  },
+  "dynamic_inputs": {
+    "spellFriendlyFire": "audited provider guard.spellFriendlyFire against /mod/class/interface/Combat.lua (digest+identity+declaration); unavailable/overridden/erroring -> unknown (fail-closed)",
+    "radius": "ground components use radius={from='target'} resolved from the live builder radius",
+    "range0_cone": "Flameshock range-0 self-centred cone skips the distance/canProject gates (but not the footprint/LOS model)"
+  },
+  "ground_components": {
+    "T_FIREFLASH": "Burning Wake impact ball, duration 4, radius = talent radius, SF spellFriendlyFire, FF 100",
+    "T_FLAMESHOCK": "Burning Wake source-centred cone, duration 4, radius = talent radius, SF spellFriendlyFire, FF 100",
+    "T_SHADOW_BLAST": "persistent radius-3 ball, duration <=9, SF spellFriendlyFire, FF 100",
+    "T_STARFALL": "none"
+  },
+  "tests": {
+    "lua_suites": "pass: effect manifest 312, effect manifest drift 30, auto-combat guard 35, ... (all 39 suites)",
+    "python": 39,
+    "protocol_check": "OK",
+    "native_seams_check": "OK",
+    "effect_manifest_check": "OK",
+    "native_auto_combat_probe_source": {
+      "session": "v2-dyn-src",
+      "checks": 85,
+      "failures": 0,
+      "game_log_sha256": "20567616d939acafd4ad50b942ca0abbc24df4d9465a5d482101a7630f7afb10"
+    },
+    "native_auto_combat_probe_dist": {
+      "session": "v2-dyn-dist",
+      "checks": 85,
+      "failures": 0,
+      "game_log_sha256": "dfe1d0c6e89146cc96343f5e155c7f71e6dc4724047a53906b84cac2de826fe8"
+    },
+    "native_acceptance_source": {
+      "session": "v2-dyn-accept-src",
+      "checks": 100,
+      "game_log_sha256": "4b7f0500bbe7ee9117333557247adabd038ce570363fbb4fb23ec4ebf4bb4858"
+    },
+    "native_acceptance_dist": {
+      "session": "v2-dyn-accept-dist",
+      "checks": 100,
+      "game_log_sha256": "94184e71e33b774d7e232fb6cbf1aa97fb1980eaea0f0514db5ce8acb317cf29"
+    }
+  },
+  "dist": {
+    "path": "dist/tome-mcp-bridge.teaa",
+    "sha256": "2860a9fbf7c5a54916a75446a4c94ec3751ee45f5c8d4f4379f0b9d7574131f7",
+    "baseline_sha256": "3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29",
+    "manifest_sha256": "9fa6905ccc71b8559a9fd337ebcdbe607fc63a1ded25dad83921c8548807d9b0"
+  },
+  "invariants": [
+    "allow_auto_combat_execution stays false",
+    "emergency layer, action budget, target binding, native_pending, manual revocation, read-only dry_run unchanged",
+    "no protocol/server/wire change",
+    "trusted builder baseline is the original function object (rawequal); live identity re-runs every guarded action"
+  ],
+  "deferred": []
+}

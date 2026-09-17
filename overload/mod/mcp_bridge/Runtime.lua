@@ -1078,6 +1078,30 @@ buildAutoCombatHost=function(s,policy,opts)
         if not ok or type(value)~='number' or value~=value then return 'unknown' end
         return value
     end
+    -- Audited `self:spellFriendlyFire()` (the dynamic SF/FF input used by the
+    -- re-admitted talents). Registered through NativeCompatibility so the
+    -- source digest, exact identity and declaration are required; an unavailable,
+    -- overridden or erroring getter is `unknown` and fails closed.
+    local function dynamicSpellFriendlyFire()
+        local p=g.player
+        if type(p)~='table' or type(p.spellFriendlyFire)~='function' then return 'unknown' end
+        if not Compat.hasDependency('guard.spellFriendlyFire') then
+            Compat.registerDependency('guard.spellFriendlyFire','talent_query',p.spellFriendlyFire,
+                '/mod/class/interface/Combat.lua','spell friendly-fire chance',
+                EffectManifest.SOURCES.engine and EffectManifest.SOURCES.engine.combat
+                    and EffectManifest.SOURCES.engine.combat.md5,
+                'function _M:spellFriendlyFire',{})
+        end
+        local fn=Compat.dependency('guard.spellFriendlyFire',p.spellFriendlyFire)
+        if type(fn)~='function' then return 'unknown' end
+        local ok,value=pcall(fn,p)
+        if not ok or type(value)~='number' or value~=value then return 'unknown' end
+        return value
+    end
+    local function dynamicScalar(name)
+        if name=='spellFriendlyFire' then return dynamicSpellFriendlyFire() end
+        return 'unknown'
+    end
     local guard=Guard.build{
         game=g,policy=policy,source=g.player,
         resolve=function(id) return Observer.resolve(g,meta(s),id) end,
@@ -1109,6 +1133,7 @@ buildAutoCombatHost=function(s,policy,opts)
         -- (never silently the model).
         native=(type(core)=='table' and type(core.fov)=='table') and {game=g,source=g.player} or nil,
         talentLevel=effectiveTalentLevel,
+        dynamicScalar=dynamicScalar,
         drift=manifestDrift,
     }
     local function safetyGuard(attempt)

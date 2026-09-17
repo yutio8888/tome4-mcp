@@ -44,6 +44,29 @@ local function resolveWhen(when,providers)
     return 'unknown'
 end
 
+-- Resolve a component filter value: an audited dynamic input (for example
+-- `spellFriendlyFire`) becomes its live scalar, or `unknown` when the provider
+-- is unavailable/erroring (the guard then fails closed).
+local function resolveDynamic(value,ctx,talent,def)
+    if type(value)=='table' and value.dynamic then
+        if type(ctx.dynamicScalar)~='function' then return 'unknown' end
+        local ok,result=pcall(ctx.dynamicScalar,value.dynamic,talent,def)
+        if not ok then return 'unknown' end
+        return result
+    end
+    return value
+end
+
+-- Resolve a component radius declared as `{from='target'}` from the live
+-- builder spec; an unavailable radius is unknown and fails closed.
+local function resolveRadius(value,typ)
+    if type(value)=='table' and value.from=='target' then
+        if typ and finite(typ.radius) then return typ.radius end
+        return 'unknown'
+    end
+    return value
+end
+
 -- Union of footprints for the component list; a component whose condition is
 -- unknown is included conservatively.
 local function footprintFor(component,ctx,target)
@@ -175,16 +198,23 @@ function M.build(ctx)
         end
         local range=entry.range
         if typ and finite(typ.range) then range=typ.range end
-        if finite(range) and Distance.grid(p.x,p.y,target.x,target.y)>range then
+        -- A range-0 self-centred cone (Flameshock) is aimed by direction; the
+        -- effect is centred on the caster, so the target distance does not bound
+        -- it. Only positive ranges are distance-checked; `canProject` still
+        -- validates line of sight.
+        if finite(range) and range>0 and Distance.grid(p.x,p.y,target.x,target.y)>range then
             return verdict(hard,'target_out_of_range',{range=range,source=builderSource})
         end
         local probe_typ=typ or {type=entry.cursor and entry.cursor.shape,range=range,
             radius=entry.radius,talent=talent}
-        if type(p.canProject)=='function' then
+        -- A range-0 self-centred effect (Flameshock's cone) is aimed by direction
+        -- and does not require the aim grid itself to be hittable; `canProject`
+        -- would report the origin as the only hit and falsely deny it.
+        if type(p.canProject)=='function' and not (finite(range) and range==0) then
             local ok,can=pcall(p.canProject,p,probe_typ,target.x,target.y)
             if not ok or can==nil then return verdict(hard,'canproject_unknown',{source=builderSource}) end
             if can==false then return verdict(hard,'no_line_of_sight',{source=builderSource}) end
-        else
+        elseif type(p.canProject)~='function' and not (finite(range) and range==0) then
             return verdict(hard,'canproject_unavailable')
         end
         -- Resolve every canonical component. Variants come only from audited
@@ -218,6 +248,9 @@ function M.build(ctx)
                         friendlyfire=component.friendlyfire,player_selffire=component.player_selffire,
                         provenance=component.provenance,when=component.when,resolved_when=active,
                         builder_source=builderSource}
+                    resolved.selffire=resolveDynamic(resolved.selffire,ctx,talent,def)
+                    resolved.friendlyfire=resolveDynamic(resolved.friendlyfire,ctx,talent,def)
+                    resolved.radius=resolveRadius(resolved.radius,typ)
                     -- The real builder supplies the instant/projectile geometry.
                     if typ and component.phase=='instant' then
                         if typ.type then resolved.shape=typ.type end
