@@ -513,7 +513,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
                       expected_revision: Annotated[int, Field(ge=1)], answer: Answer,
                       wait_ms: Annotated[int, Field(ge=0, le=10000)] = 2000,
                       include_map: bool = False) -> ToolReply:
-        """Answer the current native interaction exactly once. Keep the original command_id and a unique response_id. Wait for the next input or command result; on uncertainty query those IDs, never repeat the talent. Cancel preserves native cancellation semantics and can produce further effects or questions."""
+        """Answer a command-owned native interaction exactly once. Keep the original command_id and a unique response_id. Wait for the next input or command result; on uncertainty query those IDs, never repeat the talent. Cancel preserves native cancellation semantics and can produce further effects or questions. A native top-level popup (sealed door, lore, running, death screen) has no command_id and is answered with tome.dismiss instead."""
         args = {"session_id": session_id, "control_token": control_token, "command_id": command_id,
                 "interaction_id": interaction_id, "response_id": response_id,
                 "expected_revision": expected_revision, "answer": answer.model_dump(), "include_map": include_map}
@@ -527,7 +527,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
                       interaction_id: Identifier | None = None,
                       expected_revision: Annotated[int, Field(ge=1)] | None = None,
                       include_map: bool = False) -> ToolReply:
-        """Dismiss or answer a native popup raised outside a command (sealed door, lore, running, death screen). observe exposes it as a top-level interaction; use only the answer types it offers. This has no command_id; use tome.respond for command-owned interactions."""
+        """Dismiss or answer a native popup raised outside a command (sealed door, lore, running, death screen). observe exposes it as a top-level interaction; use only the answer types it offers, for example {"type":"option","option_id":"<option_id>"} for a dialog.choice/list_menu or {"type":"confirm","value":true} for a confirmation (observe.interaction lists answer_types and option ids). This has no command_id; use tome.respond for command-owned interactions."""
         args: dict[str, Any] = {"session_id": session_id, "control_token": control_token,
                                 "answer": answer.model_dump(), "include_map": include_map}
         if interaction_id is not None:

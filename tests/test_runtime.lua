@@ -513,6 +513,46 @@ do
     g:tick();ready()
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
 end
+-- Round-3 follow-up #45 (Option A): a safety pause releases the lease and
+-- stops the run, so a remote act needs no reconnect; observe.auto_combat is a
+-- stable object before activation and after the handoff.
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=true
+    g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+    Runtime.reset(g);g:display()
+    local h2=request('connect',{token='unit-test-token'}).result
+    for k,v in pairs(h2) do hello[k]=v end
+    local pl={schema='tome-auto-combat/v1',id='p1',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35,flee_below_hp_pct=25},targeting={default='nearest_hostile'},
+        rules={{id='attack',priority=1,when={always={}},['then']={action='attack',target='nearest_hostile'}}}}
+    request('policy',{session_id=h2.session_id,policy_op='set_draft',policy=pl})
+    local ap=request('policy',{session_id=h2.session_id,policy_op='approve'}).result
+    request('policy',{session_id=h2.session_id,policy_op='activate',expected_hash=ap.approved_hash})
+    request('policy',{session_id=h2.session_id,policy_op='start'})
+    -- Force the safety threshold and pump one frame.
+    p.life=10
+    Runtime.beforeTick(g);g.turn=g.turn+10;p.energy.value=1000;g.paused=true
+    Runtime.onReady(p);Runtime.afterTick(g)
+    pcall(Runtime.onFrame,g)
+    local after=observe().auto_combat
+    check(after and after.state=='stopped' and after.enabled==true,
+        'a safety pause leaves a stopped run in the stable observe summary')
+    local ps=request('policy',{session_id=h2.session_id,policy_op='status'}).result
+    check(ps and ps.control_owner=='manual','a safety pause releases the auto-combat lease')
+    -- The same remote lease acts without reconnecting (no control_conflict).
+    local allowed=act('flee-act',{type='wait'})
+    check(allowed.result and allowed.result.status=='queued','a remote act succeeds after a safety handoff')
+    g:tick();ready()
+    -- Stable shape with execution disabled and no policy at all.
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+    Runtime.reset(g);g:display()
+    reconnect()
+    local idle=observe().auto_combat
+    check(idle~=nil and idle.state=='stopped' and idle.enabled==false and idle.active==false
+        and idle.policy_id~=nil and idle.policy_hash~=nil and idle.generation~=nil
+        and type(idle.last_decisions)=='table',
+        'observe.auto_combat is a stable stopped object before activation')
+end
 -- P1a: standalone in-game editor accessors. No MCP transport is involved, so
 -- this is the "works with no MCP client" path required by the design.
 do

@@ -244,6 +244,53 @@ do
 end
 
 do
+    -- Log dedupe: re-issuing the same pause is not a new transition and must
+    -- not notify/log again (the old resume-at-low-HP loop appended one event
+    -- per call and evicted the bounded decision log).
+    local host=makeHost(); host.snap={hp_pct=10,enemy_count=1}
+    local p=policy({safety={min_hp_pct=35,flee_below_hp_pct=15}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    local first=c:onOpportunity()
+    local notifications=#host.notifications
+    local again=c:pause('flee_below_hp_pct')
+    check(again.deduplicated==true and #host.notifications==notifications,
+        'a repeated identical pause does not notify again')
+    check(again.generation==first.generation,'a repeated pause does not advance the generation')
+end
+
+do
+    -- Stop dedupe: an already-stopped run does not advance the generation.
+    local host=makeHost(); local c=AutoCombat.new(policy(),host); c:start()
+    c:stop('one')
+    local generation=c.generation
+    local again=c:stop('one')
+    check(again.deduplicated==true and c.generation==generation,
+        'a repeated identical stop is deduplicated')
+end
+
+do
+    -- Code coverage for the execution-boundary pause reasons that live combat
+    -- did not hit in round 3 (declared expected reasons).
+    local host=makeHost(); host.responses={{status='rejected',energy_spent=true}}
+    local c=AutoCombat.new(policy({limits={max_actions_per_tick=1}}),host); c:start()
+    local denied=c:onOpportunity()
+    check(denied.action=='paused' and denied.reason=='action_denied',
+        'a rejection that spent energy pauses action_denied')
+    local host2=makeHost(); host2.responses={{status='uncertain'}}
+    local c2=AutoCombat.new(policy({limits={max_actions_per_tick=1}}),host2); c2:start()
+    local uncertain=c2:onOpportunity()
+    check(uncertain.action=='paused' and uncertain.reason=='action_uncertain',
+        'an uncertain outcome pauses action_uncertain')
+    local host3=makeHost()
+    local c3=AutoCombat.new(policy(),host3); c3:start()
+    host3.phase_='waiting_player'
+    local interaction=c3:onOpportunity()
+    check(interaction.action=='paused' and interaction.reason=='player_interaction',
+        'a waiting_player phase pauses player_interaction')
+end
+
+do
     -- AC-03/D1/D2: the controller consults the production guard before
     -- submitting; a reject counts as an attempt and tries the next candidate.
     local host=makeHost(); host.snap={hp_pct=80,enemy_count=1}

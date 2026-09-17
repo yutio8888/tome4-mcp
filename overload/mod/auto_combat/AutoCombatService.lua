@@ -16,6 +16,10 @@ local PolicyIO=require 'mod.auto_combat.PolicyIO'
 local AssistantAdapter=require 'mod.auto_combat.AssistantAdapter'
 local M={}
 M.SOURCE='auto_combat'
+-- Option A (round-3 follow-up): the two safety pauses hand control back to the
+-- player immediately. The run stops and the lease returns to `manual`, so a
+-- remote action needs no reconnect and `resume` cannot loop-pause.
+M.SAFETY_PAUSES={flee_below_hp_pct=true,no_emergency_action=true}
 
 function M.new(options)
     options=options or {}
@@ -245,22 +249,39 @@ function M.start(svc)
 end
 
 function M.stop(svc,reason)
-    if svc.controller then svc.controller:stop(reason or 'stopped') end
-    if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,reason or 'stopped') end
+    reason=reason or 'stopped'
+    local previous=svc.controller and svc.controller.state or nil
+    local generation=svc.controller and svc.controller.generation or nil
+    if svc.controller then svc.controller:stop(reason) end
+    if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,reason) end
+    -- An explicit stop of a running/paused run is a real transition: record the
+    -- run boundary. A stop of an already-stopped run stays silent (dedupe).
+    if previous and previous~='stopped' then
+        Log.add(svc.log,withContext(svc,{kind='stopped',reason=reason,generation=generation,
+            policy_hash=svc.store.running and Schema.hash(svc.store.running) or nil}))
+    end
     return ok({state='stopped'})
 end
 
 function M.pause(svc,reason)
     if not svc.controller then return fail('not_running') end
+    if svc.controller.state=='stopped' then return fail('not_running') end
     return ok(svc.controller:pause(reason or 'paused'))
 end
 
 function M.resume(svc)
     if not svc.controller then return fail('not_running') end
+    if svc.controller.state=='stopped' then
+        return fail('not_running',{details='the run is stopped; use start to re-acquire the lease'})
+    end
     if not Arbiter.canAct(svc.arbiter,M.SOURCE) then
         return fail('control_not_held',{control_owner=svc.arbiter.owner})
     end
-    return ok(svc.controller:resume())
+    local resumed=svc.controller:resume()
+    if resumed and resumed.ok==false then
+        return fail(resumed.code or 'not_paused',{state=resumed.state})
+    end
+    return ok(resumed)
 end
 
 -- Called on a manual input so the plugin loses control immediately.
@@ -294,6 +315,15 @@ function M.step(svc)
     local step=svc.controller:onOpportunity()
     local after=resourcesOf(host)
     local policy_hash=Schema.hash(svc.store.running)
+    -- Option A: a safety pause hands control straight back to the player. Stop
+    -- the run and release the lease so a remote act needs no reconnect and
+    -- `resume` refuses. The pause transition was already logged once by the
+    -- controller notify callback during onOpportunity (no second event here).
+    if step.action=='paused' and M.SAFETY_PAUSES[step.reason] then
+        if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,step.reason) end
+        svc.controller:stop(step.reason)
+        return ok({step=step,state=svc.controller.state,generation=svc.controller.generation,handoff=true})
+    end
     -- Pauses and denials are already logged by the controller notify callback,
     -- so only the successful/terminal steps are added here (no duplicates).
     if step.action=='acted' then

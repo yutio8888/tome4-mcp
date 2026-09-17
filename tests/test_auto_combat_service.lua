@@ -129,6 +129,83 @@ do
     check(started.ok and svc.controller.policy.id=='p2','start runs the replacement policy')
 end
 
+-- Round-3 follow-up #45 (Option A): a safety pause hands control back -------
+do
+    local svc=Service.new({host_factory=fakeHost})
+    local flee=policy({safety={min_hp_pct=35,flee_below_hp_pct=25}})
+    local d=Service.handle(svc,'set_draft',{policy=flee})
+    local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
+    Service.handle(svc,'start',{})
+    -- Force the flee threshold while an enemy is still visible.
+    svc.controller.host.snapshot=function() return {hp_pct=10,enemy_count=1} end
+    local stepped=Service.step(svc)
+    check(stepped.ok and stepped.handoff==true,'a safety pause reports a handoff')
+    check(svc.arbiter.owner=='manual','a safety pause releases the lease to manual')
+    check(svc.controller.state=='stopped','a safety pause marks the run stopped')
+    check(svc.controller.reason=='flee_below_hp_pct','the stopped run keeps the safety reason')
+    local log=Service.handle(svc,'log',{limit=16})
+    local pauses=0
+    for _,e in ipairs(log.events) do if e.kind=='paused' then pauses=pauses+1 end end
+    check(pauses==1,'exactly one pause event is logged for the transition')
+    -- resume must not re-pause or log another event (the old 53-event loop).
+    local resumed=Service.handle(svc,'resume',{})
+    check(not resumed.ok and resumed.error.code=='not_running','resume on a handed-back run is not_running')
+    local log2=Service.handle(svc,'log',{limit=16})
+    local pauses2=0
+    for _,e in ipairs(log2.events) do if e.kind=='paused' then pauses2=pauses2+1 end end
+    check(pauses2==1,'resume writes no repeated pause event')
+    -- D4: start re-acquires the lease for the still-active policy.
+    check(Service.handle(svc,'start',{}).ok,'start re-acquires after a safety handoff')
+    check(svc.arbiter.owner=='auto_combat','the lease is held again')
+end
+
+do
+    -- no_emergency_action is the other Option-A safety pause.
+    local svc=Service.new({host_factory=fakeHost})
+    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
+    Service.handle(svc,'start',{})
+    -- Critical HP with no emergency rule left in the policy.
+    svc.controller.policy.rules={}
+    svc.controller.host.snapshot=function() return {hp_pct=10,enemy_count=1} end
+    local stepped=Service.step(svc)
+    check(stepped.ok and stepped.step.reason=='no_emergency_action','no_emergency_action pauses')
+    check(stepped.handoff==true and svc.arbiter.owner=='manual' and svc.controller.state=='stopped',
+        'no_emergency_action also hands control back')
+end
+
+do
+    -- #46c: an explicit stop records the run boundary in the decision log.
+    local svc=Service.new({host_factory=fakeHost})
+    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
+    Service.handle(svc,'start',{})
+    Service.handle(svc,'stop',{reason='editor'})
+    local log=Service.handle(svc,'log',{limit=8})
+    check(log.events[1] and log.events[1].kind=='stopped' and log.events[1].reason=='editor',
+        'auto stop records a stopped decision-log event')
+    local before=#log.events
+    Service.handle(svc,'stop',{reason='editor'})
+    local log2=Service.handle(svc,'log',{limit=8})
+    check(#log2.events==before,'a repeated stop writes no additional event')
+end
+
+do
+    -- control_lost: the lease taken outside the controller stops and clears it.
+    local svc=Service.new({host_factory=fakeHost})
+    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
+    Service.handle(svc,'start',{})
+    svc.arbiter.owner='manual'
+    local lost=Service.step(svc)
+    check(not lost.ok and lost.error.code=='control_lost','a manual owner produces control_lost')
+    check(svc.controller==nil,'control_lost clears the controller')
+end
+
 -- INT-04/D8: approve CASes the draft, activate CASes the approved version. ---
 do
     local svc=Service.new()

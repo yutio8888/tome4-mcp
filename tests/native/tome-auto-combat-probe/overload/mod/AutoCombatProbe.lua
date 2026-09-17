@@ -51,6 +51,7 @@ M.EXPECTED={
     ['assistant-import']={'generated','valid','unsupported_reported','stored','refused'},
     ['computed-predicate']={'act','false_holds','enum_rejected'},
     ['production-reads']={'has_control','scalar_resource','guard_wired'},
+    ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['solo-pump']={},
 }
 
@@ -275,6 +276,53 @@ local function explorePolicy()
     return compare('explore-policy',{r1.action,r2.action})
 end
 
+-- 11 (Option A, deferred): set up a flee-threshold run and let the production
+-- frame pump perform the safety handoff; the check runs on later frames.
+local function safetyHandoffSetup()
+    forceReady()
+    Runtime.setAutoCombatExecution(game,true)
+    local pol=policy({{id='wait',priority=10,when={always={}},['then']={action='wait'}}},{max_actions_per_tick=1})
+    Runtime.autoCombatHandle(game,'set_draft',{policy=pol})
+    local approved=Runtime.autoCombatHandle(game,'approve',{})
+    if not (approved and approved.ok) then
+        check('safety-handoff:approve',false,approved)
+        Runtime.setAutoCombatExecution(game,false)
+        return false
+    end
+    Runtime.autoCombatHandle(game,'activate',{expected_hash=approved.approved_hash})
+    local p=game.player
+    M.handoff_saved_life=p.life
+    p.life=math.max(1,math.floor(p.max_life*0.1))
+    forceReady()
+    local started=Runtime.autoCombatHandle(game,'start',{})
+    M.handoff_frames=0
+    return started and started.ok or false
+end
+
+local function safetyHandoffCheck()
+    M.handoff_frames=(M.handoff_frames or 0)+1
+    local status=Runtime.autoCombatStatus(game) or {}
+    local run=status.run
+    local handoff=status.control_owner=='manual' and run and run.state=='stopped'
+    if not handoff and M.handoff_frames<40 then return false end
+    local signals={}
+    check('safety-handoff:handoff',handoff,{owner=status.control_owner,run=run,frames=M.handoff_frames})
+    signals[#signals+1]=handoff and 'handoff' or 'no_handoff'
+    signals[#signals+1]=status.control_owner=='manual' and 'owner_manual' or 'owner_held'
+    check('safety-handoff:owner',status.control_owner=='manual',status)
+    signals[#signals+1]=(run and run.state=='stopped') and 'stopped' or 'not_stopped'
+    check('safety-handoff:stopped',run and run.state=='stopped',status)
+    local resumed=Runtime.autoCombatHandle(game,'resume',{})
+    local refused=resumed.ok==false and resumed.error and resumed.error.code=='not_running'
+    signals[#signals+1]=refused and 'resume_not_running' or 'resume_accepted'
+    check('safety-handoff:resume',refused,resumed)
+    game.player.life=M.handoff_saved_life
+    Runtime.autoCombatHandle(game,'stop',{})
+    Runtime.setAutoCombatExecution(game,false)
+    compare('safety-handoff',signals)
+    return true
+end
+
 -- 8: the P2 second-class preset validates, is catalogue-compatible, and
 -- dry-runs against the real engine snapshot through the production service.
 local function sunPaladinPreset()
@@ -470,6 +518,19 @@ end
 
 function M.onFrame()
     if M.done then return end
+    if M.waiting_handoff then
+        if safetyHandoffCheck() then
+            M.waiting_handoff=false
+            if not soloPumpSetup() then
+                check('solo-pump:setup',false,{note='could not install local execution'})
+                M.done=true
+                M.emit{kind='auto_combat_done',passed=false,checks=#M.checks,failures=M.failures}
+                return
+            end
+            M.waiting_solo=true
+        end
+        return
+    end
     if M.waiting_solo then soloPumpCheck() return end
     if not M.pending then return end
     M.pending=false
@@ -478,12 +539,20 @@ function M.onFrame()
         M.emit{kind='auto_combat_done',passed=false,checks=#M.checks,failures=M.failures}
         return
     end
-    if not soloPumpSetup() then
-        check('solo-pump:setup',false,{note='could not install local execution'})
+    -- Run the Option-A handoff after the synchronous scenarios (a clean game
+    -- boundary) so the production pump sees a ready phase.
+    local handoff_ok,handoff_result=pcall(safetyHandoffSetup)
+    if not handoff_ok then
+        check('safety-handoff:exception',false,{error=tostring(handoff_result)})
         M.done=true
         M.emit{kind='auto_combat_done',passed=false,checks=#M.checks,failures=M.failures}
         return
     end
-    M.waiting_solo=true
+    if handoff_result~=true then
+        M.done=true
+        M.emit{kind='auto_combat_done',passed=false,checks=#M.checks,failures=M.failures}
+        return
+    end
+    M.waiting_handoff=true
 end
 return M
