@@ -68,4 +68,16 @@ do
     check(count==1,'range clips the beam footprint to the nearer ally')
 end
 
+-- Native evaluates `typ.player_selffire or act.allow_player_selffire`: false in
+-- one source must not veto true in the other.
+check(Details.playerSelfOverride({allow_player_selffire=true},{player_selffire=false})==true,
+    'the actor opt-in wins over a spec player_selffire=false')
+check(Details.playerSelfOverride({allow_player_selffire=false},{player_selffire=true})==true,
+    'the spec opt-in wins over an actor allow_player_selffire=false')
+check(Details.playerSelfOverride({allow_player_selffire=false},{player_selffire=false})==false,
+    'both opt-in sources false suppress the projectile self-hit')
+check(Details.playerSelfOverride({allow_player_selffire=true},{})==true,
+    'the actor opt-in applies when the spec omits player_selffire')
+check(Details.playerSelfOverride({},{})==false,'no opt-in suppresses the projectile self-hit')
+
 print('Friendly fire: '..checks..' checks passed')

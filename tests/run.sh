@@ -33,6 +33,16 @@ fi
 
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_friendly_fire.lua
 
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_effect_manifest.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_effect_manifest_drift.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_effect_footprint.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_effect_risk.lua
+
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_guard.lua
+
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_controller.lua
 
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_catalog.lua

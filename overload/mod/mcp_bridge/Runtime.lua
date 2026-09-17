@@ -22,6 +22,9 @@ local AutoCombat=require 'mod.auto_combat.AutoCombatService'
 local AutoCombatHost=require 'mod.auto_combat.AutoCombatHost'
 local PolicySchema=require 'mod.auto_combat.PolicySchema'
 local AdapterCatalog=require 'mod.auto_combat.AutoCombatCatalog'
+local Guard=require 'mod.auto_combat.AutoCombatGuard'
+local EffectManifest=require 'mod.auto_combat.EffectManifest'
+local ManifestDrift=require 'mod.auto_combat.EffectManifestDrift'
 local buildAutoCombatHost
 local function sortedKeys(t)
     local out={}
@@ -1030,157 +1033,91 @@ end
 -- Live controller host. The executor reuses Actions.execute under a synthetic
 -- command (see the changed() guard) and never becomes the remote invocation
 -- slot.
-buildAutoCombatHost=function(s,policy)
+buildAutoCombatHost=function(s,policy,opts)
     local g=s.game
     local reads=autoCombatReads(s,policy)
-    -- AC-03/D1/D2: version-pinned adapter guard over the actual bound target.
-    -- `max_selffire_risk==0` rejects (hard gate), `>0` pauses; self-target
-    -- talents are safe. Design §8.3 (v1.4) allows the audited native target
-    -- builder to be read before deciding, so the guard obtains the real target
-    -- spec and falls back to the corrected catalog only when no builder exists
-    -- (Searing Light/Soul Rot build their table in the action). Returns nil /
+    -- AC-03/D1/D2 + v2: the guard consumes the version-pinned component
+    -- manifest. `max_selffire_risk==0` rejects (hard gate), `>0` pauses;
+    -- self-target talents are safe. Design §8.3 (v1.4) allows reading the
+    -- audited native target builder for the instant geometry while the
+    -- canonical components drive variants, ground and composition. A source
+    -- drift disables the adapter (`adapter_source_drift`). Returns nil /
     -- {action='reject'|'pause',reason,detail}.
-    local function componentActive(p,talent,component)
-        local when=component.when
-        if when==nil or when=='always' then return true end
-        if when=='burning_wake' then
-            if type(p.attr)~='function' then return 'unknown' end
-            local ok,value=pcall(p.attr,p,'burning_wake')
-            if not ok then return 'unknown' end
-            return value~=nil and value~=false and value~=0
-        end
-        if when=='talent_level>=3' then
-            local level=p.talents and p.talents[talent]
-            if type(level)~='number' then return 'unknown' end
-            return level>=3
-        end
-        return 'unknown'
+    local function manifestDrift()
+        local override=opts and opts.drift
+        if type(override)=='function' then return override() end
+        -- Missing live hash services is a failed check, not a pass: the adapter
+        -- must not run on unverified metadata. Headless callers inject
+        -- `opts.drift` explicitly.
+        local has_md5,md5=pcall(require,'md5')
+        local reader=type(fs)=='table' and type(fs.readAll)=='function' and fs.readAll or nil
+        local digest=has_md5 and type(md5.sumhexa)=='function' and md5.sumhexa or nil
+        return ManifestDrift.ensure(s,{sources=EffectManifest.SOURCES,read=reader,
+            digest=digest,expected={game_version=EffectManifest.GAME_VERSION},
+            manifest=EffectManifest,identity=function(talent)
+                local def=g.player and g.player.talents_def
+                return type(def)=='table' and def[talent] or nil
+            end})
     end
-    local function safetyGuard(attempt)
-        local action=attempt.action
-        if action~='attack' and action~='use_talent' then return nil end
+    -- Audited effective talent level (`self:getTalentLevel(t)`). Raw invested
+    -- points ignore mastery/alterations; an unavailable, overridden or erroring
+    -- getter returns 'unknown' so the variant stays conservative.
+    local function effectiveTalentLevel(talent,def)
         local p=g.player
-        if not p then return {action='reject',reason='actor_unavailable'} end
-        local talent=action=='attack' and 'T_ATTACK' or attempt.talent
-        local entry=AdapterCatalog.entry(talent)
-        if not entry then return {action='reject',reason='unsupported_adapter'} end
-        if entry.target~='hostile' then return nil end
-        local risk=policy and policy.safety and policy.safety.max_selffire_risk
-        local hard=(risk==nil or risk<=0)
-        local function verdict(reason,detail)
-            return {action=hard and 'reject' or 'pause',reason=reason,detail=detail}
+        if type(p)~='table' or type(p.getTalentLevel)~='function' then return 'unknown' end
+        if not Compat.hasDependency('guard.talentLevel') then
+            Compat.registerDependency('guard.talentLevel','talent_query',p.getTalentLevel,
+                '/engine/interface/ActorTalents.lua','effective talent level',
+                EffectManifest.SOURCES.engine and EffectManifest.SOURCES.engine.actor_talents
+                    and EffectManifest.SOURCES.engine.actor_talents.md5,
+                'function _M:getTalentLevel',{})
         end
-        local target
-        if attempt.bound_target then target=Observer.resolve(g,meta(s),attempt.bound_target) end
-        if not target then return verdict('target_lost') end
-        if not (Details.finite(target.x) and Details.finite(target.y)
-            and Details.finite(p.x) and Details.finite(p.y)) then return verdict('target_geometry_unknown') end
-        -- Melee delivery (`attack` / Shattering Blow) never consults ActorProject
-        -- filters; the native attack handles adjacency.
-        if entry.delivery=='attackTarget' then return nil end
-        -- Real target spec from the audited native builder when available; the
-        -- catalog is advisory/fallback only.
-        local typ,source=nil,'catalog'
-        local def=p.talents_def and p.talents_def[talent]
-        if type(def)=='table' then
-            local builder=def.target
-            if type(builder)=='table' then typ=builder;source='builder'
-            elseif type(builder)=='function' then
-                local ok,value=pcall(builder,p,def)
-                if ok and type(value)=='table' then typ=value;source='builder' end
+        local fn=Compat.dependency('guard.talentLevel',p.getTalentLevel)
+        if type(fn)~='function' or type(def)~='table' then return 'unknown' end
+        local ok,value=pcall(fn,p,def)
+        if not ok or type(value)~='number' or value~=value then return 'unknown' end
+        return value
+    end
+    local guard=Guard.build{
+        game=g,policy=policy,source=g.player,
+        resolve=function(id) return Observer.resolve(g,meta(s),id) end,
+        allies=function() return reads.allies() end,
+        visible=function(actor) return Observer.visible(g,actor) end,
+        known=function(x,y)
+            local map=g.level and g.level.map
+            if map and type(map.remembers)=='function' and type(map.seens)=='function' then
+                return (map:remembers(x,y) or map:seens(x,y)) and true or false
             end
-        end
-        local shape,range,radius,selffire,friendlyfire
-        if typ then
-            shape=typ.type or entry.shape
-            range=Details.number(typ.range) or entry.range
-            radius=Details.number(typ.radius) or entry.radius
-            selffire=Details.selffire(typ)
-            friendlyfire=Details.friendlyfire(typ)
-        else
-            shape=entry.shape;range=entry.range;radius=entry.radius
-            selffire=entry.selffire;friendlyfire=entry.friendlyfire
-            if selffire==nil then selffire=(shape=='cone') and 0 or 100 end
-            if friendlyfire==nil then friendlyfire=100 end
-        end
-        if type(range)=='number' and Distance.grid(p.x,p.y,target.x,target.y)>range then
-            return verdict('target_out_of_range',{source=source,range=range})
-        end
-        local probe_typ=typ or {type=shape,radius=radius,range=range,direct_hit=entry.direct_hit,
-            selffire=entry.selffire,friendlyfire=entry.friendlyfire,talent=talent}
-        if type(p.canProject)=='function' then
-            local ok,can=pcall(p.canProject,p,probe_typ,target.x,target.y)
-            if not ok or can==nil then return verdict('canproject_unknown',{source=source}) end
-            if can==false then return verdict('no_line_of_sight',{source=source}) end
-        else
-            return verdict('canproject_unavailable')
-        end
-        -- Self risk = geometric containment AND both projection filters positive;
-        -- a player projectile additionally needs the explicit self-hit override.
-        local selfIn=Details.footprintContainsOrigin(p,shape,radius,range,target.x,target.y)
-        local selfRisk
-        if selfIn==false then selfRisk=0
-        elseif selfIn=='unknown' then selfRisk='unknown'
-        else
-            if selffire==false or selffire==0 or friendlyfire==false or friendlyfire==0 then selfRisk=0
-            elseif selffire=='unknown' or friendlyfire=='unknown' then selfRisk='unknown'
-            else selfRisk=1 end
-            if selfRisk~=0 and entry.delivery=='projectile'
-                and not Details.playerSelfOverride(p,probe_typ) then selfRisk=0 end
-        end
-        if selfRisk~=0 then
-            return verdict('selffire_risk',{phase='instant',source=source,shape=shape,
-                selffire=selffire,friendlyfire=friendlyfire})
-        end
-        -- Friendly risk = any visible friendly/neutral in the instantaneous
-        -- footprint when the friendly-fire filter is positive.
-        if friendlyfire=='unknown' then
-            return verdict('selffire_risk',{phase='instant',source=source,friendlyfire='unknown'})
-        end
-        if friendlyfire~=false and friendlyfire~=0 then
-            local _,count=Details.friendliesInEffect(g,p,target.x,target.y,shape,radius,range,
-                function(_,actor) return Observer.visible(g,actor) end)
-            if count and count>0 then
-                return verdict('selffire_risk',{friendly_fire=count,phase='instant',source=source})
+            return nil
+        end,
+        getDef=function(talent)
+            local def=g.player and g.player.talents_def
+            return type(def)=='table' and def[talent] or nil
+        end,
+        blockPath=function(x,y)
+            local map=g.level and g.level.map
+            if map and type(map.checkEntity)=='function' then
+                local ok,blocked=pcall(map.checkEntity,map,x,y,map.TERRAIN or 1,'block_move')
+                return ok and blocked or false
             end
+            return false
+        end,
+        details=Details,
+        -- A native footprint context is supplied only when the engine geometry
+        -- is actually loaded; otherwise the call is explicitly headless and the
+        -- pure model is used. A supplied context that fails to expand is unknown
+        -- (never silently the model).
+        native=(type(core)=='table' and type(core.fov)=='table') and {game=g,source=g.player} or nil,
+        talentLevel=effectiveTalentLevel,
+        drift=manifestDrift,
+    }
+    local function safetyGuard(attempt)
+        local ok,result=pcall(guard,attempt)
+        if not ok then
+            return {action='reject',reason='adapter_guard_error',
+                detail={error=Details.text(tostring(result),160)}}
         end
-        -- Secondary component (for example Sun Ray's TL3+ radius-2 blindness
-        -- ball): positive self risk rejects; a positive friendly filter is only
-        -- a risk when a friendly is actually in the component footprint.
-        if entry.secondary then
-            local active=componentActive(p,talent,entry.secondary)
-            if active~=false then
-                local sf=entry.secondary.selffire
-                local ff=entry.secondary.friendlyfire
-                if sf~=false and sf~=0 then
-                    return verdict('selffire_risk',{phase='secondary',selffire=sf})
-                end
-                if ff~=false and ff~=0 then
-                    local _,count=Details.friendliesInEffect(g,p,target.x,target.y,
-                        entry.secondary.shape or 'ball',entry.secondary.radius,nil,
-                        function(_,actor) return Observer.visible(g,actor) end)
-                    if count and count>0 then
-                        return verdict('selffire_risk',{friendly_fire=count,phase='secondary'})
-                    end
-                end
-            end
-        end
-        -- Ground component: a persistent zone with positive/unknown self or
-        -- friendly probability is future risk even when currently empty.
-        if entry.ground then
-            local active=componentActive(p,talent,entry.ground)
-            if active~=false then
-                local gsf=entry.ground.selffire
-                local gff=entry.ground.friendlyfire
-                if gsf~=false and gsf~=0 then
-                    return verdict('selffire_risk',{phase='ground',component='ground',selffire=gsf,source=source})
-                end
-                if gff~=false and gff~=0 then
-                    return verdict('selffire_risk',{phase='ground',component='ground',friendlyfire=gff,source=source})
-                end
-            end
-        end
-        return nil
+        return result
     end
     reads.guard=safetyGuard
     reads.execute=function(attempt)
@@ -1915,10 +1852,10 @@ function M.setAutoCombatExecution(g,enabled)
 end
 -- Test/native fixture seam: build the production host (audited reads + real
 -- executor) for the current session without installing the live pump.
-function M.buildAutoCombatHostFor(g,policy)
+function M.buildAutoCombatHostFor(g,policy,opts)
     local s=state
     if not s or s.game~=g then return nil end
-    return buildAutoCombatHost(s,policy)
+    return buildAutoCombatHost(s,policy,opts)
 end
 -- Test/production seam: the read-only planning host for the current session.
 function M.buildAutoCombatReadHostFor(g,policy)

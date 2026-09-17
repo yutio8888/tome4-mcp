@@ -39,13 +39,11 @@ function M.friendlyfire(typ)
     if value~=nil then return 'unknown' end
     return true
 end
--- A player projectile only self-hits when it opts in through `player_selffire` or
--- the player's `allow_player_selffire`. Immediate projections and ground effects
--- never consult this override.
+-- A player projectile self-hits when the target spec opts in (`typ.player_selffire`)
+-- OR the actor allows it (`player.allow_player_selffire`); either source being
+-- false must not veto the other (native `Actor.lua` uses a boolean OR).
 function M.playerSelfOverride(player,typ)
-    if type(typ)=='table' and typ.player_selffire~=nil then
-        return typ.player_selffire==true
-    end
+    if type(typ)=='table' and typ.player_selffire then return true end
     return player~=nil and player.allow_player_selffire==true
 end
 local function onSegment(ox,oy,ex,ey,ax,ay)

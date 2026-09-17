@@ -12,6 +12,9 @@ local NativeActivity=require 'mod.mcp_bridge.NativeActivity'
 local Presets=require 'mod.auto_combat.PolicyPresets'
 local Schema=require 'mod.auto_combat.PolicySchema'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
+local EffectFootprint=require 'mod.auto_combat.EffectFootprint'
+local EffectManifest=require 'mod.auto_combat.EffectManifest'
+local ManifestDrift=require 'mod.auto_combat.EffectManifestDrift'
 local M={pending=false,checks={},failures=0,solo_frames=0}
 
 local function encode(value)
@@ -52,7 +55,9 @@ M.EXPECTED={
     ['computed-predicate']={'act','false_holds','enum_rejected'},
     ['production-reads']={'has_control','scalar_resource','guard_wired'},
     ['pilot-presets']={'ok','ok','ok','cast'},
-    ['guard-real-spec']={'self_reject','builder_safe','grasp_safe'},
+    ['guard-real-spec']={'pristine_ok','mutation_drift','restored_ok','grasp_safe'},
+    ['effect-footprint-parity']={'parity_ok'},
+    ['manifest-drift']={'verified','hash_rejected','identity_ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['solo-pump']={},
 }
@@ -561,43 +566,181 @@ local function pilotPresets()
     return compare('pilot-presets',signals)
 end
 
--- 13 (round 5): the guard reads the real target builder. The catalog still
--- advises a widebeam for Flame, but a temporary builder override must drive the
--- verdict (and Blood Grasp's real builder must classify as safe).
+-- 13: builder identity/closure is enforced on every guarded action. A genuine
+-- builder is accepted; a replacement (even for an otherwise-valid target spec)
+-- is a mutation and fails closed; restoring the genuine builder recovers. Blood
+-- Grasp's real builder classifies as safe.
 local function guardRealSpec()
     local p=game.player
     if not p:knowTalent('T_FLAME') then p:learnTalent('T_FLAME',true) end
     if not p:knowTalent('T_BLOOD_GRASP') then p:learnTalent('T_BLOOD_GRASP',true) end
     local pol=policy({WAIT})
     local host=Runtime.buildAutoCombatHostFor(game,pol)
-    local ctx=host and host.snapshot('nearest_hostile')
-    local bound=ctx and ctx.bound_target
+    local bound=host and host.snapshot('nearest_hostile').bound_target
     local def=p.talents_def and p.talents_def.T_FLAME
     if not bound or not (def and type(def.target)=='function') then
         check('guard-real-spec:setup',false,{bound=bound,has_builder=def~=nil})
-        return compare('guard-real-spec',{'no_setup','no_setup','no_setup'})
+        return compare('guard-real-spec',{'no_setup','no_setup','no_setup','no_setup'})
     end
-    local entry=Catalog.entry('T_FLAME')
-    check('guard-real-spec:catalog',entry.shape=='widebeam','the catalog still advises a widebeam')
-    local original=def.target
     local signals={}
-    -- A builder-provided self-hitting ball must reject with the builder as the
-    -- source, even though the catalog would not flag it as a self-hit.
-    def.target=function() return {type='ball',range=100,radius=10,selffire=true,friendlyfire=true} end
-    local selfhit=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
-    check('guard-real-spec:self',selfhit and selfhit.reason=='selffire_risk'
-        and selfhit.detail and selfhit.detail.source=='builder' and selfhit.detail.phase=='instant',selfhit)
-    signals[#signals+1]=(selfhit and selfhit.reason=='selffire_risk') and 'self_reject' or 'self_pass'
-    def.target=function() return {type='ball',range=100,radius=1,selffire=false,friendlyfire=false} end
-    local safe=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
-    check('guard-real-spec:safe',safe==nil,safe)
-    signals[#signals+1]=safe==nil and 'builder_safe' or 'still_risky'
+    local pristine=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
+    local pristine_ok=pristine==nil or pristine.reason~='adapter_source_drift'
+    check('guard-real-spec:pristine',pristine_ok,pristine)
+    signals[#signals+1]=pristine_ok and 'pristine_ok' or 'pristine_drift'
+    local original=def.target
+    def.target=function() return {type='ball',range=100,radius=10,selffire=true,friendlyfire=true,player_selffire=true} end
+    local mutated=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
+    local mutation_drift=mutated and mutated.reason=='adapter_source_drift'
+    check('guard-real-spec:mutated',mutation_drift,mutated)
+    signals[#signals+1]=mutation_drift and 'mutation_drift' or 'mutation_accepted'
     def.target=original
+    local restored=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
+    local restored_ok=restored==nil or restored.reason~='adapter_source_drift'
+    check('guard-real-spec:restored',restored_ok,restored)
+    signals[#signals+1]=restored_ok and 'restored_ok' or 'restored_drift'
     -- Blood Grasp's real builder is a bolt with explicit SF 0 / FF 0.
     local grasp=host.guard({action='use_talent',talent='T_BLOOD_GRASP',bound_target=bound})
     check('guard-real-spec:grasp',grasp==nil,grasp)
     signals[#signals+1]=grasp==nil and 'grasp_safe' or 'grasp_risky'
     return compare('guard-real-spec',signals)
+end
+
+local function sameSet(a,b)
+    local function count(set)
+        local n=0
+        for _,column in pairs(set or {}) do for _ in pairs(column) do n=n+1 end end
+        return n
+    end
+    if count(a)~=count(b) then return false end
+    for x,column in pairs(a or {}) do
+        for y in pairs(column) do if not (b[x] and b[x][y]) then return false end end
+    end
+    return true
+end
+
+-- V2-3: the production footprint backend must reproduce the real
+-- ActorProject:project grid collection for every audited shape, including a
+-- corner that actually triggers the blocked-corner branch. Native block
+-- callbacks return (block, hit, hit_radius); the corner oracle needs the
+-- three-return form, so the corner cases are non-tautological rather than an
+-- ordinary path stop.
+function M.effectFootprintParity()
+    local p=game.player
+    local ctx={game=game,source=p}
+    local is_hex=util.isHex() and true or false
+    check('effect-footprint:map-mode',is_hex==false,{mode=is_hex and 'hex' or 'square',
+        note='ToME 1.7.6 is a square grid; assert rather than assume'})
+    local function blocker(cellFn)
+        local corners=0
+        local fn=function(typ,lx,ly,for_highlights)
+            if for_highlights then corners=corners+1 end
+            return cellFn(lx,ly,for_highlights==true)
+        end
+        return fn,function() return corners end,function() corners=0 end
+    end
+    local function simpleBlock(bx,by)
+        return function(lx,ly)
+            if lx==bx and ly==by then return true,true,true end
+            return false,true,true
+        end
+    end
+    local function allCorner(lx,ly,corner)
+        if corner then return true,true,false end
+        return false,true,true
+    end
+    local function lateCorner(lx,ly,corner)
+        if corner and core.fov.distance(p.x,p.y,lx,ly)>=2 then return true,true,false end
+        return false,true,true
+    end
+    local boltFn,boltCorners,boltReset=blocker(simpleBlock(p.x+2,p.y))
+    local beamFn,beamCorners,beamReset=blocker(simpleBlock(p.x+2,p.y))
+    local cornerFn,cornerCorners,cornerReset=blocker(allCorner)
+    local laterFn,laterCorners,laterReset=blocker(lateCorner)
+    local cases={
+        {name='hit',spec={type='hit',range=20,no_restrict=true},target={x=p.x+4,y=p.y}},
+        {name='bolt',spec={type='bolt',range=20,no_restrict=true},target={x=p.x+5,y=p.y}},
+        {name='beam',spec={type='beam',range=20,no_restrict=true},target={x=p.x+5,y=p.y}},
+        {name='ball1',spec={type='ball',range=20,radius=1,no_restrict=true},target={x=p.x+4,y=p.y}},
+        {name='ball2',spec={type='ball',range=20,radius=2,no_restrict=true},target={x=p.x+3,y=p.y+1}},
+        {name='widebeam1',spec={type='widebeam',range=20,radius=1,no_restrict=true},target={x=p.x+4,y=p.y}},
+        {name='widebeam2',spec={type='widebeam',range=20,radius=2,no_restrict=true},target={x=p.x+3,y=p.y+2}},
+        {name='cone1',spec={type='cone',range=20,radius=1,no_restrict=true},target={x=p.x+4,y=p.y}},
+        {name='cone2',spec={type='cone',range=20,radius=2,no_restrict=true},target={x=p.x+3,y=p.y+2}},
+        {name='bolt_block',spec={type='bolt',range=20,no_restrict=true,block_path=boltFn},
+            target={x=p.x+5,y=p.y},reset=boltReset,corners=boltCorners},
+        {name='beam_block',spec={type='beam',range=20,no_restrict=true,block_path=beamFn},
+            target={x=p.x+5,y=p.y},reset=beamReset,corners=beamCorners},
+        {name='corner_first',spec={type='beam',range=20,no_restrict=true,block_path=cornerFn},
+            target={x=p.x+5,y=p.y+3},reset=cornerReset,corners=cornerCorners,corner=true},
+        {name='corner_later',spec={type='beam',range=20,no_restrict=true,block_path=laterFn},
+            target={x=p.x+6,y=p.y+4},reset=laterReset,corners=laterCorners,corner=true},
+    }
+    local all=true
+    for _,case in ipairs(cases) do
+        local spec={}
+        for key,value in pairs(case.spec) do spec[key]=value end
+        spec.target={x=case.target.x,y=case.target.y}
+        local native=EffectFootprint.native(ctx,spec)
+        if case.reset then case.reset() end
+        local recorded,stop_x,stop_y=p:project(spec,case.target.x,case.target.y,function() return false end,0)
+        local match=native~=nil and sameSet(native,recorded)
+        local corners=case.corners and case.corners() or 0
+        check('effect-footprint:'..case.name,match and (not case.corner or corners>0),
+            {native=EffectFootprint.count(native),recorded=EffectFootprint.count(recorded),
+                corners=corners,stop={x=stop_x,y=stop_y}})
+        if case.corner then
+            check('effect-footprint:'..case.name..':corner',corners>0 and stop_x~=nil,
+                {corners=corners,stop={x=stop_x,y=stop_y}})
+        end
+        if not match then all=false end
+    end
+    -- The production guard, not only M.native, must use the native backend.
+    local NPC=require('mod.class.NPC')
+    local ally=NPC.new{name='effect ally',type='humanoid',subtype='human',display='a',
+        color=colors.GREEN,faction='players',level_range={1,1},max_life=100,life_rating=0,
+        rank=1,size_category=1,ai='none',never_move=true,
+        stats={str=10,dex=10,mag=10,con=10},combat={dam=1,atk=1,apr=0},
+        combat_armor=0,combat_def=0,infravision=10}
+    ally:resolve();ally:resolve(nil,true);ally.life=ally.max_life
+    game.zone:addEntity(game.level,ally,'actor',p.x+2,p.y)
+    local host=Runtime.buildAutoCombatHostFor(game,policy({WAIT}))
+    local bound=host and host.snapshot('nearest_hostile').bound_target
+    local verdict=bound and host.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=bound})
+    check('effect-footprint:guard-native',verdict and verdict.reason=='selffire_risk'
+        and verdict.detail and verdict.detail.footprint_backend=='native',verdict)
+    if not (verdict and verdict.detail and verdict.detail.footprint_backend=='native') then all=false end
+    game.level:removeEntity(ally,true)
+    return compare('effect-footprint-parity',{all and 'parity_ok' or 'parity_failed'})
+end
+
+-- V2-5: the live source hashes verify, a tampered hash is rejected, and the
+-- builder identity/closure check passes for the real talents_def.
+function M.manifestDrift()
+    local md5=require('md5')
+    local signals={}
+    local ok,reason=ManifestDrift.verify(EffectManifest.SOURCES,fs.readAll,md5.sumhexa,
+        {game_version=EffectManifest.GAME_VERSION})
+    check('manifest-drift:verified',ok==true,{reason=reason})
+    signals[#signals+1]=ok==true and 'verified' or 'verify_failed'
+    local tampered={schema=EffectManifest.SOURCES.schema,game_version=EffectManifest.SOURCES.game_version,
+        engine=EffectManifest.SOURCES.engine,talents={}}
+    for talent,pin in pairs(EffectManifest.SOURCES.talents) do
+        local files={}
+        for index,file in ipairs(pin.files) do
+            files[index]={path=file.path,md5=index==1 and string.rep('0',32) or file.md5}
+        end
+        tampered.talents[talent]={files=files,line=pin.line}
+    end
+    local rejected,why=ManifestDrift.verify(tampered,fs.readAll,md5.sumhexa,
+        {game_version=EffectManifest.GAME_VERSION})
+    check('manifest-drift:rejected',rejected==nil and why==ManifestDrift.REASON,{reason=why})
+    signals[#signals+1]=rejected==nil and 'hash_rejected' or 'hash_accepted'
+    local identity_ok=ManifestDrift.identity(EffectManifest,function(talent)
+        return game.player.talents_def and game.player.talents_def[talent] or nil
+    end)
+    check('manifest-drift:identity',identity_ok==true,{})
+    signals[#signals+1]=identity_ok==true and 'identity_ok' or 'identity_failed'
+    return compare('manifest-drift',signals)
 end
 
 local function runAll()
@@ -615,6 +758,8 @@ local function runAll()
         productionReads()
         pilotPresets()
         guardRealSpec()
+        M.effectFootprintParity()
+        M.manifestDrift()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok

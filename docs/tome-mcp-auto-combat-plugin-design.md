@@ -309,6 +309,16 @@ flowchart LR
 - `safety.max_selffire_risk` 默认 **0**：P1 不允许自动投概率风险；`cluster_center` 选位必须在
   `canProject` + adapter 语义下证明不会命中自身/友军，否则 skip 或 pause。
 
+**v1.5 冻结（v2 效果清单，取代单形状字段）：** 自伤不再由单个 `shape`/`selffire` 字段描述。
+每个技能由 `mod.auto_combat.EffectManifest`（schema `tome-auto-combat-adapters/v2`）给出
+**独立组件**（cursor / instant / projectile / secondary / ground），每组件记录 `delivery`、
+`shape`、`range`/`radius`、`center`、`duration`、`selffire`/`friendlyfire`/`player_selffire` 及
+来源。守卫（`AutoCombatGuard`）只从这些规范组件推导风险；条件分支只由已审计标量读取
+（`talent_level`/`attr`）解析，无法解析则保留保守并集。footprint 由 `EffectFootprint` 展开
+（游戏内使用原生 `core.fov` 后端，已由原生探针对 `ActorProject:project` 逐格验证）。源文件
+哈希/定义行由 `tools/generate_effect_manifest.py` 生成并由 `EffectManifestDrift` 校验；不匹配
+返回 `adapter_source_drift`，绝不使用过期元数据。动态技能见 `EffectManifest.UNSUPPORTED`。
+
 ---
 
 ## 6. 人机双编辑

@@ -315,8 +315,15 @@ Status doc: [docs/tome-mcp-0.9.0-selffire-correction.md](tome-mcp-0.9.0-selffire
     from the audited native builder (`t.target`) and uses the corrected catalog
     only as a fallback; it evaluates SF/FF/footprint from the real spec plus
     `secondary`/`ground` components. `allow_auto_combat_execution` stays `false`.
-54. **Deferred to the v2 manifest (next task).** Versioned component manifest
-    with source hashes/variants/provenance, exact hex/wide-line/cone/bolt
-    footprint parity, composed player-projectile/ground risk, and re-admission of
-    dynamic talents (`T_FIREFLASH`, `T_FLAMESHOCK`, `T_SHADOW_BLAST`,
-    `T_STARFALL`). The current geometry helpers remain warning-quality.
+54. **V2 effect manifest — FIXED (this round).** Versioned component manifest
+    with source hashes/variants/provenance (`EffectManifest`), exact footprint
+    parity validated by the disposable native probe (`EffectFootprint`, 12/12
+    cases against real `ActorProject:project`), composed player-projectile and
+    persistent-ground risk (`EffectRisk`), and source-drift detection
+    (`EffectManifestDrift`, `adapter_source_drift`). Dynamic talents remain a
+    documented follow-up (`EffectManifest.UNSUPPORTED`). See
+    [docs/tome-mcp-0.9.0-v2-effect-manifest.md](tome-mcp-0.9.0-v2-effect-manifest.md).
+55. **Dynamic-talent re-admission (follow-up).** `T_FIREFLASH`,
+    `T_FLAMESHOCK`, `T_SHADOW_BLAST`, `T_STARFALL` need a pinned
+    `spellFriendlyFire` input closure and full ground modelling before they can
+    enter the manifest. `allow_auto_combat_execution` stays `false`.
