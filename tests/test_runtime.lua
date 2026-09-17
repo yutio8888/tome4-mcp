@@ -643,6 +643,51 @@ do
     Runtime.autoCombatHandle(g,'deactivate',{})
     check(not Runtime.hasControl(p),'releasing the lease removes hasControl')
 end
+-- Round-5 correction: the guard reads the real target spec from the audited
+-- native builder and applies the engine filter defaults, not a catalog shorthand.
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+    Runtime.reset(g);g:display()
+    local pl={schema='tome-auto-combat/v1',id='p1',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='nearest_hostile'},
+        rules={{id='ray',priority=1,when={always={}},
+            ['then']={action='use_talent',talent='T_MOONLIGHT_RAY',target='nearest_hostile'}}}}
+    p.x,p.y=2,2
+    local ally={uid=99,name='ally',__is_actor=true,x=4,y=2,life=100,max_life=100,reaction=1}
+    enemy.x,enemy.y=6,2;enemy.reaction=-1
+    g.level.entities={[1]=p,[2]=ally,[3]=enemy}
+    g.level.map.map[12][3]=p;g.level.map.map[14][3]=ally;g.level.map.map[16][3]=enemy
+    local saved_def,saved_talents,saved_attr=p.talents_def,p.talents,p.attr
+    p.talents={T_FLAME=1}
+    local live=Runtime.buildAutoCombatHostFor(g,pl)
+    local target=live.snapshot('nearest_hostile').bound_target
+    -- The builder spec wins over the catalog: a friendly-safe ball over a beam
+    -- catalog entry passes even though the catalog would warn about the ally line.
+    p.talents_def={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',
+        target=function() return {type='ball',range=6,radius=1,selffire=false,friendlyfire=false} end}}
+    check(live.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})==nil,
+        'the guard uses the builder spec, not the catalog shape')
+    -- A self-containing ball with engine-default filters rejects.
+    p.talents_def.T_MOONLIGHT_RAY.target=function()
+        return {type='ball',range=6,radius=5,selffire=true,friendlyfire=true} end
+    local selfhit=live.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
+    check(selfhit and selfhit.reason=='selffire_risk' and selfhit.detail.phase=='instant',
+        'a self-containing ball with engine defaults rejects')
+    -- Flame-like: a clear wide-line passes without Burning Wake; its positive-FF
+    -- ground zone rejects once Burning Wake is active (even when empty).
+    p.talents_def.T_FLAME={id='T_FLAME',target=function()
+        return {type='widebeam',range=10,radius=1,selffire=false,friendlyfire=false} end}
+    ally.x,ally.y=4,4
+    -- Keep p.attr native-lookalike so Observer.visible still resolves the target.
+    p.attr=assert(loadstring('return function(self,name) return nil end','@/engine/Entity.lua'))()
+    check(live.guard({action='use_talent',talent='T_FLAME',bound_target=target})==nil,
+        'a clear wide-line Flame passes without Burning Wake')
+    p.attr=assert(loadstring('return function(self,name) if name=="burning_wake" then return 5 end end','@/engine/Entity.lua'))()
+    local ground=live.guard({action='use_talent',talent='T_FLAME',bound_target=target})
+    check(ground and ground.reason=='selffire_risk' and ground.detail.phase=='ground',
+        'an active Burning Wake ground zone rejects')
+    p.talents_def,p.talents,p.attr=saved_def,saved_talents,saved_attr
+end
 -- Wave 2: capability alignment (INT-05) and the full error envelope (INT-02).
 do
     Runtime.reset(g);g:display()

@@ -286,12 +286,37 @@ Status doc: [docs/tome-mcp-0.9.0-auto-combat-class-pilots.md](tome-mcp-0.9.0-aut
     in the native probe (52/52 source + dist).
 49. **Deferred/narrowed candidates (not defects).** Corruptor
     `T_HEALING_INVERSION` (utility, wrong tree) and `T_DRAIN` (level-scaled
-    range) dropped as damage adapters; Archmage `T_FIREFLASH` (self-fire ball
-    rejected by the risk guard) and `T_FLAMESHOCK` (range-0 cone without explicit
-    selffire) dropped; Bulwark dropped because its activated defensive option is a
-    target-required range-0 area and the rest are sustains. Recorded in the
-    status doc with reasons.
+    range) dropped as damage adapters; Archmage `T_FIREFLASH` (self-fire ball with
+    `player_selffire`) and `T_FLAMESHOCK` (instant FF defaults true and the Burning
+    Wake ground cone has dynamic SF / default-true FF; the old missing-selffire
+    rationale was stale and removed) dropped; Bulwark dropped because its activated
+    defensive option is a target-required range-0 area and the rest are sustains.
+    Recorded in the status docs with reasons.
 50. **Remaining P2 adapter work.** More classes (e.g. a caster with a clean
     ranged single-target heal, or a melee class with a real self-heal) and
     resource-recovery rules (`T_DRAIN`/`T_TWILIGHT`-style) remain future work;
     `allow_auto_combat_execution` still defaults to `false`.
+
+## Round 5: selffire catalog drift + wrong target/getter usage (2026-09-17)
+
+Status doc: [docs/tome-mcp-0.9.0-selffire-correction.md](tome-mcp-0.9.0-selffire-correction.md).
+
+51. **Catalog drift — FIXED.** Searing Light (`range=7`, ball cursor, safe
+    ground zone), Moonlight Ray (beam, FF 100 / geometric SF 0), Sun Beam
+    (TL3+ radius-2 secondary), Flame (wide-line union + Burning Wake ground),
+    Soul Rot (projectile bolt), Blood Grasp (bolt, SF/FF 0), Shattering
+    Blow/Attack (melee `attackTarget`). `T_FIREFLASH` documented unsupported.
+52. **Engine semantics — FIXED.** `ObservationDetails.selffire`/`friendlyfire`
+    now return the normalized engine defaults (true; cone `selffire=false`); the
+    geometric shorthand is a separate `footprintContainsOrigin`; the
+    projectile-only `playerSelfOverride` is modelled; `damageScope` knows `bolt`
+    and `widebeam`; `friendliesInEffect` checks bolt paths and wide-beam width.
+53. **Guard real-spec read — FIXED.** `reads.guard` obtains the real target spec
+    from the audited native builder (`t.target`) and uses the corrected catalog
+    only as a fallback; it evaluates SF/FF/footprint from the real spec plus
+    `secondary`/`ground` components. `allow_auto_combat_execution` stays `false`.
+54. **Deferred to the v2 manifest (next task).** Versioned component manifest
+    with source hashes/variants/provenance, exact hex/wide-line/cone/bolt
+    footprint parity, composed player-projectile/ground risk, and re-admission of
+    dynamic talents (`T_FIREFLASH`, `T_FLAMESHOCK`, `T_SHADOW_BLAST`,
+    `T_STARFALL`). The current geometry helpers remain warning-quality.

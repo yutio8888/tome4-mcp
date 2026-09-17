@@ -1,0 +1,47 @@
+{
+  "round": "round 5 - selffire catalog correction (pre-v2)",
+  "date": "2026-09-17",
+  "branch": "fix/selffire-catalog-drift",
+  "pr": "pending",
+  "main_base": "c4777eb",
+  "corrected": {
+    "T_SEARING_LIGHT": "cursor ball range 7 radius 1; instant hit; safe r1 dur4 ground",
+    "T_MOONLIGHT_RAY": "beam; selffire 100 / friendlyfire 100; geometric self 0",
+    "T_SUN_BEAM": "hit + TL3+ r2 blindness ball (SF 0, FF 100)",
+    "T_FLAME": "widebeam union; default filters; conditional Burning Wake ground",
+    "T_SOUL_ROT": "projectile bolt; FF 100",
+    "T_BLOOD_GRASP": "projectile bolt; SF 0 / FF 0",
+    "T_SHATTERING_BLOW/T_ATTACK": "melee attackTarget delivery"
+  },
+  "tests": {
+    "lua_suites": "pass (friendly fire 35, interactive runtime 122, auto-combat pilots 61, runtime 171, ...)",
+    "python": 39,
+    "protocol_check": "OK",
+    "native_auto_combat_probe_source": {
+      "session": "ac-selffire-src-01",
+      "checks": 57,
+      "game_log_sha256": "99400bd462fe755f88c3350cbaeae3fca86c2cf23bf22749a8b5afae1967a010"
+    },
+    "native_auto_combat_probe_dist": {
+      "session": "ac-selffire-dist-01",
+      "checks": 57,
+      "game_log_sha256": "e9f821a3c0e685395915508ff3fb356642818de46050ac8fdb85ca57ffe3e3e7"
+    },
+    "native_acceptance_source": {
+      "session": "native-selffire-src-01",
+      "checks": 100,
+      "game_log_sha256": "f46663a65b04ebdf90666e9f449f266324d973abb312beb73c292827aa544bf9"
+    },
+    "native_acceptance_dist": {
+      "session": "native-selffire-dist-01",
+      "checks": 100,
+      "game_log_sha256": "93ba1cb13a4c8f9fde096c347243f1699c9d532750d87d2a60f400151972003b"
+    }
+  },
+  "dist": {
+    "path": "dist/tome-mcp-bridge.teaa",
+    "sha256": "4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29",
+    "manifest_sha256": "37ce8afe692cc26ec52108aeec4946e7040e0d8c5247676808c6656688595074"
+  },
+  "deferred_v2": "versioned component manifest, exact footprint parity, composed projectile/ground risk, dynamic talents"
+}

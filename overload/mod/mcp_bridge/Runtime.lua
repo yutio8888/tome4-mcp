@@ -1035,8 +1035,27 @@ buildAutoCombatHost=function(s,policy)
     local reads=autoCombatReads(s,policy)
     -- AC-03/D1/D2: version-pinned adapter guard over the actual bound target.
     -- `max_selffire_risk==0` rejects (hard gate), `>0` pauses; self-target
-    -- talents are safe. Reuses the audited Details geometry helpers and the
-    -- native `canProject`. Returns nil / {action='reject'|'pause',reason}.
+    -- talents are safe. Design §8.3 (v1.4) allows the audited native target
+    -- builder to be read before deciding, so the guard obtains the real target
+    -- spec and falls back to the corrected catalog only when no builder exists
+    -- (Searing Light/Soul Rot build their table in the action). Returns nil /
+    -- {action='reject'|'pause',reason,detail}.
+    local function componentActive(p,talent,component)
+        local when=component.when
+        if when==nil or when=='always' then return true end
+        if when=='burning_wake' then
+            if type(p.attr)~='function' then return 'unknown' end
+            local ok,value=pcall(p.attr,p,'burning_wake')
+            if not ok then return 'unknown' end
+            return value~=nil and value~=false and value~=0
+        end
+        if when=='talent_level>=3' then
+            local level=p.talents and p.talents[talent]
+            if type(level)~='number' then return 'unknown' end
+            return level>=3
+        end
+        return 'unknown'
+    end
     local function safetyGuard(attempt)
         local action=attempt.action
         if action~='attack' and action~='use_talent' then return nil end
@@ -1056,30 +1075,110 @@ buildAutoCombatHost=function(s,policy)
         if not target then return verdict('target_lost') end
         if not (Details.finite(target.x) and Details.finite(target.y)
             and Details.finite(p.x) and Details.finite(p.y)) then return verdict('target_geometry_unknown') end
-        if entry.range and Distance.grid(p.x,p.y,target.x,target.y)>entry.range then
-            return verdict('target_out_of_range')
+        -- Melee delivery (`attack` / Shattering Blow) never consults ActorProject
+        -- filters; the native attack handles adjacency.
+        if entry.delivery=='attackTarget' then return nil end
+        -- Real target spec from the audited native builder when available; the
+        -- catalog is advisory/fallback only.
+        local typ,source=nil,'catalog'
+        local def=p.talents_def and p.talents_def[talent]
+        if type(def)=='table' then
+            local builder=def.target
+            if type(builder)=='table' then typ=builder;source='builder'
+            elseif type(builder)=='function' then
+                local ok,value=pcall(builder,p,def)
+                if ok and type(value)=='table' then typ=value;source='builder' end
+            end
         end
-        local typ={type=entry.shape,radius=entry.radius,range=entry.range,direct_hit=entry.direct_hit,
+        local shape,range,radius,selffire,friendlyfire
+        if typ then
+            shape=typ.type or entry.shape
+            range=Details.number(typ.range) or entry.range
+            radius=Details.number(typ.radius) or entry.radius
+            selffire=Details.selffire(typ)
+            friendlyfire=Details.friendlyfire(typ)
+        else
+            shape=entry.shape;range=entry.range;radius=entry.radius
+            selffire=entry.selffire;friendlyfire=entry.friendlyfire
+            if selffire==nil then selffire=(shape=='cone') and 0 or 100 end
+            if friendlyfire==nil then friendlyfire=100 end
+        end
+        if type(range)=='number' and Distance.grid(p.x,p.y,target.x,target.y)>range then
+            return verdict('target_out_of_range',{source=source,range=range})
+        end
+        local probe_typ=typ or {type=shape,radius=radius,range=range,direct_hit=entry.direct_hit,
             selffire=entry.selffire,friendlyfire=entry.friendlyfire,talent=talent}
         if type(p.canProject)=='function' then
-            local ok,can=pcall(p.canProject,p,typ,target.x,target.y)
-            if not ok or can==nil then return verdict('canproject_unknown')
-            elseif can==false then return verdict('no_line_of_sight') end
+            local ok,can=pcall(p.canProject,p,probe_typ,target.x,target.y)
+            if not ok or can==nil then return verdict('canproject_unknown',{source=source}) end
+            if can==false then return verdict('no_line_of_sight',{source=source}) end
         else
             return verdict('canproject_unavailable')
         end
-        local selfRisk=Details.selffire(typ)
-        if selfRisk==true then return verdict('selffire_risk') end
-        if selfRisk=='unknown'
-            and (entry.shape=='ball' or entry.shape=='cone' or entry.shape=='wide') then
-            return verdict('selffire_risk')
+        -- Self risk = geometric containment AND both projection filters positive;
+        -- a player projectile additionally needs the explicit self-hit override.
+        local selfIn=Details.footprintContainsOrigin(p,shape,radius,range,target.x,target.y)
+        local selfRisk
+        if selfIn==false then selfRisk=0
+        elseif selfIn=='unknown' then selfRisk='unknown'
+        else
+            if selffire==false or selffire==0 or friendlyfire==false or friendlyfire==0 then selfRisk=0
+            elseif selffire=='unknown' or friendlyfire=='unknown' then selfRisk='unknown'
+            else selfRisk=1 end
+            if selfRisk~=0 and entry.delivery=='projectile'
+                and not Details.playerSelfOverride(p,probe_typ) then selfRisk=0 end
         end
-        -- Friendly-fire is only possible for a line/area footprint; a single
-        -- target hit lands on the hostile target itself.
-        if entry.shape=='beam' or entry.shape=='ball' or entry.shape=='cone' or entry.shape=='wide' then
-            local _,count=Details.friendliesInEffect(g,p,target.x,target.y,entry.shape,entry.radius,entry.range,
+        if selfRisk~=0 then
+            return verdict('selffire_risk',{phase='instant',source=source,shape=shape,
+                selffire=selffire,friendlyfire=friendlyfire})
+        end
+        -- Friendly risk = any visible friendly/neutral in the instantaneous
+        -- footprint when the friendly-fire filter is positive.
+        if friendlyfire=='unknown' then
+            return verdict('selffire_risk',{phase='instant',source=source,friendlyfire='unknown'})
+        end
+        if friendlyfire~=false and friendlyfire~=0 then
+            local _,count=Details.friendliesInEffect(g,p,target.x,target.y,shape,radius,range,
                 function(_,actor) return Observer.visible(g,actor) end)
-            if count and count>0 then return verdict('selffire_risk',{friendly_fire=count}) end
+            if count and count>0 then
+                return verdict('selffire_risk',{friendly_fire=count,phase='instant',source=source})
+            end
+        end
+        -- Secondary component (for example Sun Ray's TL3+ radius-2 blindness
+        -- ball): positive self risk rejects; a positive friendly filter is only
+        -- a risk when a friendly is actually in the component footprint.
+        if entry.secondary then
+            local active=componentActive(p,talent,entry.secondary)
+            if active~=false then
+                local sf=entry.secondary.selffire
+                local ff=entry.secondary.friendlyfire
+                if sf~=false and sf~=0 then
+                    return verdict('selffire_risk',{phase='secondary',selffire=sf})
+                end
+                if ff~=false and ff~=0 then
+                    local _,count=Details.friendliesInEffect(g,p,target.x,target.y,
+                        entry.secondary.shape or 'ball',entry.secondary.radius,nil,
+                        function(_,actor) return Observer.visible(g,actor) end)
+                    if count and count>0 then
+                        return verdict('selffire_risk',{friendly_fire=count,phase='secondary'})
+                    end
+                end
+            end
+        end
+        -- Ground component: a persistent zone with positive/unknown self or
+        -- friendly probability is future risk even when currently empty.
+        if entry.ground then
+            local active=componentActive(p,talent,entry.ground)
+            if active~=false then
+                local gsf=entry.ground.selffire
+                local gff=entry.ground.friendlyfire
+                if gsf~=false and gsf~=0 then
+                    return verdict('selffire_risk',{phase='ground',component='ground',selffire=gsf,source=source})
+                end
+                if gff~=false and gff~=0 then
+                    return verdict('selffire_risk',{phase='ground',component='ground',friendlyfire=gff,source=source})
+                end
+            end
         end
         return nil
     end

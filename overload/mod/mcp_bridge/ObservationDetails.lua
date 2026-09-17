@@ -5,41 +5,48 @@ local Distance = require 'mod.mcp_bridge.Distance'
 local M = {}
 function M.finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 function M.number(n) return M.finite(n) and n or nil end
--- Self-inclusion for a target spec. Only an explicit selffire is authoritative.
--- A missing value is never treated as "area shapes self-hit": shapes that
--- cannot contain their own origin (beam/hit/bolt/arrow) are false, everything
--- else stays unknown (Searing Light targets a ball cursor but deals a hit with
--- a friendly ground zone, so it has no self-damage).
+-- Normalized engine value of the projection self-friend filter. `Target:getType`
+-- fills absent fields (`selffire=true`, `friendlyfire=true`) and its cone transform
+-- forces `selffire=false`; an explicit boolean or number is authoritative. This
+-- is the engine field value, not a footprint claim: combine it with the geometric
+-- footprint (M.footprintContainsOrigin) to get real self risk.
 function M.selffire(typ)
     if type(typ)~='table' then return 'unknown' end
-    if type(typ.selffire)=='boolean' then return typ.selffire end
-    if typ.selffire~=nil then return 'unknown' end
-    -- Only a shape that cannot include its own origin is safe to report false.
-    -- A missing area-shape selffire stays unknown: the target cursor may allow
-    -- self placement, but the actual damage can be a single-target hit with a
-    -- friendly ground zone (Searing Light) or a self-hitting ball.
-    local shape=typ.type
-    if shape=='beam' or shape=='hit' or shape=='bolt' or shape=='arrow' then return false end
-    return 'unknown'
+    local value=typ.selffire
+    if type(value)=='boolean' then return value end
+    if type(value)=='number' and M.finite(value) then return value end
+    if value~=nil then return 'unknown' end
+    if typ.type=='cone' then return false end
+    return true
 end
--- Static damage footprint: a direct hit is single-target, a beam is a line,
--- and an area shape covers a region. A stored residual radius (an on-ground
--- remainder such as Searing Light's light zone) is reported separately.
+-- Static damage footprint. Only the shape decides scope; `direct_hit` is not a
+-- scope truth (a direct hit can still carry an area) and is kept as a hint.
+-- `bolt` is a projectile single target; `widebeam` is a widened line.
 function M.damageScope(shape,direct_hit,residual_radius)
     local residual=M.number(residual_radius)
-    -- Only the static shape is a reliable damage footprint. direct_hit does not
-    -- imply single-target (Searing Light is direct_hit but a self-hitting ball).
-    if shape=='beam' then return 'line',residual end
+    if shape=='beam' or shape=='widebeam' then return 'line',residual end
     if shape=='ball' or shape=='cone' or shape=='wide' then return 'area',residual end
-    if shape=='hit' then return 'single',residual end
+    if shape=='hit' or shape=='bolt' or shape=='arrow' then return 'single',residual end
     return 'unknown',residual
 end
--- Whether a talent can hit its own side. Explicit native values win; a dynamic
--- target function or a missing value stays unknown (never inferred).
+-- Normalized engine value of the projection friendly-fire filter. Missing
+-- fields default to true; `Target:getType` only changes `selffire` for a cone.
 function M.friendlyfire(typ)
     if type(typ)~='table' then return 'unknown' end
-    if type(typ.friendlyfire)=='boolean' then return typ.friendlyfire end
-    return 'unknown'
+    local value=typ.friendlyfire
+    if type(value)=='boolean' then return value end
+    if type(value)=='number' and M.finite(value) then return value end
+    if value~=nil then return 'unknown' end
+    return true
+end
+-- A player projectile only self-hits when it opts in through `player_selffire` or
+-- the player's `allow_player_selffire`. Immediate projections and ground effects
+-- never consult this override.
+function M.playerSelfOverride(player,typ)
+    if type(typ)=='table' and typ.player_selffire~=nil then
+        return typ.player_selffire==true
+    end
+    return player~=nil and player.allow_player_selffire==true
 end
 local function onSegment(ox,oy,ex,ey,ax,ay)
     -- Integer-grid collinearity plus bounding box; a warning, not a projectile.
@@ -56,6 +63,31 @@ local function rayEnd(ox,oy,tx,ty,range)
     local f=range/steps
     return math.floor(ox+dx*f+0.5),math.floor(oy+dy*f+0.5)
 end
+-- Warning-quality distance from a unit to a beam/widebeam segment.
+local function pointSegmentDistance(px,py,ax,ay,bx,by)
+    local dx,dy=bx-ax,by-ay
+    if dx==0 and dy==0 then return Distance.grid(px,py,ax,ay) end
+    local t=((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy)
+    if t<0 then t=0 elseif t>1 then t=1 end
+    return Distance.grid(px,py,ax+dx*t,ay+dy*t)
+end
+-- Geometric self-placement of a shape relative to the source, independent of the
+-- projection filters (M.selffire/M.friendlyfire). A beam starts after the origin;
+-- a widebeam draws a radius around each path cell so radius>=1 can include the
+-- origin; bolt/hit land on the selected cell only; a ball covers a radius around
+-- it. Warning-quality geometry: exact hex/wide-line parity is the v2 manifest.
+function M.footprintContainsOrigin(origin,shape,radius,range,tx,ty)
+    if type(origin)~='table' or not (M.finite(origin.x) and M.finite(origin.y)) then return 'unknown' end
+    if not (M.finite(tx) and M.finite(ty)) then return 'unknown' end
+    if shape=='hit' or shape=='bolt' or shape=='arrow' or shape=='self' then
+        return origin.x==tx and origin.y==ty
+    end
+    if shape=='beam' then return false end
+    if shape=='widebeam' then return (M.number(radius) or 0)>=1 end
+    if shape=='ball' then return Distance.grid(origin.x,origin.y,tx,ty)<=(M.number(radius) or 0) end
+    if shape=='cone' then return M.number(radius)~=nil end
+    return 'unknown'
+end
 local function friendlyOf(origin,actor)
     local reaction=M.number(actor.reaction)
     if reaction~=nil then return reaction>=0 end
@@ -69,19 +101,24 @@ function M.friendliesInEffect(g,origin,tx,ty,shape,radius,range,visible)
     if type(visible)~='function' or not (g and g.level and origin) then return out,count end
     if not (M.finite(tx) and M.finite(ty) and M.finite(origin.x) and M.finite(origin.y)) then return out,count end
     local ex,ey=tx,ty
-    if shape=='beam' then ex,ey=rayEnd(origin.x,origin.y,tx,ty,range) end
+    if shape=='beam' or shape=='bolt' or shape=='widebeam' then ex,ey=rayEnd(origin.x,origin.y,tx,ty,range) end
     for _,actor in pairs(g.level.entities or {}) do
         if actor~=origin and type(actor)=='table' and actor.__is_actor and visible(g,actor)
             and M.finite(actor.x) and M.finite(actor.y) and friendlyOf(origin,actor) then
             local hit=false
-            if shape=='beam' then
+            if shape=='beam' or shape=='bolt' then
                 hit=onSegment(origin.x,origin.y,ex,ey,actor.x,actor.y)
+                if hit and type(range)=='number' then
+                    hit=Distance.grid(origin.x,origin.y,actor.x,actor.y)<=range
+                end
+            elseif shape=='widebeam' then
+                hit=pointSegmentDistance(actor.x,actor.y,origin.x,origin.y,ex,ey)<=(radius or 0)
                 if hit and type(range)=='number' then
                     hit=Distance.grid(origin.x,origin.y,actor.x,actor.y)<=range
                 end
             elseif shape=='ball' or shape=='cone' or shape=='wide' then
                 hit=Distance.grid(tx,ty,actor.x,actor.y)<=(radius or 0)
-            elseif shape=='hit' or shape=='bolt' or shape=='arrow' or shape==nil or shape=='unknown' then
+            elseif shape=='hit' or shape=='arrow' or shape==nil or shape=='unknown' then
                 hit=actor.x==tx and actor.y==ty
             end
             if hit then

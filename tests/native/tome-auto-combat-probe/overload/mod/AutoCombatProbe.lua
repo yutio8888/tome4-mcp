@@ -52,6 +52,7 @@ M.EXPECTED={
     ['computed-predicate']={'act','false_holds','enum_rejected'},
     ['production-reads']={'has_control','scalar_resource','guard_wired'},
     ['pilot-presets']={'ok','ok','ok','cast'},
+    ['guard-real-spec']={'self_reject','builder_safe','grasp_safe'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['solo-pump']={},
 }
@@ -560,6 +561,45 @@ local function pilotPresets()
     return compare('pilot-presets',signals)
 end
 
+-- 13 (round 5): the guard reads the real target builder. The catalog still
+-- advises a widebeam for Flame, but a temporary builder override must drive the
+-- verdict (and Blood Grasp's real builder must classify as safe).
+local function guardRealSpec()
+    local p=game.player
+    if not p:knowTalent('T_FLAME') then p:learnTalent('T_FLAME',true) end
+    if not p:knowTalent('T_BLOOD_GRASP') then p:learnTalent('T_BLOOD_GRASP',true) end
+    local pol=policy({WAIT})
+    local host=Runtime.buildAutoCombatHostFor(game,pol)
+    local ctx=host and host.snapshot('nearest_hostile')
+    local bound=ctx and ctx.bound_target
+    local def=p.talents_def and p.talents_def.T_FLAME
+    if not bound or not (def and type(def.target)=='function') then
+        check('guard-real-spec:setup',false,{bound=bound,has_builder=def~=nil})
+        return compare('guard-real-spec',{'no_setup','no_setup','no_setup'})
+    end
+    local entry=Catalog.entry('T_FLAME')
+    check('guard-real-spec:catalog',entry.shape=='widebeam','the catalog still advises a widebeam')
+    local original=def.target
+    local signals={}
+    -- A builder-provided self-hitting ball must reject with the builder as the
+    -- source, even though the catalog would not flag it as a self-hit.
+    def.target=function() return {type='ball',range=100,radius=10,selffire=true,friendlyfire=true} end
+    local selfhit=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
+    check('guard-real-spec:self',selfhit and selfhit.reason=='selffire_risk'
+        and selfhit.detail and selfhit.detail.source=='builder' and selfhit.detail.phase=='instant',selfhit)
+    signals[#signals+1]=(selfhit and selfhit.reason=='selffire_risk') and 'self_reject' or 'self_pass'
+    def.target=function() return {type='ball',range=100,radius=1,selffire=false,friendlyfire=false} end
+    local safe=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
+    check('guard-real-spec:safe',safe==nil,safe)
+    signals[#signals+1]=safe==nil and 'builder_safe' or 'still_risky'
+    def.target=original
+    -- Blood Grasp's real builder is a bolt with explicit SF 0 / FF 0.
+    local grasp=host.guard({action='use_talent',talent='T_BLOOD_GRASP',bound_target=bound})
+    check('guard-real-spec:grasp',grasp==nil,grasp)
+    signals[#signals+1]=grasp==nil and 'grasp_safe' or 'grasp_risky'
+    return compare('guard-real-spec',signals)
+end
+
 local function runAll()
     local ok,err=pcall(function()
         startWhenReady()
@@ -574,6 +614,7 @@ local function runAll()
         computedPredicate()
         productionReads()
         pilotPresets()
+        guardRealSpec()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok
