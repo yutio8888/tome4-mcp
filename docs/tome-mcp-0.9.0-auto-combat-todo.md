@@ -257,3 +257,10 @@ Validation: `validation/2026-09-17-auto-combat-playtest-3/summary.json`.
     stop (`hold` with a visible enemy). Round 3 recorded it as *unexpected* per the
     pre-declared metric and fixed the observed cause (44); future metrics should
     either declare it or keep treating every occurrence as a defect trend.
+
+Round-3 close-out: the P0 (43) and P1 (44) fixes are **merged in `main` at
+`9f158f8`** (PR #9, packaged `dist` sha256
+`6eaf42e8ad78c7f88da57414ced52dbc0e9d56cac623e266c36672dc47a47ae9`). The fixed
+build was soaked in-game (`diag-fix-01`): `recover` waits advanced the tick
+(170→180→190→200), `max_consecutive_settling=0`, no `no_available_action`. The
+P2 (45) and P3 (46) items remain open/deferred as written above.

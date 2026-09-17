@@ -112,7 +112,7 @@
   ],
   "fix_build": {
     "branch": "fix/auto-combat-wait-tick",
-    "pr": "#9 (https://github.com/yutio8888/tome4-mcp/pull/9)",
+    "pr": "#9 (https://github.com/yutio8888/tome4-mcp/pull/9), merged into main at 9f158f8",
     "dist_sha256": "6eaf42e8ad78c7f88da57414ced52dbc0e9d56cac623e266c36672dc47a47ae9",
     "preset_hash": "b5c357564461941420b2214817df624d"
   },
@@ -130,12 +130,20 @@
       "session": "diag-fix-01",
       "display": ":140",
       "dist_sha256": "6eaf42e8ad78c7f88da57414ced52dbc0e9d56cac623e266c36672dc47a47ae9",
+      "soak_window_s": 200,
+      "soak_max_consecutive_settling": 0,
+      "settling_freeze": false,
+      "no_available_action_count": 0,
       "recover_acted_ticks": [180, 190],
-      "ray_acted_tick": 200,
-      "max_consecutive_settling": 0,
-      "no_available_action": 0
+      "ray_acted_ticks": [170, 200],
+      "final_phase": "ready",
+      "final_tick": 210,
+      "stopped_histogram": {"no_visible_enemies": 84},
+      "acted_histogram": {"ray": 2, "recover": 2, "sustain:T_HYMN_OF_SHADOWS": 1},
+      "acted_native_result": {"ok": 5}
     }
   },
+  "soak_conclusion": "The fixed build ran recover/wait back-to-back with the world tick advancing through each (170->180->190->200). No settling freeze and no no_available_action over the 200 s soak; the pre-fix build froze at the first recover and produced 6 no_available_action stops.",
   "raw_artifacts": {
     "tmp/tome-mcp-validation/sessions/agent-ham-insane-33/play-mcp.jsonl": "f8687f1ce1acbc4d165eb23af54cf325cad9ace858e72e28f5c36c16fda2b829",
     "tmp/tome-mcp-validation/sessions/agent-ham-insane-33/game.log": "d10d157d6a69c37c2d3a04d39f7112830a8e26adcf6e9daa19e28165fef28f3d",
@@ -146,6 +154,8 @@
     "tmp/mcp-play-support/full-log33.json": "79d8ec03c759cfd656edf1e5a2346e098c12e6cba45c8bef0109a175b6988ec0",
     "tmp/mcp-play-support/settle-evidence.json": "55787422c5945f3e828d09eb755593f9ead19f847eb28d818132b08798874117",
     "tmp/tome-mcp-validation/sessions/diag-fix-01/game.log": "5623e70566b5bcca4e9f59be3cbbaf8d7056701eda11a6e1d16ff0fdf6318775",
-    "tmp/mcp-play-support/diag-fix-01.log": "9cdaaf088a91105e55d2e1e8586d82e6a3bb647f8d147bc83f6a2ea9696eefe1"
+    "tmp/mcp-play-support/diag-fix-01.log": "9cdaaf088a91105e55d2e1e8586d82e6a3bb647f8d147bc83f6a2ea9696eefe1",
+    "tmp/mcp-play-support/diag-fix-01-soak.json": "47ece65a80874c59d74118960ddec6aa433af4169971ce6a5c18a4c0fc74b869",
+    "tmp/mcp-play-support/diag-fix-01-policylog.json": "ae727a3c69e9bcfd1d9a83b5ff62131cb79ddbae01c2a637a106e05e536896c2"
   }
 }

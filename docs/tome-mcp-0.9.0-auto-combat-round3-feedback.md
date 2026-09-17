@@ -117,28 +117,39 @@ have enough Negative energy to use Moonlight Ray.`
 - `observe.auto_combat` sometimes `null` after the run stops / after death.
 - `auto stop` writes no log event (run boundaries are lost).
 
-## 4. Current step and ETA
+## 4. Fix confirmation and soak (final)
 
 - In-game fix confirmation **done** on `diag-fix-01` (display `:140`, fixed dist
-  `6eaf42e8…`): the production pump ran three `recover`/wait opportunities in a row
-  and the world tick advanced through each one (`recover` tick 180 → `recover` tick
-  190 → `ray` tick 200, all `native_result=ok`). A 200 s soak showed
-  `max_consecutive_settling = 0` and no `no_available_action`; the earlier build
-  froze at the first `recover`. The session is left running (no process stopped).
-- Remaining: commit the branch, push and open the PR; write the validation
-  summary; update `docs/tome-mcp-0.9.0-auto-combat-todo.md` with the P2/P3 items.
+  `6eaf42e8…`): the production pump ran `recover`/wait back-to-back and the world
+  tick advanced through each one (`ray` tick 170 → `recover` tick 180 → `recover`
+  tick 190 → `ray` tick 200, all `native_result=ok`).
+- Final soak: 200 s of continuous sampling with the new preset,
+  **`max_consecutive_settling = 0`**, **0 `settling` freezes**, **0
+  `no_available_action`**; final state `phase=ready`, `tick=210`, level 1, hp 94.
+  Policy-log histogram over the soak: stopped `no_visible_enemies` 84 (normal
+  per-encounter contract; most from the operator's restart loop), no pauses, no
+  denials; acted `ray` 2 / `recover` 2 / `sustain:T_HYMN_OF_SHADOWS` 1, all
+  `native_result=ok`.
+- The pre-fix build froze at the first `recover` and produced 6
+  `no_available_action` stops; neither reproduced after the fix.
 
-In-game confirmation evidence (`tmp/tome-mcp-validation/sessions/diag-fix-01/`):
+Raw soak evidence:
 ```json
-{"seq":3,"kind":"acted","rule":"recover","talent":null,"native_result":"ok","tick":180,"generation":1}
-{"seq":4,"kind":"acted","rule":"recover","talent":null,"native_result":"ok","tick":190,"generation":1}
-{"seq":5,"kind":"acted","rule":"ray","talent":"T_MOONLIGHT_RAY","native_result":"ok","tick":200,"generation":1}
+{"policy_log_total":89,
+ "histogram":{"paused":{},"stopped":{"no_visible_enemies":84},"denied":{},
+   "acted":{"ray":2,"recover":2,"sustain:T_HYMN_OF_SHADOWS":1}},
+ "acted_native_result":{"ok":5},"recover_acted_ticks":[180,190],
+ "ray_acted_ticks":[170,200],"settling_freeze":false,
+ "no_available_action_count":0,"soak_max_consecutive_settling":0,
+ "final_phase":"ready","final_tick":210}
 ```
 
 | Artifact | sha256 |
 | --- | --- |
 | `tmp/tome-mcp-validation/sessions/diag-fix-01/game.log` | `5623e70566b5bcca4e9f59be3cbbaf8d7056701eda11a6e1d16ff0fdf6318775` |
 | `tmp/mcp-play-support/diag-fix-01.log` | `9cdaaf088a91105e55d2e1e8586d82e6a3bb647f8d147bc83f6a2ea9696eefe1` |
+| `tmp/mcp-play-support/diag-fix-01-soak.json` | `47ece65a80874c59d74118960ddec6aa433af4169971ce6a5c18a4c0fc74b869` |
+| `tmp/mcp-play-support/diag-fix-01-policylog.json` | `ae727a3c69e9bcfd1d9a83b5ff62131cb79ddbae01c2a637a106e05e536896c2` |
 
 ## 5. Evidence paths and sha256 (raw stays under `tmp/`)
 
@@ -154,7 +165,7 @@ In-game confirmation evidence (`tmp/tome-mcp-validation/sessions/diag-fix-01/`):
 | `tmp/mcp-play-support/settle-evidence.json` | `55787422c5945f3e828d09eb755593f9ead19f847eb28d818132b08798874117` |
 
 Build artifacts:
-- branch `fix/auto-combat-wait-tick`, PR #9 (`https://github.com/yutio8888/tome4-mcp/pull/9`)
+- branch `fix/auto-combat-wait-tick`, PR #9 (`https://github.com/yutio8888/tome4-mcp/pull/9`) — **merged by the operator into `main` at `9f158f8`**
 - fixed packaged `dist/tome-mcp-bridge.teaa` sha256
   `6eaf42e8ad78c7f88da57414ced52dbc0e9d56cac623e266c36672dc47a47ae9`
 - native auto-combat probe 36/36 (source + dist); native acceptance suite 100/100
