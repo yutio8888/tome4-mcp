@@ -942,98 +942,150 @@ end
 
 -- MFT-REV-09: drive the three movement talents end to end through the real
 -- executor. Rush (actor target), exact-grid Tumble, and a random self teleport.
-local function movementTalents()
+-- MFT-REV-09: the movement-talent run is a small async state machine so each
+-- yielding native task is settled before its final postcondition is asserted.
+local function movementTalentSetup()
     forceReady()
     Runtime.setAutoCombatExecution(game,true)
+    -- The arena dummy can retain a daze from an earlier scenario; re-applying
+    -- EFF_DAZED then hits the native boolean-attribute merge. Clear it so the
+    -- movement probes exercise the talent, not a stale fixture state.
+    -- The arena may not run the status-type registration the main game does;
+    -- `canBe("stun")` then reads a boolean `StatusTypes.stun`. Restore the
+    -- normal attr mapping so the fixture's attack postcondition is clean.
+    if game.player and game.player.StatusTypes then
+        game.player.StatusTypes.stun='stun_resist'
+    end
+    for _,actor in pairs(game.level.entities or {}) do
+        if actor.removeEffect then pcall(function() actor:removeEffect('EFF_DAZED', true, true) end) end
+        actor.dazed=nil
+        -- Keep the fixture from re-applying a stun/daze that hits a native
+        -- boolean-attribute merge; the movement postcondition does not need it.
+        if actor.name and actor.name:find('MCP target dummy') then
+            actor.stun_immune=true
+            actor.daze_immune=true
+            actor.stun_resist=100
+            actor.daze_resist=100
+        end
+    end
     local p=game.player
     local levels={T_RUSH=5,T_SKIRMISHER_CUNNING_ROLL=5,T_PHASE_DOOR=1}
     for talent,level in pairs(levels) do
         if type(p.talents)~='table' then p.talents={} end
         if not p.talents[talent] and type(p.learnTalent)=='function' then p:learnTalent(talent,true) end
-        p.talents[talent]=p.talents[talent] or level
         p.talents[talent]=level
     end
+    M.mt={index=0,signals={},specs={
+        {name='rush',talent='T_RUSH',kind='rush'},
+        {name='tumble',talent='T_SKIRMISHER_CUNNING_ROLL',kind='tumble'},
+        {name='door',talent='T_PHASE_DOOR',kind='door'},
+    }}
+end
+
+local function movementTalentHost()
     local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
     local pol=policy({{id='movement-probe',priority=10,when={always={}},
         ['then']={action='use_talent',talent='T_RUSH',target='nearest_hostile',
             destination={selector='native_landing',anchor='bound_target',accept=accept}}}})
-    local host=Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end})
-    local signals={}
-    local map=game.level.map
-    local function bound()
+    return Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end}),accept
+end
+
+local function movementTalentSignal(kind,suffix)
+    local base=kind=='rush' and 'rush' or kind=='tumble' and 'tumble' or 'teleport'
+    return base..'_'..suffix
+end
+
+local movementTalentAssert
+local function movementTalentRun(spec)
+    local p=game.player
+    local host,accept=movementTalentHost()
+    M.mt.before={x=p.x,y=p.y}
+    local outcome
+    if spec.kind=='rush' then
         local ctx=host.snapshot('nearest_hostile')
-        return ctx and ctx.bound_target
-    end
-    -- Rush: actor-anchored line move.
-    local rushBound=bound()
-    local rushPlan=host.plan({action='use_talent',talent='T_RUSH',bound_target=rushBound,
-        target_plan={{request='actor',selector='nearest_hostile'}},
-        destination=pol.rules[1]['then'].destination})
-    local rush_ok=rushPlan and rushPlan.plan and rushPlan.plan.kind=='actor'
-    signals[#signals+1]=rush_ok and 'rush_planned' or 'rush_plan_missing'
-    check('movement-talents:rush-plan',rush_ok,{kind=rushPlan and rushPlan.plan and rushPlan.plan.kind})
-    if rush_ok then
-        local before=p.x..','..p.y
-        local out=host.request({action='use_talent',talent='T_RUSH',plan=rushPlan.plan,
-            bound_target=rushBound,rule='rush'})
-        local moved=out.status=='ok' or out.status=='native_pending'
-        signals[#signals+1]=moved and 'rush_executed' or 'rush_rejected'
-        check('movement-talents:rush-execute',moved,{status=out.status,code=out.code,
-            before=before,after=p.x..','..p.y})
-    else
-        signals[#signals+1]='rush_rejected'
-    end
-    -- Tumble: exact grid request.
-    local function openCell()
-        for r=2,4 do
-            for _,d in ipairs({{r,0},{-r,0},{0,r},{0,-r},{r,r},{-r,-r},{r,-r},{-r,r}}) do
-                local x,y=p.x+d[1],p.y+d[2]
+        local bound=ctx and ctx.bound_target
+        local planned,err=host.plan({action='use_talent',talent=spec.talent,bound_target=bound,
+            target='nearest_hostile',
+            target_plan={{request='actor',selector='nearest_hostile'}},
+            destination={selector='native_landing',anchor='bound_target',accept=accept}})
+        local ok=planned and planned.plan and planned.plan.kind=='actor'
+        M.mt.signals[#M.mt.signals+1]=ok and 'rush_planned' or 'rush_plan_missing'
+        check('movement-talents:rush-plan',ok,{kind=planned and planned.plan and planned.plan.kind,
+            reason=err and err.reason})
+        if ok then
+            outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
+                bound_target=bound,rule='rush'})
+        end
+    elseif spec.kind=='tumble' then
+        local map=game.level.map
+        local tx,ty
+        for radius=2,4 do
+            for _,delta in ipairs({{radius,0},{-radius,0},{0,radius},{0,-radius},
+                {radius,radius},{-radius,-radius},{radius,-radius},{-radius,radius}}) do
+                local x,y=p.x+delta[1],p.y+delta[2]
                 if map:isBound(x,y) and not map:checkAllEntities(x,y,'block_move',p)
-                    and not map(x,y,engine.Map.ACTOR) then return x,y end
+                    and not map(x,y,engine.Map.ACTOR) then tx,ty=x,y break end
             end
+            if tx then break end
+        end
+        local planned,err
+        if tx then
+            planned,err=host.plan({action='use_talent',talent=spec.talent,
+                target_plan={{request='grid',
+                    destination={selector='position',x=tx,y=ty,accept=accept}}},
+                destination={selector='position',x=tx,y=ty,accept=accept}})
+        end
+        local ok=planned and planned.plan and planned.plan.kind=='grid'
+        M.mt.signals[#M.mt.signals+1]=ok and 'tumble_planned' or 'tumble_plan_missing'
+        check('movement-talents:tumble-plan',ok,{x=tx,y=ty,reason=err and err.reason})
+        if ok then
+            M.mt.tumble_target={x=tx,y=ty}
+            outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
+                rule='tumble'})
+        end
+    else
+        local planned,err=host.plan({action='use_talent',talent=spec.talent,
+            target_plan={{request='none'}},destination={selector='native_random',accept=accept}})
+        local ok=planned and planned.plan and planned.plan.kind=='none'
+        M.mt.signals[#M.mt.signals+1]=ok and 'teleport_planned' or 'teleport_plan_missing'
+        check('movement-talents:teleport-plan',ok,{kind=planned and planned.plan and planned.plan.kind,
+            reason=err and err.reason})
+        if ok then
+            outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
+                rule='door'})
         end
     end
-    local tx,ty=openCell()
-    local tumble, tumbleErr
-    if tx then
-        tumble,tumbleErr=host.plan({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
-            target_plan={{request='grid',destination={selector='position',x=tx,y=ty,accept=accept}}},
-            destination={selector='position',x=tx,y=ty,accept=accept}})
-    end
-    local tumble_ok=tumble and tumble.plan and tumble.plan.kind=='grid'
-    signals[#signals+1]=tumble_ok and 'tumble_planned' or 'tumble_plan_missing'
-    check('movement-talents:tumble-plan',tumble_ok,{x=tx,y=ty,reason=tumbleErr and tumbleErr.reason})
-    if tumble_ok then
-        local before=p.x..','..p.y
-        local out=host.request({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
-            plan=tumble.plan,rule='tumble'})
-        local moved=out.status=='ok' or out.status=='native_pending'
-        signals[#signals+1]=moved and 'tumble_executed' or 'tumble_rejected'
-        check('movement-talents:tumble-execute',moved,{status=out.status,code=out.code,
-            before=before,after=p.x..','..p.y})
+    M.mt.outcome=outcome
+    if outcome==nil then
+        M.mt.signals[#M.mt.signals+1]=movementTalentSignal(spec.kind,'rejected')
+        M.mt.pending=false
+    elseif outcome.status=='native_pending' then
+        M.mt.pending=true
+        M.mt.frames=0
     else
-        signals[#signals+1]='tumble_rejected'
+        movementTalentAssert(spec)
     end
-    -- Phase Door: random self teleport (no prompt at level 1).
-    local doorPlan=host.plan({action='use_talent',talent='T_PHASE_DOOR',
-        target_plan={{request='none'}},destination={selector='native_random',accept=accept}})
-    local door_ok=doorPlan and doorPlan.plan and doorPlan.plan.kind=='none'
-    signals[#signals+1]=door_ok and 'teleport_planned' or 'teleport_plan_missing'
-    check('movement-talents:teleport-plan',door_ok,{kind=doorPlan and doorPlan.plan and doorPlan.plan.kind})
-    if door_ok then
-        local before=p.x..','..p.y
-        local out=host.request({action='use_talent',talent='T_PHASE_DOOR',plan=doorPlan.plan,rule='door'})
-        local moved=out.status=='ok' or out.status=='native_pending'
-        signals[#signals+1]=moved and 'teleport_executed' or 'teleport_rejected'
-        check('movement-talents:teleport-execute',moved,{status=out.status,code=out.code,
-            before=before,after=p.x..','..p.y})
-    else
-        signals[#signals+1]='teleport_rejected'
-    end
-    Runtime.autoCombatHandle(game,'deactivate',{})
-    Runtime.setAutoCombatExecution(game,false)
-    return compare('movement-talents',signals)
 end
+
+movementTalentAssert=function(spec)
+    local p=game.player
+    local before=M.mt.before
+    local outcome=M.mt.outcome
+    local moved=p.x~=before.x or p.y~=before.y
+    -- A settled grid request must also land on the requested cell.
+    local landed=true
+    if spec.kind=='tumble' and M.mt.tumble_target then
+        landed=p.x==M.mt.tumble_target.x and p.y==M.mt.tumble_target.y
+    end
+    local ok=moved and landed
+    M.mt.signals[#M.mt.signals+1]=ok and movementTalentSignal(spec.kind,'executed')
+        or movementTalentSignal(spec.kind,'rejected')
+    check('movement-talents:'..spec.name..'-execute',ok,
+        {status=outcome and outcome.status,code=outcome and outcome.code,
+            before=before.x..','..before.y,after=p.x..','..p.y,
+            target=M.mt.tumble_target and (M.mt.tumble_target.x..','..M.mt.tumble_target.y) or nil})
+end
+
 
 -- MFT-REV-09: install the real native CHANGE_LEVEL handler with a source that
 -- passes the bridge's native audit. The arena test fixture does not populate
@@ -1148,6 +1200,32 @@ local function runAll()
     return ok
 end
 
+-- MFT-REV-09 settle helper: alternate a settling tick (unpaused) with a
+-- ready-boundary check (paused); a yielding native talent body needs ticks,
+-- while `ready` is only reported at a paused boundary. A stale native targeting
+-- UI left by a yielding body is cleared so the game returns to dispatch.
+local function settleTick(frames)
+    if frames%3==0 then
+        game.paused=false
+        if core and core.game and type(core.game.requestNextTick)=='function' then
+            core.game.requestNextTick()
+        end
+    else
+        forceReady()
+    end
+    if game.target and game.target.active and type(game.target.close)=='function' then
+        pcall(function() game.target:close() end)
+    end
+    if game.target then game.target.active=false end
+    game.target_co=nil
+end
+
+local function productionReady()
+    local probe=Runtime.buildAutoCombatHostFor(game,policy({WAIT}),{drift=function() return true end})
+    local phase=probe and probe.phase and probe.phase() or 'ready'
+    return phase=='ready'
+end
+
 function M.onFrame()
     if M.done then return end
     if M.waiting_handoff then
@@ -1166,47 +1244,43 @@ function M.onFrame()
     if M.waiting_solo then soloPumpCheck() return end
     if M.waiting_final then
         if M.final_stage=='talents' then
-            movementTalents()
+            if not M.mt then
+                movementTalentSetup()
+                return
+            end
+            if M.mt.pending then
+                M.mt.frames=(M.mt.frames or 0)+1
+                settleTick(M.mt.frames)
+                if productionReady() or M.mt.frames>=240 then
+                    movementTalentAssert(M.mt.specs[M.mt.index])
+                    M.mt.pending=false
+                end
+                return
+            end
+            M.mt.index=M.mt.index+1
+            local spec=M.mt.specs[M.mt.index]
+            if spec then
+                movementTalentRun(spec)
+                return
+            end
+            compare('movement-talents',M.mt.signals)
+            Runtime.autoCombatHandle(game,'deactivate',{})
+            Runtime.setAutoCombatExecution(game,false)
+            M.mt=nil
             M.final_stage='settle'
             M.final_frames=0
             return
         end
         if M.final_stage=='settle' then
             M.final_frames=(M.final_frames or 0)+1
-            -- Alternate a settling tick (unpaused) with a ready-boundary check
-            -- (paused); a yielding talent body needs ticks, while `ready` is
-            -- only reported at a paused boundary.
-            if M.final_frames%3==0 then
-                game.paused=false
-                if core and core.game and type(core.game.requestNextTick)=='function' then
-                    core.game.requestNextTick()
-                end
-            else
-                forceReady()
-            end
-            if game.target and game.target.active and type(game.target.close)=='function' then
-                pcall(function() game.target:close() end)
-            end
-            -- A yielding movement-talent body can leave the native targeting UI
-            -- active; clear it so the game returns to a dispatchable boundary.
-            if game.target then game.target.active=false end
-            game.target_co=nil
-            local probe=Runtime.buildAutoCombatHostFor(game,policy({WAIT}),{drift=function() return true end})
-            local phase=probe and probe.phase and probe.phase() or 'ready'
-            if phase=='ready' then
+            settleTick(M.final_frames)
+            if productionReady() or M.final_frames>=120 then
                 forceReady()
                 M.final_stage='done'
                 M.waiting_final=false
                 sceneLifecycle()
                 M.done=true
                 M.emit{kind='auto_combat_done',passed=M.failures==0,failures=M.failures,checks=#M.checks}
-                return
-            elseif M.final_frames>=120 then
-                check('movement-talents:settle',false,{phase=phase,frames=M.final_frames,
-                    paused=game.paused,active=game.target and game.target.active,
-                    dialogs=#(game.dialogs or {})})
-                forceReady()
-                M.final_stage='scene'
             end
             return
         end

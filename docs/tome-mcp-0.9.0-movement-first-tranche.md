@@ -59,10 +59,11 @@ occupancy is never inspected.
 
 ### MOV-4 — selffire Q4
 
-`max_selffire_risk` is policy-owned: the same known self/friendly risk is a
-**reject** at `0` and a **pause** above it, with the footprint reported in the
-verdict. There is no unconditional global hard reject. Only an incalculable
-footprint fails closed; built-in presets keep `max_selffire_risk=0`.
+`max_selffire_risk` is policy-owned and numeric: the guard freezes a measured
+self/friendly risk and **permits** a known value at or below the threshold,
+**rejects** a known value above it, and **fails closed** (rejects) only when the
+footprint cannot be computed. The verdict carries the measurement, threshold and
+provenance. Built-in presets keep `max_selffire_risk=0`.
 
 ### MOV-5 — Wave-1 supersession
 
@@ -138,3 +139,35 @@ are fixed; R-1…R-6 stay true.
   real executor, and run a real native `change_level` stair fixture (the
   `mcp-test` arena is now two levels) observing the scene change, stopped state
   and refused resume.
+
+---
+
+## rev 3 — amended re-review fixes (MFT-REV-03/05/07/08/09, MFT-NEW-01)
+
+The amended re-review (`4ba89dc2`) kept 01/02/04/06 PASS and re-opened five
+findings plus one documentation contradiction. All are fixed.
+
+- **Actor `target_plan[].selector` (REV-03).** `EffectManifest.verify` now rejects
+  an actor-step selector that contradicts the action binding
+  (`target_plan_selector_mismatch`); the planner also returns that typed reason
+  defensively instead of silently using the already-bound target.
+- **dry-run/live parity (REV-05).** Dry-run uses a distinct `instant_attempts`
+  counter (guard-rejected candidates no longer charge an instant slot) and pauses
+  on `unsupported_target_plan` exactly as live control does.
+- **PolicyLog movement/risk (REV-07).** `PolicyLog.add` now stores the accepted
+  movement annotation and permitted-risk detail through a depth/key-bounded
+  projection, so `tome.policy_log`/`replay` can reconstruct them.
+- **Variant fail-closed (REV-08).** An `unknown`/unavailable effective talent
+  level for a level-scoped movement variant fails closed
+  (`unsupported_movement_variant`, `unknown=true`). The documented Displacement
+  Shield gap has a structured `UNSUPPORTED` entry.
+- **Native applicability (REV-09).** The probe now settles each native movement
+  task and asserts the final postcondition: Rush reaches its target, Tumble lands
+  on the requested cell, Phase Door changes position, and the real stair fixture
+  observes the scene change/stopped/refused-resume lifecycle. Actor and grid
+  single-target lowering use the engine `force_target` path
+  (`Actions.execute` `force_actor`/`force_grid`), which answers every native
+  target request instead of only the first pre-filled prompt.
+- **Documentation (NEW-01).** The MOV-4 section and the `AutoCombatGuard` header
+  now describe the Q4 numeric comparison (permit within tolerance, reject above,
+  fail closed only for an incalculable footprint).

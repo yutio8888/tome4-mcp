@@ -1,5 +1,40 @@
 # MCP Bridge 验收记录
 
+## 0.9.0：移动/重新定位第一段 rev 3（MFT-REV-03/05/07/08/09 + MFT-NEW-01，待评审）
+
+日期：2026-09-17。分支 `feat/movement-first-tranche`（PR #15），rev 3 在 rev 2 `b705489` 基础上处理改版复核 `4ba89dc2`（保留 01/02/04/06 PASS）的 **3 P1 + 2 P2 + 1 文档 P2**。`allow_auto_combat_execution` 保持 `false`。状态：**ready for review**。原始证据见 `tmp/movement-first-tranche/rev3/`。
+
+| 反馈 | 结果 | 修复与回归证据 |
+| --- | --- | --- |
+| MFT-REV-03 actor selector | **PASS**：`EffectManifest.verify` 拒绝与动作绑定矛盾的 actor step selector（`target_plan_selector_mismatch`）；planner 亦以同一 typed reason 防御性拒绝，不再静默丢弃 | `test_auto_combat_catalog.lua`（不匹配拒绝）、`test_auto_combat_movement.lua`（planner 矛盾） |
+| MFT-REV-05 dry-run 对齐 | **PASS**：dry-run 使用独立 `instant_attempts`（guard 拒绝不占瞬时预算）；`unsupported_target_plan` 分类为 pause，与 live 一致 | `test_auto_combat_service.lua`（瞬时预算对齐 + 多提示 pause） |
+| MFT-REV-07 PolicyLog | **PASS**：`PolicyLog.add` 存储 movement 标注与 risk 细节（有界投影），`tome.policy_log`/`replay` 可重建 | `test_auto_combat_catalog.lua`（存储 + 深度有界）、`test_auto_combat_service.lua`（controller→log/replay 生产路径） |
+| MFT-REV-08 variant fail-closed | **PASS**：level-scoped 变体在 effective level 不可知时 fail closed（`unsupported_movement_variant`, `unknown=true`）；Displacement Shield 补齐结构化 `UNSUPPORTED` | `test_auto_combat_movement.lua`（unknown level）、`test_effect_manifest.lua`（结构化条目） |
+| MFT-REV-09 原生适用性 | **PASS**：探针 settle 并断言最终后置条件——Rush 到达目标、Tumble 落到请求格、Phase Door 位置改变；真实楼梯 fixture 观察 scene/stopped/refused-resume。actor/grid 单一目标下放走引擎 `force_target` 路径（`Actions.execute` 的 `force_actor`/`force_grid`），回答全部原生目标请求 | `test_actions.lua`（force_actor/force_grid 校验）、`probe-source-result.json`/`probe-dist-result.json` |
+| MFT-NEW-01 文档矛盾 | **PASS**：MOV-4 段落与 `AutoCombatGuard` 头注释改为 Q4 数值语义（容忍度内 permit、超出 reject、仅不可计算 footprint fail-closed） | `docs/tome-mcp-0.9.0-movement-first-tranche.md`、`AutoCombatGuard.lua` |
+
+命令与原始证据（`tmp/movement-first-tranche/rev3/`）：
+
+| 命令 | 结果 | 文件 / sha256 |
+| --- | --- | --- |
+| `bash tests/run.sh` | 40 套全绿 | `lua-suite.log` `fc5b31a3d4a6df43370cb9e48c4f352cfb1952c038da64d1b90e9e5d7033a29c` |
+| Python unittest | 39 OK | `python-tests.log` `3187ac53112ab03ff4e385fcef148d6bb1958672bd7ff03ba6216d93ec413811` |
+| 三个 `--check` | 3/3 exit 0 | `generator-checks.log` `2503208f26358c11c18060261b70491e476054b8e2281485592a8142d60e4ab4` |
+| auto-combat 探针 source `rev3-final-src` | **105/105** | `probe-source-result.json` `3eb51759b893e82e85707efcae85cbd5ea97758af2de1f12114fd8f7b382aa1c` |
+| auto-combat 探针 dist `rev3-final-dist` | **105/105** | `probe-dist-result.json` `b14783364c26e79147b8dee12415deba01767f49bf40c72fe17074bc6c66b1b0` |
+| 原生验收 source `rev3-final-accept-src2` | **100/100** | `acceptance-source-result.json` `78b0d9632173ce0d7a5e3c0473386223846dccabaa9ef501b3a66e2f28076fa1` |
+| 原生验收 dist `rev3-final-accept-dist` | **100/100** | `acceptance-dist-result.json` `863b1306d817a0637ccaacc97886be532793a115fabf7f21220c5eba85129eda` |
+
+不变量核对（保持）：单次机会一个原生动作；尝试/瞬发预算；`native_pending` 不重复提交；手动输入收回租约；owner 仲裁；只读 `dry_run`；确定性 tie-break（无 RNG）；原生裁决最终；场景切换 pause/reset 且需显式重启。rev 2 的 MFT-REV-01/02/04/06 与 R-1…R-6 经全套 Lua/Python/两套原生复跑保持 PASS。
+
+正式包 **67 个生产文件**，SHA-256（rev 2 `317213c3282547e1b93fbcf9328abadb07c950e6381a72001588add8b9b1a60a` → rev 3）：
+
+```text
+36d5868724c81ffce84553723c271b44257469f940ff6f7118b880ed6e22f4b4
+```
+
+未修/延期：无。独立复核由 `4ba89dc2` 执行。
+
 ## 0.9.0：移动/重新定位第一段 rev 2（MFT-REV-01 … 09，待评审）
 
 日期：2026-09-17。分支 `feat/movement-first-tranche`（PR #15），rev 2 在 rev 1 `2e5dae2` 基础上修复独立评审 `4ba89dc2` 的 **0 P0 / 6 P1 / 3 P2**。`allow_auto_combat_execution` 保持 `false`。状态：**ready for review**。原始证据见 `tmp/movement-first-tranche/rev2/`。

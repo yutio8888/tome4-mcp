@@ -285,8 +285,16 @@ end
 local function unsupportedVariant(movement,provider,talent)
     if type(movement)~='table' or type(movement.unsupported_variants)~='table' then return nil end
     local level=provider.talentLevel and provider.talentLevel(talent) or nil
+    if type(level)~='number' then
+        -- MFT-REV-08: an unknown/overridden effective-level getter must fail
+        -- closed. The plugin cannot tell whether the unsupported prompt variant
+        -- applies, so it must not submit the no-prompt adapter.
+        local first=movement.unsupported_variants[1]
+        return {unknown=true,at_least=first and first.at_least,
+            scope=first and first.scope,missing=first and first.missing}
+    end
     for _,variant in ipairs(movement.unsupported_variants) do
-        if variant.at_least and type(level)=='number' and level>=variant.at_least then return variant end
+        if variant.at_least and level>=variant.at_least then return variant end
     end
     return nil
 end
@@ -325,6 +333,15 @@ local function planFromTargetPlan(attempt,provider,movement,origin)
         return {kind='self',annotation=annotation}
     end
     if request=='actor' then
+        -- MFT-REV-03: an actor step selector must agree with the action
+        -- binding. A contradiction is execution non-determinability, never
+        -- silently resolved to the already-bound target.
+        local stepSelector=step.selector
+        local actionSelector=attempt.target
+        if stepSelector~=nil and actionSelector~=nil and stepSelector~=actionSelector then
+            return nil,{reason='target_plan_selector_mismatch',talent=attempt.talent,
+                expected=actionSelector,got=stepSelector}
+        end
         local anchor=provider.anchor and provider.anchor('bound_target',attempt.bound_target) or nil
         if not anchor then return nil,{reason='anchor_unavailable',selector='bound_target'} end
         local annotation=nativeLandingAnnotation(movement,anchor)
@@ -365,7 +382,8 @@ function M.plan(attempt,provider,movement)
     local variant=unsupportedVariant(movement,provider,attempt.talent)
     if variant then
         return nil,{reason='unsupported_movement_variant',talent=attempt.talent,
-            scope=variant.scope,missing=variant.missing,at_least=variant.at_least}
+            scope=variant.scope,missing=variant.missing,at_least=variant.at_least,
+            unknown=variant.unknown or nil}
     end
     if type(attempt.target_plan)=='table' then
         if #attempt.target_plan~=1 then

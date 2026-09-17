@@ -280,6 +280,8 @@ M.UNSUPPORTED={
         reason='actor-anchored random teleport plus an attack; adapter not source-reviewed'},
     {talent='T_GIANT_LEAP',scope='any',missing='source_reviewed_movement_adapter',
         reason='requested-grid movement with an alternate landing and radius effect; adapter not source-reviewed'},
+    {talent='T_DISPLACEMENT_SHIELD',scope='any',missing='source_reviewed_effect_adapter',
+        reason='actor-target shield that does not relocate the player; effect adapter not source-reviewed'},
     {talent='*',scope='any',missing='moving_or_swapping_another_actor',
         reason='typed multi-actor destination/effect semantics are not implemented'},
 }
@@ -430,6 +432,14 @@ function M.verify(policy)
                                 errors[#errors+1]={path=path..'.then.target_plan['..step..']',
                                     code='target_plan_mismatch',expected=expected[step],
                                     got=plan[step].request}
+                            elseif expected[step]=='actor' and plan[step].selector~=nil
+                                and selector~=nil and plan[step].selector~=selector then
+                                -- MFT-REV-03: an actor step selector must agree with
+                                -- the action binding; contradictory data is not
+                                -- silently discarded.
+                                errors[#errors+1]={path=path..'.then.target_plan['..step..'].selector',
+                                    code='target_plan_selector_mismatch',
+                                    expected=selector,got=plan[step].selector}
                             end
                         end
                     end

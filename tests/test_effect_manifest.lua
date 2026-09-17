@@ -127,6 +127,25 @@ end
 check(unsupportedFor('T_FLAMESHOCK')==nil and unsupportedFor('T_FIREFLASH')==nil
     and unsupportedFor('T_SHADOW_BLAST')==nil and unsupportedFor('T_STARFALL')==nil,
     'the dynamic talents are no longer unsupported')
+-- MFT-REV-08: every documented movement/effect gap has a structured unsupported
+-- entry (talent, scope, missing capability, reason).
+do
+    local function unsupportedEntry(talent)
+        for _,entry in ipairs(Manifest.UNSUPPORTED) do
+            if entry.talent==talent then return entry end
+        end
+        return nil
+    end
+    for _,talent in ipairs({'T_PHASE_DOOR','T_BLINK_RUNE','T_SKIRMISHER_VAULT',
+        'T_DIMENSIONAL_STEP','T_SHADOWSTEP','T_GIANT_LEAP','T_DISPLACEMENT_SHIELD'}) do
+        local entry=unsupportedEntry(talent)
+        check(entry~=nil and entry.missing and entry.reason and entry.scope,
+            talent..' has a structured unsupported entry')
+    end
+    local shield=unsupportedEntry('T_DISPLACEMENT_SHIELD')
+    check(shield~=nil and shield.missing=='source_reviewed_effect_adapter',
+        'Displacement Shield is listed as an unreviewed effect adapter')
+end
 for _,talent in ipairs({'T_FLAMESHOCK','T_FIREFLASH','T_SHADOW_BLAST','T_STARFALL'}) do
     local entry=Manifest.entry(talent)
     check(entry~=nil,talent..' is re-admitted')

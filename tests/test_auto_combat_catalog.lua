@@ -75,6 +75,28 @@ do
         'log entries carry replay metadata when supplied (design 10)')
     local empty=PolicyLog.tail(log,0)
     check(#empty==0,'an empty tail is empty')
+    -- MFT-REV-07: the stored entry carries the movement annotation and the
+    -- permitted-risk detail (bounded), so tome.policy_log/replay can
+    -- reconstruct them.
+    PolicyLog.add(log,{kind='acted',rule='move-risk',movement={landing={kind='deterministic',x=4,y=4},
+        visible=true,known_passable=true,known_hazard='unknown'},
+        risk={measurement=40,threshold=50,phase='instant',provenance={selffire='explicit'}}})
+    local carried=PolicyLog.tail(log,1)[1]
+    check(carried.movement and carried.movement.landing.kind=='deterministic'
+        and carried.movement.known_passable==true,
+        'PolicyLog stores the accepted movement annotation')
+    check(carried.risk and carried.risk.measurement==40 and carried.risk.threshold==50
+        and carried.risk.provenance and carried.risk.provenance.selffire=='explicit',
+        'PolicyLog stores the permitted-risk detail (MFT-REV-07)')
+    -- A hostile deep/wide table cannot grow the entry unbounded.
+    local deep={}
+    local cursor=deep
+    for _=1,12 do cursor.next={};cursor=cursor.next end
+    PolicyLog.add(log,{kind='acted',rule='deep',movement=deep})
+    local boundedEntry=PolicyLog.tail(log,1)[1]
+    local depth,node=0,boundedEntry.movement
+    while type(node)=='table' and node.next do depth=depth+1;node=node.next end
+    check(depth<=4,'the movement detail projection is depth-bounded')
 end
 
 -- P1b native-activity action adapters --------------------------------------
@@ -101,6 +123,19 @@ do
         talent='T_RUSH',target='nearest_hostile',
         destination={selector='native_landing',anchor='bound_target',accept=accept}}})
     check(Catalog.verify(rush),'an actor-anchored Rush rule is semantically compatible')
+    -- MFT-REV-03: an actor target_plan step selector must agree with the action
+    -- binding; a contradiction is rejected instead of silently resolved.
+    local mismatch=policy({id='rush',priority=1,when={always={}},['then']={action='use_talent',
+        talent='T_RUSH',target='nearest_hostile',
+        target_plan={{request='actor',selector='self'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept}}})
+    local mismatchOk,mismatchErrors=Catalog.verify(mismatch)
+    check(mismatchOk==nil,'a contradictory actor target_plan selector is rejected')
+    local mismatchCode=false
+    for _,error in ipairs(mismatchErrors or {}) do
+        if error.code=='target_plan_selector_mismatch' then mismatchCode=true end
+    end
+    check(mismatchCode,'the contradiction carries target_plan_selector_mismatch')
     local summary=Catalog.summary()
     check(#summary.actions>=6 and summary.adapter_version==Catalog.VERSION,
         'the capability summary lists the action adapters and the adapter version')

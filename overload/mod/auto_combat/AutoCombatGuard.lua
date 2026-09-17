@@ -7,11 +7,13 @@
 --      conservative union);
 --   3. expands the exact footprint of every active component (native backend
 --      when the engine geometry is present, pure model otherwise);
---   4. composes self/friendly risk per delivery path and applies the frozen
---      `max_selffire_risk` policy (0 rejects, >0 pauses; never authorises a
---      percentage).
+--   4. composes self/friendly risk per delivery path, measures the aggregate
+--      and compares it with the policy's `max_selffire_risk`: a known value at
+--      or below tolerance is permitted, above it is rejected, and only an
+--      incalculable footprint fails closed.
 --
--- It returns nil to permit the native executor, or a verdict table
+-- It returns nil (no measurable risk) or `{action='permit',detail=...}` to
+-- permit the native executor, or a verdict table
 -- `{action='reject'|'pause',reason=...,detail=...}`. It never commits an action
 -- and never calls a talent action entrypoint.
 local Manifest=require 'mod.auto_combat.EffectManifest'

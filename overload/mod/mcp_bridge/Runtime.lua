@@ -1073,7 +1073,8 @@ local function autoCombatReads(s,policy)
             }
             local planned,err=MovementPlanner.plan({action=attempt.action,talent=attempt.talent,
                 destination=attempt.destination,target_plan=attempt.target_plan,
-                direction=attempt.direction,bound_target=attempt.bound_target},provider,movement)
+                direction=attempt.direction,target=attempt.target,
+                bound_target=attempt.bound_target},provider,movement)
             if not planned then return nil,err end
             return {plan=planned}
         end,
@@ -1294,12 +1295,19 @@ buildAutoCombatHost=function(s,policy,opts)
             action={type='use_talent',talent_id=attempt.talent}
             if plan and plan.kind=='grid' then
                 action.x,action.y=plan.x,plan.y
+                -- Grid lowering: answer every native target request with the
+                -- requested coordinate (no entity).
+                action.force_grid=true
             elseif plan and (plan.kind=='none' or plan.kind=='self' or plan.kind=='native_random') then
                 -- A no-target request (self/none/random) must not prefill an
                 -- actor the policy did not ask for.
             elseif plan and (plan.kind=='actor' or plan.kind=='native_landing') then
                 if not target then return {status='rejected',code='target_lost',energy_spent=false} end
                 action.target_id=attempt.bound_target
+                -- Single actor-target lowering: answer every native target
+                -- request with the bound actor (the engine force_target path),
+                -- not only the first pre-filled prompt.
+                action.force_actor=true
             elseif target then
                 action.target_id=attempt.bound_target
             end

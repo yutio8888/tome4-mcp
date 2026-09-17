@@ -145,6 +145,10 @@ function M.dryRun(svc,args)
     local maxInstant=(policy.limits and policy.limits.max_instant_per_tick) or 3
     local denied={}
     local attempts=0
+    -- MFT-REV-05(a): the instant cap is a distinct per-opportunity counter that
+    -- advances only after a successful instant action, not the total attempt
+    -- counter. A rejected candidate never consumes an instant slot.
+    local instant_attempts=0
     local trace={}
     local decision={decision='hold',reason='no_rule_matched',results={}}
     local bound_target,target_distance,binding,movement,risk_detail
@@ -164,8 +168,9 @@ function M.dryRun(svc,args)
         end})
         decision=d
         if d.decision~='act' then break end
-        -- The instant cap is a controller rule; mirror it without executing.
-        if (d.action=='use_talent' or d.action=='set_sustain') and attempts>=maxInstant then
+        -- The instant cap is a controller rule; mirror its counter semantics
+        -- (instant_attempts, not attempts) without executing.
+        if (d.action=='use_talent' or d.action=='set_sustain') and instant_attempts>=maxInstant then
             decision={decision='pause',reason='instant_budget_exhausted',rule=d.rule,
                 results=d.results,layer=d.layer}
             loop_paused=true
@@ -198,7 +203,7 @@ function M.dryRun(svc,args)
                 if type(host.plan)=='function' then
                     local planned,planned_err=host.plan({action=d.action,talent=d.talent,
                         destination=d.destination,target_plan=d.target_plan,direction=d.direction,
-                        bound_target=bt})
+                        target=d.target,bound_target=bt})
                     if planned and planned.plan then plan=planned.plan
                     else plan_fail=(planned and planned.reason)
                         or (planned_err and planned_err.reason) or 'destination_unavailable'
@@ -209,6 +214,14 @@ function M.dryRun(svc,args)
                 end
             end
             if plan_fail then
+                if plan_fail=='unsupported_target_plan' then
+                    -- Live control pauses on a multi-prompt plan; dry-run must
+                    -- classify it the same way (MFT-REV-05(b)).
+                    decision={decision='pause',reason=plan_fail,rule=d.rule,
+                        results=d.results,layer=d.layer}
+                    loop_paused=true
+                    break
+                end
                 denied[d.rule]=true
                 trace[#trace+1]={rule=d.rule,reason=plan_fail,annotation=plan_fail_err}
             else

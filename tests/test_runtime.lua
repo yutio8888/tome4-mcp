@@ -668,6 +668,11 @@ do
                     accept={visibility='any',passability='native',hazard='any',landing='allow_random'}}}}}}
     p.x,p.y=2,2;enemy.x,enemy.y=3,2
     g.level.map.map[12][3]=p;g.level.map.map[13][3]=enemy
+    -- Phase Door is level-scoped; a known effective level lets the planner's
+    -- variant check pass (an unknown level now fails closed).
+    p.getTalentLevel=function(self,def) return def and def.probe_level or 1 end
+    p.talents_def=p.talents_def or {}
+    p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',probe_level=1}
     local live2=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
     local bound=live2.snapshot('nearest_hostile').bound_target
     local planned=live2.plan({action='move',destination=pl.rules[1]['then'].destination,bound_target=bound})

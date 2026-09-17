@@ -139,11 +139,24 @@ do
         'native_random without a movement adapter is a capability gap, not a refusal')
     -- MFT-REV-03: an ordered target plan is consumed by request kind.
     local actorPlan=Planner.plan({action='use_talent',talent='T_RUSH',bound_target='a1',
+        target='nearest_hostile',
         target_plan={{request='actor',selector='nearest_hostile'}},
         destination={selector='native_landing',anchor='bound_target',accept=accept()}},
         provider({x=2,y=2},{},{bound_target={x=6,y=2}}),
         {target_requests={'actor'},landing='bounded_alternatives'})
     check(actorPlan and actorPlan.kind=='actor','a single actor target-plan step is consumed')
+    -- An actor step selector that contradicts the action binding is rejected,
+    -- never silently resolved to the already-bound enemy.
+    local contradict,contradictErr=Planner.plan({action='use_talent',talent='T_RUSH',
+        bound_target='a1',target='nearest_hostile',
+        target_plan={{request='actor',selector='self'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept()}},
+        provider({x=2,y=2},{},{bound_target={x=6,y=2}}),
+        {target_requests={'actor'},landing='bounded_alternatives'})
+    check(contradict==nil and contradictErr
+        and contradictErr.reason=='target_plan_selector_mismatch'
+        and contradictErr.expected=='nearest_hostile' and contradictErr.got=='self',
+        'a contradictory actor step selector is rejected (MFT-REV-03)')
     local gridPlan=Planner.plan({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
         target_plan={{request='grid',destination={selector='position',x=4,y=4,accept=accept()}}},
         destination={selector='position',x=4,y=4,accept=accept()}},
@@ -172,6 +185,16 @@ do
     check(variant==nil and variantErr and variantErr.reason=='unsupported_movement_variant'
         and variantErr.missing=='actor_then_grid_target_plan',
         'a level-limited adapter variant is rejected with its typed reason')
+    -- MFT-REV-08: an unknown/overridden effective level fails closed too.
+    local unknownLevel,unknownErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',accept=accept()}},
+        {origin=function() return {x=2,y=2} end,talentLevel=function() return 'unknown' end},
+        {target_requests={'none'},landing='random',
+            unsupported_variants={{at_least=4,scope='effective_talent_level>=4',
+                missing='actor_then_grid_target_plan'}}})
+    check(unknownLevel==nil and unknownErr and unknownErr.reason=='unsupported_movement_variant'
+        and unknownErr.unknown==true,
+        'an unknown effective level fails closed for a level-scoped variant (MFT-REV-08)')
 end
 
 -- 4. Production controller wiring: a plain step reaches the executor ----------
