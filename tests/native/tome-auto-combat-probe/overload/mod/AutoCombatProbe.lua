@@ -972,17 +972,18 @@ local function movementFactoryChecks()
             end
         end
     end
-    -- `phase_door_force_precise` below TL4 forces the grid prompt.
-    p.attr=function(self,name)
-        if name=='phase_door_force_precise' then return true end
-        return base_attr(self,name)
-    end
+    -- `phase_door_force_precise` below TL4 forces the grid prompt. Set the
+    -- attribute value so the real `attr` method stays audited (the helper
+    -- closure now identity-checks `attr`).
+    p.phase_door_force_precise=1
     local precise,preciseErr=host.plan({action='use_talent',talent='T_PHASE_DOOR',
         destination={selector='position',x=p.x+2,y=p.y,accept=accept}})
     local preciseOk=precise and precise.plan and precise.plan.kind=='grid'
         and precise.plan.annotation.landing.kind=='bounded'
+    p.phase_door_force_precise=nil
     signals[#signals+1]=preciseOk and 'precise_grid' or 'precise_missing'
     check('movement-factory:precise-grid',preciseOk,{reason=preciseErr and preciseErr.reason,
+        detail=preciseErr and (preciseErr.detail or preciseErr.dependency),
         kind=precise and precise.plan and precise.plan.kind})
     -- An unknown precise attribute fails closed instead of submitting no-prompt.
     p.attr=function() error('probe: unknown precise attribute') end

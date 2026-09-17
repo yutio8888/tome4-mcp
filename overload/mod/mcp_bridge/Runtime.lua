@@ -984,8 +984,30 @@ local function autoCombatReads(s,policy,opts)
                 'function _M:alterTalentLevelRaw','actor_talents')}},
         getTalentMastery={candidates={helper('/engine/interface/ActorTalents.lua',
             'function _M:getTalentMastery','actor_talents')}},
+        getTalentTypeMastery={candidates={helper('/mod/class/Actor.lua',
+            'function _M:getTalentTypeMastery','actor'),
+            helper('/engine/interface/ActorTalents.lua',
+                'function _M:getTalentTypeMastery','actor_talents')}},
+        getTalentTypeFrom={candidates={helper('/engine/interface/ActorTalents.lua',
+            'function _M:getTalentTypeFrom','actor_talents')}},
         getTalentRange={candidates={helper('/engine/interface/ActorTalents.lua',
             'function _M:getTalentRange','actor_talents')}},
+        knowTalent={candidates={helper('/engine/interface/ActorTalents.lua',
+            'function _M:knowTalent','actor_talents')}},
+        callTalent={candidates={helper('/engine/interface/ActorTalents.lua',
+            'function _M:callTalent','actor_talents')}},
+        getTalentFromId={candidates={helper('/engine/interface/ActorTalents.lua',
+            'function _M:getTalentFromId','actor_talents')}},
+        attr={candidates={helper('/engine/Entity.lua',
+            'function _M:attr','entity')}},
+        getCun={candidates={helper('/engine/interface/ActorStats.lua',
+            'self["get"','actor_stats')}},
+        getWil={candidates={helper('/engine/interface/ActorStats.lua',
+            'self["get"','actor_stats')}},
+        getMag={candidates={helper('/engine/interface/ActorStats.lua',
+            'self["get"','actor_stats')}},
+        hasEffect={candidates={helper('/engine/interface/ActorTemporaryEffects.lua',
+            'function _M:hasEffect','actor_temporary_effects')}},
         combatTalentScale={candidates={helper('/mod/class/interface/Combat.lua',
             'function _M:combatTalentScale','combat')}},
         combatTalentLimit={candidates={helper('/mod/class/interface/Combat.lua',
@@ -1004,11 +1026,12 @@ local function autoCombatReads(s,policy,opts)
             'function _M:rescaleDamage','combat')}},
     }
     -- Audit one helper through its candidate pins. Returns true, or false,reason.
-    -- `reason=='dependency_source_unreadable'` means only the native fs/md5
-    -- service is missing (headless harness); every other failure (wrong source,
-    -- changed body, replacement) is a real rejection.
+    -- A `dependency_source_unreadable` candidate is preserved over an inapplicable
+    -- candidate's `dependency_source_unverified`, so the documented
+    -- hash-unavailable fallback still applies to a legitimate module-source
+    -- method (e.g. `alterTalentLevelRaw` in `mod/class/Actor.lua`).
     local function auditMovementHelper(name,fn,spec)
-        local lastReason
+        local bestReason
         for _,candidate in ipairs(spec.candidates) do
             local id='movement.helper.'..name..':'..candidate.source
             if not Compat.hasDependency(id) then
@@ -1019,10 +1042,26 @@ local function autoCombatReads(s,policy,opts)
             end
             local verified,reason=Compat.dependency(id,fn)
             if type(verified)=='function' then return true end
-            lastReason=reason
+            if reason=='dependency_source_unreadable' then
+                -- Always prefer the bypassable reason: the object matched a
+                -- candidate source, only the native hash service is missing.
+                bestReason='dependency_source_unreadable'
+            elseif bestReason==nil then
+                bestReason=reason
+            end
         end
-        return false,lastReason or 'dependency_not_registered'
+        return false,bestReason or 'dependency_not_registered'
     end
+    -- `combatSpellpowerRaw` calls `talent.getSpellpower` through `callTalent`.
+    -- The callback objects live in the sparse talent data files; pin them too.
+    local MOVEMENT_CALLBACKS={
+        T_ARCANE_CUNNING={field='getSpellpower',source='closure_magical_combat',
+            path='/data/talents/techniques/magical-combat.lua',declaration='getSpellpower = function'},
+        T_SHADOW_CUNNING={field='getSpellpower',source='closure_shadow_magic',
+            path='/data/talents/cunning/shadow-magic.lua',declaration='getSpellpower = function'},
+        T_LUNACY={field='getSpellpower',source='closure_darkside',
+            path='/data/talents/celestial/darkside.lua',declaration='getSpellpower = function'},
+    }
     local function verifyMovementHelpers()
         local p=g.player
         if type(p)~='table' then return nil,'actor_unavailable' end
@@ -1047,6 +1086,34 @@ local function autoCombatReads(s,policy,opts)
                 -- hash-unavailable fallback accepted it), so a rejected object
                 -- never becomes the trusted baseline.
                 if baseline==nil then movementHelperBaselines[name]=fn end
+            end
+        end
+        -- Talent callbacks reached by `callTalent` from `combatSpellpowerRaw`.
+        local defs=type(p.talents_def)=='table' and p.talents_def or {}
+        for talent,spec in pairs(MOVEMENT_CALLBACKS) do
+            local def=defs[talent]
+            local fn=type(def)=='table' and def[spec.field] or nil
+            if type(fn)=='function' and type(p.talents)=='table' and p.talents[talent]~=nil then
+                local key='callback:'..talent..':'..spec.field
+                local baseline=movementHelperBaselines[key]
+                if baseline~=nil and not rawequal(baseline,fn) then
+                    return nil,'movement_helper_replaced:'..key
+                end
+                local id='movement.callback.'..talent
+                if not Compat.hasDependency(id) then
+                    local digest=EffectManifest.SOURCES.engine[spec.source]
+                        and EffectManifest.SOURCES.engine[spec.source].md5
+                    Compat.registerDependency(id,'talent_query',fn,spec.path,
+                        'movement spellpower callback',digest,spec.declaration)
+                end
+                local verified,reason=Compat.dependency(id,fn)
+                if type(verified)~='function' then
+                    local hashUnavailable=(reason=='dependency_source_unreadable')
+                    if not (hashUnavailable and opts and type(opts.drift)=='function') then
+                        return nil,'movement_helper_unverified:'..key..':'..tostring(reason)
+                    end
+                end
+                if baseline==nil then movementHelperBaselines[key]=fn end
             end
         end
         return true

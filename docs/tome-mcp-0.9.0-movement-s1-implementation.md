@@ -124,47 +124,58 @@ are invoked only after `EffectManifestDrift.identity` has verified them.
 `Runtime.autoCombatReads.plan` builds the provider; `buildAutoCombatHost` reuses
 the same audited `manifestDrift`/`effectiveTalentLevel` for the guard.
 
-**Transitive helper closure (MAF-REV-02 rev 3/4).** The pinned target builder
+**Transitive helper closure (MAF-REV-02 rev 3/4/5).** The pinned target builder
 immediately dispatches through `self:getTalentRange(t)` (→ the talent's live
-`def.range`) and the engine scaling helpers. The generator now also pins
+`def.range`) and the engine scaling helpers. The generator also pins
 `ranges={range={path,line}}` for every builder-backed movement talent, and
 `EffectManifestDrift.identity` rejects a replaced `def.range` before the builder
-runs. At runtime `verifyMovementHelpers` identity-checks the **complete method
-closure** before invoking the outer builder or getter: `getTalentRange`,
-`combatTalentScale`, `combatTalentLimit`, `combatLimit`, `combatTalentSpellDamage`,
-`combatSpellpower`, `combatSpellpowerRaw`, `rescaleCombatStats`, `rescaleDamage`,
-and the talent-level chain `getTalentLevel`, `getTalentLevelRaw`,
-`alterTalentLevelRaw`, `getTalentMastery`. Each present helper is checked with a
-first-seen `rawequal` baseline plus a `NativeCompatibility` source/digest/
-declaration audit. A wrong-source/body or replaced helper is `adapter_source_drift`
-**before it is called**; only a missing native hash service (`dependency_source_unreadable`)
-may be bypassed by an injected-drift headless harness, and even then only after
-the `rawequal` baseline check. A rejected object never becomes the trusted
-baseline.
+runs. The closure is bounded **by construction**:
+
+- **File-digest closure** — the generated engine pin set now includes every
+  module that contributes a reached method: `engine/interface/ActorTalents.lua`,
+  `mod/class/Actor.lua`, `mod/class/interface/Combat.lua`, `engine/Entity.lua`,
+  `engine/interface/ActorStats.lua`, `engine/interface/ActorTemporaryEffects.lua`,
+  plus the Phase Door spell-power callback data files.
+  `EffectManifestDrift.verify` checks all of them in the preflight, so a source
+  change fails before any read.
+- **Method identity** — `verifyMovementHelpers` checks the methods actually
+  reached: `getTalentLevel`, `getTalentLevelRaw`, `alterTalentLevelRaw`,
+  `getTalentMastery`, `getTalentTypeMastery`, `getTalentTypeFrom`,
+  `getTalentRange`, `knowTalent`, `callTalent`, `getTalentFromId`, `attr`,
+  `getCun`/`getWil`/`getMag`, `hasEffect`, `combatTalentScale`,
+  `combatTalentLimit`, `combatLimit`, `combatTalentSpellDamage`,
+  `combatSpellpower`, `combatSpellpowerRaw`, `rescaleCombatStats`,
+  `rescaleDamage`, and the `getSpellpower` callbacks for the spell-power talents.
+  Each present object is checked with a first-seen `rawequal` baseline plus a
+  `NativeCompatibility` source/digest/declaration audit; a wrong-source/body or
+  replaced object is `adapter_source_drift` **before it is called**, and a
+  rejected object never becomes the trusted baseline.
+- A multi-candidate method preserves a `dependency_source_unreadable` candidate
+  over an inapplicable candidate's `dependency_source_unverified`, so the
+  documented hash-unavailable fallback still applies to a legitimate
+  module-source method (for example `alterTalentLevelRaw` in `mod/class/Actor.lua`).
 
 ## 6. Evidence
 
 Final artifact: `dist/tome-mcp-bridge.teaa`
-`100082399c8e2d1d197a457fa118a85475b9575006659669e9d60fd87d7529dd`
-(baseline `63cc6ee1f0683f2c01f3edf71ba7da92417473723c00c101ccebac01da04dd2b`).
+`5cbf6407ce46675c4e00ce463ef50837bfdb2583e3c762fd43ec89c4b63aade9`
+(baseline `100082399c8e2d1d197a457fa118a85475b9575006659669e9d60fd87d7529dd`).
 `allow_auto_combat_execution` remains `false` (read-only unless explicitly set).
 
-- `tests/test_auto_combat_movement_factory.lua` — 94 checks: template defaults and
-  closed/fixed-field/negative-envelope rejections, discriminant-closed condition
-  and matrix/unsupported records, **dense-array validation** for `conditions`,
-  `branches`, `axes` and the request lists (named/sparse keys rejected), the full
-  Phase Door matrix, preflight ordering, live builder geometry/conformance/range,
-  occupancy empty/actor/unknown, `Distance.grid` bounds for
-  `position`/`relative`/scan, range 0 as an empty domain, and drift negatives.
-- `tests/test_effect_manifest_drift.lua` — 46 checks, including `def.range` pins
-  and a replaced-`range` identity rejection.
-- `tests/test_runtime.lua` — 188 checks, including a first-plan replaced
-  `getTalentLevel` (and a mid-chain replaced `combatTalentScale`) that is
-  `adapter_source_drift` with zero replacement calls, plus the audited chain
-  planning successfully.
+- `tests/test_auto_combat_movement_factory.lua` — 94 checks (templates, closed
+  records/lists, Phase Door matrix, preflight ordering, builder geometry/range,
+  occupancy, `Distance.grid` bounds, drift negatives).
+- `tests/test_effect_manifest_drift.lua` — 46 checks, including `def.range` pins.
+- `tests/test_runtime.lua` — 209 checks: a real-dispatch fixture implements the
+  actual chain (`getTalentLevel` → `alterTalentLevelRaw`/`getTalentMastery` →
+  `getTalentTypeMastery` → `getTalentTypeFrom`; Phase Door `getRange` →
+  `combatTalentSpellDamage`/`combatSpellpower`/`combatSpellpowerRaw` →
+  `knowTalent`/`callTalent`/`getCun`/`getWil`/`getMag`/`hasEffect`/`attr`), the
+  chain plans, and a first-plan replacement of every leaf (including
+  `getTalentTypeMastery`, `getTalentTypeFrom`, `attr`, `getCun`, `callTalent`,
+  and the `getSpellpower` callback) is `adapter_source_drift` with zero calls.
 - Full Lua suite 41/41 green; Python 39/39; the three generator `--check` runs
   exit 0.
 - Native probes (source + `dist`) settle the task and assert final postconditions:
-  auto-combat probe 116/116 each (including `movement-factory:helper-replaced`
-  and all rev-2/3 movement checks), full native acceptance 100/100 each. Raw
-  output is under `tmp/s1/`.
+  auto-combat probe 116/116 each, full native acceptance 100/100 each. Raw output
+  is under `tmp/s1/`.

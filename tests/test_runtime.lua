@@ -814,6 +814,120 @@ do
     check(scale_calls==0,'the replaced scaling helper is rejected without being called')
     p.talents_def=saved_defs
 end
+-- MAF-REV-02 (rev 5): real-dispatch closure. The fixtures below implement the
+-- actual call graph (getTalentLevel -> alterTalentLevelRaw/getTalentMastery ->
+-- getTalentTypeMastery -> getTalentTypeFrom, and Phase Door getRange ->
+-- combatTalentSpellDamage -> combatSpellpower -> combatSpellpowerRaw ->
+-- knowTalent/callTalent/getCun/getWil/getMag/hasEffect/attr). Replacing any leaf
+-- before the first plan must be adapter_source_drift with zero calls.
+do
+    local Compat=require 'mod.mcp_bridge.NativeCompatibility'
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local saved_defs,saved_talents=p.talents_def,p.talents
+    local A='/engine/interface/ActorTalents.lua'
+    local ACT='/mod/class/Actor.lua'
+    local C='/mod/class/interface/Combat.lua'
+    local S='/engine/interface/ActorStats.lua'
+    local E='/engine/interface/ActorTemporaryEffects.lua'
+    local ENT='/engine/Entity.lua'
+    local function installRealChain(actor)
+        actor.getTalentLevelRaw=engineFn(A,'return function(self,id) if type(id)=="table" then id=id.id end return self.talents[id] or 0 end')
+        actor.alterTalentLevelRaw=engineFn(ACT,'return function(self,t,lvl) if self:attr("all_talents_bonus_level") then lvl=lvl+self:attr("all_talents_bonus_level") end return lvl end')
+        actor.getTalentTypeFrom=engineFn(A,'return function(self,id) local t=self.talents_def[id] return t and t.type and t.type[1] end')
+        actor.getTalentTypeMastery=engineFn(ACT,'return function(self,tt,only_base) local def=self:getTalentTypeFrom(tt) if only_base then return 1 end return 1 end')
+        actor.getTalentMastery=engineFn(A,'return function(self,t) return self:getTalentTypeMastery(t.type[1]) end')
+        actor.getTalentLevel=engineFn(A,'return function(self,id) local t if type(id)=="table" then t,id=id,id.id else t=self.talents_def[id] end if not t then return 0 end local lvl=self:getTalentLevelRaw(id) if lvl>0 then lvl=self:alterTalentLevelRaw(t,lvl) end return lvl*(self:getTalentMastery(t) or 0) end')
+        actor.getTalentRange=engineFn(A,'return function(self,t) if type(t.range)=="function" then return t.range(self,t) end return t.range end')
+        actor.knowTalent=engineFn(A,'return function(self,id) return self.talents and self.talents[id]~=nil end')
+        actor.getTalentFromId=engineFn(A,'return function(self,id) return self.talents_def and self.talents_def[id] end')
+        actor.callTalent=engineFn(A,'return function(self,tid,name) local t=self:getTalentFromId(tid) if t and t[name] then return t[name](self,t) end end')
+        actor.attr=engineFn(ENT,'return function(self,prop) return self.attrs and self.attrs[prop] end')
+        actor.getCun=engineFn(S,'return function(self) return self.cun or 10 end')
+        actor.getWil=engineFn(S,'return function(self) return self.wil or 10 end')
+        actor.getMag=engineFn(S,'return function(self) return self.mag or 10 end')
+        actor.hasEffect=engineFn(E,'return function(self,id) return self.tmp and self.tmp[id] end')
+        actor.combatTalentScale=engineFn(C,'return function(self,t,low,high) local tl=type(t)=="table" and self:getTalentLevel(t) or t if tl<=0 then tl=0.1 end return low+(high-low)*tl/5 end')
+        actor.combatLimit=engineFn(C,'return function(self,x,limit,ylow,xlow,yhigh,xhigh) return limit end')
+        actor.combatTalentLimit=engineFn(C,'return function(self,t,limit,low,high,raw,mastery) local tl=type(t)=="table" and self:getTalentLevel(t) or t if tl<=0 then tl=0.5 end return limit end')
+        actor.rescaleCombatStats=engineFn(C,'return function(self,v) return v end')
+        actor.rescaleDamage=engineFn(C,'return function(self,dam) return dam end')
+        actor.combatSpellpowerRaw=engineFn(C,'return function(self,add) add=add or 0 if self:knowTalent("T_ARCANE_CUNNING") then add=add+self:callTalent("T_ARCANE_CUNNING","getSpellpower")*self:getCun()/100 end if self:hasEffect("EFF_BLOODLUST") then add=add+self:hasEffect("EFF_BLOODLUST").spellpower end if self:attr("spellpower_reduction") then end return math.max(0,(self.combat_spellpower or 0)+add+self:getMag()),1 end')
+        actor.combatSpellpower=engineFn(C,'return function(self,mod,add) mod=mod or 1 local d,am=self:combatSpellpowerRaw(add) return self:rescaleCombatStats(d)*mod*am end')
+        actor.combatTalentSpellDamage=engineFn(C,'return function(self,t,base,max) local mod=max/((base+100)*((math.sqrt(5)-1)*0.8+1)) return self:rescaleDamage((base+self:combatSpellpower())*((math.sqrt(self:getTalentLevel(t))-1)*0.8+1)*mod) end')
+    end
+    local vaultPolicy={schema='tome-auto-combat/v1',id='closure',name='unit',
+        limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=0},
+        targeting={default='nearest_hostile'},rules={{id='vault',priority=1,when={always={}},
+            ['then']={action='use_talent',talent='T_SKIRMISHER_VAULT',destination={
+                selector='position',x=3,y=2,accept=accept}}}}}
+    local vaultPlan={action='use_talent',talent='T_SKIRMISHER_VAULT',
+        destination={selector='position',x=3,y=2,accept=accept}}
+    local function setupVault()
+        p.x,p.y=2,2
+        p.talents={T_SKIRMISHER_VAULT=5}
+        installRealChain(p)
+        p.talents_def=p.talents_def or {}
+        p.talents_def.T_SKIRMISHER_VAULT={id='T_SKIRMISHER_VAULT',mode='activated',type={'technique/acrobatics',1},
+            range=engineFn('/data/talents/techniques/acrobatics.lua','return function(self,t) return math.floor(self:combatTalentScale(t,3,8)) end'),
+            target=function(self,t) return {type='beam',range=self:getTalentRange(t)} end}
+        return Runtime.buildAutoCombatHostFor(g,vaultPolicy,{drift=function() return true end})
+    end
+    Runtime.reset(g);g:display();Compat.resetDependencies()
+    local ok,okErr=setupVault().plan(vaultPlan)
+    check(ok and ok.plan and okErr==nil,'the real-dispatch Vault chain plans')
+    local function firstPlanLeaf(name,install,plan)
+        Runtime.reset(g);g:display();Compat.resetDependencies()
+        local calls=0
+        local host=install()
+        p[name]=function() calls=calls+1; error('replacement '..name..' must not run') end
+        local planned,err=host.plan(plan)
+        local pass=planned==nil and err and err.reason=='adapter_source_drift'
+        return pass,calls
+    end
+    for _,name in ipairs({'getTalentTypeMastery','getTalentTypeFrom','getTalentLevel',
+        'getTalentLevelRaw','getTalentMastery','alterTalentLevelRaw','attr'}) do
+        local pass,calls=firstPlanLeaf(name,setupVault,vaultPlan)
+        check(pass and calls==0,'a first-plan replaced '..name..' is drift with zero calls')
+    end
+    -- Phase Door getRange reaches the spell-power chain.
+    local doorPolicy={schema='tome-auto-combat/v1',id='door',name='unit',
+        limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=0},
+        targeting={default='nearest_hostile'},rules={{id='door',priority=1,when={always={}},
+            ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',destination={
+                selector='native_random',accept=accept}}}}}
+    local doorPlan={action='use_talent',talent='T_PHASE_DOOR',target='self',
+        destination={selector='native_random',accept=accept}}
+    local function setupDoor()
+        p.x,p.y=2,2
+        p.talents={T_PHASE_DOOR=1,T_ARCANE_CUNNING=1}
+        installRealChain(p)
+        p.talents_def=p.talents_def or {}
+        p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',type={'spell/conveyance',1},
+            getRange=engineFn('/data/talents/spells/conveyance.lua','return function(self,t) return self:combatLimit(self:combatTalentSpellDamage(t,10,15),40,4,0,13.4,9.4) end'),
+            getRadius=engineFn('/data/talents/spells/conveyance.lua','return function(self,t) return math.floor(self:combatTalentLimit(t,0,6,1)) end')}
+        p.talents_def.T_ARCANE_CUNNING={id='T_ARCANE_CUNNING',mode='passive',type={'cunning/ambush',1},
+            getSpellpower=engineFn('/data/talents/techniques/magical-combat.lua','return function(self,t) return 20 end')}
+        return Runtime.buildAutoCombatHostFor(g,doorPolicy,{drift=function() return true end})
+    end
+    Runtime.reset(g);g:display();Compat.resetDependencies()
+    local dok,dokErr=setupDoor().plan(doorPlan)
+    check(dok and dok.plan and dok.plan.kind=='native_random','the real-dispatch Phase Door getRange chain plans')
+    for _,name in ipairs({'getCun','getWil','getMag','hasEffect','callTalent','knowTalent',
+        'getTalentFromId','combatSpellpowerRaw','combatSpellpower','rescaleCombatStats','rescaleDamage'}) do
+        local pass,calls=firstPlanLeaf(name,setupDoor,doorPlan)
+        check(pass and calls==0,'a first-plan replaced '..name..' is drift with zero calls')
+    end
+    -- A replaced getSpellpower callback reached via callTalent is rejected too.
+    Runtime.reset(g);g:display();Compat.resetDependencies()
+    local cb_calls=0
+    local cb_host=setupDoor()
+    p.talents_def.T_ARCANE_CUNNING.getSpellpower=function()
+        cb_calls=cb_calls+1; error('replacement getSpellpower must not run') end
+    local cplan,cerr=cb_host.plan(doorPlan)
+    check(cplan==nil and cerr and cerr.reason=='adapter_source_drift' and cb_calls==0,
+        'a first-plan replaced getSpellpower callback is drift with zero calls')
+    p.talents_def,p.talents=saved_defs,saved_talents
+end
 -- Round-5 correction: the guard reads the real target spec from the audited
 -- native builder and applies the engine filter defaults, not a catalog shorthand.
 do

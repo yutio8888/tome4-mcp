@@ -11,6 +11,12 @@ return {
         actor={path='/mod/class/Actor.lua',md5='073c82289c99dec963d3be9de89ed68a'},
         actor_talents={path='/engine/interface/ActorTalents.lua',md5='d3dbdbffd0df8ac45baba738b344b077'},
         combat={path='/mod/class/interface/Combat.lua',md5='2e458d48c383927339a5aa665e08d8d2'},
+        entity={path='/engine/Entity.lua',md5='c2e69c97c91a7d40de012dc1dd3261b9'},
+        actor_stats={path='/engine/interface/ActorStats.lua',md5='73b62ad912ffaf287e36363c58aeb7a6'},
+        actor_temporary_effects={path='/engine/interface/ActorTemporaryEffects.lua',md5='68b4cabac60a9b30c7468eb66b9007e1'},
+        closure_magical_combat={path='/data/talents/techniques/magical-combat.lua',md5='b1a98665e620880525ebe0a06632e828'},
+        closure_shadow_magic={path='/data/talents/cunning/shadow-magic.lua',md5='e272ec979e44edafb3bda5811aced61c'},
+        closure_darkside={path='/data/talents/celestial/darkside.lua',md5='a90c4e592d859b969920fb65d328ec85'},
     },
     talents={
         T_CHANT_OF_FORTRESS={files={{path='/data/talents/celestial/chants.lua',md5='542e9d2a1078541dabe46169aa61833e'}},line=85},

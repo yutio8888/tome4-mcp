@@ -109,6 +109,17 @@ ENGINE_FILES = {
     "actor": ("mod/class/Actor.lua", "game/modules/tome/class/Actor.lua"),
     "actor_talents": ("engine/interface/ActorTalents.lua", "game/engines/default/engine/interface/ActorTalents.lua"),
     "combat": ("mod/class/interface/Combat.lua", "game/modules/tome/class/interface/Combat.lua"),
+    # MAF-REV-02 closure: every module that contributes a method reachable from
+    # the admitted movement builders/getters. Pinning the whole file digest means
+    # a source change fails the preflight, not only an enumerated method object.
+    "entity": ("engine/Entity.lua", "game/engines/default/engine/Entity.lua"),
+    "actor_stats": ("engine/interface/ActorStats.lua", "game/engines/default/engine/interface/ActorStats.lua"),
+    "actor_temporary_effects": ("engine/interface/ActorTemporaryEffects.lua", "game/engines/default/engine/interface/ActorTemporaryEffects.lua"),
+    # Phase Door `getRange` -> combatTalentSpellDamage -> combatSpellpower ->
+    # combatSpellpowerRaw calls `getSpellpower` callbacks from these data files.
+    "closure_magical_combat": ("data/talents/techniques/magical-combat.lua", "game/modules/tome/data/talents/techniques/magical-combat.lua"),
+    "closure_shadow_magic": ("data/talents/cunning/shadow-magic.lua", "game/modules/tome/data/talents/cunning/shadow-magic.lua"),
+    "closure_darkside": ("data/talents/celestial/darkside.lua", "game/modules/tome/data/talents/celestial/darkside.lua"),
 }
 
 
