@@ -146,8 +146,8 @@ Raw soak evidence:
 
 | Artifact | sha256 |
 | --- | --- |
-| `tmp/tome-mcp-validation/sessions/diag-fix-01/game.log` | `5623e70566b5bcca4e9f59be3cbbaf8d7056701eda11a6e1d16ff0fdf6318775` |
-| `tmp/mcp-play-support/diag-fix-01.log` | `9cdaaf088a91105e55d2e1e8586d82e6a3bb647f8d147bc83f6a2ea9696eefe1` |
+| `tmp/tome-mcp-validation/sessions/diag-fix-01/game.log` | `655f3318c5341d76d9cfcfc6da5af7027bde1f0dcf808204565d3bd2a80d70b5` |
+| `tmp/mcp-play-support/diag-fix-01.log` | `b260bdb85ffb5d7369c62da4df0c6f22dfc74277506479182e101b440c7a2a9c` |
 | `tmp/mcp-play-support/diag-fix-01-soak.json` | `47ece65a80874c59d74118960ddec6aa433af4169971ce6a5c18a4c0fc74b869` |
 | `tmp/mcp-play-support/diag-fix-01-policylog.json` | `ae727a3c69e9bcfd1d9a83b5ff62131cb79ddbae01c2a637a106e05e536896c2` |
 
