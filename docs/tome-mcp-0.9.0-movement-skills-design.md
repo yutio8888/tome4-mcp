@@ -291,10 +291,10 @@ outcome-envelope function is reviewed and tested.
 
 | Case | Policy lowering | Native entry | Current `Actions` support | Required movement guard |
 | --- | --- | --- | --- | --- |
-| Plain step | chosen adjacent `(dx,dy)` → keypad `direction` | `Actions.execute` → `player:moveDir(direction)` | yes (`Actions.lua:89-92,271`) | exact adjacent endpoint; reject movement modifiers; visible-fight/passability/hazard/intent checks |
-| Actor-target Rush style | `use_talent`, `target_id=bound_target` | tracked native `player:useTalent`; first `getTarget` receives actor | yes (`Actions.lua:163-180,204-269`) | source-pinned line and complete possible landing prefix; hostile still visible; mixed attack footprint guard |
-| Exact grid/beam/direction style | `use_talent`, `x/y=chosen_destination` | tracked native `player:useTalent`; first `getTarget` receives grid | yes in general `Actions`; not in auto-combat mapper (`Actions.lua:102-114`; `Runtime.lua:1169-1172`) | live builder range + `canProject`; exact endpoint, path/envelope, hazard and intent checks |
-| Actor then grid | typed target plan with two ordered responses | two native `getTarget` calls | **no**: current prefill is consumed once (`Actions.lua:216-260`) | unsupported until `Actions` accepts and validates an adapter-pinned ordered target plan |
+| Plain step | chosen adjacent `(dx,dy)` → keypad `direction` | `Actions.execute` → `player:moveDir(direction)` | yes (`overload/mod/mcp_bridge/Actions.lua:89-92,271`) | exact adjacent endpoint; reject movement modifiers; visible-fight/passability/hazard/intent checks |
+| Actor-target Rush style | `use_talent`, `target_id=bound_target` | tracked native `player:useTalent`; first `getTarget` receives actor | yes (`overload/mod/mcp_bridge/Actions.lua:163-180,204-269`) | source-pinned line and complete possible landing prefix; hostile still visible; mixed attack footprint guard |
+| Exact grid/beam/direction style | `use_talent`, `x/y=chosen_destination` | tracked native `player:useTalent`; first `getTarget` receives grid | yes in general `Actions`; not in auto-combat mapper (`overload/mod/mcp_bridge/Actions.lua:102-114`; `overload/mod/mcp_bridge/Runtime.lua:1169-1172`) | live builder range + `canProject`; exact endpoint, path/envelope, hazard and intent checks |
+| Actor then grid | typed target plan with two ordered responses | two native `getTarget` calls | **no**: current prefill is consumed once (`overload/mod/mcp_bridge/Actions.lua:216-260`) | unsupported until `Actions` accepts and validates an adapter-pinned ordered target plan |
 | Random/self teleport | no target or a center grid | native talent → `teleportRandom` | callable, but not auto-combat-safe | reject in this revision; a future opt-in must prove every possible endpoint and still preserve player-visible reads |
 
 Extend the auto-combat attempt with `destination={x,y}`, `direction`, and
@@ -613,7 +613,8 @@ Before admitting any movement talent, record:
 2. **Hazard coverage**: the repository has a safe known-trap projection but no
    canonical movement-hazard manifest. The first implementation must enumerate
    which vanilla terrain and visible map-effect families it can prove safe; until
-   then they remain unknown.
+   then they remain unknown (`overload/mod/mcp_bridge/LevelMap.lua:33-57`;
+   `overload/mod/auto_combat/AutoCombatGuard.lua:1-21`).
 3. **Movement callbacks/modifiers**: vanilla `Actor:move` fires talent callbacks and
    hooks. The compatibility audit must identify every active modifier that can
    relocate the player; unknown callbacks must disable movement rather than rely
