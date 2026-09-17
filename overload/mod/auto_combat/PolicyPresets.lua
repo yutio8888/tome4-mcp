@@ -92,6 +92,104 @@ M.PRESETS={
                 ['then']={action='wait'}},
         },
     },
+    -- P2 class pilots (round 4). Source-verified talent metadata; data-only.
+    archmage_arcane_p2={
+        schema='tome-auto-combat/v1',id='archmage-arcane-p2',name='Archmage (Arcane/Fire)',
+        class='mage/archmage',
+        limits={max_actions_per_tick=2},
+        safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=true,
+            pause_on_unknown_safety=true,max_selffire_risk=0},
+        targeting={default='nearest_hostile'},
+        sustains={
+            {talent='T_ARCANE_POWER',priority=20,min_resource_pct=20},
+            {talent='T_SHIELDING',priority=10,min_resource_pct=20},
+        },
+        rules={
+            {id='heal',priority=100,emergency=true,
+                when={all={{hp_pct={lt=50}},{talent_known={talent='T_HEAL'}}}},
+                ['then']={action='use_talent',talent='T_HEAL',target='self'}},
+            {id='melee',priority=50,when={enemy_in_melee={}},
+                ['then']={action='attack',target='nearest_hostile'}},
+            {id='flame',priority=40,
+                when={all={{enemy_count={ge=1}},{nearest_enemy_distance={le=10}},
+                    {talent_known={talent='T_FLAME'}},
+                    {cooldown_ready={talent='T_FLAME'}},
+                    {resource_value={resource='mana',ge=12}}}},
+                ['then']={action='use_talent',talent='T_FLAME',target='nearest_hostile'}},
+            {id='recover',priority=1,
+                when={all={{enemy_count={ge=1}},{nearest_enemy_distance={le=10}},
+                    {['any']={{['not']={cooldown_ready={talent='T_FLAME'}}},
+                        {resource_value={resource='mana',lt=12}}}}}},
+                ['then']={action='wait'}},
+        },
+    },
+    corruptor_blight_p2={
+        schema='tome-auto-combat/v1',id='corruptor-blight-p2',name='Corruptor (Blight/Sanguisuge)',
+        class='corrupted/corruptor',
+        limits={max_actions_per_tick=2},
+        safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=true,
+            pause_on_unknown_safety=true,max_selffire_risk=0},
+        targeting={default='nearest_hostile'},
+        sustains={
+            {talent='T_DARK_RITUAL',priority=20,min_resource_pct=20},
+        },
+        rules={
+            -- Blood Grasp damages and heals the caster; it is the emergency
+            -- self-preservation action when a hostile is available.
+            {id='grasp',priority=100,emergency=true,
+                when={all={{hp_pct={lt=50}},{enemy_count={ge=1}},
+                    {talent_known={talent='T_BLOOD_GRASP'}},
+                    {cooldown_ready={talent='T_BLOOD_GRASP'}},
+                    {resource_value={resource='vim',ge=20}}}},
+                ['then']={action='use_talent',talent='T_BLOOD_GRASP',target='nearest_hostile'}},
+            {id='melee',priority=50,when={enemy_in_melee={}},
+                ['then']={action='attack',target='nearest_hostile'}},
+            {id='rot',priority=40,
+                when={all={{enemy_count={ge=1}},{nearest_enemy_distance={le=10}},
+                    {talent_known={talent='T_SOUL_ROT'}},
+                    {cooldown_ready={talent='T_SOUL_ROT'}},
+                    {resource_value={resource='vim',ge=10}}}},
+                ['then']={action='use_talent',talent='T_SOUL_ROT',target='nearest_hostile'}},
+            {id='recover',priority=1,
+                when={all={{enemy_count={ge=1}},{nearest_enemy_distance={le=10}},
+                    {['any']={{['not']={cooldown_ready={talent='T_SOUL_ROT'}}},
+                        {resource_value={resource='vim',lt=10}}}}}},
+                ['then']={action='wait'}},
+        },
+    },
+    berserker_p2={
+        schema='tome-auto-combat/v1',id='berserker-p2',name='Berserker (Technique)',
+        class='warrior/berserker',
+        limits={max_actions_per_tick=2},
+        safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=true,
+            pause_on_unknown_safety=true,max_selffire_risk=0},
+        targeting={default='nearest_hostile'},
+        sustains={
+            {talent='T_BERSERKER_RAGE',priority=20,min_resource_pct=20},
+            {talent='T_DAUNTING_PRESENCE',priority=10,min_resource_pct=20},
+        },
+        rules={
+            -- No heal in the tree; the emergency layer uses the instant
+            -- self-buff, which is a valid self-preservation shape and is
+            -- covered by the self-target adapter guard.
+            {id='adrenaline',priority=100,emergency=true,
+                when={all={{hp_pct={lt=50}},{talent_known={talent='T_ADRENALINE_SURGE'}},
+                    {cooldown_ready={talent='T_ADRENALINE_SURGE'}}}},
+                ['then']={action='use_talent',talent='T_ADRENALINE_SURGE',target='self'}},
+            {id='shatter',priority=60,
+                when={all={{enemy_in_melee={}},{talent_known={talent='T_SHATTERING_BLOW'}},
+                    {cooldown_ready={talent='T_SHATTERING_BLOW'}},
+                    {resource_value={resource='stamina',ge=12}}}},
+                ['then']={action='use_talent',talent='T_SHATTERING_BLOW',target='nearest_hostile'}},
+            {id='melee',priority=50,when={enemy_in_melee={}},
+                ['then']={action='attack',target='nearest_hostile'}},
+            -- A visible but not-yet-adjacent foe: wait for it to close instead
+            -- of ending the run (the policy action set has no move rule).
+            {id='close',priority=1,
+                when={all={{enemy_count={ge=1}},{['not']={enemy_in_melee={}}}}},
+                ['then']={action='wait'}},
+        },
+    },
 }
 
 function M.get(name) return M.PRESETS[name] end

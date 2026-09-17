@@ -24,6 +24,30 @@ M.ENTRIES={
     -- P2 second pilot: Sun Paladin (celestial/sun + celestial/light).
     T_SUN_BEAM={kind='attack',target='hostile',shape='hit',range=7,resource='positive'},
     T_WEAPON_OF_LIGHT={kind='sustain',target='self',resource='positive'},
+    -- P2 third/seventh pilots (round 4). Source-verified from the game talent data.
+    -- Archmage (spell/arcane + spell/fire + spell/aegis).
+    -- Flame is a bolt below talent level 5 and a beam at/above it; the beam
+    -- descriptor is the conservative superset (the guard checks the line).
+    T_FLAME={kind='attack',target='hostile',shape='beam',range=10,resource='mana',
+        friendlyfire_risk='line'},
+    T_HEAL={kind='heal',target='self',resource='mana'},
+    T_ARCANE_POWER={kind='sustain',target='self',resource='mana'},
+    T_SHIELDING={kind='sustain',target='self',resource='mana'},
+    -- Corruptor (corruption/sanguisuge + corruption/vim + corruption/blight +
+    -- corruption/blood).
+    T_SOUL_ROT={kind='attack',target='hostile',shape='beam',range=10,resource='vim',
+        friendlyfire_risk='line'},
+    -- Blood Grasp is a bolt with `friendlyfire=false`: it heals the caster for a
+    -- share of the damage dealt, so it is the Corruptor's self-preservation.
+    T_BLOOD_GRASP={kind='attack',target='hostile',shape='hit',range=10,resource='vim',
+        friendlyfire_risk='none'},
+    T_DARK_RITUAL={kind='sustain',target='self',resource='vim'},
+    -- Berserker (technique/strength-of-the-berserker + technique/conditioning).
+    T_SHATTERING_BLOW={kind='attack',target='hostile',shape='hit',range=1,resource='stamina',
+        friendlyfire_risk='none'},
+    T_BERSERKER_RAGE={kind='sustain',target='self',resource='stamina'},
+    T_DAUNTING_PRESENCE={kind='sustain',target='self',resource='stamina'},
+    T_ADRENALINE_SURGE={kind='buff',target='self'},
 }
 M.HOSTILE_SELECTORS={nearest_hostile=true,lowest_hp_hostile=true,
     highest_rank_hostile=true,most_dangerous_hostile=true}

@@ -55,8 +55,14 @@ for _,t in ipairs(M.DAMAGE_TYPES) do
 end
 M.TALENTS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_HEALING_LIGHT=true,
     T_BARRIER=true,T_TWILIGHT=true,T_MOONLIGHT_RAY=true,T_SEARING_LIGHT=true,T_ATTACK=true,
-    T_SUN_BEAM=true,T_WEAPON_OF_LIGHT=true}
-M.SUSTAINS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_WEAPON_OF_LIGHT=true}
+    T_SUN_BEAM=true,T_WEAPON_OF_LIGHT=true,
+    -- P2 class pilots (round 4): Archmage, Corruptor, Berserker.
+    T_FLAME=true,T_HEAL=true,T_ARCANE_POWER=true,T_SHIELDING=true,
+    T_SOUL_ROT=true,T_BLOOD_GRASP=true,T_DARK_RITUAL=true,
+    T_SHATTERING_BLOW=true,T_BERSERKER_RAGE=true,T_DAUNTING_PRESENCE=true,T_ADRENALINE_SURGE=true}
+M.SUSTAINS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_WEAPON_OF_LIGHT=true,
+    T_ARCANE_POWER=true,T_SHIELDING=true,T_DARK_RITUAL=true,T_BERSERKER_RAGE=true,
+    T_DAUNTING_PRESENCE=true}
 -- Compile-time hard caps; a policy may only lower these.
 M.HARD={max_actions_per_tick=4,max_instant_per_tick=3,max_consecutive_actions=200,
     max_rules=64,max_depth=8,max_candidates=32}

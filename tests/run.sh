@@ -29,6 +29,8 @@ fi
 
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_policy.lua
 
+"$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_pilots.lua
+
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_friendly_fire.lua
 
 "$task_lua" "${task_lua_options[@]}" game/addons/tome-mcp-bridge/tests/test_auto_combat_controller.lua
