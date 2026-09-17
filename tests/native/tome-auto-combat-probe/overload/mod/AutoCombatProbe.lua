@@ -408,6 +408,9 @@ local function soloPumpSetup()
     if not (approved and approved.ok) then return false end
     local activated=Runtime.autoCombatHandle(game,'activate',{expected_hash=approved.approved_hash})
     if not (activated and activated.ok) then return false end
+    -- The wait runs from the display pump and clears game.paused. The core tick
+    -- loop must be woken explicitly or the game parks (the P0 recover stall).
+    M.solo_turn_start=game.turn
     local started=Runtime.autoCombatHandle(game,'start',{})
     return started and started.ok or false
 end
@@ -424,10 +427,18 @@ local function soloPumpCheck()
         end
     end
     if not acted and M.solo_frames<12 then return false end
+    -- Regression: after the wait the game must keep ticking, not park in
+    -- `settling` with a frozen world tick. Give the boundary tick a bounded
+    -- number of frames to arrive before asserting.
+    local tick_advanced=game.turn>(M.solo_turn_start or 0)
+    if not tick_advanced and M.solo_frames<40 then return false end
     M.waiting_solo=false
     M.done=true
     check('solo-pump:ran',acted and (run.attempts or 0)>0,
         {attempts=run.attempts,state=run.state,reason=run.reason,acted=acted,frames=M.solo_frames})
+    check('solo-pump:tick-advanced',tick_advanced,
+        {turn_start=M.solo_turn_start,turn=game.turn,paused=game.paused,
+            energy=game.player and game.player.energy and game.player.energy.value,frames=M.solo_frames})
     Runtime.autoCombatHandle(game,'stop',{reason='probe_done'})
     Runtime.setAutoCombatExecution(game,false)
     local after=Runtime.autoCombatStatus(game) or {}

@@ -160,6 +160,30 @@ do
         'the pilot preset waits one turn while its main ray cools down')
 end
 
+do
+    -- Round-3 playtest soft-lock: an off-cooldown but unaffordable ray was
+    -- selected, denied as native_rejected, and no rule matched, so the run
+    -- stopped at `no_available_action` without spending a turn (the negative
+    -- pool never regenerated). The ray must be resource-gated and the declared
+    -- recovery must spend the turn instead.
+    local Presets=require 'mod.auto_combat.PolicyPresets'
+    local preset=Presets.get('anorithil_p1a')
+    local broke=ctx({hp_pct=80,enemy_count=1,nearest_enemy_distance=5,enemy_in_melee=false,
+        talent_known=function() return true end,
+        cooldown_ready=function() return true end,
+        resource_value=function(name) return name=='negative' and 5 or 100 end})
+    local decision=Evaluator.evaluate(preset,broke)
+    check(decision.decision=='act' and decision.rule=='recover' and decision.action=='wait',
+        'the pilot preset waits when the ray is ready but the pool cannot pay')
+    local paid=ctx({hp_pct=80,enemy_count=1,nearest_enemy_distance=5,enemy_in_melee=false,
+        talent_known=function() return true end,
+        cooldown_ready=function() return true end,
+        resource_value=function(name) return name=='negative' and 25 or 100 end})
+    local cast=Evaluator.evaluate(preset,paid)
+    check(cast.decision=='act' and cast.rule=='ray' and cast.action=='use_talent',
+        'the pilot preset casts the ray when the pool can pay for it')
+end
+
 -- P1b: native activities as first-class policy actions ----------------------
 do
     local p=basePolicy()

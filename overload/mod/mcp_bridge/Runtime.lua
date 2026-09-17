@@ -1125,6 +1125,16 @@ buildAutoCombatHost=function(s,policy)
             NativeTasks.release(root);Interactions.release(root);Tracker.release(root);root.invocation=nil
             if s.auto_invocation==root then s.auto_invocation=nil end
         end
+        -- The auto-combat pump runs from Game:display, not from a native tick.
+        -- A submitted action can clear `game.paused` through native useEnergy
+        -- without a key event, and the core's tick loop then stays parked: the
+        -- run freezes in `settling` (reproduced after the `recover` wait). The
+        -- remote path gets this boundary tick from `onTickEnd`; the auto path
+        -- has to request it explicitly so the game resumes and the pump can
+        -- reach the next action opportunity.
+        if core and core.game and type(core.game.requestNextTick)=='function' then
+            core.game.requestNextTick()
+        end
         if not ok then
             return {status='error',code='execution_error',energy_spent=false,
                 message=Details.text(tostring(root),256)}
