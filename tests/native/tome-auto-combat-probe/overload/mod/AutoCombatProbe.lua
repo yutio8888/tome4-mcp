@@ -50,6 +50,7 @@ M.EXPECTED={
     ['sun-paladin-preset']={'valid','compatible','dry_run'},
     ['assistant-import']={'generated','valid','unsupported_reported','stored','refused'},
     ['computed-predicate']={'act','false_holds','enum_rejected'},
+    ['production-reads']={'has_control','scalar_resource','guard_wired'},
     ['solo-pump']={},
 }
 
@@ -166,7 +167,9 @@ end
 local function criticalState()
     forceReady()
     local p=game.player
-    p.life=p.max_life*0.2
+    -- 30%: below min_hp_pct (35) but above flee_below_hp_pct (25), so the
+    -- emergency layer is exercised without the distinct flee pause.
+    p.life=p.max_life*0.3
     local pol=policy({HEAL,ATTACK},{max_actions_per_tick=2})
     local host,attempts=recordingHost(pol,{phase=function() return 'ready' end})
     local c=AutoCombat.new(pol,host,{strict=false})
@@ -357,6 +360,43 @@ local function computedPredicate()
     return compare('computed-predicate',signals)
 end
 
+-- 11: production read host and standalone control (AC-02/AC-07). A scalar
+-- resource projection is checked against a temporarily-set scalar field and
+-- the real unlock gate; the standalone lease must be part of hasControl.
+local function productionReads()
+    Runtime.setAutoCombatExecution(game,true)
+    local pol=policy({WAIT})
+    Runtime.autoCombatHandle(game,'set_draft',{policy=pol})
+    local approved=Runtime.autoCombatHandle(game,'approve',{})
+    Runtime.autoCombatHandle(game,'activate',{expected_hash=approved.approved_hash})
+    local signals={}
+    local controlled=Runtime.hasControl(game.player)==true
+    signals[#signals+1]=controlled and 'has_control' or 'no_control'
+    check('production-reads:has-control',controlled,{})
+    local p=game.player
+    local saved={positive=p.positive,max_positive=p.max_positive,min_positive=p.min_positive}
+    local defs=p.resources_def
+    local pool=type(defs)=='table' and defs.positive and defs.positive.talent or nil
+    local saved_talent=pool and p.talents and p.talents[pool] or nil
+    if pool and type(p.talents)=='table' then p.talents[pool]=1 end
+    p.positive=42;p.max_positive=100;p.min_positive=0
+    local read=Runtime.buildAutoCombatReadHostFor(game,pol)
+    local scalar=read.resource_value and read.resource_value('positive')==42
+        and read.resource_pct and read.resource_pct('positive')==42
+    signals[#signals+1]=scalar and 'scalar_resource' or 'resource_mismatch'
+    check('production-reads:resource',scalar,{value=read.resource_value and read.resource_value('positive'),
+        pct=read.resource_pct and read.resource_pct('positive')})
+    p.positive=saved.positive;p.max_positive=saved.max_positive;p.min_positive=saved.min_positive
+    if pool and type(p.talents)=='table' then p.talents[pool]=saved_talent end
+    local live=Runtime.buildAutoCombatHostFor(game,pol)
+    local guard_ok=type(live.guard)=='function'
+    signals[#signals+1]=guard_ok and 'guard_wired' or 'guard_missing'
+    check('production-reads:guard',guard_ok,{})
+    Runtime.autoCombatHandle(game,'deactivate',{})
+    Runtime.setAutoCombatExecution(game,false)
+    return compare('production-reads',signals)
+end
+
 -- 6: with no MCP client, local authorization installs the live pump and the
 -- production executor performs a real native wait action.
 local function soloPumpSetup()
@@ -411,6 +451,7 @@ local function runAll()
         sunPaladinPreset()
         assistantImport()
         computedPredicate()
+        productionReads()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok

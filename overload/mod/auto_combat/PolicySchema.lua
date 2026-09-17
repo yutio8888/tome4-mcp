@@ -11,12 +11,14 @@ M.SCHEMA='tome-auto-combat/v1'
 -- a policy may use. Unsupported names are a schema error, not a silent skip.
 -- P1b adds the native activities (`rest`/`auto_explore`) and the opt-in
 -- `change_level`.
-M.ACTIONS={use_talent=true,attack=true,wait=true,rest=true,auto_explore=true,change_level=true}
--- Multi-turn native activities with no talent/target binding.
-M.ACTIVITY_ACTIONS={rest=true,auto_explore=true,change_level=true}
--- Actions that count as self-preservation for an `emergency:true` rule (§5.4).
+M.ACTIONS={use_talent=true,attack=true,wait=true,rest=true,auto_explore=true}
+-- Multi-turn native activities with no talent/target binding. `change_level` was
+-- removed in Wave 1 (no auto-combat scene-transition adapter; the general MCP
+-- `tome.act change_level` action is untouched).
+M.ACTIVITY_ACTIONS={rest=true,auto_explore=true}
+-- Emergency is a per-talent declaration (D1): any `use_talent`/`attack` may be
+-- marked emergency; the pre-execution adapter guard is what keeps it safe.
 M.SELF_PRESERVATION_ACTIONS={use_talent=true,attack=true}
-M.PERMISSIONS={change_level=true}
 -- P2 adds target-selection predicates built only from audited reads (rank,
 -- level, type, bound-target distance). `has_effect`/`computed`-based predicates
 -- stay out: they need a dynamic getter the bridge does not audit yet.
@@ -155,7 +157,7 @@ function M.validate(policy)
     local errors=Json.array()
     if type(policy)~='table' or policy==Json.null then return nil,{{path='',code='not_an_object'}} end
     onlyKeys(policy,{schema=true,id=true,name=true,class=true,updated=true,limits=true,
-        permissions=true,sustains=true,safety=true,targeting=true,rules=true,logging=true},'',errors)
+        sustains=true,safety=true,targeting=true,rules=true,logging=true},'',errors)
     if policy.schema~=M.SCHEMA then errors[#errors+1]={path='schema',code='wrong_schema'} end
     if type(policy.id)~='string' or #policy.id==0 or #policy.id>128 then
         errors[#errors+1]={path='id',code='invalid_id'} end
@@ -216,15 +218,6 @@ function M.validate(policy)
             end
         end
     end
-    if policy.permissions~=nil then
-        if type(policy.permissions)~='table' then errors[#errors+1]={path='permissions',code='invalid_permissions'}
-        else
-            onlyKeys(policy.permissions,{change_level=true},'permissions',errors)
-            if policy.permissions.change_level~=nil and type(policy.permissions.change_level)~='boolean' then
-                errors[#errors+1]={path='permissions.change_level',code='invalid_boolean'}
-            end
-        end
-    end
     if not isArray(policy.rules) or #policy.rules==0 then
         errors[#errors+1]={path='rules',code='rules_required'}
     else
@@ -276,9 +269,9 @@ function M.validate(policy)
                     elseif rule['then'].target~=nil and not M.SELECTORS[rule['then'].target] then
                         errors[#errors+1]={path=path..'.then.target',code='unsupported_selector'}
                     end
-                    if action=='change_level' and not (policy.permissions and policy.permissions.change_level==true) then
-                        errors[#errors+1]={path=path..'.then.action',code='change_level_not_enabled'}
-                    end
+                    -- Emergency rules are self-preservation only; the specific
+                    -- safety of the bound target is the executor guard's job
+                    -- (D1: any talent, no category whitelist).
                     if rule.emergency==true and not M.SELF_PRESERVATION_ACTIONS[action] then
                         errors[#errors+1]={path=path..'.then.action',code='emergency_not_self_preservation'}
                     end

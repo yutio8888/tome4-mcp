@@ -143,6 +143,132 @@ do
 end
 
 do
+    -- AC-01: resume must refuse while native work remains.
+    local host=makeHost(); host.responses={{status='native_pending'}}
+    local c=AutoCombat.new(policy(),host)
+    c:start(); c:onOpportunity()
+    host.phase_='native_pending'
+    local refused=c:resume()
+    check(refused.ok==false and refused.code=='native_pending','resume refuses a live native body')
+    host.phase_='ready'
+    local resumed=c:resume()
+    check(resumed.ok==true and c.state=='running','resume proceeds once the native body settled')
+end
+
+do
+    -- AC-05: unknown hp with a configured threshold pauses before any layer.
+    local host=makeHost(); host.snap={hp_pct=nil,enemy_count=1}
+    local c=AutoCombat.new(policy(),host)
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='paused' and step.reason=='unknown_safety' and step.detail=='hp_pct',
+        'unknown hp is an executor-level unknown-safety pause')
+    check(#host.requests==0,'no rule is evaluated with unknown hp')
+end
+
+do
+    -- AC-04: no visible enemy ends the run before sustain maintenance.
+    local host=makeHost(); host.snap={hp_pct=80,enemy_count=0}
+    host.sustain_on=function() return false end
+    host.talent_known=function() return true end
+    local p=policy({sustains={{talent='T_CHANT_OF_FORTRESS',priority=20}}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='stopped' and step.reason=='no_visible_enemies' and #host.requests==0,
+        'no visible enemy ends before a sustain can activate')
+end
+
+do
+    -- AC-04: in the critical layer a sustain is never attempted; the emergency
+    -- self-preservation rule runs instead.
+    local host=makeHost(); host.snap={hp_pct=10,enemy_count=1}
+    host.sustain_on=function() return false end
+    host.talent_known=function() return true end
+    local p=policy({safety={min_hp_pct=35,flee_below_hp_pct=5},sustains={{talent='T_CHANT_OF_FORTRESS',priority=20}},rules={
+        {id='heal',priority=100,emergency=true,when={always={}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}}}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='acted' and step.rule=='heal' and host.requests[1].action=='use_talent',
+        'the critical layer skips the sustain and runs the emergency rule')
+end
+
+do
+    -- AC-06: instant cap is per opportunity and not reset by display frames.
+    local host=makeHost(); host.snap={hp_pct=80,enemy_count=1}
+    host.responses={{status='ok',instant=true,energy_spent=false},{status='ok',instant=true,energy_spent=false}}
+    local p=policy({limits={max_actions_per_tick=4,max_instant_per_tick=1},rules={
+        {id='instant',priority=10,when={always={}},
+            ['then']={action='use_talent',talent='T_TWILIGHT',target='self'}}}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    check(c:onOpportunity().action=='acted','an instant action runs once')
+    check(c.instant_attempts==1,'the instant outcome is counted')
+    host.oid=2
+    check(c:onOpportunity().action=='acted','a new opportunity resets the instant budget')
+    check(c.instant_attempts==1,'the reset budget allows another instant')
+    local capped=c:onOpportunity()
+    check(capped.action=='paused' and capped.reason=='instant_budget_exhausted',
+        'the instant cap pauses before another instant submission in the same opportunity')
+end
+
+do
+    -- D6: min_resource_pct gates a sustain; unknown resource state is skipped.
+    local function sustainHost(pct)
+        local host=makeHost(); host.snap={hp_pct=80,enemy_count=1}
+        host.sustain_on=function() return false end
+        host.talent_known=function() return true end
+        host.resource_pct=function() return pct end
+        return host
+    end
+    local p=policy({sustains={{talent='T_CHANT_OF_FORTRESS',priority=20,min_resource_pct=50}}})
+    local low=AutoCombat.new(p,sustainHost(10)); low:start()
+    check(low:sustainStep()==nil,'a low resource blocks the sustain')
+    local high=AutoCombat.new(p,sustainHost(80)); high:start()
+    check(high:onOpportunity().rule=='sustain:T_CHANT_OF_FORTRESS','a sufficient resource allows the sustain')
+    local unknown=AutoCombat.new(p,sustainHost(nil)); unknown:start()
+    check(unknown:sustainStep()==nil,'unknown resource state is not activated')
+end
+
+do
+    -- D6: flee_below_hp_pct is a distinct pause reason (no auto-retreat).
+    local host=makeHost(); host.snap={hp_pct=10,enemy_count=1}
+    local p=policy({safety={min_hp_pct=35,flee_below_hp_pct=15}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='paused' and step.reason=='flee_below_hp_pct',
+        'flee_below_hp_pct pauses with its own reason')
+end
+
+do
+    -- AC-03/D1/D2: the controller consults the production guard before
+    -- submitting; a reject counts as an attempt and tries the next candidate.
+    local host=makeHost(); host.snap={hp_pct=80,enemy_count=1}
+    local seen=false
+    host.guard=function() seen=true;return {action='reject',reason='selffire_risk'} end
+    local c=AutoCombat.new(policy({limits={max_actions_per_tick=1}}),host)
+    c:start()
+    local step=c:onOpportunity()
+    check(seen and c.attempts>=1,'the guard runs and a rejection counts as an attempt')
+    check(step.action=='paused' and step.reason=='budget_exhausted',
+        'the guard rejection consumes the budget rather than firing')
+end
+
+do
+    -- AC-03/D2: a guard pause returns the guard reason.
+    local host=makeHost(); host.snap={hp_pct=80,enemy_count=1}
+    host.guard=function() return {action='pause',reason='selffire_risk'} end
+    local c=AutoCombat.new(policy(),host)
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='paused' and step.reason=='selffire_risk','a guard pause surfaces its reason')
+    check(#host.requests==0,'a guard rejection never reaches the executor')
+end
+
+do
     -- native_pending is an internal wait, never a failure, and never resubmits.
     local host=makeHost()
     host.responses={{status='native_pending'}}

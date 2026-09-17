@@ -60,8 +60,8 @@ do
     check(unsupported['unsupported_sustain']==1,'an unknown sustain is reported')
     check(unsupported['unsupported_talent']==1,'an unknown talent is reported')
     check(unsupported['unsupported_action']==1,'an unsupported action is reported')
-    check(hasCode(result.warnings,'condition_unknown_at_runtime'),
-        'a condition the runtime answers unknown is warned, not dropped')
+    check(not hasCode(result.warnings,'unsupported_condition'),
+        'a P2.5-wired predicate is accepted without a condition warning')
 
     -- Determinism.
     local again=Adapter.translate(fixture('anorithil_pinned.json'))

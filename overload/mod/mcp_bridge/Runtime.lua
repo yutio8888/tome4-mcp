@@ -12,6 +12,7 @@ local Compat=require 'mod.mcp_bridge.NativeCompatibility'
 local NativeTasks=require 'mod.mcp_bridge.NativeTasks'
 local NativeActivity=require 'mod.mcp_bridge.NativeActivity'
 local ActorCombat=require 'mod.mcp_bridge.ActorCombat'
+local Distance=require 'mod.mcp_bridge.Distance'
 local CommandLedger=require 'mod.mcp_bridge.CommandLedger'
 local ObservationViews=require 'mod.mcp_bridge.ObservationViews'
 local ObservationCollections=require 'mod.mcp_bridge.ObservationCollections'
@@ -19,6 +20,7 @@ local LevelMap=require 'mod.mcp_bridge.LevelMap'
 local AutoCombat=require 'mod.auto_combat.AutoCombatService'
 local AutoCombatHost=require 'mod.auto_combat.AutoCombatHost'
 local PolicySchema=require 'mod.auto_combat.PolicySchema'
+local AdapterCatalog=require 'mod.auto_combat.AutoCombatCatalog'
 local buildAutoCombatHost
 local function sortedKeys(t)
     local out={}
@@ -80,6 +82,13 @@ local function nativePhase(s)
             return g.onTickEndExists and g:onTickEndExists() and 'settling' or 'needs_input'
         end
         if not root.done then return 'needs_input' end
+    end
+    -- AC-01: a live auto-combat invocation (outside the remote slot) is a
+    -- settling native boundary; an errored one quarantines the session.
+    local auto=s.auto_invocation
+    if auto then
+        if auto.error then return 'unavailable' end
+        if auto.pending>0 or not auto.done then return 'settling' end
     end
     if busy(g,s) then return 'needs_input' end
     if s.saving or savefile_pipe and (savefile_pipe.saving
@@ -495,6 +504,10 @@ function M.reset(g)
             -- become the remote invocation slot.
             if root~=s.session_root and not (root.command and root.command.auto_combat) then
                 s.execution=root
+            elseif root.command and root.command.auto_combat then
+                -- AC-01: keep a live auto-combat root visible to nativePhase and
+                -- the frame pump until it settles.
+                s.auto_invocation=root
             end
             bump(s)
         end
@@ -507,7 +520,14 @@ local function ensure(g)
     return state
 end
 function M.hasControl(player)
-    return state and state.game.player==player and (state.control_token~=nil or state.active~=nil or state.execution~=nil) or false
+    local s=state
+    if not s or s.game.player~=player then return false end
+    if s.control_token~=nil or s.active~=nil or s.execution~=nil then return true end
+    -- AC-07: the standalone auto-combat lease (and an owned native activity)
+    -- must suppress ToME's native automaticTalents too.
+    if s.auto_combat and s.auto_combat.arbiter.owner=='auto_combat' then return true end
+    if s.native_activity and s.native_activity.owner=='auto_combat' then return true end
+    return false
 end
 function M.holdsNativeInput(g)
     local s=state
@@ -833,9 +853,30 @@ local function autoCombatReads(s,policy)
             return actor.life/actor.max_life*100
         end
     end
-    local function resourceOf(actor,name)
-        local resource=actor and actor[name]
-        return type(resource)=='table' and resource or nil
+    -- AC-02: ToME stores resources as scalars with `min_<name>`/`max_<name>` and
+    -- a `resources_def[<name>].talent` unlock gate, not `{current,max}`. Use the
+    -- same audited projection semantics as ObservationDetails: a resource is
+    -- only meaningful when its pool talent is known.
+    local function resourceValue(actor,name)
+        if not actor or type(name)~='string' then return nil end
+        local value=actor[name]
+        if not Details.finite(value) then return nil end
+        local defs=actor.resources_def
+        local def=type(defs)=='table' and defs[name] or nil
+        local talent=type(def)=='table' and def.talent or nil
+        if talent~=nil and not (type(actor.talents)=='table' and actor.talents[talent]~=nil) then
+            return nil
+        end
+        return value
+    end
+    local function resourcePct(actor,name)
+        local value=resourceValue(actor,name)
+        if value==nil then return nil end
+        local max=Details.number(actor['max_'..name])
+        if max==nil or max<=0 then return nil end
+        local pct=value/max*100
+        if pct<0 then pct=0 elseif pct>100 then pct=100 end
+        return pct
     end
     local reads={
         policy=policy,
@@ -850,17 +891,8 @@ local function autoCombatReads(s,policy)
         opportunity_id=function() return s.ready_serial end,
         origin=function() local p=g.player if p then return {x=p.x,y=p.y} end end,
         hp_pct=function() return lifePct(g.player) end,
-        resource_pct=function(name)
-            if name=='positive' then return lifePct(g.player) end
-            local resource=resourceOf(g.player,name)
-            if resource and Details.finite(resource.current) and Details.finite(resource.max) and resource.max>0 then
-                return resource.current/resource.max*100
-            end
-        end,
-        resource_value=function(name)
-            local resource=resourceOf(g.player,name)
-            if resource and Details.finite(resource.current) then return resource.current end
-        end,
+        resource_pct=function(name) return resourcePct(g.player,name) end,
+        resource_value=function(name) return resourceValue(g.player,name) end,
         talent_known=function(id)
             local p=g.player
             if not p or type(p.talents)~='table' then return nil end
@@ -952,10 +984,9 @@ local function autoCombatReads(s,policy)
         resources=function()
             local p=g.player
             if not p then return nil end
-            return {life=p.life,max_life=p.max_life,
-                positive=p.positive and p.positive.current or nil,
-                negative=p.negative and p.negative.current or nil,
-                stamina=p.stamina and p.stamina.current or nil}
+            return {life=Details.number(p.life),max_life=Details.number(p.max_life),
+                positive=resourceValue(p,'positive'),negative=resourceValue(p,'negative'),
+                stamina=resourceValue(p,'stamina')}
         end,
         snapshot_meta=function()
             return {revision=s.revision,level_instance_id=s.level_id}
@@ -969,12 +1000,87 @@ local function autoCombatReads(s,policy)
     return reads
 end
 
+-- AC-01/AC-06 production outcome mapping: translates a real `Actions.execute`
+-- result into the controller's host outcome. `reads.execute` is the only
+-- production caller; exposed so a production-path test can assert that a real
+-- `native_pending` is not collapsed into `ok`, and how `no_energy` + observed
+-- delta classify an instant action.
+function M.mapAutoCombatOutcome(result,action,noEnergy)
+    if type(result)~='table' then return {status='error',code='no_result',energy_spent=false} end
+    local spent=(Details.finite(result.energy_spent) and result.energy_spent>0) or false
+    if result.uncertain then return {status='uncertain',code=result.code,energy_spent=spent} end
+    if result.code=='native_pending' then
+        return {status='native_pending',code='native_pending',energy_spent=spent}
+    end
+    if result.ok then
+        local instant=false
+        if action=='use_talent' or action=='set_sustain' then
+            local zero=(result.energy_spent or 0)<=0
+            if type(noEnergy)=='boolean' then instant=zero and noEnergy==true else instant=zero end
+            if result.code=='already_in_desired_state' then instant=false end
+        end
+        return {status='ok',code=result.code,energy_spent=spent,instant=instant}
+    end
+    return {status='rejected',code=result.code,energy_spent=spent}
+end
+
 -- Live controller host. The executor reuses Actions.execute under a synthetic
 -- command (see the changed() guard) and never becomes the remote invocation
 -- slot.
 buildAutoCombatHost=function(s,policy)
     local g=s.game
     local reads=autoCombatReads(s,policy)
+    -- AC-03/D1/D2: version-pinned adapter guard over the actual bound target.
+    -- `max_selffire_risk==0` rejects (hard gate), `>0` pauses; self-target
+    -- talents are safe. Reuses the audited Details geometry helpers and the
+    -- native `canProject`. Returns nil / {action='reject'|'pause',reason}.
+    local function safetyGuard(attempt)
+        local action=attempt.action
+        if action~='attack' and action~='use_talent' then return nil end
+        local p=g.player
+        if not p then return {action='reject',reason='actor_unavailable'} end
+        local talent=action=='attack' and 'T_ATTACK' or attempt.talent
+        local entry=AdapterCatalog.entry(talent)
+        if not entry then return {action='reject',reason='unsupported_adapter'} end
+        if entry.target~='hostile' then return nil end
+        local risk=policy and policy.safety and policy.safety.max_selffire_risk
+        local hard=(risk==nil or risk<=0)
+        local function verdict(reason,detail)
+            return {action=hard and 'reject' or 'pause',reason=reason,detail=detail}
+        end
+        local target
+        if attempt.bound_target then target=Observer.resolve(g,meta(s),attempt.bound_target) end
+        if not target then return verdict('target_lost') end
+        if not (Details.finite(target.x) and Details.finite(target.y)
+            and Details.finite(p.x) and Details.finite(p.y)) then return verdict('target_geometry_unknown') end
+        if entry.range and Distance.grid(p.x,p.y,target.x,target.y)>entry.range then
+            return verdict('target_out_of_range')
+        end
+        local typ={type=entry.shape,radius=entry.radius,range=entry.range,direct_hit=entry.direct_hit,
+            selffire=entry.selffire,friendlyfire=entry.friendlyfire,talent=talent}
+        if type(p.canProject)=='function' then
+            local ok,can=pcall(p.canProject,p,typ,target.x,target.y)
+            if not ok or can==nil then return verdict('canproject_unknown')
+            elseif can==false then return verdict('no_line_of_sight') end
+        else
+            return verdict('canproject_unavailable')
+        end
+        local selfRisk=Details.selffire(typ)
+        if selfRisk==true then return verdict('selffire_risk') end
+        if selfRisk=='unknown'
+            and (entry.shape=='ball' or entry.shape=='cone' or entry.shape=='wide') then
+            return verdict('selffire_risk')
+        end
+        -- Friendly-fire is only possible for a line/area footprint; a single
+        -- target hit lands on the hostile target itself.
+        if entry.shape=='beam' or entry.shape=='ball' or entry.shape=='cone' or entry.shape=='wide' then
+            local _,count=Details.friendliesInEffect(g,p,target.x,target.y,entry.shape,entry.radius,entry.range,
+                function(_,actor) return Observer.visible(g,actor) end)
+            if count and count>0 then return verdict('selffire_risk',{friendly_fire=count}) end
+        end
+        return nil
+    end
+    reads.guard=safetyGuard
     reads.execute=function(attempt)
         -- Multi-turn native activities (design §15 P1b). They register the
         -- session activity and hold the next turns; the controller waits rather
@@ -1006,6 +1112,9 @@ buildAutoCombatHost=function(s,policy)
         else
             return {status='rejected',code='unsupported_action',energy_spent=false}
         end
+        -- AC-03: final reject-only guard immediately before native execution.
+        local refusal=safetyGuard(attempt)
+        if refusal then return {status='rejected',code=refusal.reason,energy_spent=false} end
         local command={command_id='auto-combat',status='auto_combat',auto_combat=true,
             interactions={},responses={},consumed_interactions={},interaction_sequence=0}
         local ok,root,result=pcall(Tracker.startAction,g,command,function()
@@ -1013,16 +1122,17 @@ buildAutoCombatHost=function(s,policy)
         end)
         if type(root)=='table' and root.done then
             NativeTasks.release(root);Interactions.release(root);Tracker.release(root);root.invocation=nil
+            if s.auto_invocation==root then s.auto_invocation=nil end
         end
         if not ok then
             return {status='error',code='execution_error',energy_spent=false,
                 message=Details.text(tostring(root),256)}
         end
-        if type(result)~='table' then return {status='error',code='no_result',energy_spent=false} end
-        local spent=(Details.finite(result.energy_spent) and result.energy_spent>0) or false
-        if result.uncertain then return {status='uncertain',code=result.code,energy_spent=spent} end
-        if result.ok then return {status='ok',code=result.code,energy_spent=spent} end
-        return {status='rejected',code=result.code,energy_spent=spent}
+        local def=g.player and g.player.talents_def and g.player.talents_def[action.talent_id]
+        local noEnergy=type(def)=='table' and def.no_energy or nil
+        if type(noEnergy)=='function' then noEnergy=nil end
+        if type(noEnergy)~='boolean' then noEnergy=nil end
+        return M.mapAutoCombatOutcome(result,action.type,noEnergy)
     end
     return AutoCombatHost.new(reads)
 end
@@ -1234,12 +1344,12 @@ local function dispatch(s,request)
                     execution=(config and config.settings and config.settings.tome_mcp_bridge
                         and config.settings.tome_mcp_bridge.allow_auto_combat_execution==true) or false,
                     source='auto_combat',baseline='p1b',
-                    actions=Json.array{'use_talent','attack','wait','rest','auto_explore','change_level'},
+                    actions=Json.array{'use_talent','attack','wait','rest','auto_explore'},
                     native_activities=Json.array{'rest','auto_explore'},
+                    adapter_version=AdapterCatalog.VERSION,
                     predicates=Json.array(AUTO_PREDICATES),
                     selectors=Json.array(AUTO_SELECTORS),
                     computed_fields=Json.array(AUTO_COMPUTED_FIELDS),
-                    change_level='opt_in',
                     policy_ops=Json.array{'status','validate','dry_run','set_draft','approve','activate','deactivate',
                         'start','stop','pause','resume','log','replay','presets','preset','export','import','import_assistant'}}},snapshot=snap}
         local ok,reason=Compat.check(s.game)
@@ -1589,6 +1699,17 @@ local function invariants(s)
     if s.snapshots and #s.snapshots>M.MAX_RECENT_SNAPSHOTS then return 'snapshot_budget' end
     return nil
 end
+-- AC-01: release a settled auto-combat invocation so nativePhase stops
+-- reporting it as a live boundary and the controller can resume.
+local function reapAutoInvocation(s)
+    local root=s.auto_invocation
+    if not root or not root.done then return end
+    if root.error then s.native_error=s.native_error or 'native_action_error' end
+    NativeTasks.release(root);Interactions.release(root);Tracker.release(root)
+    root.invocation=nil
+    s.auto_invocation=nil
+    bump(s)
+end
 function M.onFrame(g)
     if core and core.display and core.display.redrawingForSavefileScreenshot
         and core.display.redrawingForSavefileScreenshot() then return end
@@ -1596,7 +1717,7 @@ function M.onFrame(g)
     if s.pumping or s.tick_depth>0 then return end
     s.pumping=true
     local ok,err=pcall(function()
-        sync(s);Input.attach(g);Journal.update(g);settle(s);start(s)
+        sync(s);Input.attach(g);Journal.update(g);settle(s);reapAutoInvocation(s);start(s)
         -- A live auto-combat activity owns the next turns; stop it if the run
         -- ended or lost the lease, then drop finished activities.
         local auto=s.auto_combat
@@ -1606,6 +1727,7 @@ function M.onFrame(g)
         end
         NativeActivity.reap(s)
         if s.auto_combat and s.auto_combat.host_factory and not s.active and not s.execution
+            and not s.auto_invocation
             and not (s.native_activity and s.native_activity.owner=='auto_combat')
             and s.tick_depth==0 and s.tick_serial>0 then
             local ok_auto=pcall(AutoCombat.step,s.auto_combat)
@@ -1683,6 +1805,12 @@ function M.buildAutoCombatHostFor(g,policy)
     local s=state
     if not s or s.game~=g then return nil end
     return buildAutoCombatHost(s,policy)
+end
+-- Test/production seam: the read-only planning host for the current session.
+function M.buildAutoCombatReadHostFor(g,policy)
+    local s=state
+    if not s or s.game~=g then return nil end
+    return buildAutoCombatReadHost(s,policy)
 end
 function M.autoCombatService(g)
     local s=state

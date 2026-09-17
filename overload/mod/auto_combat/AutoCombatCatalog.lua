@@ -5,19 +5,24 @@
 -- cannot target a hostile, a sustain is not a rule action, ...). Static data
 -- only: nothing here calls the engine or the talent itself.
 local M={}
+-- Version-pinned adapter catalogue. The executor guard re-checks these entries
+-- immediately before native execution; the version is reported in capabilities.
+M.VERSION='tome-auto-combat-adapters/v1'
 M.ENTRIES={
     T_CHANT_OF_FORTRESS={kind='sustain',target='self',resource='positive'},
     T_HYMN_OF_SHADOWS={kind='sustain',target='self',resource='negative'},
     T_HEALING_LIGHT={kind='heal',target='self',resource='positive'},
     T_BARRIER={kind='buff',target='self',resource='positive'},
     T_TWILIGHT={kind='buff',target='self',resource='negative'},
-    T_MOONLIGHT_RAY={kind='attack',target='hostile',shape='beam',resource='negative',
+    T_MOONLIGHT_RAY={kind='attack',target='hostile',shape='beam',range=10,resource='negative',
         friendlyfire_risk='line'},
-    T_SEARING_LIGHT={kind='attack',target='hostile',shape='ball',resource='positive',
-        friendlyfire_risk='area'},
-    T_ATTACK={kind='attack',target='hostile',shape='hit'},
+    -- Design §5.7: Searing Light's damage is a single `hit` plus a ground light
+    -- field with selffire/friendlyfire false; the ball cursor is aiming only.
+    T_SEARING_LIGHT={kind='attack',target='hostile',shape='hit',range=10,resource='positive',
+        direct_hit=true,friendlyfire_risk='none'},
+    T_ATTACK={kind='attack',target='hostile',shape='hit',range=1},
     -- P2 second pilot: Sun Paladin (celestial/sun + celestial/light).
-    T_SUN_BEAM={kind='attack',target='hostile',shape='hit',resource='positive'},
+    T_SUN_BEAM={kind='attack',target='hostile',shape='hit',range=7,resource='positive'},
     T_WEAPON_OF_LIGHT={kind='sustain',target='self',resource='positive'},
 }
 M.HOSTILE_SELECTORS={nearest_hostile=true,lowest_hp_hostile=true,
@@ -31,7 +36,6 @@ M.ACTIONS={
     wait={kind='utility'},
     rest={kind='native_activity',activity='rest',default_max_turns=1000},
     auto_explore={kind='native_activity',activity='auto_explore'},
-    change_level={kind='native_activity',activity='change_level',default_enabled=false},
 }
 function M.actionSupported(action) return action~=nil and M.ACTIONS[action]~=nil end
 
@@ -49,9 +53,6 @@ function M.verify(policy)
         local path='rules['..index..']'
         if action~=nil and not M.ACTIONS[action] then
             errors[#errors+1]={path=path..'.then.action',code='unsupported_action'}
-        end
-        if action=='change_level' and not (policy.permissions and policy.permissions.change_level==true) then
-            errors[#errors+1]={path=path..'.then.action',code='change_level_not_enabled'}
         end
         local entry=rule['then'] and rule['then'].talent and M.ENTRIES[rule['then'].talent] or nil
         if entry then
@@ -88,6 +89,7 @@ function M.summary()
             default_max_turns=entry.default_max_turns,default_enabled=entry.default_enabled}
     end
     table.sort(actions,function(a,b) return a.action<b.action end)
-    return {schema='tome-auto-combat/v1',talents=talents,actions=actions}
+    return {schema='tome-auto-combat/v1',adapter_version=M.VERSION,
+        talents=talents,actions=actions}
 end
 return M

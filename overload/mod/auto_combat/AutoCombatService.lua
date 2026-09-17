@@ -169,15 +169,24 @@ function M.approve(svc,expected_hash)
 end
 
 -- Activation promotes the approved policy to running and requests the lease.
--- Certification alone never grants control.
+-- Certification alone never grants control. AC-08: a changed approved hash
+-- invalidates the old controller generation so the reported running hash is
+-- never ahead of the executor.
 function M.activate(svc,expected_hash)
     if not svc.store.approved then return fail('not_approved') end
+    local previous_running=svc.store.running and Schema.hash(svc.store.running) or nil
     local granted,reason=Arbiter.grant(svc.arbiter,M.SOURCE,'auto-combat activated')
     if not granted then return fail(reason,{control_owner=svc.arbiter.owner}) end
     local activated,err=Store.activate(svc.store,expected_hash)
     if not activated then
         Arbiter.revoke(svc.arbiter,M.SOURCE,'activation failed')
         return fail(err.code,err)
+    end
+    local now_running=Schema.hash(svc.store.running)
+    if svc.controller and svc.controller.state~='stopped' and previous_running~=nil
+        and previous_running~=now_running then
+        svc.controller:stop('policy_replaced')
+        svc.controller=nil
     end
     svc.revision=svc.revision+1
     return ok(activated)
@@ -195,11 +204,17 @@ end
 function M.start(svc)
     if not svc.store.running then return fail('not_activated') end
     if not svc.host_factory then return fail('execution_not_available') end
-    if not Arbiter.canAct(svc.arbiter,M.SOURCE) then
-        return fail('control_not_held',{control_owner=svc.arbiter.owner})
-    end
     if svc.controller and svc.controller.state~='stopped' then
         return fail('already_running',{state=svc.controller.state})
+    end
+    -- AC-09: `start` re-acquires the lease for an already-active policy when the
+    -- owner is manual, so stop / no-visible-enemies / manual input can restart
+    -- without a deactivate detour. Another owner still owns the lease.
+    if not Arbiter.canAct(svc.arbiter,M.SOURCE) then
+        local granted,reason=Arbiter.grant(svc.arbiter,M.SOURCE,'auto-combat start')
+        if not granted then
+            return fail('control_not_held',{control_owner=svc.arbiter.owner,reason=reason})
+        end
     end
     local host=svc.host_factory(svc)
     if not host then return fail('execution_not_available') end

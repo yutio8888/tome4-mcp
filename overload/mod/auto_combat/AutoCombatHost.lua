@@ -39,6 +39,11 @@ function M.new(opts)
     host.sustain_on=opts.sustain_on
     host.resources=opts.resources
     host.talent_known=opts.talent_known
+    -- Reads the controller consults outside the snapshot (D6 sustain gating).
+    host.resource_pct=opts.resource_pct
+    host.resource_value=opts.resource_value
+    -- Pre-execution safety guard (AC-03/D1/D2). Only the live host provides it.
+    host.guard=opts.guard
     -- Optional {revision, level_instance_id} metadata for dry-run diagnostics.
     host.snapshot_meta=opts.snapshot_meta
     host.snapshot=function(selector) return Snapshot.build(opts,opts.policy,selector) end

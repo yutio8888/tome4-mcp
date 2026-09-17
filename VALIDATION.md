@@ -1,5 +1,30 @@
 # MCP Bridge 验收记录
 
+## 0.9.0：自动战斗插件 Wave 1（执行安全）
+
+日期：2026-09-17。修复独立评审确认的 AC-01 … AC-10（执行层安全），全部在**生产路径**上验证（真实 `Actions.execute` → 映射/主机），不再靠伪造 `{status=...}`。执行与 `change_level` 默认仍关闭。
+
+| 检查层 | 结果 | 证据 |
+| --- | --- | --- |
+| AC-01 `native_pending` | **通过**：映射先于成功分支；真实 `Actions.execute` 挂起根 → `native_pending`；`nativePhase` 跟踪活动根；`resume` 拒绝未结算 | `test_auto_combat_execution.lua`（10）、`test_auto_combat_controller.lua`（76） |
+| AC-02 资源读取 | **通过**：标量 `value`+`min_`/`max_`+解锁门控；资源日志不再变 nil | `test_runtime.lua`（156）、原生 `production-reads` |
+| AC-03 安全 adapter | **通过**：版本固定 guard 在实际绑定目标上判定射程/`canProject`/几何/自伤/友伤；`max_selffire_risk==0` 硬拒绝、`>0` 暂停；emergency 任意 talent 但由 guard 把关 | `test_runtime.lua`、controller 76 |
+| AC-04/05/D6 边界与阈值 | **通过**：无敌人→危急→常驻；未知 HP 暂停；`min_resource_pct` 门控；`flee_below_hp_pct` 独立暂停 | controller 76 |
+| AC-06 瞬发预算 | **通过**：`no_energy` + 观测能量差分类；按行动机会计数与封顶 | `test_auto_combat_execution.lua`、controller 76 |
+| AC-07 单机抑制 | **通过**：`hasControl` 含 auto-combat 租约/活动 | `test_runtime.lua`、原生 `production-reads` |
+| AC-08/09 生命周期 | **通过**：替换激活作废旧代际；`start` 重新获取租约（stop/无敌人/manual 后可重启） | `test_auto_combat_service.lua`（71） |
+| AC-10 `change_level` | **通过（移除）**：从 auto-combat schema/目录/能力声明移除，作为后续阶段 | `test_auto_combat_policy.lua`（68）、`test_auto_combat_catalog.lua`（34） |
+| 原生 fixture | **通过（35/35，source 与 `dist/*.teaa` 各一次）** | `tmp/tome-mcp-validation/sessions/wave1-final-src/`、`wave1-final-teaa/` |
+| 既有套件 | Lua **33 套 / 101,979 checks**、Python **33 通过**、两个 `--check` 生成器绿 | `bash game/addons/tome-mcp-bridge/tests/run.sh` 等 |
+
+正式包 **59 个生产文件**，SHA-256：
+
+```text
+bc9aab70df72a5b7b2565f93b109c290adbc4f222ca23837927137a75e431688
+```
+
+四项决定与映射见 [Wave 1 文档](docs/tome-mcp-0.9.0-wave1-execution-safety.md)；未修项见 [TODO](docs/tome-mcp-0.9.0-auto-combat-todo.md)。Wave 2（协议/接口）未开始。
+
 ## 0.9.0：自动战斗插件 P2.5（tooltip-safe getters）
 
 日期：2026-09-17。把玩家面板/悬浮可见的 getter 接入谓词层。仍为只读审计；无 RNG、无目标特定解析；执行与 `change_level` 默认关闭。

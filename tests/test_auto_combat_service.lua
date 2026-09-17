@@ -94,6 +94,41 @@ do
     check(svc.arbiter.owner=='manual','stop releases the lease')
 end
 
+-- AC-08/AC-09: activation replacement and restart semantics -------------------
+do
+    local svc=Service.new({host_factory=fakeHost})
+    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
+    Service.handle(svc,'start',{})
+    check(svc.controller and svc.controller.state=='running','the run started')
+    -- AC-09: stop keeps the active policy; start re-acquires the lease.
+    Service.handle(svc,'stop',{})
+    check(svc.arbiter.owner=='manual' and svc.store.running~=nil and svc.store.active==true,
+        'stop releases the lease but keeps the active policy')
+    local restarted=Service.handle(svc,'start',{})
+    check(restarted.ok and svc.arbiter.owner=='auto_combat',
+        'start re-acquires the lease for an already-active policy')
+    Service.manualInput(svc,'manual')
+    check(svc.arbiter.owner=='manual' and svc.store.running~=nil,'manual input keeps the active policy')
+    check(Service.handle(svc,'start',{}).ok,'start re-acquires after a manual input')
+    -- AC-09: a no-visible-enemies self-stop is restartable.
+    svc.controller.host.snapshot=function() return {hp_pct=80,enemy_count=0} end
+    Service.step(svc)
+    check(svc.arbiter.owner=='manual' and svc.store.running~=nil,'no-enemy end keeps the active policy')
+    check(Service.handle(svc,'start',{}).ok,'start re-acquires after a no-enemy end')
+    -- AC-08: activating a changed approved policy stops the old generation.
+    local old_hash=Service.status(svc).running_hash
+    local d2=Service.handle(svc,'set_draft',{policy=policy({id='p2'}),
+        expected_hash=Service.status(svc).draft_hash})
+    local ap2=Service.handle(svc,'approve',{expected_hash=d2.draft_hash})
+    local act=Service.handle(svc,'activate',{expected_hash=ap2.approved_hash})
+    check(act.ok and Service.status(svc).running_hash~=old_hash,'activation changes the running hash')
+    check(svc.controller==nil,'a replacement activation stops the old controller generation')
+    local started=Service.handle(svc,'start',{})
+    check(started.ok and svc.controller.policy.id=='p2','start runs the replacement policy')
+end
+
 -- Decision replay: bounded, cursor-paged, ascending -------------------------
 do
     local svc=Service.new({host_factory=fakeHost,

@@ -181,21 +181,26 @@ do
     check(not Schema.validate(bad3),'rest max_turns is bounded')
 end
 do
-    -- change_level is opt-in: rejected unless permissions.change_level is true.
+    -- Wave 1 (AC-10): change_level was removed from the auto-combat policy
+    -- schema/claims; the general MCP tome.act action is unaffected.
     local p=basePolicy()
     p.rules={{id='descend',priority=10,when={enemy_count={eq=0}},['then']={action='change_level'}}}
-    check(not Schema.validate(p),'change_level is rejected without explicit permission')
-    p.permissions={change_level=true}
-    check(Schema.validate(p),'change_level validates once explicitly enabled')
-    p.permissions={change_level='yes'}
-    check(not Schema.validate(p),'permissions.change_level must be a boolean')
+    check(not Schema.validate(p),'change_level is no longer an auto-combat action')
+    local permissions=basePolicy()
+    permissions.permissions={change_level=true}
+    check(not Schema.validate(permissions),'the permissions field is no longer accepted')
 end
 do
-    -- The critical layer is only for genuine self-preservation actions.
+    -- The critical layer is only for self-preservation actions (shape); the
+    -- catalogue certifies the specific talent (semantic).
     local p=basePolicy()
     p.rules={{id='panic-rest',priority=100,emergency=true,when={always={}},
         ['then']={action='rest',max_turns=5}}}
     check(not Schema.validate(p),'an emergency rest rule is rejected as non-self-preservation')
+    local attack=basePolicy()
+    attack.rules={{id='panic-attack',priority=100,emergency=true,when={always={}},
+        ['then']={action='attack',target='nearest_hostile'}}}
+    check(Schema.validate(attack),'an emergency attack is shape-valid; the executor guard is the safety gate')
 end
 do
     -- The evaluator carries max_turns into the act decision for the executor.
