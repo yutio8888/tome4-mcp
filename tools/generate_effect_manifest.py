@@ -54,6 +54,10 @@ TALENTS = {
     "T_FIREFLASH": ("data/talents/spells/fire.lua", "Fireflash"),
     "T_SHADOW_BLAST": ("data/talents/celestial/star-fury.lua", "Shadow Blast"),
     "T_STARFALL": ("data/talents/celestial/star-fury.lua", "Starfall"),
+    # Movement tranche (v1.6): ordinary movement/teleport actions.
+    "T_RUSH": ("data/talents/techniques/combat-techniques.lua", "Rush"),
+    "T_SKIRMISHER_CUNNING_ROLL": ("data/talents/techniques/acrobatics.lua", "Tumble"),
+    "T_PHASE_DOOR": ("data/talents/spells/conveyance.lua", "Phase Door"),
 }
 
 # Talents whose `t.target` builder the guard reads. The generator pins the exact
@@ -63,6 +67,7 @@ BUILDER_TALENTS = {
     "T_MOONLIGHT_RAY", "T_SUN_BEAM", "T_FLAME", "T_BLOOD_GRASP",
     "T_SHATTERING_BLOW", "T_ATTACK",
     "T_FLAMESHOCK", "T_FIREFLASH", "T_SHADOW_BLAST", "T_STARFALL",
+    "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL",
 }
 
 # Engine / module semantics files the filter and footprint model is pinned to.

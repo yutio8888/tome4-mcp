@@ -60,6 +60,7 @@ M.EXPECTED={
     ['manifest-drift']={'verified','hash_rejected','identity_ok'},
     ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
+    ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
     ['solo-pump']={},
 }
 
@@ -861,6 +862,78 @@ function M.dynamicTalents()
     return compare('dynamic-talents',signals)
 end
 
+-- MOV-1..MOV-3 native check: the production host plans a real step, executes it
+-- through the real executor, and annotates an off-vision grid request and a
+-- random teleport landing. A deterministic-landing policy rejects the random
+-- teleport as a policy choice (not a plugin refusal).
+local function movementPlan()
+    forceReady()
+    Runtime.setAutoCombatExecution(game,true)
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    -- Choose a real open adjacent cell so the production executor has a genuine
+    -- movement to perform; native collision stays authoritative.
+    local function openAdjacent()
+        local p=game.player
+        local map=game.level.map
+        local dirs={{-1,-1},{0,-1},{1,-1},{-1,0},{1,0},{-1,1},{0,1},{1,1}}
+        for _,d in ipairs(dirs) do
+            local x,y=p.x+d[1],p.y+d[2]
+            if map:isBound(x,y) and not map:checkAllEntities(x,y,'block_move',p)
+                and not map(x,y,engine.Map.ACTOR) then
+                return d
+            end
+        end
+        return nil
+    end
+    local delta=openAdjacent() or {0,1}
+    local pol=policy({{id='kite',priority=10,when={always={}},
+        ['then']={action='move',target='nearest_hostile',
+            destination={selector='relative',dx=delta[1],dy=delta[2],accept=accept}}}})
+    Runtime.autoCombatHandle(game,'set_draft',{policy=pol})
+    local approved=Runtime.autoCombatHandle(game,'approve',{})
+    Runtime.autoCombatHandle(game,'activate',{expected_hash=approved.approved_hash})
+    local host=Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end})
+    local signals={}
+    local bound=host and host.snapshot('nearest_hostile').bound_target or nil
+    local planned,err=host.plan({action='move',destination=pol.rules[1]['then'].destination,
+        bound_target=bound})
+    local step_ok=planned and planned.plan and planned.plan.kind=='step'
+    signals[#signals+1]=step_ok and 'step_planned' or 'step_missing'
+    check('movement:step',step_ok,{reason=err and err.reason,kind=planned and planned.plan and planned.plan.kind})
+    if step_ok then
+        local before=game.player.x..','..game.player.y
+        local outcome=host.request({action='move',plan=planned.plan,rule='kite'})
+        local moved=outcome.status=='ok'
+        signals[#signals+1]=moved and 'step_executed' or 'step_rejected'
+        check('movement:step-executes',moved,{status=outcome.status,code=outcome.code,
+            before=before,after=game.player.x..','..game.player.y})
+    else
+        signals[#signals+1]='step_rejected'
+    end
+    local grid=host.plan({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
+        destination={selector='position',x=game.player.x+3,y=game.player.y,accept=accept}})
+    local grid_ok=grid and grid.plan and grid.plan.kind=='grid'
+        and grid.plan.annotation and grid.plan.annotation.known_passable~=nil
+    signals[#signals+1]=grid_ok and 'grid_annotated' or 'grid_missing'
+    check('movement:grid-annotation',grid_ok,{kind=grid and grid.plan and grid.plan.kind,
+        visible=grid and grid.plan and grid.plan.annotation and grid.plan.annotation.visible,
+        passable=grid and grid.plan and grid.plan.annotation and grid.plan.annotation.known_passable})
+    local random=host.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',accept=accept}})
+    local random_ok=random and random.plan and random.plan.annotation.landing.kind=='random'
+    signals[#signals+1]=random_ok and 'random_annotated' or 'random_missing'
+    check('movement:random-annotation',random_ok,{})
+    local strict=host.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',accept={visibility='any',passability='native',
+            hazard='any',landing='deterministic'}}})
+    local strict_ok=strict==nil
+    signals[#signals+1]=strict_ok and 'random_policy_rejected' or 'random_policy_passed'
+    check('movement:random-policy',strict_ok,{})
+    Runtime.autoCombatHandle(game,'deactivate',{})
+    Runtime.setAutoCombatExecution(game,false)
+    return compare('movement',signals)
+end
+
 local function runAll()
     local ok,err=pcall(function()
         startWhenReady()
@@ -879,6 +952,7 @@ local function runAll()
         M.effectFootprintParity()
         M.manifestDrift()
         M.dynamicTalents()
+        movementPlan()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok

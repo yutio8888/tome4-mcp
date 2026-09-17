@@ -181,6 +181,11 @@ function M.build(ctx)
         if driftOk~=true then
             return verdict(hard,'adapter_source_drift',{reason=driftReason,detail=driftDetail})
         end
+        -- Movement adapters carry no damage footprint; their landing/uncertainty
+        -- safety is the MovementPlanner's explicit policy acceptance. The guard
+        -- still checked the source pin above, so a drifted movement adapter is
+        -- disabled rather than silently trusted.
+        if entry.kind=='movement' then return nil end
         if entry.target~='hostile' then return nil end
         local target
         if attempt.bound_target then target=ctx.resolve(attempt.bound_target) end

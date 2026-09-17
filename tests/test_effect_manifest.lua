@@ -86,11 +86,22 @@ end
 for talent,entry in pairs(Manifest.ENTRIES) do
     local compat=Manifest.compat(entry)
     check(compat~=nil,'compat view for '..talent)
-    if entry.target=='hostile' and not entry.melee then
+    if entry.kind~='movement' and entry.target=='hostile' and not entry.melee then
         check(compat.delivery~=nil,'compat delivery for '..talent)
         check(compat.shape~=nil,'compat shape for '..talent)
     end
 end
+-- Movement entries declare their exact native request/landing classification
+-- and carry no damage components (the guard skips them by source-pinned kind).
+for _,talent in ipairs{'T_RUSH','T_SKIRMISHER_CUNNING_ROLL','T_PHASE_DOOR'} do
+    local entry=Manifest.entry(talent)
+    check(entry~=nil and entry.kind=='movement','movement entry for '..talent)
+    check(type(entry.movement)=='table' and type(entry.movement.target_requests)=='table',
+        'movement adapter declares its target requests for '..talent)
+end
+check(Manifest.entry('T_PHASE_DOOR').movement.landing=='random','Phase Door is a random teleport')
+check(Manifest.entry('T_SKIRMISHER_CUNNING_ROLL').movement.landing=='exact','Tumble is an exact grid move')
+check(Manifest.entry('T_RUSH').movement.landing=='bounded_alternatives','Rush is an actor-anchored line move')
 check(Manifest.compat(Manifest.entry('T_FLAME')).shape=='widebeam','Flame compat reports the widest union member')
 check(Manifest.compat(Manifest.entry('T_SOUL_ROT')).delivery=='projectile','Soul Rot compat keeps the projectile delivery')
 check(Manifest.compat(Manifest.entry('T_BLOOD_GRASP')).friendlyfire_risk=='none','a safe bolt has no derived line risk')

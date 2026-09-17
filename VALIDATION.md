@@ -1,5 +1,42 @@
 # MCP Bridge 验收记录
 
+## 0.9.0：移动/重新定位第一段（MOV-1 … MOV-6，rev 1，待评审）
+
+日期：2026-09-17。分支 `feat/movement-first-tranche`（基线 `main@a3b3a9a`）。执行 v1.6 插件职责边界（`AGENTS.md` §插件职责边界、`docs/tome-mcp-auto-combat-plugin-design.md` §0.1/§1.2/§5.3/§5.4/§8.1）与 `docs/tome-mcp-0.9.0-movement-skills-design.md`。`allow_auto_combat_execution` 保持 `false`。状态：**ready for review**（未合并，未经独立评审）。原始证据见 `tmp/movement-first-tranche/`。
+
+| ID | 结果 | 证据 |
+| --- | --- | --- |
+| MOV-1 schema/catalog/planner | **PASS**：新增 `move` 与纯数据 `destination`（`toward/away/preferred_distance/position/relative/native_landing/native_random`）+ 显式 `accept`（visibility/passability/hazard/landing 全必填，无隐藏默认）；`target_plan` 严格校验；`change_level` 回白名单；`T_RUSH`/`T_SKIRMISHER_CUNNING_ROLL`/`T_PHASE_DOOR` 源固定 adapter；`MovementPlanner` 纯函数、固定 `[7,8,9,4,6,1,2,3]` 顺序与确定性 tie-break、无 RNG | `tests/test_auto_combat_policy.lua`（96）、`tests/test_auto_combat_catalog.lua`（60）、`tests/test_auto_combat_movement.lua`（34）、`tests/test_effect_manifest.lua`（348）、`tools/generate_effect_manifest.py --check` |
+| MOV-2 执行 | **PASS**：普通相邻步 → `{type:'move',direction}`；网格技能 → `use_talent,x,y`；`native_random` → 无伪造端点；`T_RUSH` actor-anchored landing；`change_level` 真实迁移 → 控制器 `stopped/reason=level_changed` 并释放租约，`change_level_pending` → 交还交互 | `tests/test_auto_combat_movement.lua`、`tests/test_auto_combat_execution.lua`（12）、`tests/test_runtime.lua`（179）、原生 `movement:step-executes` |
+| MOV-3 不确定性标注 | **PASS**：`dry_run`/decision/log 带 `landing`/`visible`/`remembered`/`known_passable`/`known_hazard`/`confidence`；unknown 保持 unknown；只读 FOV/`remembers`/`seens`/已审计 `Details.terrain`，不读隐藏占用 | `tests/test_auto_combat_movement.lua`、`tests/test_runtime.lua`、原生 `movement:grid-annotation`/`movement:random-annotation` |
+| MOV-4 自伤 Q4 | **PASS**：同一已知自伤/友伤 footprint，`max_selffire_risk=0` → reject、`>0` → pause，风险详情随 verdict 报告；无全局硬拒绝；仅不可计算 footprint fail-closed；内置 preset 保持 `0` | `tests/test_auto_combat_guard.lua`（45）、`tests/test_runtime.lua` |
+| MOV-5 回退 Wave-1 移除 | **PASS**：`change_level` 回到 schema/catalog/capability/executor；Wave-1 断言更新；取代记录于 `docs/tome-mcp-0.9.0-wave1-execution-safety.md`（D5/D6 supersession） | `tests/test_auto_combat_policy.lua`、`tests/test_auto_combat_catalog.lua` |
+| MOV-6 整体 | **PASS**：Lua 40 套全绿、Python 39、三个 `--check` exit 0；auto-combat 探针 source/dist 各 **94/94**；原生验收 source/dist 各 **100/100**；重新打包 | 下表 |
+
+命令与原始证据（`tmp/movement-first-tranche/`）：
+
+| 命令 | 结果 | 文件 / sha256 |
+| --- | --- | --- |
+| `bash tests/run.sh` | 40 套全绿 | `lua-suite.log` `94dd9a9ee690c2752ddc2669ff7c988005064320eaf5ac01eec5b7e1a4ed96fa` |
+| `PYTHONPATH=server/src <venv>/python -m unittest discover -s server/tests` | 39 OK | `python-tests.log` `c0a6a40ed8d021f6d3f91c44c0bbb9539a4e47a0c2522f6d4a767bd94def83a9` |
+| `python3 tools/{generate_native_seams,generate_protocol,generate_effect_manifest}.py --check` | 3/3 exit 0 | `generator-checks.log` `2503208f26358c11c18060261b70491e476054b8e2281485592a8142d60e4ab4` |
+| `tests/native/auto_combat_run.py movement3-src` | **94/94** | `probe-source-result.json` `aa676ff33fca60460fdd96dc4403204431dc602bb60df14e41555990c93e45f9` |
+| `tests/native/auto_combat_run.py movement3-dist --addon-archive dist/tome-mcp-bridge.teaa` | **94/94** | `probe-dist-result.json` `8f63519f41af74862adc00e49eaac0b362144f45a729670d07d7417f3beecc77` |
+| `tests/native/run.py movement3-accept-src` | **100/100** | `acceptance-source-result.json` `63eb2f35b0321badd88ceafe3f8e01d3bc830571b155515c49270fe87f7bda3d` |
+| `tests/native/run.py movement3-accept-dist --addon-archive dist/tome-mcp-bridge.teaa` | **100/100** | `acceptance-dist-result.json` `59c4de6198bb781946fdb72e57e0fa3df67d04e0e8744cd210417d2d14c1c4a8` |
+
+不变量核对（保持）：单次行动机会一个原生动作；尝试/瞬发预算；`native_pending` 不重复提交；手动输入收回租约；owner 仲裁；只读 `dry_run`；确定性 tie-break（无 RNG）；原生裁决最终；场景切换 pause/reset 且需显式重启。
+
+能力缺口（记录为 capability，不视为策略拒绝）：多提示 `target_plan` 执行（`Actions.use_talent` 仅预填一次）；`known_safe` 危险（无权威危险清单，fails closed）；Phase Door TL4/TL5、Blink、Displacement Shield、Vault、Dimensional Step、Shadowstep、Giant Leap 适配器未审计；移动/交换其他 actor 未实现。详见 `docs/tome-mcp-0.9.0-movement-first-tranche.md` §2。
+
+正式包 **67 个生产文件**，SHA-256（baseline `7035d6026488df5e612d72ab4a745bcd2892af25fdfa5f0f2ee7e01282e4c09e` → 本段）：
+
+```text
+d4a3affe48c6cee479f69d785533105e9c3470aae32d5b7b3e032670b233c916
+```
+
+未处理/延期：独立评审；真实传送技能（探针角色为 Berserker，无传送技能，故仅通过生产 `plan` 路径断言随机落点标注）；多提示 `target_plan` 的原生执行。
+
 ## 0.9.0：自动战斗 v2 效果清单（V2-1 … V2-6，rev 4）
 
 日期：2026-09-17。分支 `feat/v2-effect-manifest`（PR #13，head `6485016`）**已合并到 `main`（merge `96ce7a5`）**，执行 `docs/tome-mcp-0.9.0-selffire-investigation.md` §6–§9。执行与 `allow_auto_combat_execution` 仍为关闭。独立评审 V2-REV-01…07 最终 **7/7 PASS（verdict=merge，无新问题）**，报告 sha256 `e85f1cfa77a9cbe38bf5b06617eb4913c5c639858cd1f0f83edfc6fa95f3e170`；rev 2/3/4 逐条修复并各有回归测试。开发对话在最终 head 独立复跑：Lua 全绿（`effect_manifest` 240、`effect_footprint` 24、`effect_risk` 29、`effect_manifest_drift` 30、`auto_combat_guard` 29、`runtime` 171）、Python 39、三个 `--check` 绿、auto-combat 探针 source/dist 各 **79/79**、原生验收 source/dist 各 **100/100**、最终 `dist` sha256 `3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29`。

@@ -324,6 +324,31 @@ function M:step()
         if bound==nil then
             self:deny(decision.rule,'target_rebind_failed')
         else
+            -- Movement/reposition: resolve the pure-data destination selector
+            -- against player-known info and the policy's explicit accept object.
+            -- A policy rejection is not a native call attempt; deny the rule and
+            -- let an independent rule be evaluated (fail closed only for
+            -- execution non-determinability, never for strategy).
+            local plan
+            if decision.action=='move' or decision.destination~=nil then
+                if self.host and type(self.host.plan)=='function' then
+                    local planned,planned_err=self.host.plan({
+                        rule=decision.rule,action=decision.action,talent=decision.talent,
+                        destination=decision.destination,target_plan=decision.target_plan,
+                        direction=decision.direction,
+                        target=decision.target,bound_target=bound.bound_target})
+                    if planned and planned.plan then
+                        plan=planned.plan
+                    else
+                        local reason=(planned and planned.reason)
+                            or (planned_err and planned_err.reason) or 'destination_unavailable'
+                        self:deny(decision.rule,reason)
+                    end
+                else
+                    self:deny(decision.rule,'movement_provider_unavailable')
+                end
+            end
+            if not self.denied[decision.rule] then
             -- AC-03/D1/D2: version-pinned adapter guard over the actual bound
             -- target. Reject (record + try next) at max_selffire_risk==0, pause
             -- above it.
@@ -347,7 +372,8 @@ function M:step()
             local outcome=(self.host and self.host.request and self.host.request({
                 rule=decision.rule,action=decision.action,talent=decision.talent,
                 emergency=decision.emergency==true,
-                max_turns=decision.max_turns,
+                max_turns=decision.max_turns,direction=decision.direction,
+                destination=decision.destination,target_plan=decision.target_plan,plan=plan,
                 target=decision.target,bound_target=bound.bound_target,generation=generation})) or {}
             if outcome.status=='native_pending' then
                 self.state='waiting_native'; self.reason='native_pending'
@@ -356,10 +382,28 @@ function M:step()
             if outcome.status=='ok' then
                 self.actions=self.actions+1
                 self:countInstant(outcome)
-                self:record({kind='acted',rule=decision.rule,talent=decision.talent,target=bound.bound_target})
+                if decision.action=='change_level'
+                    and (outcome.level_changed==true or outcome.code=='level_changed') then
+                    -- Scene transition: report it, reset the run and require an
+                    -- explicit restart on the new scene (control integrity, not
+                    -- a policy judgment).
+                    self:record({kind='scene_changed',rule=decision.rule})
+                    self:stop('level_changed')
+                    return {action='stopped',reason='level_changed',rule=decision.rule,
+                        results=decision.results,rejections=self.rejections,outcome=outcome,
+                        state=self.state,generation=self.generation}
+                end
+                self:record({kind='acted',rule=decision.rule,talent=decision.talent,
+                    target=bound.bound_target,destination=plan and plan.annotation})
                 return {action='acted',rule=decision.rule,talent=decision.talent,bound_target=bound.bound_target,
+                    destination=plan and plan.annotation,
                     results=decision.results,rejections=self.rejections,outcome=outcome,
                     state=self.state,generation=generation}
+            end
+            if outcome.status=='rejected' and outcome.code=='change_level_pending' then
+                -- A native dialog opened during the scene transition; hand the
+                -- interaction back rather than resubmitting.
+                return self:pause('player_interaction')
             end
             if outcome.status=='rejected' and outcome.energy_spent~=true then
                 -- Explicitly rejected and no energy spent: do not retry as-is in
@@ -367,6 +411,7 @@ function M:step()
                 self:deny(decision.rule,'native_rejected')
             else
                 return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
+            end
             end
             end
         end

@@ -205,14 +205,82 @@ do
     check(not Schema.validate(bad3),'rest max_turns is bounded')
 end
 do
-    -- Wave 1 (AC-10): change_level was removed from the auto-combat policy
-    -- schema/claims; the general MCP tome.act action is unaffected.
+    -- v1.6 (D5 supersession, MOV-5): `change_level` is re-admitted as an
+    -- ordinary capability-backed policy action. The `permissions` top-level
+    -- field remains gone (it was never a capability grant).
     local p=basePolicy()
     p.rules={{id='descend',priority=10,when={enemy_count={eq=0}},['then']={action='change_level'}}}
-    check(not Schema.validate(p),'change_level is no longer an auto-combat action')
+    check(Schema.validate(p),'change_level is re-admitted as an auto-combat action')
+    local bound=basePolicy()
+    bound.rules={{id='descend',priority=10,when={always={}},
+        ['then']={action='change_level',target='self'}}}
+    check(not Schema.validate(bound),'change_level binds no target')
     local permissions=basePolicy()
     permissions.permissions={change_level=true}
     check(not Schema.validate(permissions),'the permissions field is no longer accepted')
+end
+-- MOV-1: move + destination selector + explicit acceptance conditions --------
+do
+    local function moveRule(destination)
+        local p=basePolicy()
+        p.rules={{id='kite',priority=50,when={nearest_enemy_distance={lt=3}},
+            ['then']={action='move',target='nearest_hostile',destination=destination}}}
+        return p
+    end
+    local accept={visibility='any',passability='native',hazard='avoid_known',landing='allow_random'}
+    check(Schema.validate(moveRule({selector='away',anchor='bound_target',accept=accept})),
+        'a plain step with an `away` destination validates (ordinary kiting)')
+    check(Schema.validate(moveRule({selector='toward',anchor='bound_target',accept=accept})),
+        'a `toward` destination validates')
+    check(Schema.validate(moveRule({selector='preferred_distance',anchor='self',distance=4,accept=accept})),
+        'a `preferred_distance` destination validates')
+    check(Schema.validate(moveRule({selector='position',x=17,y=9,accept=accept})),
+        'an explicit out-of-vision position validates')
+    check(Schema.validate(moveRule({selector='relative',dx=-1,dy=0,accept=accept})),
+        'a relative destination validates')
+    -- Every acceptance field is explicit: there is no hidden plugin default.
+    check(not Schema.validate(moveRule({selector='away',anchor='bound_target',
+        accept={visibility='any',passability='native',hazard='any'}})),
+        'a destination missing an accept field is rejected')
+    check(not Schema.validate(moveRule({selector='away',anchor='bound_target',
+        accept={visibility='any',passability='native',hazard='any',landing='sometimes'}})),
+        'an unknown accept value is rejected')
+    check(not Schema.validate(moveRule({selector='native_random',anchor='self',accept=accept})),
+        'a plain step rejects the talent-only native_random selector')
+    check(not Schema.validate(moveRule({selector='position',x=1,accept=accept})),
+        'position requires both coordinates')
+    local noDest=basePolicy()
+    noDest.rules={{id='step',priority=10,when={always={}},['then']={action='move'}}}
+    check(not Schema.validate(noDest),'move requires a destination or an explicit direction')
+    local dir=basePolicy()
+    dir.rules={{id='step',priority=10,when={always={}},['then']={action='move',direction=4}}}
+    check(Schema.validate(dir),'move accepts a fixed keypad direction')
+    local badDir=basePolicy()
+    badDir.rules={{id='step',priority=10,when={always={}},['then']={action='move',direction=5}}}
+    check(not Schema.validate(badDir),'direction 5 (wait) is not a movement direction')
+    local restDest=basePolicy()
+    restDest.rules={{id='camp',priority=10,when={always={}},
+        ['then']={action='rest',destination={selector='position',x=1,y=1,accept=accept}}}}
+    check(not Schema.validate(restDest),'rest rejects a destination binding')
+end
+-- MOV-1: ordered target_plan validation -------------------------------------
+do
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local p=basePolicy()
+    p.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={ {request='self'},
+                {request='grid',destination={selector='away',anchor='bound_target',accept=accept}} }}}}
+    check(Schema.validate(p),'an ordered actor-then-grid target_plan validates')
+    local bad=basePolicy()
+    bad.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={ {request='teleport'} }}}}
+    check(not Schema.validate(bad),'an unknown target request is rejected')
+    local noPlan=basePolicy()
+    noPlan.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',target_plan={}}}}
+    check(not Schema.validate(noPlan),'an empty target_plan is rejected')
 end
 do
     -- The critical layer is only for self-preservation actions (shape); the

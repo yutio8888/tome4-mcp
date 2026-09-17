@@ -246,4 +246,27 @@ do
     check(Guard.conformance(ray,{type='ball'})==nil,'a different shape is a conformance fault')
 end
 
+-- MOV-4 / Q4: the *same* known self/friendly risk is policy-owned. The plugin
+-- must not hard-code a global rejection: the policy threshold alone decides
+-- reject vs pause, and the risk detail is always reported.
+do
+    local strict=build{policy={safety={max_selffire_risk=0}},allies={{uid=9,x=3,y=2}}}
+    local rejected=strict(attempt('T_MOONLIGHT_RAY'))
+    check(rejected and rejected.action=='reject' and rejected.reason=='selffire_risk',
+        'threshold 0 turns the known risk into a policy rejection')
+    check(rejected.detail and rejected.detail.risk=='friendly' and rejected.detail.friendlies==1,
+        'the known friendly-fire footprint is reported with the verdict')
+    local tolerant=build{policy={safety={max_selffire_risk=50}},allies={{uid=9,x=3,y=2}}}
+    local paused=tolerant(attempt('T_MOONLIGHT_RAY'))
+    check(paused and paused.action=='pause' and paused.reason=='selffire_risk',
+        'a non-zero threshold changes the same risk to a policy pause, not a hardcoded reject')
+    local safe=tolerant(attempt('T_HEALING_LIGHT'))
+    check(safe==nil,'a self-target action is not affected by the movement/selffire policy')
+    -- The movement guard still source-pins movement adapters (a drifted one is
+    -- disabled rather than silently trusted).
+    local drift=build{drift=function() return nil,'adapter_source_drift','hash' end}
+    local moved=drift{action='use_talent',talent='T_RUSH',bound_target=2}
+    check(moved and moved.reason=='adapter_source_drift','a movement adapter is source-pinned too')
+end
+
 print('Auto-combat guard: '..checks..' checks passed')

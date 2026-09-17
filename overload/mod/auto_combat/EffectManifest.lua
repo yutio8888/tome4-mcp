@@ -230,6 +230,23 @@ M.ENTRIES={
                 provenance={selffire=TARGET_DEFAULT,friendlyfire=EXPLICIT}},
         }},
     T_ADRENALINE_SURGE=selfEntry('buff',nil),
+    -- Movement tranche (v1.6). A movement adapter records the exact native
+    -- target request and landing classification; MovementPlanner consumes it and
+    -- the guard skips it (there is no damage footprint to model for a plain
+    -- step or teleport). `landing` values: exact | bounded_alternatives | random
+    -- | source_defined. Unknown bounds stay absent (`unknown`), never invented.
+    T_RUSH={kind='movement',target='hostile',resource='stamina',
+        movement={target_requests={'actor'},delivery='line_move',landing='bounded_alternatives',
+            center='actor',traverses=true,relocates_other=false},
+        components={},conformance={builder=true}},
+    T_SKIRMISHER_CUNNING_ROLL={kind='movement',target='grid',resource='stamina',
+        movement={target_requests={'grid'},delivery='line_move',landing='exact',
+            center='requested_grid',traverses=true,relocates_other=false},
+        components={},conformance={builder=true}},
+    T_PHASE_DOOR={kind='movement',target='self',resource='mana',
+        movement={target_requests={'none'},delivery='teleport',landing='random',
+            center='self',radius=6,min_radius=1},
+        components={},conformance={builder=false}},
 }
 
 -- Attach the generated source identity to every entry so a component can
@@ -336,9 +353,11 @@ M.SELF_SELECTORS={self=true}
 M.ACTIONS={
     use_talent={kind='talent'},
     attack={kind='attack'},
+    move={kind='movement',action='move'},
     wait={kind='utility'},
     rest={kind='native_activity',activity='rest',default_max_turns=1000},
     auto_explore={kind='native_activity',activity='auto_explore'},
+    change_level={kind='native_activity',activity='change_level',default_enabled=false},
 }
 function M.actionSupported(action) return action~=nil and M.ACTIONS[action]~=nil end
 
@@ -353,10 +372,18 @@ function M.verify(policy)
         local entry=rule['then'] and rule['then'].talent and M.ENTRIES[rule['then'].talent] or nil
         if entry then
             local selector=rule['then'].target or (policy.targeting and policy.targeting.default)
-            if entry.target=='self' and selector~=nil and not M.SELF_SELECTORS[selector] then
+            -- A no-target movement request (position/relative/native_random) needs
+            -- no actor selector; the plugin must not invent a self requirement.
+            local destination=rule['then'].destination
+            local no_target_move=entry.kind=='movement' and type(destination)=='table'
+                and (destination.selector=='position' or destination.selector=='relative'
+                    or destination.selector=='native_random')
+            if entry.target=='self' and selector~=nil and not M.SELF_SELECTORS[selector]
+                and not no_target_move then
                 errors[#errors+1]={path=path,code='selector_not_self_only',talent=rule['then'].talent}
             end
-            if entry.target=='hostile' and selector~=nil and not M.HOSTILE_SELECTORS[selector] then
+            if entry.target=='hostile' and selector~=nil and not M.HOSTILE_SELECTORS[selector]
+                and not no_target_move then
                 errors[#errors+1]={path=path,code='selector_not_hostile',talent=rule['then'].talent}
             end
         elseif rule['then'] and rule['then'].action=='use_talent' then

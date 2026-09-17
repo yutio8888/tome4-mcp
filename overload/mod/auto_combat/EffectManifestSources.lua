@@ -38,5 +38,8 @@ return {
         T_FIREFLASH={files={{path='/data/talents/spells/fire.lua',md5='96520fcd5edcfec567bb3c9d89638143'}},line=141,builder={path='/data/talents/spells/fire.lua',line=153}},
         T_SHADOW_BLAST={files={{path='/data/talents/celestial/star-fury.lua',md5='ca67e25be0d33ddec6790a449506a231'}},line=56,builder={path='/data/talents/celestial/star-fury.lua',line=68}},
         T_STARFALL={files={{path='/data/talents/celestial/star-fury.lua',md5='ca67e25be0d33ddec6790a449506a231'}},line=141,builder={path='/data/talents/celestial/star-fury.lua',line=153}},
+        T_RUSH={files={{path='/data/talents/techniques/combat-techniques.lua',md5='d12a801ec9291ece2c17f3c7526afd8e'}},line=24,builder={path='/data/talents/techniques/combat-techniques.lua',line=37}},
+        T_SKIRMISHER_CUNNING_ROLL={files={{path='/data/talents/techniques/acrobatics.lua',md5='8d3984902d07c74a95fe2a66fbd8e906'}},line=128,builder={path='/data/talents/techniques/acrobatics.lua',line=151}},
+        T_PHASE_DOOR={files={{path='/data/talents/spells/conveyance.lua',md5='14abb31aa46683e7543a927780c35f6c'}},line=66},
     },
 }

@@ -11,11 +11,16 @@ M.SCHEMA='tome-auto-combat/v1'
 -- a policy may use. Unsupported names are a schema error, not a silent skip.
 -- P1b adds the native activities (`rest`/`auto_explore`) and the opt-in
 -- `change_level`.
-M.ACTIONS={use_talent=true,attack=true,wait=true,rest=true,auto_explore=true}
--- Multi-turn native activities with no talent/target binding. `change_level` was
--- removed in Wave 1 (no auto-combat scene-transition adapter; the general MCP
--- `tome.act change_level` action is untouched).
-M.ACTIVITY_ACTIONS={rest=true,auto_explore=true}
+M.ACTIONS={use_talent=true,attack=true,move=true,wait=true,rest=true,auto_explore=true,
+    change_level=true}
+-- `move` is a plain adjacent native step; it requires a pure-data `destination`
+-- selector (or an explicit keypad `direction`).
+M.MOVE_ACTIONS={move=true}
+-- Multi-turn native activities with no talent/target binding. `change_level` is
+-- re-admitted under v1.6: it is an ordinary explicit policy action whose native
+-- scene transition pauses/resets the run and requires an explicit restart (see
+-- docs/tome-mcp-0.9.0-wave1-execution-safety.md D5/D6 supersession).
+M.ACTIVITY_ACTIONS={rest=true,auto_explore=true,change_level=true}
 -- Emergency is a per-talent declaration (D1): any `use_talent`/`attack` may be
 -- marked emergency; the pre-execution adapter guard is what keeps it safe.
 M.SELF_PRESERVATION_ACTIONS={use_talent=true,attack=true}
@@ -24,6 +29,24 @@ M.SELF_PRESERVATION_ACTIONS={use_talent=true,attack=true}
 -- stay out: they need a dynamic getter the bridge does not audit yet.
 M.SELECTORS={self=true,nearest_hostile=true,lowest_hp_hostile=true,
     highest_rank_hostile=true,most_dangerous_hostile=true}
+-- Pure-data movement destination selectors (design §3.2). `toward`/`away`/
+-- `preferred_distance` are ordinary kiting/escape; out-of-vision coordinates and
+-- native-random landings are legal and are annotated, never refused by strategy.
+M.DESTINATION_SELECTORS={toward=true,away=true,preferred_distance=true,position=true,
+    relative=true,native_landing=true,native_random=true}
+M.STEP_DESTINATION_SELECTORS={toward=true,away=true,preferred_distance=true,position=true,
+    relative=true}
+M.TALENT_DESTINATION_SELECTORS={toward=true,away=true,preferred_distance=true,position=true,
+    relative=true,native_landing=true,native_random=true}
+M.DESTINATION_ANCHORS={bound_target=true,self=true}
+M.DESTINATION_ACCEPT={
+    visibility={visible=true,known=true,any=true},
+    passability={known_passable=true,native=true},
+    hazard={known_safe=true,avoid_known=true,any=true},
+    landing={deterministic=true,allow_random=true}}
+-- Ordered native target-plan steps. The manifest declares the exact request
+-- sequence; a plan may be supplied explicitly and is validated against it.
+M.TARGET_REQUESTS={none=true,actor=true,grid=true,self=true}
 M.PREDICATES={always=true,hp_pct=true,resource_pct=true,resource_value=true,
     cooldown_ready=true,talent_known=true,has_effect=true,enemy_count=true,
     nearest_enemy_distance=true,enemy_in_melee=true,enemy_hp_pct=true,computed=true,
@@ -61,7 +84,9 @@ M.TALENTS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_HEALING_LIGHT=true,
     T_SOUL_ROT=true,T_BLOOD_GRASP=true,T_DARK_RITUAL=true,
     T_SHATTERING_BLOW=true,T_BERSERKER_RAGE=true,T_DAUNTING_PRESENCE=true,T_ADRENALINE_SURGE=true,
     -- Re-admitted dynamic talents (TODO #55).
-    T_FLAMESHOCK=true,T_FIREFLASH=true,T_SHADOW_BLAST=true,T_STARFALL=true}
+    T_FLAMESHOCK=true,T_FIREFLASH=true,T_SHADOW_BLAST=true,T_STARFALL=true,
+    -- Movement tranche (v1.6). Ordinary movement/teleport actions.
+    T_RUSH=true,T_SKIRMISHER_CUNNING_ROLL=true,T_PHASE_DOOR=true}
 M.SUSTAINS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_WEAPON_OF_LIGHT=true,
     T_ARCANE_POWER=true,T_SHIELDING=true,T_DARK_RITUAL=true,T_BERSERKER_RAGE=true,
     T_DAUNTING_PRESENCE=true}
@@ -166,6 +191,99 @@ local function validateCondition(cond,path,depth,errors)
         end
     end
     onlyKeys(value,allowed,path,errors)
+end
+
+-- An `accept` object must state all four uncertainty tolerances explicitly:
+-- there is no hidden plugin default (design §3.1).
+local function validateAccept(accept,path,errors)
+    if type(accept)~='table' then errors[#errors+1]={path=path,code='invalid_accept'};return end
+    onlyKeys(accept,{visibility=true,passability=true,hazard=true,landing=true},path,errors)
+    for key,allowed in pairs(M.DESTINATION_ACCEPT) do
+        local value=accept[key]
+        if value==nil then
+            errors[#errors+1]={path=path..'.'..key,code='accept_field_required'}
+        elseif not allowed[value] then
+            errors[#errors+1]={path=path..'.'..key,code='invalid_accept_value'}
+        end
+    end
+end
+
+local function validateDestination(destination,path,errors,allowedSelectors)
+    if type(destination)~='table' then errors[#errors+1]={path=path,code='invalid_destination'};return end
+    onlyKeys(destination,{selector=true,anchor=true,distance=true,x=true,y=true,dx=true,dy=true,accept=true},path,errors)
+    local selector=destination.selector
+    if not M.DESTINATION_SELECTORS[selector] then
+        errors[#errors+1]={path=path..'.selector',code='unsupported_destination_selector'};return
+    end
+    if allowedSelectors and not allowedSelectors[selector] then
+        errors[#errors+1]={path=path..'.selector',code='unsupported_selector_for_action'}
+    end
+    if selector=='position' then
+        if not integer(destination.x,0,2147483647) or not integer(destination.y,0,2147483647) then
+            errors[#errors+1]={path=path,code='invalid_position'}
+        end
+        if destination.anchor~=nil or destination.distance~=nil
+            or destination.dx~=nil or destination.dy~=nil then
+            errors[#errors+1]={path=path,code='unexpected_destination_field'}
+        end
+    elseif selector=='relative' then
+        if not integer(destination.dx,-1000,1000) or not integer(destination.dy,-1000,1000) then
+            errors[#errors+1]={path=path,code='invalid_relative'}
+        end
+        if destination.anchor~=nil or destination.distance~=nil
+            or destination.x~=nil or destination.y~=nil then
+            errors[#errors+1]={path=path,code='unexpected_destination_field'}
+        end
+    elseif selector=='preferred_distance' then
+        if not integer(destination.distance,0,1000) then
+            errors[#errors+1]={path=path..'.distance',code='invalid_preferred_distance'}
+        end
+        if not M.DESTINATION_ANCHORS[destination.anchor] then
+            errors[#errors+1]={path=path..'.anchor',code='invalid_anchor'}
+        end
+        if destination.x~=nil or destination.y~=nil or destination.dx~=nil or destination.dy~=nil then
+            errors[#errors+1]={path=path,code='unexpected_destination_field'}
+        end
+    elseif selector=='native_random' then
+        if destination.anchor~=nil then errors[#errors+1]={path=path..'.anchor',code='unexpected_anchor'} end
+        if destination.x~=nil or destination.y~=nil or destination.dx~=nil or destination.dy~=nil
+            or destination.distance~=nil then
+            errors[#errors+1]={path=path,code='unexpected_destination_field'}
+        end
+    else -- toward / away / native_landing
+        if not M.DESTINATION_ANCHORS[destination.anchor] then
+            errors[#errors+1]={path=path..'.anchor',code='invalid_anchor'}
+        end
+        if destination.x~=nil or destination.y~=nil or destination.dx~=nil or destination.dy~=nil
+            or destination.distance~=nil then
+            errors[#errors+1]={path=path,code='unexpected_destination_field'}
+        end
+    end
+    validateAccept(destination.accept,path..'.accept',errors)
+end
+
+-- An ordered target plan is a list of request steps. The executor may only
+-- prefill one native prompt today, so a longer plan is schema-valid but reported
+-- as a capability limit at execution (never silently mis-executed).
+local function validateTargetPlan(plan,path,errors)
+    if not isArray(plan) or #plan==0 then
+        errors[#errors+1]={path=path,code='invalid_target_plan'};return
+    end
+    if #plan>8 then errors[#errors+1]={path=path,code='target_plan_too_long'} end
+    for index,step in ipairs(plan) do
+        local stepPath=path..'['..index..']'
+        if type(step)~='table' then errors[#errors+1]={path=stepPath,code='invalid_target_step'}
+        else
+            onlyKeys(step,{request=true,selector=true,destination=true},stepPath,errors)
+            if not M.TARGET_REQUESTS[step.request] then
+                errors[#errors+1]={path=stepPath..'.request',code='invalid_target_request'}
+            end
+            if step.selector~=nil and not M.SELECTORS[step.selector] and not M.DESTINATION_SELECTORS[step.selector] then
+                errors[#errors+1]={path=stepPath..'.selector',code='unsupported_selector'}
+            end
+            if step.destination~=nil then validateDestination(step.destination,stepPath..'.destination',errors) end
+        end
+    end
 end
 
 function M.validate(policy)
@@ -280,52 +398,101 @@ function M.validate(policy)
                 if type(rule['then'])~='table' then
                     errors[#errors+1]={path=path..'.then',code='invalid_then'}
                 else
-                    onlyKeys(rule['then'],{action=true,talent=true,target=true,max_turns=true},path..'[then]',errors)
-                    local action=rule['then'].action
+                    onlyKeys(rule['then'],{action=true,talent=true,target=true,max_turns=true,
+                        direction=true,destination=true,target_plan=true},path..'[then]',errors)
+                    local then_=rule['then']
+                    local action=then_.action
                     if not M.ACTIONS[action] then
                         errors[#errors+1]={path=path..'.then.action',code='unsupported_action'}
                     end
-                    if action=='use_talent' and not M.TALENTS[rule['then'].talent] then
+                    if action=='use_talent' and not M.TALENTS[then_.talent] then
                         errors[#errors+1]={path=path..'.then.talent',code='unsupported_talent'}
                     end
                     if action=='rest' then
-                        numberField(rule['then'],'max_turns',1,1000,path..'[then]',errors,true)
+                        numberField(then_,'max_turns',1,1000,path..'[then]',errors,true)
                     end
-                    if action=='use_talent' then
-                        if rule['then'].max_turns~=nil then
-                            errors[#errors+1]={path=path..'.then.max_turns',code='unexpected_max_turns'}
+                    -- `max_turns` is a `rest`-only field.
+                    if then_.max_turns~=nil and action~='rest' then
+                        errors[#errors+1]={path=path..'.then.max_turns',code='unexpected_max_turns'}
+                    end
+                    -- `talent` is a `use_talent`-only field.
+                    if then_.talent~=nil and action~='use_talent' then
+                        errors[#errors+1]={path=path..'.then.talent',code='unexpected_talent'}
+                    end
+                    -- `direction` is a `move`-only field.
+                    if then_.direction~=nil then
+                        if action~='move' then
+                            errors[#errors+1]={path=path..'.then.direction',code='unexpected_direction'}
+                        elseif not (integer(then_.direction,1,9) and then_.direction~=5) then
+                            errors[#errors+1]={path=path..'.then.direction',code='invalid_direction'}
+                        end
+                    end
+                    if action=='move' then
+                        if then_.destination==nil and then_.direction==nil then
+                            errors[#errors+1]={path=path..'.then.destination',code='move_destination_required'}
+                        end
+                        if then_.destination~=nil then
+                            validateDestination(then_.destination,path..'.then.destination',errors,
+                                M.STEP_DESTINATION_SELECTORS)
+                        end
+                        if then_.target_plan~=nil then
+                            errors[#errors+1]={path=path..'.then.target_plan',code='unexpected_target_plan'}
+                        end
+                    elseif action=='use_talent' then
+                        if then_.destination~=nil then
+                            validateDestination(then_.destination,path..'.then.destination',errors,
+                                M.TALENT_DESTINATION_SELECTORS)
+                        end
+                        if then_.target_plan~=nil then
+                            validateTargetPlan(then_.target_plan,path..'.then.target_plan',errors)
                         end
                     elseif action=='attack' then
-                        if rule['then'].talent~=nil then
-                            errors[#errors+1]={path=path..'.then.talent',code='unexpected_talent'}
+                        if then_.destination~=nil then
+                            errors[#errors+1]={path=path..'.then.destination',code='unexpected_destination'}
                         end
-                        if rule['then'].max_turns~=nil then
-                            errors[#errors+1]={path=path..'.then.max_turns',code='unexpected_max_turns'}
+                        if then_.target_plan~=nil then
+                            errors[#errors+1]={path=path..'.then.target_plan',code='unexpected_target_plan'}
                         end
-                    elseif action=='wait' then
-                        if rule['then'].talent~=nil then
-                            errors[#errors+1]={path=path..'.then.talent',code='unexpected_talent'}
-                        end
-                        if rule['then'].target~=nil then
+                    elseif action=='change_level' or action=='auto_explore' then
+                        -- Explicit scene/activity actions bind no parameters.
+                        if then_.target~=nil then
                             errors[#errors+1]={path=path..'.then.target',code='unexpected_target'}
                         end
-                        if rule['then'].max_turns~=nil then
-                            errors[#errors+1]={path=path..'.then.max_turns',code='unexpected_max_turns'}
+                        if then_.destination~=nil then
+                            errors[#errors+1]={path=path..'.then.destination',code='unexpected_destination'}
+                        end
+                        if then_.target_plan~=nil then
+                            errors[#errors+1]={path=path..'.then.target_plan',code='unexpected_target_plan'}
+                        end
+                    elseif action=='wait' then
+                        if then_.target~=nil then
+                            errors[#errors+1]={path=path..'.then.target',code='unexpected_target'}
+                        end
+                        if then_.destination~=nil then
+                            errors[#errors+1]={path=path..'.then.destination',code='unexpected_destination'}
+                        end
+                        if then_.target_plan~=nil then
+                            errors[#errors+1]={path=path..'.then.target_plan',code='unexpected_target_plan'}
+                        end
+                    else
+                        -- Any other action (for example `rest`) binds no
+                        -- destination or target plan.
+                        if then_.destination~=nil then
+                            errors[#errors+1]={path=path..'.then.destination',code='unexpected_destination'}
+                        end
+                        if then_.target_plan~=nil then
+                            errors[#errors+1]={path=path..'.then.target_plan',code='unexpected_target_plan'}
                         end
                     end
                     if M.ACTIVITY_ACTIONS[action] then
-                        -- Native activities bind no talent/target (only `rest`
-                        -- takes a bounded max_turns).
-                        if rule['then'].talent~=nil then
+                        -- Native activities bind no talent/target.
+                        if then_.talent~=nil then
                             errors[#errors+1]={path=path..'.then.talent',code='unexpected_talent'}
                         end
-                        if rule['then'].target~=nil then
+                        if then_.target~=nil then
                             errors[#errors+1]={path=path..'.then.target',code='unexpected_target'}
                         end
-                        if rule['then'].max_turns~=nil and action~='rest' then
-                            errors[#errors+1]={path=path..'.then.max_turns',code='unexpected_max_turns'}
-                        end
-                    elseif rule['then'].target~=nil and not M.SELECTORS[rule['then'].target] then
+                    elseif then_.target~=nil and not M.SELECTORS[then_.target] then
                         errors[#errors+1]={path=path..'.then.target',code='unsupported_selector'}
                     end
                     -- Emergency rules are self-preservation only; the specific

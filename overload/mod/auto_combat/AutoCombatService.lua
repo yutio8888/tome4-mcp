@@ -162,6 +162,25 @@ function M.dryRun(svc,args)
         end
     end
     local snapshot=type(host.snapshot_meta)=='function' and host.snapshot_meta() or nil
+    -- Movement/reposition dry-run annotation (MOV-3): run the same deterministic
+    -- planner the executor uses and report landing/visibility/passability/hazard
+    -- honestly. This never executes and never reads hidden state.
+    local movement=nil
+    if decision.decision=='act' and (decision.action=='move' or decision.destination~=nil) then
+        if type(host.plan)=='function' then
+            local planned,planned_err=host.plan({action=decision.action,talent=decision.talent,
+                destination=decision.destination,target_plan=decision.target_plan,
+                direction=decision.direction,bound_target=bound_target})
+            if planned and planned.plan then
+                movement={plan=planned.plan.kind,annotation=planned.plan.annotation}
+            else
+                movement={error=(planned and planned.reason)
+                    or (planned_err and planned_err.reason) or 'destination_unavailable'}
+            end
+        else
+            movement={error='movement_provider_unavailable'}
+        end
+    end
     return ok({dry_run=true,executed=false,side_effects='none',
         policy_hash=policy_hash,schema=Schema.SCHEMA,policy_source=source,
         snapshot=snapshot,
@@ -170,7 +189,7 @@ function M.dryRun(svc,args)
         rule=decision.rule,action=decision.action,talent=decision.talent,
         max_turns=decision.max_turns,
         target=decision.target,bound_target=bound_target,target_distance=target_distance,
-        binding=binding,results=decision.results or {},unsupported=Json.array()})
+        binding=binding,movement=movement,results=decision.results or {},unsupported=Json.array()})
 end
 
 function M.setDraft(svc,policy,expected_hash)
