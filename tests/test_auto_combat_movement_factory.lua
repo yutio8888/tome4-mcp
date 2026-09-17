@@ -183,24 +183,30 @@ do
         'an open condition record is rejected by the matrix builder')
 end
 
--- 4. MAF-REV-02: the drift preflight runs before any dynamic reader -----------
+-- 4. MAF-REV-06: no identity/digest/closure gate on getters/builders --------
 do
-    local dynamicCalls=0
-    local p=provider({preflight=function() return nil,'adapter_source_drift','test' end,
-        talentLevel=function() dynamicCalls=dynamicCalls+1;return 1 end,
-        attr=function() dynamicCalls=dynamicCalls+1;return nil,true end,
-        talentGetter=function() dynamicCalls=dynamicCalls+1;return 6 end,
-        builder=function() dynamicCalls=dynamicCalls+1;return {shape='hit'} end})
-    local planned,err=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
-        destination={selector='native_random',accept=ACCEPT}},p,
-        Manifest.entry('T_PHASE_DOOR').movement)
-    check(planned==nil and err.reason=='adapter_source_drift' and err.preflight==true,
-        'a preflight failure is returned as adapter_source_drift')
-    check(dynamicCalls==0,'no variant/bounds/builder reader is called before the preflight passes')
-
-    -- Plain move has no adapter read and must not be disabled by an adapter drift.
-    local move=Planner.plan({action='move',direction=4},p,nil)
-    check(move~=nil and move.kind=='step','a plain step does not require the movement preflight')
+    -- A replaced getter that returns a usable value is used as a normal entry.
+    local p=provider({talentGetter=function() return 42 end,
+        builder=function() return {shape='hit',range=8} end})
+    local plan=assert(Planner.plan({action='use_talent',talent='T_DIMENSIONAL_STEP',
+        destination={selector='position',x=22,y=20,accept=ACCEPT}},p,
+        Manifest.entry('T_DIMENSIONAL_STEP').movement))
+    check(plan.kind=='grid','a replaced-but-usable live getter is used, not gated')
+    -- A getter that errors or returns nil means the value is not obtainable.
+    local bad,err=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',accept=ACCEPT}},
+        provider({talentGetter=function() error('boom') end}),Manifest.entry('T_PHASE_DOOR').movement)
+    check(bad==nil and err.reason=='movement_derivation_unknown',
+        'an erroring getter is movement_derivation_unknown')
+    bad,err=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',accept=ACCEPT}},
+        provider({talentGetter=function() return nil end}),Manifest.entry('T_PHASE_DOOR').movement)
+    check(bad==nil and err.reason=='movement_derivation_unknown',
+        'a nil getter is movement_derivation_unknown')
+    -- No preflight key is required and a plain step never needs one.
+    local noPre=provider(); noPre.preflight=nil
+    local move=Planner.plan({action='move',direction=4},noPre,nil)
+    check(move~=nil and move.kind=='step','planning does not require a preflight gate')
 end
 
 -- 5. Dynamic envelope bounds: audited getter only ----------------------------
@@ -229,8 +235,8 @@ do
     check(built.range==3 and built.builder_geometry.shape=='beam','the builder range/shape is copied')
     local bad,err=Factory.resolveBuilder(movement,'T_X',
         {builder=function() return {shape='ball',range=3} end})
-    check(bad==nil and err.reason=='adapter_source_drift' and err.detail=='builder_shape',
-        'a wrong builder shape fails closed as adapter_source_drift')
+    check(bad==nil and err.reason=='movement_derivation_unknown' and err.dependency=='t.target.shape',
+        'a non-conformant builder shape is movement_derivation_unknown (no identity gate)')
     bad,err=Factory.resolveBuilder(movement,'T_X',{})
     check(bad==nil and err.reason=='movement_derivation_unknown',
         'a missing builder reader fails closed')
@@ -419,7 +425,7 @@ do
     check(ax==nil and axErr.reason=='movement_adapter_invalid','a named axis is rejected')
 end
 
--- 9. Drift: action + getter identity pins fail closed ------------------------
+-- 9. MAF-REV-06: movement action/getter/range pins are advisory only --------
 do
     local function fnAt(path,line,marker)
         local lines={}
@@ -429,36 +435,23 @@ do
     end
     local path='/data/t/move.lua'
     local manifest={ENTRIES={T_MOVE={kind='movement',conformance={builder=false},
-        source={action={path=path,line=2},
-            getters={getRange={path=path,line=3}}}}}}
+        source={action={path=path,line=2},getters={getRange={path=path,line=3}}}}}}
     local live={T_MOVE={action=fnAt(path,2,1),getRange=fnAt(path,3,1)}}
     Drift.reset()
     check(Drift.identity(manifest,function(t) return live[t] end)==true,
-        'a movement entry with pinned action/getter identity passes')
-    local replaced={T_MOVE={action=fnAt(path,4,1),getRange=live.T_MOVE.getRange}}
-    local bad,reason=Drift.identity(manifest,function(t) return replaced[t] end)
-    check(bad==nil and reason==Drift.REASON,'a replaced action fails closed')
-    local replacedGetter={T_MOVE={action=live.T_MOVE.action,getRange=fnAt(path,5,1)}}
-    local bad2,reason2=Drift.identity(manifest,function(t) return replacedGetter[t] end)
-    check(bad2==nil and reason2==Drift.REASON,'a replaced getter fails closed')
-    local unpinned={ENTRIES={T_MOVE={kind='movement',conformance={builder=false},
-        source={getters={getRange={path=path,line=3}}}}}}
-    local bad3,reason3=Drift.identity(unpinned,function(t) return live[t] end)
-    check(bad3==nil and reason3==Drift.REASON,'a movement entry without an action pin fails closed')
-    Drift.reset()
-    local upFactory=assert(loadstring('local captured=...\nreturn function(self,t) return {v=captured} end','@'..path))
-    local a=upFactory(1)
-    local b=upFactory(2)
-    local upManifest={ENTRIES={T_MOVE={kind='movement',conformance={builder=false},
-        source={action={path=path,line=2},getters={getRange={path=path,line=3}}}}}}
-    check(rawequal(a,b)==false and string.dump(a)==string.dump(b),
-        'the same-line replacement fixture is distinct but byte-identical')
-    check(Drift.identity(upManifest,function() return {action=a,getRange=live.T_MOVE.getRange} end)==true,
-        'the first action establishes the trusted baseline')
-    local rep,repReason=Drift.identity(upManifest,function() return {action=b,getRange=live.T_MOVE.getRange} end)
-    check(rep==nil and repReason==Drift.REASON,'a same-line distinct action closure is rejected')
-    check(Drift.identity(upManifest,function() return {action=a,getRange=live.T_MOVE.getRange} end)==true,
-        'the rejected replacement did not overwrite the baseline')
+        'a movement entry with advisory pins passes')
+    -- A replaced action/getter is no longer a gate: the live value is used.
+    local replaced={T_MOVE={action=fnAt(path,4,1),getRange=fnAt(path,5,1)}}
+    check(Drift.identity(manifest,function(t) return replaced[t] end)==true,
+        'a replaced movement action/getter is advisory, not a gate')
+    -- Even a movement entry without advisory pins is not gated.
+    local unpinned={ENTRIES={T_MOVE={kind='movement',conformance={builder=false},source={}}}}
+    check(Drift.identity(unpinned,function(t) return live[t] end)==true,
+        'a movement entry without pins is not gated')
+    -- A missing definition still fails closed (the action is unavailable).
+    local missing,missingReason=Drift.identity(manifest,function() return nil end)
+    check(missing==nil and missingReason==Drift.REASON,
+        'a missing movement definition still fails closed')
     Drift.reset()
 end
 

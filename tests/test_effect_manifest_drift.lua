@@ -165,9 +165,10 @@ do
     check(Manifest.SOURCES.game_version==Manifest.GAME_VERSION,'the live source table is pinned to the manifest version')
 end
 
--- The real generated table pins an action (and, where needed, dynamic getters)
--- for every admitted movement adapter, so `EffectManifestDrift.identity` covers
--- the new descriptors and not only the target builders.
+-- The generated table keeps advisory pins (action/getters/ranges) for every
+-- admitted movement adapter as re-review metadata. `EffectManifestDrift.identity`
+-- does NOT gate movement entries (no-strict-audit); this only asserts the
+-- advisory data is present.
 do
     for talent,entry in pairs(Manifest.ENTRIES) do
         if entry.kind=='movement' then
@@ -194,17 +195,19 @@ do
             end
         end
     end
-    -- Builder-backed movement entries pin their live `range` function so a
-    -- replacement is rejected before `GetTalentRange` dispatches through it.
+    -- Builder-backed movement entries keep an advisory `range` pin (re-review
+    -- metadata only; not a runtime gate).
     for _,talent in ipairs({'T_RUSH','T_SKIRMISHER_CUNNING_ROLL','T_SKIRMISHER_VAULT',
         'T_DIMENSIONAL_STEP'}) do
         local pin=Manifest.SOURCES.talents[talent]
         check(pin~=nil and type(pin.ranges)=='table' and type(pin.ranges.range)=='table'
-            and type(pin.ranges.range.line)=='number','movement range pinned for '..talent)
+            and type(pin.ranges.range.line)=='number','movement range advisory pin for '..talent)
     end
 end
 
--- A replaced `def.range` is rejected by the shared identity checker.
+-- MAF-REV-06 (no-strict-audit): a replaced movement method does not gate
+-- identity. The pins are advisory metadata; an erroring/missing getter fails the
+-- derivation at planning time instead.
 do
     Drift.reset()
     local function fnAt(path,line)
@@ -216,12 +219,9 @@ do
     local path='/data/t/range.lua'
     local manifest={ENTRIES={T_R={kind='movement',conformance={builder=false},
         source={action={path=path,line=2},ranges={range={path=path,line=3}}}}}}
-    local live={T_R={action=fnAt(path,2),range=fnAt(path,3)}}
+    local live={T_R={action=fnAt(path,2),range=fnAt(path,5)}}
     check(Drift.identity(manifest,function(t) return live[t] end)==true,
-        'a pinned range identity passes')
-    local replaced={T_R={action=live.T_R.action,range=fnAt(path,5)}}
-    local bad,reason=Drift.identity(manifest,function(t) return replaced[t] end)
-    check(bad==nil and reason==Drift.REASON,'a replaced range fails closed')
+        'a replaced movement range is advisory, not a gate')
     Drift.reset()
 end
 

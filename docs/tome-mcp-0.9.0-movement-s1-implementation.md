@@ -101,81 +101,51 @@ Structured unsupported (typed reason, never a strategy refusal):
 - `T_SHADOWSTEP`, `T_GIANT_LEAP`: movement/effect composition (S3).
 - `T_DISPLACEMENT_SHIELD`: effect-adapter task, no player relocation.
 
-## 5. Source identity and drift
+## 5. Source identity and the live-getter boundary
 
-`tools/generate_effect_manifest.py` now also pins, for movement talents:
+`tools/generate_effect_manifest.py` also records, for movement talents:
 
 - `action={path,line}` for every movement talent;
-- `getters={getRange=..., getRadius=...}` for every dynamic envelope getter.
+- `getters={getRange=..., getRadius=...}` for dynamic envelope getters;
+- `ranges={range=...}` for builder-backed talents.
 
-`EffectManifestDrift.identity` verifies the live `def.action` and `def[name]`
-objects by source path/line and first-seen `rawequal` identity (same mechanism as
-the target builder), and a movement entry without an action pin fails closed
-(`action_unpinned`). A replaced action/getter returns `adapter_source_drift`.
-`teleportRandom` / `findFreeGrid` are transitively pinned by the existing
-`actor.lua` / `utils.lua` engine file hashes.
+**MAF-REV-06 (no-strict-audit principle).** These pins are **advisory re-review
+metadata only**. Lua is dynamic, so any runtime function may be replaced by
+another addon; the project cannot and does not guarantee that a runtime entry is
+the pristine native implementation, and is not responsible for other plugins'
+broken implementations. Planning therefore calls the game's actual getters and
+builders (`t.target`/`getTalentTarget`, `getTalentRange`, `getTalentLevel`,
+`attr`, spell-power helpers, ...) **directly, with no identity/digest/closure
+gate**. A call that errors, is missing or returns `nil` means the value is not
+obtainable -> `movement_derivation_unknown` / an unknown variant axis; a replaced
+method is allowed to run as a normal entry. `EffectManifestDrift.identity` no
+longer checks movement `action`/`getters`/`ranges` at all. `teleportRandom` /
+`findFreeGrid` remain ordinary calls.
 
-**Audit ordering (MAF-REV-02).** The planner now calls `provider.preflight` —
-the same `EffectManifestDrift.ensure` the guard uses — **before** any variant,
-bound or builder read, in both live planning and dry-run. `getTalentLevel` and
-`attr` are invoked through `NativeCompatibility` dependencies (the same
-`actor.attr` id TalentQuery registers); the target builder and dynamic getters
-are invoked only after `EffectManifestDrift.identity` has verified them.
-`Runtime.autoCombatReads.plan` builds the provider; `buildAutoCombatHost` reuses
-the same audited `manifestDrift`/`effectiveTalentLevel` for the guard.
-
-**Transitive helper closure (MAF-REV-02 rev 3/4/5).** The pinned target builder
-immediately dispatches through `self:getTalentRange(t)` (→ the talent's live
-`def.range`) and the engine scaling helpers. The generator also pins
-`ranges={range={path,line}}` for every builder-backed movement talent, and
-`EffectManifestDrift.identity` rejects a replaced `def.range` before the builder
-runs. The closure is bounded **by construction**:
-
-- **File-digest closure** — the generated engine pin set now includes every
-  module that contributes a reached method: `engine/interface/ActorTalents.lua`,
-  `mod/class/Actor.lua`, `mod/class/interface/Combat.lua`, `engine/Entity.lua`,
-  `engine/interface/ActorStats.lua`, `engine/interface/ActorTemporaryEffects.lua`,
-  plus the Phase Door spell-power callback data files.
-  `EffectManifestDrift.verify` checks all of them in the preflight, so a source
-  change fails before any read.
-- **Method identity** — `verifyMovementHelpers` checks the methods actually
-  reached: `getTalentLevel`, `getTalentLevelRaw`, `alterTalentLevelRaw`,
-  `getTalentMastery`, `getTalentTypeMastery`, `getTalentTypeFrom`,
-  `getTalentRange`, `knowTalent`, `callTalent`, `getTalentFromId`, `attr`,
-  `getCun`/`getWil`/`getMag`, `hasEffect`, `combatTalentScale`,
-  `combatTalentLimit`, `combatLimit`, `combatTalentSpellDamage`,
-  `combatSpellpower`, `combatSpellpowerRaw`, `rescaleCombatStats`,
-  `rescaleDamage`, and the `getSpellpower` callbacks for the spell-power talents.
-  Each present object is checked with a first-seen `rawequal` baseline plus a
-  `NativeCompatibility` source/digest/declaration audit; a wrong-source/body or
-  replaced object is `adapter_source_drift` **before it is called**, and a
-  rejected object never becomes the trusted baseline.
-- A multi-candidate method preserves a `dependency_source_unreadable` candidate
-  over an inapplicable candidate's `dependency_source_unverified`, so the
-  documented hash-unavailable fallback still applies to a legitimate
-  module-source method (for example `alterTalentLevelRaw` in `mod/class/Actor.lua`).
+**Geometry/conformance.** A builder-backed descriptor still declares a curated
+`builder_shape`; a non-conformant live shape means the geometry is not usable
+(`movement_derivation_unknown`), not an identity claim. The curated
+`target_requests`/actor-vs-grid/prompt-order semantics are never inferred from
+the live builder.
 
 ## 6. Evidence
 
 Final artifact: `dist/tome-mcp-bridge.teaa`
-`5cbf6407ce46675c4e00ce463ef50837bfdb2583e3c762fd43ec89c4b63aade9`
-(baseline `100082399c8e2d1d197a457fa118a85475b9575006659669e9d60fd87d7529dd`).
+`4dbe674792f78bfd78de4e3c21c9c00463fbf76b94dfe2c7f8ca47a63415e702`
+(baseline `5cbf6407ce46675c4e00ce463ef50837bfdb2583e3c762fd43ec89c4b63aade9`).
 `allow_auto_combat_execution` remains `false` (read-only unless explicitly set).
 
-- `tests/test_auto_combat_movement_factory.lua` — 94 checks (templates, closed
-  records/lists, Phase Door matrix, preflight ordering, builder geometry/range,
-  occupancy, `Distance.grid` bounds, drift negatives).
-- `tests/test_effect_manifest_drift.lua` — 46 checks, including `def.range` pins.
-- `tests/test_runtime.lua` — 209 checks: a real-dispatch fixture implements the
-  actual chain (`getTalentLevel` → `alterTalentLevelRaw`/`getTalentMastery` →
-  `getTalentTypeMastery` → `getTalentTypeFrom`; Phase Door `getRange` →
-  `combatTalentSpellDamage`/`combatSpellpower`/`combatSpellpowerRaw` →
-  `knowTalent`/`callTalent`/`getCun`/`getWil`/`getMag`/`hasEffect`/`attr`), the
-  chain plans, and a first-plan replacement of every leaf (including
-  `getTalentTypeMastery`, `getTalentTypeFrom`, `attr`, `getCun`, `callTalent`,
-  and the `getSpellpower` callback) is `adapter_source_drift` with zero calls.
+- `tests/test_auto_combat_movement_factory.lua` — 91 checks (templates, closed
+  records/lists, Phase Door matrix, no-audit live-getter semantics, builder
+  geometry/range, occupancy, `Distance.grid` bounds, advisory-pin demotion).
+- `tests/test_effect_manifest_drift.lua` — 45 checks; movement action/getter/
+  range pins are advisory and do not gate identity.
+- `tests/test_runtime.lua` — 191 checks: a real-dispatch fixture implements the
+  actual chain; the live chain plans; a replaced getter returning a usable value
+  is used; an erroring/missing/nil getter is `movement_derivation_unknown`.
 - Full Lua suite 41/41 green; Python 39/39; the three generator `--check` runs
   exit 0.
 - Native probes (source + `dist`) settle the task and assert final postconditions:
-  auto-combat probe 116/116 each, full native acceptance 100/100 each. Raw output
-  is under `tmp/s1/`.
+  auto-combat probe 116/116 each (including `movement-factory:live-getter-value`
+  and `movement-factory:getter-error`), full native acceptance 100/100 each. Raw
+  output is under `tmp/s1/`.

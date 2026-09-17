@@ -9,7 +9,6 @@ local Details=require 'mod.mcp_bridge.ObservationDetails'
 local Tracker=require 'mod.mcp_bridge.InvocationTracker'
 local Interactions=require 'mod.mcp_bridge.Interactions'
 local Compat=require 'mod.mcp_bridge.NativeCompatibility'
-local NativeManifest=require 'mod.mcp_bridge.NativeManifest'
 local NativeTasks=require 'mod.mcp_bridge.NativeTasks'
 local NativeActivity=require 'mod.mcp_bridge.NativeActivity'
 local ActorCombat=require 'mod.mcp_bridge.ActorCombat'
@@ -28,12 +27,6 @@ local EffectManifest=require 'mod.auto_combat.EffectManifest'
 local ManifestDrift=require 'mod.auto_combat.EffectManifestDrift'
 local MovementPlanner=require 'mod.auto_combat.MovementPlanner'
 local buildAutoCombatHost
--- First-seen identity baselines for the transitive helpers the movement builders
--- dispatch through (getTalentRange, the talent `range` function, and the engine
--- scaling helpers). A distinct object is rejected before the outer builder runs.
--- `NativeCompatibility` adds the source/digest audit in production; this
--- `rawequal` baseline is the headless-testable replacement check.
-local movementHelperBaselines={}
 local function sortedKeys(t)
     local out={}
     for key in pairs(t) do out[#out+1]=key end
@@ -461,7 +454,6 @@ end
 function M.reset(g)
     local previous=state
     state=nil
-    movementHelperBaselines={}
     if previous and previous.transport then previous.transport:close() end
     Observer.reset()
     Journal.reset()
@@ -896,11 +888,9 @@ local function autoCombatReads(s,policy,opts)
         if pct<0 then pct=0 elseif pct>100 then pct=100 end
         return pct
     end
-    -- MAF-REV-02: the manifest/dependency preflight. Verified before any
-    -- movement variant/bounds/builder read so a live getter is never called
-    -- before its identity is checked. Shared by the guard and the planner (and
-    -- therefore by live planning and dry-run). `opts.drift` lets a headless
-    -- caller inject a verdict.
+    -- Effect-manifest source-drift check for the guard (component model only;
+    -- movement getters/builders are not gated). Shared by the planner and the
+    -- guard. `opts.drift` lets a headless caller inject a verdict.
     local function manifestDrift()
         local override=opts and opts.drift
         if type(override)=='function' then return override() end
@@ -914,230 +904,46 @@ local function autoCombatReads(s,policy,opts)
                 return type(def)=='table' and def[talent] or nil
             end})
     end
-    -- Audited effective talent level (`self:getTalentLevel(t)`). Raw invested
-    -- points ignore mastery/alterations; an unavailable, overridden or erroring
-    -- getter returns 'unknown' so the variant stays conservative.
+    -- Audited effective talent level (`self:getTalentLevel(t)`). Called directly
+    -- as a normal entrypoint (no identity gate); an unavailable/erroring getter
+    -- returns 'unknown' so the variant stays conservative.
     local function effectiveTalentLevel(talent,def)
         local p=g.player
         if type(p)~='table' or type(p.getTalentLevel)~='function' then return 'unknown' end
-        if not Compat.hasDependency('guard.talentLevel') then
-            Compat.registerDependency('guard.talentLevel','talent_query',p.getTalentLevel,
-                '/engine/interface/ActorTalents.lua','effective talent level',
-                EffectManifest.SOURCES.engine and EffectManifest.SOURCES.engine.actor_talents
-                    and EffectManifest.SOURCES.engine.actor_talents.md5,
-                'function _M:getTalentLevel',{})
-        end
-        local fn=Compat.dependency('guard.talentLevel',p.getTalentLevel)
-        if type(fn)~='function' then
-            -- A headless harness that injects a drift verdict may lack the native
-            -- fs/md5 services the dependency audit needs; it still calls the
-            -- live getter under pcall. Production uses the audited object.
-            if not (opts and type(opts.drift)=='function') then return 'unknown' end
-            fn=p.getTalentLevel
-        end
         if type(def)~='table' then return 'unknown' end
-        local ok,value=pcall(fn,p,def)
+        local ok,value=pcall(p.getTalentLevel,p,def)
         if not ok or type(value)~='number' or value~=value then return 'unknown' end
         return value
     end
-    -- Audited `self:attr(id)` (reuses the TalentQuery `actor.attr` registration
-    -- id so a later replacement fails closed). A successful read is definite;
-    -- an unavailable/erroring reader returns `known=false`.
+    -- `self:attr(id)` called directly. A successful read is definite; a missing
+    -- or erroring method means the value is not obtainable (`known=false`).
     local function auditedAttr(id)
         local p=g.player
         if type(p)~='table' or type(p.attr)~='function' then return nil,false end
-        if not Compat.hasDependency('actor.attr') then
-            Compat.registerDependency('actor.attr','talent_query',p.attr,'/engine/Entity.lua',
-                'movement variant attributes',NativeManifest.entity_md5,'function _M:attr')
-        end
-        local fn=Compat.dependency('actor.attr',p.attr)
-        if type(fn)~='function' then
-            -- A headless harness that injects a drift verdict may lack the native
-            -- fs/md5 services the dependency audit needs. It still calls the
-            -- live function under pcall; production uses the audited object.
-            if not (opts and type(opts.drift)=='function') then return nil,false end
-            fn=p.attr
-        end
-        local ok,value=pcall(fn,p,id)
+        local ok,value=pcall(p.attr,p,id)
         if not ok then return nil,false end
         return value,true
     end
-    -- MAF-REV-02: the complete transitive helper closure used by the admitted
-    -- builders and dynamic getters. `getTalentRange` dispatches through each
-    -- talent's live `range` function, which calls `combatTalentScale`/
-    -- `combatTalentLimit`/`combatTalentSpellDamage`; those call `getTalentLevel`,
-    -- which calls `getTalentLevelRaw`/`alterTalentLevelRaw`/`getTalentMastery`;
-    -- `combatTalentSpellDamage` also calls `combatSpellpower` (->
-    -- `combatSpellpowerRaw`/`rescaleCombatStats`) and `rescaleDamage`. Every
-    -- present helper is identity/source-checked before the outer closure runs.
-    local function helper(path,declaration,source)
-        return {path=path,declaration=declaration,source=source}
-    end
-    local MOVEMENT_HELPERS={
-        getTalentLevel={candidates={helper('/engine/interface/ActorTalents.lua',
-            'function _M:getTalentLevel','actor_talents')}},
-        getTalentLevelRaw={candidates={helper('/engine/interface/ActorTalents.lua',
-            'function _M:getTalentLevelRaw','actor_talents')}},
-        alterTalentLevelRaw={candidates={helper('/mod/class/Actor.lua',
-            'function _M:alterTalentLevelRaw','actor'),
-            helper('/engine/interface/ActorTalents.lua',
-                'function _M:alterTalentLevelRaw','actor_talents')}},
-        getTalentMastery={candidates={helper('/engine/interface/ActorTalents.lua',
-            'function _M:getTalentMastery','actor_talents')}},
-        getTalentTypeMastery={candidates={helper('/mod/class/Actor.lua',
-            'function _M:getTalentTypeMastery','actor'),
-            helper('/engine/interface/ActorTalents.lua',
-                'function _M:getTalentTypeMastery','actor_talents')}},
-        getTalentTypeFrom={candidates={helper('/engine/interface/ActorTalents.lua',
-            'function _M:getTalentTypeFrom','actor_talents')}},
-        getTalentRange={candidates={helper('/engine/interface/ActorTalents.lua',
-            'function _M:getTalentRange','actor_talents')}},
-        knowTalent={candidates={helper('/engine/interface/ActorTalents.lua',
-            'function _M:knowTalent','actor_talents')}},
-        callTalent={candidates={helper('/engine/interface/ActorTalents.lua',
-            'function _M:callTalent','actor_talents')}},
-        getTalentFromId={candidates={helper('/engine/interface/ActorTalents.lua',
-            'function _M:getTalentFromId','actor_talents')}},
-        attr={candidates={helper('/engine/Entity.lua',
-            'function _M:attr','entity')}},
-        getCun={candidates={helper('/engine/interface/ActorStats.lua',
-            'self["get"','actor_stats')}},
-        getWil={candidates={helper('/engine/interface/ActorStats.lua',
-            'self["get"','actor_stats')}},
-        getMag={candidates={helper('/engine/interface/ActorStats.lua',
-            'self["get"','actor_stats')}},
-        hasEffect={candidates={helper('/engine/interface/ActorTemporaryEffects.lua',
-            'function _M:hasEffect','actor_temporary_effects')}},
-        combatTalentScale={candidates={helper('/mod/class/interface/Combat.lua',
-            'function _M:combatTalentScale','combat')}},
-        combatTalentLimit={candidates={helper('/mod/class/interface/Combat.lua',
-            'function _M:combatTalentLimit','combat')}},
-        combatLimit={candidates={helper('/mod/class/interface/Combat.lua',
-            'function _M:combatLimit','combat')}},
-        combatTalentSpellDamage={candidates={helper('/mod/class/interface/Combat.lua',
-            'function _M:combatTalentSpellDamage','combat')}},
-        combatSpellpower={candidates={helper('/mod/class/interface/Combat.lua',
-            'function _M:combatSpellpower','combat')}},
-        combatSpellpowerRaw={candidates={helper('/mod/class/interface/Combat.lua',
-            'function _M:combatSpellpowerRaw','combat')}},
-        rescaleCombatStats={candidates={helper('/mod/class/interface/Combat.lua',
-            'function _M:rescaleCombatStats','combat')}},
-        rescaleDamage={candidates={helper('/mod/class/interface/Combat.lua',
-            'function _M:rescaleDamage','combat')}},
-    }
-    -- Audit one helper through its candidate pins. Returns true, or false,reason.
-    -- A `dependency_source_unreadable` candidate is preserved over an inapplicable
-    -- candidate's `dependency_source_unverified`, so the documented
-    -- hash-unavailable fallback still applies to a legitimate module-source
-    -- method (e.g. `alterTalentLevelRaw` in `mod/class/Actor.lua`).
-    local function auditMovementHelper(name,fn,spec)
-        local bestReason
-        for _,candidate in ipairs(spec.candidates) do
-            local id='movement.helper.'..name..':'..candidate.source
-            if not Compat.hasDependency(id) then
-                local digest=EffectManifest.SOURCES.engine and EffectManifest.SOURCES.engine[candidate.source]
-                    and EffectManifest.SOURCES.engine[candidate.source].md5
-                Compat.registerDependency(id,'talent_query',fn,candidate.path,
-                    'movement derivation helper',digest,candidate.declaration)
-            end
-            local verified,reason=Compat.dependency(id,fn)
-            if type(verified)=='function' then return true end
-            if reason=='dependency_source_unreadable' then
-                -- Always prefer the bypassable reason: the object matched a
-                -- candidate source, only the native hash service is missing.
-                bestReason='dependency_source_unreadable'
-            elseif bestReason==nil then
-                bestReason=reason
-            end
-        end
-        return false,bestReason or 'dependency_not_registered'
-    end
-    -- `combatSpellpowerRaw` calls `talent.getSpellpower` through `callTalent`.
-    -- The callback objects live in the sparse talent data files; pin them too.
-    local MOVEMENT_CALLBACKS={
-        T_ARCANE_CUNNING={field='getSpellpower',source='closure_magical_combat',
-            path='/data/talents/techniques/magical-combat.lua',declaration='getSpellpower = function'},
-        T_SHADOW_CUNNING={field='getSpellpower',source='closure_shadow_magic',
-            path='/data/talents/cunning/shadow-magic.lua',declaration='getSpellpower = function'},
-        T_LUNACY={field='getSpellpower',source='closure_darkside',
-            path='/data/talents/celestial/darkside.lua',declaration='getSpellpower = function'},
-    }
-    local function verifyMovementHelpers()
-        local p=g.player
-        if type(p)~='table' then return nil,'actor_unavailable' end
-        for name,spec in pairs(MOVEMENT_HELPERS) do
-            local fn=p[name]
-            if type(fn)=='function' then
-                local baseline=movementHelperBaselines[name]
-                if baseline~=nil and not rawequal(baseline,fn) then
-                    return nil,'movement_helper_replaced:'..name
-                end
-                local ok,reason=auditMovementHelper(name,fn,spec)
-                if not ok then
-                    -- Only a missing native hash service may be bypassed by an
-                    -- injected-drift headless harness; a wrong-source/body or
-                    -- replaced helper is always rejected.
-                    local hashUnavailable=(reason=='dependency_source_unreadable')
-                    if not (hashUnavailable and opts and type(opts.drift)=='function') then
-                        return nil,'movement_helper_unverified:'..name..':'..tostring(reason)
-                    end
-                end
-                -- Record the baseline only after the object passed (or the
-                -- hash-unavailable fallback accepted it), so a rejected object
-                -- never becomes the trusted baseline.
-                if baseline==nil then movementHelperBaselines[name]=fn end
-            end
-        end
-        -- Talent callbacks reached by `callTalent` from `combatSpellpowerRaw`.
-        local defs=type(p.talents_def)=='table' and p.talents_def or {}
-        for talent,spec in pairs(MOVEMENT_CALLBACKS) do
-            local def=defs[talent]
-            local fn=type(def)=='table' and def[spec.field] or nil
-            if type(fn)=='function' and type(p.talents)=='table' and p.talents[talent]~=nil then
-                local key='callback:'..talent..':'..spec.field
-                local baseline=movementHelperBaselines[key]
-                if baseline~=nil and not rawequal(baseline,fn) then
-                    return nil,'movement_helper_replaced:'..key
-                end
-                local id='movement.callback.'..talent
-                if not Compat.hasDependency(id) then
-                    local digest=EffectManifest.SOURCES.engine[spec.source]
-                        and EffectManifest.SOURCES.engine[spec.source].md5
-                    Compat.registerDependency(id,'talent_query',fn,spec.path,
-                        'movement spellpower callback',digest,spec.declaration)
-                end
-                local verified,reason=Compat.dependency(id,fn)
-                if type(verified)~='function' then
-                    local hashUnavailable=(reason=='dependency_source_unreadable')
-                    if not (hashUnavailable and opts and type(opts.drift)=='function') then
-                        return nil,'movement_helper_unverified:'..key..':'..tostring(reason)
-                    end
-                end
-                if baseline==nil then movementHelperBaselines[key]=fn end
-            end
-        end
-        return true
-    end
-    -- Pinned dynamic envelope getter (`def.getRange`/`def.getRadius`). The
-    -- `manifestDrift` identity check has already verified the exact object, and
-    -- `verifyMovementHelpers` checks the transitive scaling closure first.
+    -- MAF-REV-06 (no-strict-audit): planning uses the game's actual getters and
+    -- builders as normal entrypoints. There is no identity/digest/closure gate —
+    -- Lua is dynamic and another addon may replace any function. A getter that
+    -- errors, is missing or returns nil means the value is not obtainable, which
+    -- the factory maps to `movement_derivation_unknown` / an unknown variant axis.
+    -- Source digests remain advisory metadata only and never block a decision.
     local function auditedTalentGetter(talent,name)
-        local ok,reason=verifyMovementHelpers()
-        if not ok then return nil,reason end
         local p=g.player
         local def=type(p)=='table' and type(p.talents_def)=='table' and p.talents_def[talent] or nil
-        if type(def)~='table' then return nil end
+        if type(def)~='table' then return nil,'definition_missing' end
         local getter=def[name]
-        if type(getter)~='function' then return nil end
+        if type(getter)~='function' then return nil,'getter_missing' end
         local called,value=pcall(getter,p,def)
-        if not called or type(value)~='number' or value~=value then return nil end
+        if not called or type(value)~='number' or value~=value then return nil,'getter_failed' end
         return value
     end
-    -- Pinned target builder geometry. Only an allowlisted subset is copied; the
-    -- builder never supplies actor/grid semantics or prompt order.
+    -- Live target builder geometry. Only an allowlisted subset is copied; the
+    -- builder never supplies actor/grid semantics or prompt order (those stay
+    -- curated). A missing/erroring/non-table builder is a derivation unknown.
     local function auditedTargetGeometry(talent)
-        local ok,reason=verifyMovementHelpers()
-        if not ok then return nil,reason end
         local p=g.player
         local def=type(p)=='table' and type(p.talents_def)=='table' and p.talents_def[talent] or nil
         if type(def)~='table' then return nil,'definition_missing' end
@@ -1178,8 +984,8 @@ local function autoCombatReads(s,policy,opts)
     end
     local reads={
         policy=policy,
-        -- Exposed so the live guard reuses the same audited preflight/getter as
-        -- the planner (MAF-REV-02 ordering).
+        -- Shared with the guard (effect-manifest drift is a guard-only check;
+        -- movement getters/builders are called directly with no gate).
         manifestDrift=manifestDrift,
         effectiveTalentLevel=effectiveTalentLevel,
         phase=function()
@@ -1298,9 +1104,6 @@ local function autoCombatReads(s,policy,opts)
                 return effectiveTalentLevel(talent,def)
             end
             local provider={
-                -- MAF-REV-02: drift preflight before any dynamic read. The
-                -- planner calls this only when a movement adapter is present.
-                preflight=manifestDrift,
                 origin=function()
                     if player and Details.finite(player.x) and Details.finite(player.y) then
                         return {x=player.x,y=player.y}
@@ -1323,9 +1126,8 @@ local function autoCombatReads(s,policy,opts)
                     return nil
                 end,
                 talentLevel=plannerTalentLevel,
-                -- Audited state/geometry readers. Each is gated by the
-                -- preflight above (manifest identity) and/or a
-                -- NativeCompatibility dependency, never a raw live call.
+                -- Called directly (no identity gate); a missing/erroring reader
+                -- means the value is not obtainable.
                 attr=auditedAttr,
                 talentGetter=auditedTalentGetter,
                 builder=auditedTargetGeometry,
@@ -1440,8 +1242,8 @@ end
 buildAutoCombatHost=function(s,policy,opts)
     local g=s.game
     local reads=autoCombatReads(s,policy,opts)
-    -- The guard reuses the planner's audited preflight and effective-level getter
-    -- so live planning and dry-run share one verification path.
+    -- The guard reuses the effective-level getter (the effect-manifest drift is
+    -- guard-only; the movement planner no longer preflights).
     local manifestDrift=reads.manifestDrift
     local effectiveTalentLevel=reads.effectiveTalentLevel
     -- Audited `self:spellFriendlyFire()` (the dynamic SF/FF input used by the

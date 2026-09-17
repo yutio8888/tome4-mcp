@@ -381,8 +381,8 @@ local function resolveMovement(movement,provider,talent)
     if not resolved then return nil,err end
     local bounds,boundErr=Factory.resolveBounds(resolved,talent,reads)
     if not bounds then return nil,boundErr end
-    -- Live target geometry: after the preflight identity check, the pinned
-    -- builder supplies only an allowlisted shape/range/radius. It never changes
+    -- Live target geometry: the actual builder (called directly, no identity
+    -- gate) supplies only an allowlisted shape/range/radius. It never changes
     -- the curated request kind, centre, landing or prompt order.
     local built,buildErr=Factory.resolveBuilder(bounds,talent,reads)
     if not built then return nil,buildErr end
@@ -480,16 +480,10 @@ function M.plan(attempt,provider,movement)
     end
     local variantErr
     if movement~=nil then
-        -- MAF-REV-02: the manifest/dependency preflight runs before any variant,
-        -- bounds or builder read. Planning happens before the guard, so without
-        -- this the live getters would be called before their identity is
-        -- verified. A preflight failure disables the adapter before any read.
-        if type(provider.preflight)=='function' then
-            local ok,reason,detail=provider.preflight()
-            if ok~=true then
-                return nil,{reason=reason or 'adapter_source_drift',detail=detail,preflight=true}
-            end
-        end
+        -- MAF-REV-06 (no-strict-audit): planning calls the live adapter directly;
+        -- there is no identity/digest/closure preflight gate. An unobtainable
+        -- value simply fails the derivation (movement_derivation_unknown) or the
+        -- variant (movement_variant_unknown) below.
         movement,variantErr=resolveMovement(movement,provider,attempt.talent)
         if variantErr then
             -- Propagate the typed reason unchanged; the caller publishes the same

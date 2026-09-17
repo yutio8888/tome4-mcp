@@ -62,7 +62,7 @@ M.EXPECTED={
     ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
-    ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','helper_replaced'},
+    ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
     ['solo-pump']={},
@@ -1074,22 +1074,30 @@ local function movementFactoryChecks()
     signals[#signals+1]=vaultOk and 'vault_exact' or 'vault_missing'
     check('movement-factory:vault-exact',vaultOk,{reason=vaultErr and vaultErr.reason})
     p.talents.T_SKIRMISHER_VAULT=saved_vault
-    -- MAF-REV-02: a replaced transitive getTalentLevel is rejected without being
-    -- called (the baseline was established by the plans above).
-    local helper_replaced=false
+    -- MAF-REV-06 (no-strict-audit): a replaced getter with a usable value is used
+    -- directly; an erroring getter is movement_derivation_unknown.
+    local live_value_used=false
+    local getter_error_ok=false
     do
-        local saved_level=p.getTalentLevel
-        local calls=0
-        p.getTalentLevel=function() calls=calls+1
-            error('replacement getTalentLevel must not run') end
-        local plan,planErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
-            destination={selector='position',x=p.x+1,y=p.y,accept=accept}})
-        helper_replaced=plan==nil and planErr and planErr.reason=='adapter_source_drift'
-        check('movement-factory:helper-replaced',helper_replaced,{reason=planErr and planErr.reason})
-        check('movement-factory:helper-replaced-not-called',calls==0,{calls=calls})
-        p.getTalentLevel=saved_level
+        local def=p.talents_def and p.talents_def.T_PHASE_DOOR
+        local saved_range=def and def.getRange
+        if def then
+            def.getRange=function() return 9 end
+            local plan=host.plan({action='use_talent',talent='T_PHASE_DOOR',
+                destination={selector='native_random',accept=accept}})
+            live_value_used=plan and plan.plan and plan.plan.annotation
+                and plan.plan.annotation.landing and plan.plan.annotation.landing.radius==9
+            check('movement-factory:live-getter-value',live_value_used,{})
+            def.getRange=function() error('probe: getter error') end
+            local bad,err=host.plan({action='use_talent',talent='T_PHASE_DOOR',
+                destination={selector='native_random',accept=accept}})
+            getter_error_ok=bad==nil and err and err.reason=='movement_derivation_unknown'
+            check('movement-factory:getter-error',getter_error_ok,{reason=err and err.reason})
+            def.getRange=saved_range
+        end
     end
-    signals[#signals+1]=helper_replaced and 'helper_replaced' or 'helper_replaced_missing'
+    signals[#signals+1]=live_value_used and 'live_getter_value' or 'live_getter_value_missing'
+    signals[#signals+1]=getter_error_ok and 'getter_error_unknown' or 'getter_error_missing'
     return compare('movement-factory',signals)
 end
 

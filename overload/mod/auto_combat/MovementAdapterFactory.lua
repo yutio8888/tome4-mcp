@@ -53,14 +53,6 @@ M.CENTERS={self=true,actor=true,requested_grid=true}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 
--- A reader may report a replaced transitive helper. That is source drift, not a
--- mere missing value, so it must be surfaced as `adapter_source_drift`.
-local function isDriftReason(why)
-    return type(why)=='string' and (why:find('replaced',1,true)~=nil
-        or why:find('drift',1,true)~=nil
-        or why:find('unverified',1,true)~=nil)
-end
-
 local function copyArray(src)
     local out={}
     for i=1,#src do out[i]=src[i] end
@@ -495,9 +487,10 @@ function M.resolveVariant(movement,talent,reads)
     return out
 end
 
--- Resolve every dynamic envelope bound (`{getter='name'}`) through the injected,
--- audited reader. An unavailable or non-finite value is a typed
--- `movement_derivation_unknown`, never a fabricated constant.
+-- Resolve every dynamic envelope bound (`{getter='name'}`) through the injected
+-- reader. An unavailable or non-finite value is a typed
+-- `movement_derivation_unknown`, never a fabricated constant. There is no
+-- identity gate: the game's actual getter is used as a normal entrypoint.
 function M.resolveBounds(movement,talent,reads)
     if type(movement)~='table' then return movement end
     reads=reads or {}
@@ -509,9 +502,6 @@ function M.resolveBounds(movement,talent,reads)
             end
             local ok,resolved,why=pcall(reads.talentGetter,talent,value.getter)
             if not ok or not finite(resolved) then
-                if isDriftReason(why) then
-                    return nil,{reason='adapter_source_drift',detail=why,getter=value.getter}
-                end
                 return nil,{reason=M.REASON_DERIVATION_UNKNOWN,dependency=value.getter,detail=why}
             end
             if value.min~=nil and resolved<value.min then resolved=value.min end
@@ -525,11 +515,11 @@ function M.resolveBounds(movement,talent,reads)
     return out
 end
 
--- Call the pinned target builder for live geometry/conformance only. When the
--- descriptor declares a `builder_shape`, the builder is mandatory; a replaced
--- shape is `adapter_source_drift`. The returned `range`/`radius` are copied; the
--- builder never changes the curated request kind, centre, landing or prompt
--- order.
+-- Call the target builder for live geometry/conformance only. When the
+-- descriptor declares a `builder_shape`, a non-conformant shape means the
+-- geometry is not obtainable (`movement_derivation_unknown`); there is no
+-- identity gate. The returned `range`/`radius` are copied; the builder never
+-- changes the curated request kind, centre, landing or prompt order.
 function M.resolveBuilder(movement,talent,reads)
     if type(movement)~='table' or movement.builder_shape==nil then return movement end
     reads=reads or {}
@@ -538,13 +528,10 @@ function M.resolveBuilder(movement,talent,reads)
     end
     local ok,geometry,why=pcall(reads.builder,talent)
     if not ok or type(geometry)~='table' then
-        if isDriftReason(why) then
-            return nil,{reason='adapter_source_drift',detail=why}
-        end
         return nil,{reason=M.REASON_DERIVATION_UNKNOWN,dependency='t.target',detail=why}
     end
     if geometry.shape~=movement.builder_shape then
-        return nil,{reason='adapter_source_drift',detail='builder_shape',
+        return nil,{reason=M.REASON_DERIVATION_UNKNOWN,dependency='t.target.shape',
             expected=movement.builder_shape,got=geometry.shape}
     end
     -- A builder-backed grid descriptor must expose a finite range: without it the

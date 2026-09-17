@@ -729,99 +729,55 @@ do
     p.attr=saved_attr
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
 end
--- MAF-REV-02 production-path regression: when the drift preflight fails, the
--- planner returns adapter_source_drift and the pinned dynamic getter is never
--- called (the identity check precedes the derivation read).
+-- MAF-REV-06 (no-strict-audit): planning calls the live getter directly. A
+-- replaced getter that returns a usable value is used; one that errors, is
+-- missing or returns nil yields movement_derivation_unknown.
 do
     Runtime.reset(g);g:display()
-    local pl={schema='tome-auto-combat/v1',id='drift',name='unit',limits={max_actions_per_tick=1},
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local pl={schema='tome-auto-combat/v1',id='nogate',name='unit',limits={max_actions_per_tick=1},
         safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='nearest_hostile'},
         rules={{id='door',priority=1,when={always={}},
             ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
-                destination={selector='native_random',accept={visibility='any',passability='native',
-                    hazard='any',landing='allow_random'}}}}}}
-    local getterCalls=0
+                destination={selector='native_random',accept=accept}}}}}
+    local plan={action='use_talent',talent='T_PHASE_DOOR',target='self',
+        destination={selector='native_random',accept=accept}}
+    p.attr=engineFn('/engine/Entity.lua','return function(self,id) return self[id] end')
     p.getTalentLevel=engineFn('/engine/interface/ActorTalents.lua',
         'return function(self,def) return 1 end')
     p.talents_def=p.talents_def or {}
+    local saved_door=p.talents_def.T_PHASE_DOOR
+    local host=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
+    -- A replaced getter returning a usable value is used (no identity gate).
     p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',
-        getRange=function() getterCalls=getterCalls+1;error('getter must not run') end,
-        getRadius=function() getterCalls=getterCalls+1;error('getter must not run') end}
-    local host=Runtime.buildAutoCombatHostFor(g,pl,
-        {drift=function() return nil,'adapter_source_drift','injected' end})
-    local planned,err=host.plan({action='use_talent',talent='T_PHASE_DOOR',target='self',
-        destination={selector='native_random',accept={visibility='any',passability='native',
-            hazard='any',landing='allow_random'}}})
-    check(planned==nil and err and err.reason=='adapter_source_drift' and err.preflight==true,
-        'a failed drift preflight disables the movement adapter before planning')
-    check(getterCalls==0,'the pinned dynamic getter is not called before the preflight passes')
+        getRange=function() return 7 end,getRadius=function() return 2 end}
+    local used,usedErr=host.plan(plan)
+    check(used and used.plan and used.plan.kind=='native_random' and usedErr==nil,
+        'a replaced live getter returning a usable value is used, not gated')
+    -- An erroring getter is movement_derivation_unknown (value not obtainable).
+    p.talents_def.T_PHASE_DOOR.getRange=function() error('boom') end
+    local bad,err=host.plan(plan)
+    check(bad==nil and err and err.reason=='movement_derivation_unknown',
+        'an erroring live getter is movement_derivation_unknown')
+    -- A missing getter is movement_derivation_unknown.
+    p.talents_def.T_PHASE_DOOR.getRange=nil
+    bad,err=host.plan(plan)
+    check(bad==nil and err and err.reason=='movement_derivation_unknown',
+        'a missing live getter is movement_derivation_unknown')
+    -- A nil-returning getter is movement_derivation_unknown.
+    p.talents_def.T_PHASE_DOOR.getRange=function() return nil end
+    bad,err=host.plan(plan)
+    check(bad==nil and err and err.reason=='movement_derivation_unknown',
+        'a nil-returning live getter is movement_derivation_unknown')
+    p.talents_def.T_PHASE_DOOR=saved_door
 end
--- MAF-REV-02 transitive-helper closure regression. The pinned builder dispatches
--- through getTalentRange -> the talent range -> combatTalentScale -> getTalentLevel
--- -> getTalentLevelRaw/alterTalentLevelRaw/getTalentMastery. A replacement at any
--- level is rejected as adapter_source_drift without being called.
+-- MAF-REV-06 real-dispatch: the fixtures implement the actual call graph
+-- (getTalentLevel -> alterTalentLevelRaw/getTalentMastery -> getTalentTypeMastery
+-- -> getTalentTypeFrom, and Phase Door getRange -> combatTalentSpellDamage ->
+-- combatSpellpower -> combatSpellpowerRaw -> knowTalent/callTalent/getCun/...).
+-- The live chain plans and is used directly; an erroring leaf only fails the
+-- value.
 do
-    local Compat=require 'mod.mcp_bridge.NativeCompatibility'
-    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
-    local plan={action='use_talent',talent='T_SKIRMISHER_VAULT',
-        destination={selector='position',x=3,y=2,accept=accept}}
-    local pl={schema='tome-auto-combat/v1',id='helper',name='unit',limits={max_actions_per_tick=1},
-        safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='nearest_hostile'},
-        rules={{id='vault',priority=1,when={always={}},
-            ['then']={action='use_talent',talent='T_SKIRMISHER_VAULT',destination={
-                selector='position',x=3,y=2,accept=accept}}}}}
-    local saved_defs=p.talents_def
-    local range_fn=assert(loadstring(
-        'return function(self,t) return math.floor(self:combatTalentScale(t,3,8)) end',
-        '@/data/talents/techniques/acrobatics.lua'))()
-    local function setup(level,scale)
-        p.x,p.y=2,2
-        p.getTalentLevel=level
-        p.combatTalentScale=scale
-        p.getTalentRange=engineFn('/engine/interface/ActorTalents.lua',
-            'return function(self,def) if type(def.range)=="function" then return def.range(self,def) end return def.range end')
-        p.talents_def=p.talents_def or {}
-        p.talents_def.T_SKIRMISHER_VAULT={id='T_SKIRMISHER_VAULT',mode='activated',range=range_fn,
-            target=function(self,t) return {type='beam',range=self:getTalentRange(t)} end}
-        return Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
-    end
-    -- Phase 1: a replacement present on the very first plan is rejected without
-    -- being called (the reviewer's probe).
-    Runtime.reset(g);g:display();Compat.resetDependencies()
-    local replacement_calls=0
-    local host=setup(function() replacement_calls=replacement_calls+1
-        error('replacement getTalentLevel must not run') end,
-        engineFn('/mod/class/interface/Combat.lua','return function(self,t,lo,hi) return lo end'))
-    local bad,badErr=host.plan(plan)
-    check(bad==nil and badErr and badErr.reason=='adapter_source_drift',
-        'a first-plan replaced getTalentLevel is adapter_source_drift')
-    check(replacement_calls==0,'the replaced getTalentLevel is rejected without being called')
-    -- Phase 2: the audited chain plans (and dispatches through getTalentLevel).
-    Runtime.reset(g);g:display();Compat.resetDependencies()
-    local host2=setup(engineFn('/engine/interface/ActorTalents.lua',
-            'return function(self,def) return 5 end'),
-        engineFn('/mod/class/interface/Combat.lua','return function(self,t,lo,hi) return lo end'))
-    local ok,okErr=host2.plan(plan)
-    check(ok and ok.plan and okErr==nil,'the audited helper chain plans')
-    -- Phase 3: a mid-chain scaling helper replaced after a legitimate plan is
-    -- rejected without being called.
-    local scale_calls=0
-    p.combatTalentScale=function() scale_calls=scale_calls+1
-        error('replacement combatTalentScale must not run') end
-    local bad2,bad2Err=host2.plan(plan)
-    check(bad2==nil and bad2Err and bad2Err.reason=='adapter_source_drift',
-        'a replaced mid-chain combatTalentScale is adapter_source_drift')
-    check(scale_calls==0,'the replaced scaling helper is rejected without being called')
-    p.talents_def=saved_defs
-end
--- MAF-REV-02 (rev 5): real-dispatch closure. The fixtures below implement the
--- actual call graph (getTalentLevel -> alterTalentLevelRaw/getTalentMastery ->
--- getTalentTypeMastery -> getTalentTypeFrom, and Phase Door getRange ->
--- combatTalentSpellDamage -> combatSpellpower -> combatSpellpowerRaw ->
--- knowTalent/callTalent/getCun/getWil/getMag/hasEffect/attr). Replacing any leaf
--- before the first plan must be adapter_source_drift with zero calls.
-do
-    local Compat=require 'mod.mcp_bridge.NativeCompatibility'
     local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
     local saved_defs,saved_talents=p.talents_def,p.talents
     local A='/engine/interface/ActorTalents.lua'
@@ -855,7 +811,7 @@ do
         actor.combatSpellpower=engineFn(C,'return function(self,mod,add) mod=mod or 1 local d,am=self:combatSpellpowerRaw(add) return self:rescaleCombatStats(d)*mod*am end')
         actor.combatTalentSpellDamage=engineFn(C,'return function(self,t,base,max) local mod=max/((base+100)*((math.sqrt(5)-1)*0.8+1)) return self:rescaleDamage((base+self:combatSpellpower())*((math.sqrt(self:getTalentLevel(t))-1)*0.8+1)*mod) end')
     end
-    local vaultPolicy={schema='tome-auto-combat/v1',id='closure',name='unit',
+    local vaultPolicy={schema='tome-auto-combat/v1',id='chain',name='unit',
         limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=0},
         targeting={default='nearest_hostile'},rules={{id='vault',priority=1,when={always={}},
             ['then']={action='use_talent',talent='T_SKIRMISHER_VAULT',destination={
@@ -872,23 +828,23 @@ do
             target=function(self,t) return {type='beam',range=self:getTalentRange(t)} end}
         return Runtime.buildAutoCombatHostFor(g,vaultPolicy,{drift=function() return true end})
     end
-    Runtime.reset(g);g:display();Compat.resetDependencies()
+    Runtime.reset(g);g:display()
     local ok,okErr=setupVault().plan(vaultPlan)
-    check(ok and ok.plan and okErr==nil,'the real-dispatch Vault chain plans')
-    local function firstPlanLeaf(name,install,plan)
-        Runtime.reset(g);g:display();Compat.resetDependencies()
-        local calls=0
-        local host=install()
-        p[name]=function() calls=calls+1; error('replacement '..name..' must not run') end
-        local planned,err=host.plan(plan)
-        local pass=planned==nil and err and err.reason=='adapter_source_drift'
-        return pass,calls
-    end
-    for _,name in ipairs({'getTalentTypeMastery','getTalentTypeFrom','getTalentLevel',
-        'getTalentLevelRaw','getTalentMastery','alterTalentLevelRaw','attr'}) do
-        local pass,calls=firstPlanLeaf(name,setupVault,vaultPlan)
-        check(pass and calls==0,'a first-plan replaced '..name..' is drift with zero calls')
-    end
+    check(ok and ok.plan and okErr==nil,'the live Vault chain plans')
+    -- A replaced leaf returning a usable value is used directly.
+    Runtime.reset(g);g:display()
+    local liveHost=setupVault()
+    p.combatTalentScale=function() return 3 end
+    local livePlan,liveErr=liveHost.plan(vaultPlan)
+    check(livePlan and livePlan.plan and liveErr==nil,
+        'a replaced scaling helper returning a usable value is used, not gated')
+    -- An erroring leaf is movement_derivation_unknown (value not obtainable).
+    Runtime.reset(g);g:display()
+    local errHost=setupVault()
+    p.combatTalentScale=function() error('boom') end
+    local bad,badErr=errHost.plan(vaultPlan)
+    check(bad==nil and badErr and badErr.reason=='movement_derivation_unknown',
+        'an erroring live helper is movement_derivation_unknown')
     -- Phase Door getRange reaches the spell-power chain.
     local doorPolicy={schema='tome-auto-combat/v1',id='door',name='unit',
         limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=0},
@@ -909,23 +865,23 @@ do
             getSpellpower=engineFn('/data/talents/techniques/magical-combat.lua','return function(self,t) return 20 end')}
         return Runtime.buildAutoCombatHostFor(g,doorPolicy,{drift=function() return true end})
     end
-    Runtime.reset(g);g:display();Compat.resetDependencies()
+    Runtime.reset(g);g:display()
     local dok,dokErr=setupDoor().plan(doorPlan)
-    check(dok and dok.plan and dok.plan.kind=='native_random','the real-dispatch Phase Door getRange chain plans')
-    for _,name in ipairs({'getCun','getWil','getMag','hasEffect','callTalent','knowTalent',
-        'getTalentFromId','combatSpellpowerRaw','combatSpellpower','rescaleCombatStats','rescaleDamage'}) do
-        local pass,calls=firstPlanLeaf(name,setupDoor,doorPlan)
-        check(pass and calls==0,'a first-plan replaced '..name..' is drift with zero calls')
-    end
-    -- A replaced getSpellpower callback reached via callTalent is rejected too.
-    Runtime.reset(g);g:display();Compat.resetDependencies()
-    local cb_calls=0
-    local cb_host=setupDoor()
-    p.talents_def.T_ARCANE_CUNNING.getSpellpower=function()
-        cb_calls=cb_calls+1; error('replacement getSpellpower must not run') end
-    local cplan,cerr=cb_host.plan(doorPlan)
-    check(cplan==nil and cerr and cerr.reason=='adapter_source_drift' and cb_calls==0,
-        'a first-plan replaced getSpellpower callback is drift with zero calls')
+    check(dok and dok.plan and dok.plan.kind=='native_random','the live Phase Door getRange chain plans')
+    -- An erroring spell-power leaf is movement_derivation_unknown.
+    Runtime.reset(g);g:display()
+    local dHost=setupDoor()
+    p.getCun=function() error('boom') end
+    local dbad,dbadErr=dHost.plan(doorPlan)
+    check(dbad==nil and dbadErr and dbadErr.reason=='movement_derivation_unknown',
+        'an erroring spell-power leaf is movement_derivation_unknown')
+    -- A missing spell-power method is movement_derivation_unknown too.
+    Runtime.reset(g);g:display()
+    local mHost=setupDoor()
+    p.getMag=nil
+    local mbad,mbadErr=mHost.plan(doorPlan)
+    check(mbad==nil and mbadErr and mbadErr.reason=='movement_derivation_unknown',
+        'a missing spell-power method is movement_derivation_unknown')
     p.talents_def,p.talents=saved_defs,saved_talents
 end
 -- Round-5 correction: the guard reads the real target spec from the audited

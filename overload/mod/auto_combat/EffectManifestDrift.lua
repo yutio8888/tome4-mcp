@@ -66,28 +66,6 @@ end
 local baselines={}
 local active_key=nil
 
--- Verify one pinned function object: it must be a Lua function defined at the
--- pinned source path/line, and its first-seen identity must not change within
--- the session. `key` namespaces the trusted baseline (builder/getter/action).
--- The same object is accepted repeatedly; a distinct object (even a
--- byte-identical dump with a different captured upvalue) is rejected and never
--- overwrites the baseline.
-local function checkPinnedFn(obj,pin,key)
-    if type(obj)~='function' then return false end
-    local info=debug.getinfo(obj,'S')
-    if type(info)~='table' or info.what~='Lua'
-        or info.source~='@'..pin.path or info.linedefined~=pin.line then
-        return false
-    end
-    local baseline=baselines[key]
-    if baseline==nil then
-        baselines[key]=obj
-    elseif not rawequal(baseline,obj) then
-        return false
-    end
-    return true
-end
-
 -- Identity/closure: every manifest entry must expose its declared target
 -- expectation. `conformance.builder` is `true` (a pinned native builder),
 -- `false` (an action-local target, so no builder) or `'none'` (a self/no-target
@@ -108,70 +86,36 @@ function M.identity(manifest,getDef)
         if expects==nil then return nil,M.REASON,talent..':builder_undeclared' end
         local def=getDef(talent)
         if type(def)~='table' then return nil,M.REASON,talent..':definition_missing' end
-        local builder=def.target
-        if expects==true then
-            if type(builder)~='function' then return nil,M.REASON,talent..':builder_missing' end
-            local pin=entry.source and entry.source.builder
-            if type(pin)~='table' or type(pin.path)~='string' or type(pin.line)~='number' then
-                return nil,M.REASON,talent..':builder_unpinned'
-            end
-            local info=debug.getinfo(builder,'S')
-            if type(info)~='table' or info.what~='Lua'
-                or info.source~='@'..pin.path or info.linedefined~=pin.line then
-                return nil,M.REASON,talent..':builder_replaced'
-            end
-            local baseline=baselines[talent]
-            if baseline==nil then
-                baselines[talent]=builder
-            elseif not rawequal(baseline,builder) then
-                -- A distinct object (same source/line, possibly identical
-                -- bytecode) is a replacement; never overwrite the baseline.
-                return nil,M.REASON,talent..':builder_replaced'
-            end
-        else
-            -- `false` and `'none'` both require the absence of a target builder.
-            if builder~=nil then return nil,M.REASON,talent..':builder_unexpected' end
-        end
-        -- S1: every movement adapter pins its `action` body and its dynamic
-        -- getters. A missing/misplaced/replaced object disables the adapter
-        -- before commit; this is the same identity mechanism as the builder.
         if entry.kind=='movement' then
-            local actionPin=entry.source and entry.source.action
-            if type(actionPin)~='table' or type(actionPin.path)~='string' or type(actionPin.line)~='number' then
-                return nil,M.REASON,talent..':action_unpinned'
-            end
-            if not checkPinnedFn(def.action,actionPin,talent..':action') then
-                return nil,M.REASON,talent..':action_replaced'
-            end
-            local getterPins=entry.source and entry.source.getters or {}
-            local getterNames={}
-            for getter in pairs(getterPins) do getterNames[#getterNames+1]=getter end
-            table.sort(getterNames)
-            for _,getter in ipairs(getterNames) do
-                local pin=getterPins[getter]
+            -- MAF-REV-06 (no-strict-audit): a movement adapter uses the game's
+            -- live builder/getters as normal entrypoints. There is no identity
+            -- or digest gate here; an erroring/missing getter fails the
+            -- derivation instead. The generated `action`/`getters`/`ranges`
+            -- pins stay advisory re-review metadata only.
+        else
+            local builder=def.target
+            if expects==true then
+                if type(builder)~='function' then return nil,M.REASON,talent..':builder_missing' end
+                local pin=entry.source and entry.source.builder
                 if type(pin)~='table' or type(pin.path)~='string' or type(pin.line)~='number' then
-                    return nil,M.REASON,talent..':getter_unpinned:'..getter
+                    return nil,M.REASON,talent..':builder_unpinned'
                 end
-                if not checkPinnedFn(def[getter],pin,talent..':getter:'..getter) then
-                    return nil,M.REASON,talent..':getter_replaced:'..getter
+                local info=debug.getinfo(builder,'S')
+                if type(info)~='table' or info.what~='Lua'
+                    or info.source~='@'..pin.path or info.linedefined~=pin.line then
+                    return nil,M.REASON,talent..':builder_replaced'
                 end
-            end
-            -- The pinned target builder dispatches through the talent's live
-            -- `range` function (`self:getTalentRange(t)` -> `t.range(self,t)`).
-            -- Verify it here so a replaced `def.range` is rejected before the
-            -- builder runs.
-            local rangePins=entry.source and entry.source.ranges or {}
-            local rangeNames={}
-            for range in pairs(rangePins) do rangeNames[#rangeNames+1]=range end
-            table.sort(rangeNames)
-            for _,range in ipairs(rangeNames) do
-                local pin=rangePins[range]
-                if type(pin)~='table' or type(pin.path)~='string' or type(pin.line)~='number' then
-                    return nil,M.REASON,talent..':range_unpinned:'..range
+                local baseline=baselines[talent]
+                if baseline==nil then
+                    baselines[talent]=builder
+                elseif not rawequal(baseline,builder) then
+                    -- A distinct object (same source/line, possibly identical
+                    -- bytecode) is a replacement; never overwrite the baseline.
+                    return nil,M.REASON,talent..':builder_replaced'
                 end
-                if not checkPinnedFn(def[range],pin,talent..':range:'..range) then
-                    return nil,M.REASON,talent..':range_replaced:'..range
-                end
+            else
+                -- `false` and `'none'` both require the absence of a target builder.
+                if builder~=nil then return nil,M.REASON,talent..':builder_unexpected' end
             end
         end
     end
