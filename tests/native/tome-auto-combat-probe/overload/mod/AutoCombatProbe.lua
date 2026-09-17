@@ -61,7 +61,7 @@ M.EXPECTED={
     ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
-    ['movement-factory']={'precise_grid','variant_unknown','dimensional_swap_gap','vault_exact'},
+    ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_exact'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
     ['solo-pump']={},
@@ -948,9 +948,24 @@ local function movementFactoryChecks()
     forceReady()
     local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
     local p=game.player
+    local map=game.level.map
     local base_attr=p.attr
     local host=Runtime.buildAutoCombatHostFor(game,policy({WAIT}),{drift=function() return true end})
     local signals={}
+    local function cellState(x,y)
+        if x<0 or y<0 or x>=map.w or y>=map.h then return nil end
+        local idx=x+y*map.w
+        return {idx=idx,seens=map.seens[idx],infovs=map.infovs[idx],lites=map.lites[idx],
+            actor=map.map[idx] and map.map[idx][map.ACTOR or 3]}
+    end
+    local function findVisibleEmpty()
+        for r=1,6 do
+            for _,d in ipairs({{r,0},{-r,0},{0,r},{0,-r},{r,r},{-r,-r},{r,-r},{-r,r}}) do
+                local c=cellState(p.x+d[1],p.y+d[2])
+                if c and c.seens and c.infovs and c.actor==nil then return p.x+d[1],p.y+d[2] end
+            end
+        end
+    end
     -- `phase_door_force_precise` below TL4 forces the grid prompt.
     p.attr=function(self,name)
         if name=='phase_door_force_precise' then return true end
@@ -971,17 +986,69 @@ local function movementFactoryChecks()
     signals[#signals+1]=unknownOk and 'variant_unknown' or 'variant_unknown_missing'
     check('movement-factory:variant-unknown',unknownOk,{reason=unknownErr and unknownErr.reason})
     p.attr=base_attr
-    -- Effective TL5 Dimensional Step is the typed swap capability gap.
+    -- Dimensional Step effective TL5: occupancy-dependent (known empty admits
+    -- the non-swap branch; a known actor is the S4 gap; unknown fails closed).
     if type(p.talents)~='table' then p.talents={} end
     local saved_step=p.talents.T_DIMENSIONAL_STEP
     p.talents.T_DIMENSIONAL_STEP=5
-    local swap,swapErr=host.plan({action='use_talent',talent='T_DIMENSIONAL_STEP',
-        destination={selector='position',x=p.x+2,y=p.y,accept=accept}})
-    local swapOk=swap==nil and swapErr and swapErr.reason=='unsupported_movement_variant'
-        and swapErr.missing=='moving_or_swapping_another_actor'
-    signals[#signals+1]=swapOk and 'dimensional_swap_gap' or 'dimensional_swap_missing'
-    check('movement-factory:dimensional-swap',swapOk,{reason=swapErr and swapErr.reason})
+    local ex,ey=findVisibleEmpty()
+    local empty
+    if ex then
+        empty=host.plan({action='use_talent',talent='T_DIMENSIONAL_STEP',
+            destination={selector='position',x=ex,y=ey,accept=accept}})
+    end
+    local emptyOk=empty and empty.plan and empty.plan.kind=='grid'
+    signals[#signals+1]=emptyOk and 'dimensional_empty' or 'dimensional_empty_missing'
+    check('movement-factory:dimensional-empty',emptyOk,{x=ex,y=ey})
+    local dummy
+    for _,actor in pairs(game.level.entities or {}) do
+        if actor~=p and actor.name and tostring(actor.name):find('MCP target dummy') then dummy=actor end
+    end
+    local actorPlan,actorErr
+    if dummy then
+        actorPlan,actorErr=host.plan({action='use_talent',talent='T_DIMENSIONAL_STEP',
+            destination={selector='position',x=dummy.x,y=dummy.y,accept=accept}})
+    end
+    local actorOk=actorPlan==nil and actorErr and actorErr.reason=='unsupported_movement_variant'
+        and actorErr.missing=='moving_or_swapping_another_actor'
+    signals[#signals+1]=actorOk and 'dimensional_actor_gap' or 'dimensional_actor_missing'
+    check('movement-factory:dimensional-actor',actorOk,{reason=actorErr and actorErr.reason})
+    local hiddenOk=false
+    if ex then
+        local c=cellState(ex,ey)
+        map.seens[c.idx]=nil;map.infovs[c.idx]=nil;map.lites[c.idx]=nil
+        local hidden,hiddenErr=host.plan({action='use_talent',talent='T_DIMENSIONAL_STEP',
+            destination={selector='position',x=ex,y=ey,accept=accept}})
+        map.seens[c.idx]=c.seens;map.infovs[c.idx]=c.infovs;map.lites[c.idx]=c.lites
+        hiddenOk=hidden==nil and hiddenErr and hiddenErr.reason=='movement_variant_unknown'
+    end
+    signals[#signals+1]=hiddenOk and 'dimensional_unknown' or 'dimensional_unknown_missing'
+    check('movement-factory:dimensional-unknown',hiddenOk,{})
     p.talents.T_DIMENSIONAL_STEP=saved_step
+    -- MAF-REV-03: a `toward` selector uses the live pinned builder range, not a
+    -- hard-coded scan radius.
+    local saved_vault=p.talents.T_SKIRMISHER_VAULT
+    p.talents.T_SKIRMISHER_VAULT=5
+    local liveRange
+    do
+        local def=p.talents_def and p.talents_def.T_SKIRMISHER_VAULT
+        local ok,typ=pcall(def.target,p,def)
+        if ok and type(typ)=='table' then liveRange=typ.range end
+    end
+    local towardOk=false
+    local bound=host.snapshot('nearest_hostile')
+    local toward,towardErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
+        bound_target=bound and bound.bound_target,
+        destination={selector='toward',anchor='bound_target',accept=accept}})
+    if toward and toward.plan and toward.plan.kind=='grid'
+        and type(liveRange)=='number' and liveRange<12 then
+        local dist=math.max(math.abs(toward.plan.x-p.x),math.abs(toward.plan.y-p.y))
+        towardOk=dist<=math.max(1,liveRange)
+    end
+    signals[#signals+1]=towardOk and 'vault_toward_range' or 'vault_toward_missing'
+    check('movement-factory:vault-toward-range',towardOk,{range=liveRange,
+        reason=towardErr and towardErr.reason})
+    p.talents.T_SKIRMISHER_VAULT=saved_vault
     -- Vault is an exact grid move (deterministic landing annotation).
     local vault,vaultErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
         destination={selector='position',x=p.x+2,y=p.y,accept=accept}})

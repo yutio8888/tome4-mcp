@@ -40,6 +40,20 @@ local function selfEntry(kind,resource)
     return {kind=kind,target='self',resource=resource,components={},conformance={builder='none'}}
 end
 
+-- Static manifest construction must fail loudly on a malformed declaration
+-- instead of silently storing a nil entry. `Factory.expand`/`matrix` return a
+-- typed error; these wrappers turn that into a load-time error.
+local function movementAdapter(template,params)
+    return Factory.expandOrError(template,params)
+end
+local function movementMatrix(branches,axes)
+    local movement,err=Factory.matrix(branches,axes)
+    if not movement then
+        error('movement adapter matrix failed: '..tostring(err and (err.detail or err.reason)),2)
+    end
+    return movement
+end
+
 -- Every hostile entry keeps `cursor` (targeting geometry) separate from the
 -- damaging components. `conformance` is the subset expected from the real
 -- native target builder at the getTarget seam.
@@ -243,54 +257,68 @@ M.ENTRIES={
     -- scans the game. State variants (Phase Door, Dimensional Step) are closed
     -- matrices resolved at plan time by `MovementAdapterFactory.resolveVariant`.
     T_RUSH={kind='movement',target='hostile',resource='stamina',
-        movement=Factory.expand('actor_charge',{
+        movement=movementAdapter('actor_charge',{
+            builder_shape='bolt',
             landing_proof='the action computes the last legal line cell before the bound actor'}),
         components={},conformance={builder=true}},
     T_SKIRMISHER_CUNNING_ROLL={kind='movement',target='grid',resource='stamina',
-        movement=Factory.expand('grid_move_exact',{delivery='line_move',traverses=true,
+        movement=movementAdapter('grid_move_exact',{delivery='line_move',traverses=true,
+            builder_shape='beam',
             landing_proof='forces the exact requested grid after native blocked/projection checks'}),
         components={},conformance={builder=true}},
     T_SKIRMISHER_VAULT={kind='movement',target='grid',resource='stamina',
-        movement=Factory.expand('grid_move_exact',{delivery='leap',traverses=false,
+        movement=movementAdapter('grid_move_exact',{delivery='leap',traverses=false,
+            builder_shape='beam',
             landing_proof='forces the exact requested grid after launch/blocked/projection checks'}),
         components={},conformance={builder=true}},
+    -- Dimensional Step: below effective TL5 the native action is always the
+    -- self-only `teleportRandom(x,y,0)` branch. At TL5 it swaps only when the
+    -- requested grid holds an actor; a player-known empty grid still runs the
+    -- non-swap branch, so occupancy is resolved at plan time from player-known
+    -- information (`MovementAdapterFactory.resolveOccupancy`). No hidden actor
+    -- is inspected.
     T_DIMENSIONAL_STEP={kind='movement',target='grid',resource='paradox',
-        movement=Factory.matrix({
+        movement=movementMatrix({
             {when={kind='talent_level',below=5},template='grid_move_bounded',
                 params={delivery='teleport',traverses=false,radius=5,min_radius=0,
+                    builder_shape='hit',
                     landing_proof='teleportRandom(x,y,0) falls back to findFreeGrid radius 5'}},
-            {when={kind='talent_level',at_least=5},
-                unsupported={scope='effective_talent_level>=5',
-                    missing='moving_or_swapping_another_actor',
-                    reason='TL5 may swap the bound actor; typed two-subject semantics are not implemented'}},
+            {when={kind='talent_level',at_least=5},template='grid_move_bounded',
+                params={delivery='teleport',traverses=false,radius=5,min_radius=0,
+                    builder_shape='hit',occupancy_dependent=true,
+                    landing_proof='TL5 occupancy-dependent: an empty grid is the same non-swap teleport; an occupied grid is the S4 swap gap'}},
         }),
         components={},conformance={builder=true}},
     -- Phase Door's prompt program depends on effective level AND the
     -- `phase_door_force_precise` attribute. The old level-only gate was wrong:
-    -- the grid prompt appears below TL4 when that attribute is set. An unknown
-    -- level or attribute is `movement_variant_unknown` (fail closed); TL4+
-    -- actor(+grid) prompts remain the ordered-queue capability gap.
+    -- the grid prompt appears below TL4 when that attribute is set. Both axes
+    -- are pre-read (matrix `axes`), so an unknown level or attribute is
+    -- `movement_variant_unknown` even at TL4+. The TL4+ actor(+grid) prompt is a
+    -- known capability gap published as the `unsupported_target_plan` reason the
+    -- live/dry-run controllers pause on.
     T_PHASE_DOOR={kind='movement',target='self',resource='mana',
-        movement=Factory.matrix({
+        movement=movementMatrix({
             {when={kind='all',conditions={
                     {kind='talent_level',below=4},
                     {kind='attr',id='phase_door_force_precise',truthy=false}}},
                 template='self_random_teleport',
-                params={radius={getter='getRange'},min_radius=0,
+                params={radius={getter='getRange'},range={getter='getRange'},min_radius=0,
                     landing_proof='no prompt below effective TL4 without phase_door_force_precise'}},
             {when={kind='all',conditions={
                     {kind='talent_level',below=4},
                     {kind='attr',id='phase_door_force_precise',truthy=true}}},
                 template='grid_move_bounded',
-                params={delivery='teleport',traverses=false,radius={getter='getRadius'},min_radius=0,
+                params={delivery='teleport',traverses=false,radius={getter='getRadius'},
+                    range={getter='getRange'},min_radius=0,
                     fallback_center='self',fallback_radius={getter='getRange'},fallback_when='los_fizzle',
                     landing_proof='grid prompt below TL4 under the precise attribute'}},
             {when={kind='talent_level',at_least=4},
-                unsupported={scope='effective_talent_level>=4',
+                unsupported={scope='multi_prompt',
                     missing='actor_then_grid_target_plan',
+                    typed_reason='unsupported_target_plan',
                     requests={{'actor'},{'actor','grid'}},
                     reason='Phase Door prompts for a target at TL4+ and a landing at TL5; the executor pre-fills one native prompt only'}},
-        }),
+        },{{kind='attr',id='phase_door_force_precise'}}),
         components={},conformance={builder=false}},
 }
 
@@ -310,9 +338,9 @@ M.UNSUPPORTED={
         reason='the no-prompt and precise-grid single-prompt forms are driven; the TL4+ actor and TL5 actor-then-grid prompts need the ordered queue'},
     {talent='T_BLINK_RUNE',scope='any',missing='stable_native_talent_id',
         reason='the native inscription id is slot-indexed (T_RUNE:_BLINK_1..6); no single stable id to source-pin'},
-    {talent='T_DIMENSIONAL_STEP',scope='effective_talent_level>=5',
+    {talent='T_DIMENSIONAL_STEP',scope='effective_talent_level>=5 and requested_grid_occupied',
         missing='moving_or_swapping_another_actor',
-        reason='TL5 may swap the bound actor; typed two-subject destination/effect semantics are not implemented'},
+        reason='a player-known empty requested grid uses the admitted non-swap teleport; a known occupied grid is the typed S4 swap gap; unknown occupancy fails closed'},
     {talent='T_SHADOWSTEP',scope='any',missing='source_reviewed_movement_adapter',
         reason='actor-anchored random teleport plus an attack; movement/effect composition is a later slice'},
     {talent='T_GIANT_LEAP',scope='any',missing='source_reviewed_movement_adapter',

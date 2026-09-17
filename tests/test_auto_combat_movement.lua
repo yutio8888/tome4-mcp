@@ -10,6 +10,7 @@ local Planner=require 'mod.auto_combat.MovementPlanner'
 local Evaluator=require 'mod.auto_combat.PolicyEvaluator'
 local Schema=require 'mod.auto_combat.PolicySchema'
 local AutoCombat=require 'mod.auto_combat.AutoCombat'
+local Manifest=require 'mod.auto_combat.EffectManifest'
 local checks=0
 local function check(value,message) checks=checks+1;assert(value,message) end
 
@@ -439,6 +440,43 @@ do
     local step=c:step()
     check(step.action=='paused' and step.reason=='unsupported_target_plan',
         'a multi-prompt target plan pauses with a typed capability reason')
+end
+
+-- 5g. MAF-REV-01: a known Phase Door actor+grid rule is classified by the real
+-- planner as the typed `unsupported_target_plan` and the controller pauses on
+-- it (not a denial/fall-through).
+do
+    local p=policy()
+    p.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={{request='actor',selector='self'},{request='grid',
+                destination={selector='relative',dx=1,dy=0,accept=accept()}}}}}}
+    local h=host()
+    h.plan=function(attempt)
+        local provider={preflight=function() return true end,
+            origin=function() return {x=2,y=2} end,
+            anchor=function() return {x=2,y=2} end,
+            talentLevel=function() return 4 end,
+            attr=function() return nil,true end,
+            talentGetter=function() return 6 end,
+            builder=function() return {shape='hit',range=8} end,
+            occupancy=function() return 'empty' end,
+            knowledge=function() return {in_bounds=true} end}
+        local planned,err=Planner.plan({action=attempt.action,talent=attempt.talent,
+            destination=attempt.destination,target_plan=attempt.target_plan,
+            direction=attempt.direction,target=attempt.target,
+            bound_target=attempt.bound_target},provider,Manifest.entry('T_PHASE_DOOR').movement)
+        if not planned then return nil,err end
+        return {plan=planned}
+    end
+    h.request=function(attempt) h.requests[#h.requests+1]=attempt
+        return {status='ok',energy_spent=1000} end
+    local c=AutoCombat.new(p,h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='paused' and step.reason=='unsupported_target_plan',
+        'a known Phase Door actor+grid rule pauses with the typed capability reason')
+    check(#h.requests==0,'no native request is submitted for the multi-prompt gap')
 end
 
 -- 6. Schema/decision carry the destination through to the planner -------------

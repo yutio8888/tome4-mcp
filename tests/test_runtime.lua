@@ -681,6 +681,10 @@ do
     p.talents_def=p.talents_def or {}
     p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',probe_level=1,
         getRange=function() return 6 end,getRadius=function() return 1 end}
+    -- The movement adapter for a grid talent now calls the pinned builder for
+    -- live geometry after the drift preflight; supply the audited-shaped fixture.
+    p.talents_def.T_SKIRMISHER_CUNNING_ROLL={id='T_SKIRMISHER_CUNNING_ROLL',mode='activated',
+        target=function() return {type='beam',range=4} end}
     local live2=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
     local bound=live2.snapshot('nearest_hostile').bound_target
     local planned=live2.plan({action='move',destination=pl.rules[1]['then'].destination,bound_target=bound})
@@ -718,6 +722,32 @@ do
     check(strict==nil,'a deterministic-landing policy rejects the random teleport as policy, not a plugin veto')
     p.attr=saved_attr
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+end
+-- MAF-REV-02 production-path regression: when the drift preflight fails, the
+-- planner returns adapter_source_drift and the pinned dynamic getter is never
+-- called (the identity check precedes the derivation read).
+do
+    Runtime.reset(g);g:display()
+    local pl={schema='tome-auto-combat/v1',id='drift',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='nearest_hostile'},
+        rules={{id='door',priority=1,when={always={}},
+            ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+                destination={selector='native_random',accept={visibility='any',passability='native',
+                    hazard='any',landing='allow_random'}}}}}}
+    local getterCalls=0
+    p.getTalentLevel=function(self,def) return 1 end
+    p.talents_def=p.talents_def or {}
+    p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',
+        getRange=function() getterCalls=getterCalls+1;error('getter must not run') end,
+        getRadius=function() getterCalls=getterCalls+1;error('getter must not run') end}
+    local host=Runtime.buildAutoCombatHostFor(g,pl,
+        {drift=function() return nil,'adapter_source_drift','injected' end})
+    local planned,err=host.plan({action='use_talent',talent='T_PHASE_DOOR',target='self',
+        destination={selector='native_random',accept={visibility='any',passability='native',
+            hazard='any',landing='allow_random'}}})
+    check(planned==nil and err and err.reason=='adapter_source_drift' and err.preflight==true,
+        'a failed drift preflight disables the movement adapter before planning')
+    check(getterCalls==0,'the pinned dynamic getter is not called before the preflight passes')
 end
 -- Round-5 correction: the guard reads the real target spec from the audited
 -- native builder and applies the engine filter defaults, not a catalog shorthand.

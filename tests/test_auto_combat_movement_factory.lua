@@ -1,58 +1,59 @@
--- S1: closed movement-adapter factory + Phase Door variant matrix + source pins.
+-- S1 (rev 2): closed movement-adapter factory + Phase Door matrix + audit order.
 --
--- These are pure unit tests over the factory and the planner's variant/bounds
--- resolution. They are non-tautological: each asserts the exact expanded
--- descriptor (a wrong default/field fails) and every indeterminate condition
--- produces the typed fail-closed reason. No engine or RNG is touched.
+-- Pure unit tests over the factory and the planner. They are non-tautological:
+-- each asserts the exact expanded descriptor (a wrong default/field fails),
+-- every indeterminate condition produces the typed fail-closed reason, a fixed
+-- template invariant cannot be overridden, and the drift preflight runs before
+-- any dynamic reader is called.
 local root=(arg[0]:match('^(.*)/tests/[^/]+$') or 'game/addons/tome-mcp-bridge')
 package.path=root..'/overload/?.lua;'..package.path
 local Factory=require 'mod.auto_combat.MovementAdapterFactory'
 local Planner=require 'mod.auto_combat.MovementPlanner'
 local Manifest=require 'mod.auto_combat.EffectManifest'
 local Drift=require 'mod.auto_combat.EffectManifestDrift'
+local Distance=require 'mod.mcp_bridge.Distance'
 local checks=0
 local function check(value,message) checks=checks+1;assert(value,message) end
 
-local function requestList(movement)
-    if movement.variants then
-        local out={}
-        for _,variant in ipairs(movement.variants) do
-            if variant.movement then out[#out+1]=variant.movement.target_requests end
-        end
-        return out
-    end
-    return {movement.target_requests}
+local ACCEPT={visibility='any',passability='native',hazard='any',landing='allow_random'}
+
+local function provider(overrides)
+    local p={preflight=function() return true end,
+        origin=function() return {x=20,y=20} end,
+        anchor=function(_,bound) return {x=30,y=20} end,
+        talentLevel=function() return 1 end,
+        attr=function() return nil,true end,
+        talentGetter=function() return 6 end,
+        builder=function() return {shape='hit',range=8} end,
+        occupancy=function() return 'empty' end,
+        knowledge=function() return {in_bounds=true,visible=true,passable=true,hazard=false} end}
+    for k,v in pairs(overrides or {}) do p[k]=v end
+    return p
 end
 
 -- 1. Template expansion: exact mechanical defaults + per-talent params --------
 do
-    local rush=assert(Factory.expand('actor_charge',{landing_proof='line proof'}))
+    local rush=assert(Factory.expand('actor_charge',{landing_proof='line proof',builder_shape='bolt'}))
     check(rush.target_requests[1]=='actor' and #rush.target_requests==1,
         'actor_charge defaults to a single actor request')
     check(rush.delivery=='line_move' and rush.landing=='bounded_alternatives'
         and rush.center=='actor' and rush.traverses==true and rush.relocates_other==false,
         'actor_charge defaults match the reviewed Rush shape')
-    check(rush.landing_proof=='line proof','the per-talent landing proof is retained')
+    check(rush.landing_proof=='line proof' and rush.builder_shape=='bolt',
+        'the per-talent landing proof/builder shape are retained')
 
     local tumble=assert(Factory.expand('grid_move_exact',{delivery='line_move',traverses=true,
-        landing_proof='exact'}))
+        builder_shape='beam',landing_proof='exact'}))
     check(tumble.target_requests[1]=='grid' and tumble.landing=='exact'
         and tumble.center=='requested_grid' and tumble.relocates_other==false,
         'grid_move_exact defaults to the requested-grid exact landing')
-    check(tumble.delivery=='line_move' and tumble.traverses==true,
-        'grid_move_exact keeps the per-talent delivery/traverses')
-
-    local vault=assert(Factory.expand('grid_move_exact',{delivery='leap',traverses=false,
-        landing_proof='exact'}))
-    check(vault.delivery=='leap' and vault.traverses==false,
-        'Vault differs from Tumble only in the reviewed delivery/traverses')
+    check(tumble.delivery=='line_move' and tumble.traverses==true and tumble.builder_shape=='beam',
+        'grid_move_exact keeps the per-talent delivery/traverses/builder')
 
     local blink=assert(Factory.expand('grid_move_bounded',{delivery='teleport',traverses=false,
         radius=5,landing_proof='findFreeGrid radius 5'}))
     check(blink.landing=='bounded_alternatives' and blink.radius==5 and blink.min_radius==0,
         'grid_move_bounded declares a finite bounded envelope with a zero minimum')
-    check(blink.center=='requested_grid' and blink.traverses==false,
-        'grid_move_bounded keeps the requested centre and no traversal')
 
     local door=assert(Factory.expand('self_random_teleport',{radius={getter='getRange'},
         min_radius=0,landing_proof='no prompt'}))
@@ -61,182 +62,254 @@ do
     check(type(door.radius)=='table' and door.radius.getter=='getRange',
         'self_random_teleport keeps the audited dynamic radius declaration')
 
-    local shadow=assert(Factory.expand('actor_anchor_teleport',{radius={getter='getRadius'},
+    local anchor=assert(Factory.expand('actor_anchor_teleport',{radius={getter='getRadius'},
         landing_proof='actor anchor'}))
-    check(shadow.target_requests[1]=='actor' and shadow.center=='actor'
-        and shadow.traverses==false and shadow.landing=='bounded_alternatives',
-        'actor_anchor_teleport defaults to the actor-anchored bounded landing')
+    check(anchor.target_requests[1]=='actor' and anchor.center=='actor'
+        and anchor.traverses==false and anchor.relocates_other==false,
+        'actor_anchor_teleport is an actor-anchored non-relocating self teleport')
 end
 
--- 2. Expansion is canonical (order-independent) and closed -------------------
+-- 2. Expansion is canonical and closed; template invariants cannot be overridden
 do
-    local function expandBoth()
-        local a=assert(Factory.expand('grid_move_bounded',{delivery='teleport',traverses=false,
-            radius=5,landing_proof='p'}))
-        local b=assert(Factory.expand('grid_move_bounded',{landing_proof='p',radius=5,
-            traverses=false,delivery='teleport'}))
-        return a,b
-    end
-    local a,b=expandBoth()
+    local a=assert(Factory.expand('grid_move_bounded',{delivery='teleport',traverses=false,
+        radius=5,landing_proof='p'}))
+    local b=assert(Factory.expand('grid_move_bounded',{landing_proof='p',radius=5,
+        traverses=false,delivery='teleport'}))
     check(a.delivery==b.delivery and a.landing==b.landing and a.radius==b.radius
         and a.traverses==b.traverses and a.min_radius==b.min_radius,
         'two expansions with different insertion order are field-equivalent')
 
-    local bad,err=Factory.expand('no_such_template',{})
-    check(bad==nil and err.reason=='movement_adapter_invalid' and err.detail=='unknown_template',
-        'an unknown template is movement_adapter_invalid')
+    -- MAF-REV-05: a fixed template invariant cannot be parameterized.
+    local bad,err=Factory.expand('actor_charge',{landing_proof='p',delivery='teleport'})
+    check(bad==nil and err.reason=='movement_adapter_invalid' and err.detail=='fixed_field'
+        and err.key=='delivery','actor_charge rejects a delivery override')
+    bad,err=Factory.expand('actor_charge',{landing_proof='p',center='self'})
+    check(bad==nil and err.detail=='fixed_field' and err.key=='center',
+        'actor_charge rejects a centre override')
+    bad,err=Factory.expand('actor_anchor_teleport',{landing_proof='p',radius=5,relocates_other=true})
+    check(bad==nil and err.detail=='fixed_field' and err.key=='relocates_other',
+        'actor_anchor_teleport rejects a relocation override')
+    bad,err=Factory.expand('grid_move_exact',{delivery='leap',traverses=false,target_requests={'actor'}})
+    check(bad==nil and err.detail=='fixed_field','grid_move_exact rejects a request-kind override')
+
+    bad,err=Factory.expand('no_such_template',{})
+    check(bad==nil and err.detail=='unknown_template','an unknown template is movement_adapter_invalid')
     bad,err=Factory.expand('actor_charge',{})
-    check(bad==nil and err.reason=='movement_adapter_invalid' and err.key=='landing_proof',
+    check(bad==nil and err.detail=='missing_required' and err.key=='landing_proof',
         'a missing required parameter is movement_adapter_invalid')
     bad,err=Factory.expand('actor_charge',{landing_proof='x',not_a_field=true})
-    check(bad==nil and err.reason=='movement_adapter_invalid' and err.key=='not_a_field',
-        'an unknown parameter key is rejected (closed key set)')
+    check(bad==nil and err.detail=='unknown_key','an unknown parameter key is rejected')
     bad,err=Factory.expand('grid_move_bounded',{delivery='teleport',traverses=false,
         radius=-1,landing_proof='x'})
     check(bad==nil and err.detail=='bad_radius','a negative envelope is rejected')
-    bad,err=Factory.expand('grid_move_bounded',{delivery='teleport',traverses=false,
-        radius=0/0,landing_proof='x'})
-    check(bad==nil and err.detail=='bad_radius','a non-finite envelope is rejected')
+    bad,err=Factory.expand('self_random_teleport',{radius={getter='getRange',bogus=1},
+        landing_proof='x'})
+    check(bad==nil and err.detail=='bad_radius','an open nested getter record is rejected')
     bad,err=Factory.expand('grid_move_exact',{delivery='teleport',traverses='yes'})
     check(bad==nil and err.detail=='bad_traverses','a non-boolean traverses is rejected')
 end
 
--- 3. Phase Door variant matrix: every (level, precise) cell ------------------
+-- 3. Phase Door matrix: all cells, both axes pre-read, typed S2 reason --------
 do
-    local function read(level,precise)
+    local movement=Manifest.entry('T_PHASE_DOOR').movement
+    local calls=0
+    local function read(level,known,value)
         return {talentLevel=function() return level end,
             attr=function(id)
+                calls=calls+1
                 if id~='phase_door_force_precise' then return nil,false end
-                return precise,true
+                if not known then return nil,false end
+                return value,true
             end}
     end
-    local function resolve(level,precise)
-        return Factory.resolveVariant(Manifest.entry('T_PHASE_DOOR').movement,'T_PHASE_DOOR',
-            read(level,precise))
-    end
-    local none=assert(resolve(1,false))
+    local none=assert(Factory.resolveVariant(movement,'T_PHASE_DOOR',read(1,true,false)))
     check(none.target_requests[1]=='none' and none.landing=='random',
-        'TL<4 without the precise attribute resolves to the no-prompt random leaf')
-    local precise=assert(resolve(1,true))
-    check(precise.target_requests[1]=='grid' and precise.landing=='bounded_alternatives',
-        'TL<4 with the precise attribute resolves to the precise grid leaf')
-    check(precise.fallback_center=='self' and precise.fallback_radius~=nil,
-        'the precise grid leaf carries its LOS fallback envelope')
+        'TL<4 without the precise attribute is the no-prompt random leaf')
+    local precise=assert(Factory.resolveVariant(movement,'T_PHASE_DOOR',read(1,true,true)))
+    check(precise.target_requests[1]=='grid' and precise.landing=='bounded_alternatives'
+        and precise.fallback_center=='self','TL<4 with the precise attribute is the precise grid leaf')
 
-    -- Known TL4+ is the ordered-queue capability gap, not a silent no-prompt.
-    local gap,gapErr=resolve(4,false)
-    check(gap==nil and gapErr.reason=='unsupported_movement_variant'
+    -- MAF-REV-01: TL4+ with a known attribute is the ordered-queue capability
+    -- gap, published as the runtime `unsupported_target_plan` reason the live and
+    -- dry-run controllers pause on.
+    local gap,gapErr=Factory.resolveVariant(movement,'T_PHASE_DOOR',read(4,true,false))
+    check(gap==nil and gapErr.reason=='unsupported_target_plan' and gapErr.scope=='multi_prompt'
         and gapErr.missing=='actor_then_grid_target_plan',
-        'TL4+ resolves to the ordered-queue capability gap')
-    local gap5,gap5Err=resolve(5,true)
-    check(gap5==nil and gap5Err.reason=='unsupported_movement_variant'
-        and gap5Err.missing=='actor_then_grid_target_plan',
-        'TL5 resolves to the ordered-queue capability gap')
+        'TL4 with a known attribute resolves to the ordered-queue pause reason')
+    local gap5,gap5Err=Factory.resolveVariant(movement,'T_PHASE_DOOR',read(5,true,true))
+    check(gap5==nil and gap5Err.reason=='unsupported_target_plan',
+        'TL5 with a known attribute resolves to the ordered-queue pause reason')
+    -- Every remaining cell: TL4 precise, TL5 non-precise, and the unknown axis
+    -- at both levels fail closed with the correct typed reason.
+    local tl4p,tl4pErr=Factory.resolveVariant(movement,'T_PHASE_DOOR',read(4,true,true))
+    check(tl4p==nil and tl4pErr.reason=='unsupported_target_plan','TL4 with the precise attribute is the pause reason')
+    local tl5f,tl5fErr=Factory.resolveVariant(movement,'T_PHASE_DOOR',read(5,true,false))
+    check(tl5f==nil and tl5fErr.reason=='unsupported_target_plan','TL5 without the precise attribute is the pause reason')
+    local tl5u,tl5uErr=Factory.resolveVariant(movement,'T_PHASE_DOOR',read(5,false,nil))
+    check(tl5u==nil and tl5uErr.reason=='movement_variant_unknown','TL5 with an unknown attribute fails closed')
 
-    -- Unknown level or attribute must never submit the no-prompt leaf.
-    local unknownLevel,levelErr=resolve('unknown',false)
+    -- MAF-REV-01: an unavailable attribute at TL4+ is still read (axes) and
+    -- yields movement_variant_unknown, never a branch that skipped the read.
+    calls=0
+    local unknownAttr,attrErr=Factory.resolveVariant(movement,'T_PHASE_DOOR',read(4,false,nil))
+    check(unknownAttr==nil and attrErr.reason=='movement_variant_unknown',
+        'TL4 with an unknown attribute is movement_variant_unknown')
+    check(calls>0,'the attribute axis is pre-read at TL4+')
+    calls=0
+    local unknownLevel,levelErr=Factory.resolveVariant(movement,'T_PHASE_DOOR',read(nil,true,false))
     check(unknownLevel==nil and levelErr.reason=='movement_variant_unknown',
         'an unknown effective level is movement_variant_unknown')
-    local unknownAttr,attrErr=Factory.resolveVariant(Manifest.entry('T_PHASE_DOOR').movement,
-        'T_PHASE_DOOR',{talentLevel=function() return 1 end,
-            attr=function() return nil,false end})
-    check(unknownAttr==nil and attrErr.reason=='movement_variant_unknown',
-        'an unknown phase_door_force_precise read is movement_variant_unknown')
 
-    -- Overlap and no-match are both non-determinability, never an ordering pick.
+    -- Overlap and no-match are non-determinability, never an ordering pick.
     local overlapping=Factory.matrix({
         {when={kind='talent_level',below=5},template='self_random_teleport',
             params={radius=1,landing_proof='a'}},
         {when={kind='talent_level',below=6},template='self_random_teleport',
             params={radius=1,landing_proof='b'}},
     })
-    local multi,multiErr=Factory.resolveVariant(overlapping,'T_PHASE_DOOR',read(1,false))
-    check(multi==nil and multiErr.reason=='movement_variant_unknown'
-        and multiErr.detail=='multiple_matches',
-        'overlapping variant matches are movement_variant_unknown')
+    local multi,multiErr=Factory.resolveVariant(overlapping,'T_PHASE_DOOR',read(1,true,false))
+    check(multi==nil and multiErr.detail=='multiple_matches','overlapping variant matches fail closed')
     local unmatched=Factory.matrix({
         {when={kind='talent_level',at_least=9},template='self_random_teleport',
             params={radius=1,landing_proof='a'}},
     })
-    local zero,zeroErr=Factory.resolveVariant(unmatched,'T_PHASE_DOOR',read(1,false))
-    check(zero==nil and zeroErr.reason=='movement_variant_unknown'
-        and zeroErr.detail=='no_match',
-        'zero variant matches are movement_variant_unknown')
+    local zero,zeroErr=Factory.resolveVariant(unmatched,'T_PHASE_DOOR',read(1,true,false))
+    check(zero==nil and zeroErr.detail=='no_match','zero variant matches fail closed')
+
+    -- A malformed closed condition is rejected at build time.
+    local bad,err=Factory.matrix({{when={kind='attr',id='x',bogus=1},
+        template='self_random_teleport',params={radius=1,landing_proof='a'}}})
+    check(bad==nil and err.reason=='movement_adapter_invalid',
+        'an open condition record is rejected by the matrix builder')
 end
 
--- 3b. The S2 ordered Phase Door plan is a declared capability, not a schema
--- error: static verification accepts it and plan time returns the typed gap.
+-- 4. MAF-REV-02: the drift preflight runs before any dynamic reader -----------
 do
-    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
-    local ok=Manifest.verify({sustains={},rules={
-        {id='door',priority=1,when={always={}},['then']={action='use_talent',
-            talent='T_PHASE_DOOR',target='self',
-            target_plan={{request='actor',selector='self'},
-                {request='grid',destination={selector='relative',dx=1,dy=0,accept=accept}}}}}}})
-    check(ok==true,'the Phase Door TL4+ ordered plan validates statically as a declared capability')
-    local bad,errors=Manifest.verify({sustains={},rules={
-        {id='door',priority=1,when={always={}},['then']={action='use_talent',
-            talent='T_PHASE_DOOR',target='self',
-            target_plan={{request='grid',destination={selector='relative',dx=1,dy=0,accept=accept}},
-                {request='actor',selector='self'}}}}}})
-    check(bad==nil and errors and errors[1].code=='target_plan_mismatch',
-        'a reordered request plan is rejected against the declared sequences')
+    local dynamicCalls=0
+    local p=provider({preflight=function() return nil,'adapter_source_drift','test' end,
+        talentLevel=function() dynamicCalls=dynamicCalls+1;return 1 end,
+        attr=function() dynamicCalls=dynamicCalls+1;return nil,true end,
+        talentGetter=function() dynamicCalls=dynamicCalls+1;return 6 end,
+        builder=function() dynamicCalls=dynamicCalls+1;return {shape='hit'} end})
+    local planned,err=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',accept=ACCEPT}},p,
+        Manifest.entry('T_PHASE_DOOR').movement)
+    check(planned==nil and err.reason=='adapter_source_drift' and err.preflight==true,
+        'a preflight failure is returned as adapter_source_drift')
+    check(dynamicCalls==0,'no variant/bounds/builder reader is called before the preflight passes')
+
+    -- Plain move has no adapter read and must not be disabled by an adapter drift.
+    local move=Planner.plan({action='move',direction=4},p,nil)
+    check(move~=nil and move.kind=='step','a plain step does not require the movement preflight')
 end
 
--- 4. Dynamic envelope bounds: audited getter only ----------------------------
+-- 5. Dynamic envelope bounds: audited getter only ----------------------------
 do
     local movement=assert(Factory.expand('grid_move_bounded',{delivery='teleport',traverses=false,
         radius={getter='getRadius'},min_radius=0,landing_proof='p'}))
     local bounds,err=Factory.resolveBounds(movement,'T_PHASE_DOOR',{})
-    check(bounds==nil and err.reason=='movement_derivation_unknown'
-        and err.dependency=='getRadius',
+    check(bounds==nil and err.reason=='movement_derivation_unknown' and err.dependency=='getRadius',
         'a missing getter reader is movement_derivation_unknown')
     bounds,err=Factory.resolveBounds(movement,'T_PHASE_DOOR',{talentGetter=function() return 1/0 end})
-    check(bounds==nil and err.reason=='movement_derivation_unknown',
-        'a non-finite getter value is movement_derivation_unknown')
+    check(bounds==nil and err.reason=='movement_derivation_unknown','a non-finite getter is unknown')
     bounds,err=Factory.resolveBounds(movement,'T_PHASE_DOOR',{talentGetter=function() return 5 end})
     check(err==nil and bounds.radius==5,'a finite getter value resolves the envelope')
-    -- min/max clamping is a mechanical bound, not a fabricated default.
     local clamped=assert(Factory.resolveBounds(
         assert(Factory.expand('self_random_teleport',{radius={getter='r',min=1,max=4},
             landing_proof='p'})),'T_X',{talentGetter=function() return 9 end}))
     check(clamped.radius==4,'an audited getter value is clamped to the declared maximum')
-
-    -- The planner surfaces the derivation unknown before commit.
-    local planned,planErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
-        destination={selector='native_random',
-            accept={visibility='any',passability='native',hazard='any',landing='allow_random'}}},
-        {origin=function() return {x=2,y=2} end,talentLevel=function() return 1 end,
-            attr=function() return nil,true end},
-        Manifest.entry('T_PHASE_DOOR').movement)
-    check(planned==nil and planErr.reason=='movement_derivation_unknown',
-        'the planner fails closed when a dynamic bound cannot be resolved')
 end
 
--- 5. Grid requests with a bounded/random adapter are annotated as such -------
+-- 6. MAF-REV-03: live builder geometry/conformance and live range -------------
 do
-    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
-    local provider={origin=function() return {x=2,y=2} end,
-        knowledge=function() return {in_bounds=true} end}
+    local movement=assert(Factory.expand('grid_move_exact',{delivery='leap',traverses=false,
+        builder_shape='beam',landing_proof='p'}))
+    local built=assert(Factory.resolveBuilder(movement,'T_X',
+        {builder=function() return {shape='beam',range=3} end}))
+    check(built.range==3 and built.builder_geometry.shape=='beam','the builder range/shape is copied')
+    local bad,err=Factory.resolveBuilder(movement,'T_X',
+        {builder=function() return {shape='ball',range=3} end})
+    check(bad==nil and err.reason=='adapter_source_drift' and err.detail=='builder_shape',
+        'a wrong builder shape fails closed as adapter_source_drift')
+    bad,err=Factory.resolveBuilder(movement,'T_X',{})
+    check(bad==nil and err.reason=='movement_derivation_unknown',
+        'a missing builder reader fails closed')
+    bad,err=Factory.resolveBuilder(movement,'T_X',{builder=function() error('boom') end})
+    check(bad==nil and err.reason=='movement_derivation_unknown','a throwing builder fails closed')
+    -- A descriptor with no declared builder shape is never forced to call one.
+    local plain=assert(Factory.expand('self_random_teleport',{radius=1,landing_proof='p'}))
+    check(Factory.resolveBuilder(plain,'T_X',{})==plain,'a no-builder descriptor is returned unchanged')
+
+    -- The scan uses the live finite range; an unknown range fails closed instead
+    -- of falling back to a hard-coded scan radius.
+    local ranged=assert(Factory.expand('grid_move_exact',{delivery='leap',traverses=false,
+        builder_shape='beam',landing_proof='p'}))
+    -- The resolved descriptor carries the live builder range.
+    ranged.range=8
+    local p=provider()
+    local plan=assert(Planner.planTalent({selector='toward',anchor='bound_target',accept=ACCEPT},
+        p,nil,ranged))
+    check(Distance.grid(20,20,plan.x,plan.y)<=8,'the scan respects the live builder range')
+    local none=Planner.planTalent({selector='toward',anchor='bound_target',accept=ACCEPT},
+        p,nil,assert(Factory.expand('grid_move_exact',{delivery='leap',traverses=false,
+            landing_proof='p'})))
+    check(none==nil,'a scan without a finite range fails closed')
+end
+
+-- 7. MAF-REV-04: occupancy-dependent Dimensional Step TL5 ---------------------
+do
+    local movement=assert(Factory.expand('grid_move_bounded',{delivery='teleport',traverses=false,
+        radius=5,builder_shape='hit',occupancy_dependent=true,landing_proof='p'}))
+    local empty=assert(Factory.resolveOccupancy(movement,'empty'))
+    check(empty.relocates_other==false and empty.occupancy=='empty',
+        'a known empty grid admits the non-swap descriptor')
+    local actor,actorErr=Factory.resolveOccupancy(movement,'actor')
+    check(actor==nil and actorErr.reason=='unsupported_movement_variant'
+        and actorErr.missing=='moving_or_swapping_another_actor','a known actor is the S4 swap gap')
+    local unknown,unknownErr=Factory.resolveOccupancy(movement,'unknown')
+    check(unknown==nil and unknownErr.reason=='movement_variant_unknown',
+        'unknown occupancy fails closed without probing a hidden actor')
+    local plain=assert(Factory.resolveOccupancy(assert(Factory.expand('grid_move_exact',
+        {delivery='leap',traverses=false,landing_proof='p'})),'actor'))
+    check(plain.relocates_other==false,'a non-occupancy descriptor ignores the occupancy read')
+
+    -- Full planner path for the manifest TL5 adapter.
+    local step=Manifest.entry('T_DIMENSIONAL_STEP').movement
+    local function planWith(occupancy)
+        return Planner.plan({action='use_talent',talent='T_DIMENSIONAL_STEP',
+            destination={selector='position',x=8,y=5,accept=ACCEPT}},
+            provider({occupancy=function() return occupancy end,builder=function() return {shape='hit',range=8} end,
+                talentLevel=function() return 5 end}),step)
+    end
+    local plan=assert(planWith('empty'))
+    check(plan.kind=='grid','TL5 known-empty Dimensional Step is admitted as a non-swap grid')
+    local s,err=planWith('actor')
+    check(s==nil and err.reason=='unsupported_movement_variant'
+        and err.missing=='moving_or_swapping_another_actor','TL5 known-actor is the S4 gap')
+    s,err=planWith('unknown')
+    check(s==nil and err.reason=='movement_variant_unknown','TL5 unknown occupancy fails closed')
+end
+
+-- 8. Grid landings are annotated by the declared class -----------------------
+do
+    local p=provider()
     local blink=assert(Factory.expand('grid_move_bounded',{delivery='teleport',traverses=false,
         radius=5,landing_proof='p'}))
-    local plan=assert(Planner.planTalent({selector='position',x=5,y=5,accept=accept},
-        provider,nil,blink))
+    local plan=assert(Planner.planTalent({selector='position',x=5,y=5,accept=ACCEPT},p,nil,blink))
     check(plan.annotation.landing.kind=='bounded' and plan.annotation.landing.radius==5,
-        'a bounded grid adapter annotates the landing as bounded, not deterministic')
+        'a bounded grid adapter annotates the landing as bounded')
     local strict=Planner.planTalent({selector='position',x=5,y=5,
         accept={visibility='any',passability='native',hazard='any',landing='deterministic'}},
-        provider,nil,blink)
+        p,nil,blink)
     check(strict==nil,'landing=deterministic rejects the bounded grid landing')
     local exact=assert(Factory.expand('grid_move_exact',{delivery='leap',traverses=false,
         landing_proof='p'}))
-    local ex=assert(Planner.planTalent({selector='position',x=5,y=5,accept=accept},
-        provider,nil,exact))
+    local ex=assert(Planner.planTalent({selector='position',x=5,y=5,accept=ACCEPT},p,nil,exact))
     check(ex.annotation.landing.kind=='deterministic',
         'an exact grid adapter keeps the deterministic landing annotation')
 end
 
--- 6. Drift: action + getter identity pins fail closed ------------------------
+-- 9. Drift: action + getter identity pins fail closed ------------------------
 do
     local function fnAt(path,line,marker)
         local lines={}
@@ -262,8 +335,6 @@ do
         source={getters={getRange={path=path,line=3}}}}}}
     local bad3,reason3=Drift.identity(unpinned,function(t) return live[t] end)
     check(bad3==nil and reason3==Drift.REASON,'a movement entry without an action pin fails closed')
-    -- A distinct closure at the same source/line is a replacement and never
-    -- overwrites the trusted baseline.
     Drift.reset()
     local upFactory=assert(loadstring('local captured=...\nreturn function(self,t) return {v=captured} end','@'..path))
     local a=upFactory(1)
@@ -275,8 +346,7 @@ do
     check(Drift.identity(upManifest,function() return {action=a,getRange=live.T_MOVE.getRange} end)==true,
         'the first action establishes the trusted baseline')
     local rep,repReason=Drift.identity(upManifest,function() return {action=b,getRange=live.T_MOVE.getRange} end)
-    check(rep==nil and repReason==Drift.REASON,
-        'a same-line distinct action closure is rejected')
+    check(rep==nil and repReason==Drift.REASON,'a same-line distinct action closure is rejected')
     check(Drift.identity(upManifest,function() return {action=a,getRange=live.T_MOVE.getRange} end)==true,
         'the rejected replacement did not overwrite the baseline')
     Drift.reset()

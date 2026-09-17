@@ -170,6 +170,15 @@ function M.planStep(request,provider,bound,origin)
         annotation=best.annotation,score=best.score}
 end
 
+-- Resolve an occupancy-dependent adapter at one requested grid from
+-- player-known information only. `provider.occupancy(x,y)` returns
+-- 'empty'|'actor'|'unknown'; a hidden cell is 'unknown' and never probed.
+local function resolveOccupancyAt(movement,provider,x,y)
+    if type(movement)~='table' or movement.occupancy_dependent~=true then return movement end
+    local occupancy=provider.occupancy and provider.occupancy(x,y) or nil
+    return Factory.resolveOccupancy(movement,occupancy)
+end
+
 -- Plan a talent destination. `movement` is the manifest's movement adapter (or
 -- nil, which is a capability gap for the native-landing selectors).
 function M.planTalent(request,provider,bound,movement,origin)
@@ -178,6 +187,15 @@ function M.planTalent(request,provider,bound,movement,origin)
     movement=movement or {}
     if request.selector and not M.TALENT_SELECTORS[request.selector] then
         return nil,{reason='unsupported_selector_for_talent',selector=request.selector}
+    end
+    -- An occupancy-dependent adapter (Dimensional Step TL5) can only be resolved
+    -- for an explicit or scanned grid, never for a landing the native code picks
+    -- without exposing its coordinate.
+    if movement.occupancy_dependent and request.selector~='position' and request.selector~='relative'
+        and request.selector~='toward' and request.selector~='away'
+        and request.selector~='preferred_distance' then
+        return nil,{reason='movement_variant_unknown',detail='occupancy_requires_grid',
+            selector=request.selector}
     end
     if request.selector=='native_random' then
         -- No fictitious endpoint: the native code chooses the landing.
@@ -214,6 +232,13 @@ function M.planTalent(request,provider,bound,movement,origin)
         local x,y
         if request.selector=='position' then x,y=request.x,request.y
         else x,y=origin.x+request.dx,origin.y+request.dy end
+        -- An occupancy-dependent adapter (Dimensional Step TL5) must resolve the
+        -- mover from player-known information at the requested grid before any
+        -- native request is built. A known actor is the typed S4 gap; unknown
+        -- occupancy fails closed; no hidden actor is inspected.
+        local occMovement,occErr=resolveOccupancyAt(movement,provider,x,y)
+        if not occMovement then return nil,occErr end
+        movement=occMovement
         local annotation=M.annotate(x,y,provider)
         if annotation.in_bounds==false then
             return nil,{reason='destination_out_of_bounds',x=x,y=y,annotation=annotation}
@@ -249,16 +274,32 @@ function M.planTalent(request,provider,bound,movement,origin)
     -- order, annotated from player-known info and filtered only by `accept`.
     local anchor=anchorFor(request,provider,bound,origin)
     if not anchor then return nil,{reason='anchor_unavailable',selector=request.selector} end
-    local radius=finite(movement.range) and math.floor(movement.range) or M.SCAN_RADIUS
+    -- The live cursor range bounds the candidate enumeration. Without a resolved
+    -- finite range the planner must not invent one: scanning a hard-coded radius
+    -- can select a coordinate the native talent cannot target. A plain `move`
+    -- step does not reach here (it uses the adjacent keypad set).
+    if not finite(movement.range) then
+        return nil,{reason='movement_range_unknown',selector=request.selector}
+    end
+    local radius=math.floor(movement.range)
     if radius<1 then radius=1 end
     if radius>M.SCAN_RADIUS then radius=M.SCAN_RADIUS end
     local best
+    local occupancy_uncertain=false
+    local occupancy_actor=false
     for dy=-radius,radius do
         for dx=-radius,radius do
             if not (dx==0 and dy==0) then
                 local x,y=origin.x+dx,origin.y+dy
+                local candidate_ok=true
+                if movement.occupancy_dependent then
+                    local occ=provider.occupancy and provider.occupancy(x,y) or nil
+                    if occ=='empty' then candidate_ok=true
+                    elseif occ=='actor' then candidate_ok=false; occupancy_actor=true
+                    else candidate_ok=false; occupancy_uncertain=true end
+                end
                 local annotation=M.annotate(x,y,provider)
-                if annotation.in_bounds then
+                if candidate_ok and annotation.in_bounds then
                     local ok=M.accepts(request.accept,annotation)
                     if ok then
                         local candidate={x=x,y=y,annotation=annotation,
@@ -270,7 +311,20 @@ function M.planTalent(request,provider,bound,movement,origin)
             end
         end
     end
-    if not best then return nil,{reason='no_acceptable_destination',selector=request.selector} end
+    if not best then
+        if movement.occupancy_dependent then
+            if occupancy_uncertain then
+                return nil,{reason='movement_variant_unknown',detail='occupancy_unknown',
+                    selector=request.selector}
+            end
+            if occupancy_actor then
+                return nil,{reason='unsupported_movement_variant',scope='effective_talent_level>=5',
+                    missing='moving_or_swapping_another_actor',
+                    reason_text='every in-range requested grid is known occupied; typed two-subject swap is not implemented'}
+            end
+        end
+        return nil,{reason='no_acceptable_destination',selector=request.selector}
+    end
     best.annotation.selector=request.selector
     best.annotation.reasons[#best.annotation.reasons+1]='native_builder_validates_request'
     return {kind='grid',x=best.x,y=best.y,annotation=best.annotation,score=best.score}
@@ -306,17 +360,24 @@ end
 -- descriptor through the closed factory; an unknown/ambiguous condition is a
 -- typed `movement_variant_unknown` and never falls back to a leaf. A known but
 -- unimplemented branch (TL4+ actor-then-grid before the ordered prompt queue) is
--- published as the capability reason the factory supplied.
+-- published as the typed capability reason the factory supplied (for Phase Door
+-- that is `unsupported_target_plan`, which both controllers pause on).
 local function resolveMovement(movement,provider,talent)
     if movement==nil then return nil end
     local reads={talentLevel=provider.talentLevel,attr=provider.attr,
-        talentGetter=provider.talentGetter}
+        talentGetter=provider.talentGetter,builder=provider.builder}
     local resolved,err=Factory.resolveVariant(movement,talent,reads)
     if not resolved then return nil,err end
     local bounds,boundErr=Factory.resolveBounds(resolved,talent,reads)
     if not bounds then return nil,boundErr end
-    return bounds
+    -- Live target geometry: after the preflight identity check, the pinned
+    -- builder supplies only an allowlisted shape/range/radius. It never changes
+    -- the curated request kind, centre, landing or prompt order.
+    local built,buildErr=Factory.resolveBuilder(bounds,talent,reads)
+    if not built then return nil,buildErr end
+    return built
 end
+
 
 -- Consume an ordered target plan: the executor pre-fills one native prompt, so
 -- only a single-request plan is driven; a longer sequence is a typed capability
@@ -407,13 +468,26 @@ function M.plan(attempt,provider,movement)
         return M.planStep(attempt.destination,provider,attempt.bound_target,origin)
     end
     local variantErr
-    movement,variantErr=resolveMovement(movement,provider,attempt.talent)
-    if variantErr then
-        -- Propagate the typed reason unchanged; the caller publishes the same
-        -- typed capability/variant reason. An unknown condition stays fail
-        -- closed (`movement_variant_unknown`); a known unimplemented branch is
-        -- `unsupported_movement_variant`.
-        return nil,variantErr
+    if movement~=nil then
+        -- MAF-REV-02: the manifest/dependency preflight runs before any variant,
+        -- bounds or builder read. Planning happens before the guard, so without
+        -- this the live getters would be called before their identity is
+        -- verified. A preflight failure disables the adapter before any read.
+        if type(provider.preflight)=='function' then
+            local ok,reason,detail=provider.preflight()
+            if ok~=true then
+                return nil,{reason=reason or 'adapter_source_drift',detail=detail,preflight=true}
+            end
+        end
+        movement,variantErr=resolveMovement(movement,provider,attempt.talent)
+        if variantErr then
+            -- Propagate the typed reason unchanged; the caller publishes the same
+            -- typed capability/variant reason. An unknown condition stays fail
+            -- closed (`movement_variant_unknown`); a known unimplemented branch
+            -- is its declared typed reason (`unsupported_target_plan` for the
+            -- Phase Door actor+grid branch, which both controllers pause on).
+            return nil,variantErr
+        end
     end
     if type(attempt.target_plan)=='table' then
         if #attempt.target_plan~=1 then
