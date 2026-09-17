@@ -19,7 +19,9 @@
 -- It is pure apart from the injected readers: unit tests supply a spoofed
 -- `read`/`digest` pair, the runtime supplies `fs.readAll` and the engine `md5`.
 local M={}
-M.REASON='adapter_source_drift'
+-- Kept only as a descriptive label for the advisory review; it is never used as
+-- a runtime gate reason.
+M.ADVISORY_DRIFT='adapter_source_drift'
 
 -- Diagnose one pinned entry. `read(path)` returns the file text or nil;
 -- `digest(text)` returns a lowercase hex hash. Advisory only.
@@ -134,14 +136,5 @@ function M.telemetry(opts)
 end
 
 function M.reset() end
-
--- Backwards-compatible advisory entrypoint. It returns the source review verdict
--- ONLY as information; the caller (guard/planner) must not treat a false as a
--- gate. Kept so existing callers that merely log still work.
-function M.ensure(key,opts)
-    opts=opts or {}
-    local record=M.telemetry(opts)
-    return record
-end
 
 return M

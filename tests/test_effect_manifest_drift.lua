@@ -117,9 +117,7 @@ do
     local missing=Drift.telemetry({sources=sources,read=nil,digest=nil})
     check(type(missing)=='table' and missing.source.drift==true,
         'missing hash services are advisory drift, not a failure')
-    local ensured=Drift.ensure('any-key',{sources=sources,read=nil,digest=nil})
-    check(type(ensured)=='table' and ensured.advisory==true,
-        'ensure returns an advisory record and cannot be treated as a gate')
+
 end
 
 -- The real generated table is schema/version-pinned (advisory metadata).
