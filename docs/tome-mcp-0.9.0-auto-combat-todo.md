@@ -218,3 +218,42 @@ Decisions D7–D12 recorded there.
     `invalid_policy`).
 42. **SAFE-01** finite computed getters registered through
     `NativeCompatibility` (digest + identity + declaration + closure).
+
+## Round 3 metric-driven playtest (2026-09-17)
+
+Full report: [docs/tome-mcp-0.9.0-auto-combat-round3-feedback.md](tome-mcp-0.9.0-auto-combat-round3-feedback.md).
+Validation: `validation/2026-09-17-auto-combat-playtest-3/summary.json`.
+
+43. **P0 `recover`(wait) stall — FIXED.** The auto-combat pump executes from
+    `Game:display`; `p:waitTurn()` cleared `game.paused` but nothing requested the
+    next native tick, so the core tick loop parked (`phase=settling`, frozen world
+    tick) or the pump went silent. Fix: `core.game.requestNextTick()` after every
+    executor action in `buildAutoCombatHost reads.execute`. Regression test:
+    native probe `solo-pump:tick-advanced` (fails on unpatched main, passes with
+    the fix); 3/3 in-game reproductions now advance the tick (180→190→200).
+44. **P1 unaffordable ray soft-lock — FIXED.** An off-cooldown but unpayable
+    `T_MOONLIGHT_RAY` was chosen, refused as `native_rejected`, and the run stopped
+    at `no_available_action` without spending a turn (negative pool never
+    regenerated). Fix: the preset ray rule is gated on
+    `resource_value(negative)>=10` and the declared `recover` rule waits on
+    cooldown **or** unaffordable. Test: `test_auto_combat_policy.lua`.
+45. **P2 `flee_below_hp_pct` control handback — DEFERRED.** The pause keeps
+    `control_owner=auto_combat`; remote actions get `control_conflict` and only an
+    explicit `connect control` / `auto stop` can proceed, while `resume` re-pauses
+    and appends one `paused` event per call (log churn). Deferred because the fix
+    changes the control/lease contract (§9) and needs a design decision on whether
+    a safety pause may keep the lease; the current workaround is explicit
+    `connect control`. Reason: not a P1a pilot blocker and not covered by a frozen
+    invariant.
+46. **P3 interface polish — DEFERRED.** (a) `respond` on a native popup returns
+    `no_pending_interaction` while the working call is
+    `dismiss{type=option, option_id=...}`; the hint should name `type`. (b)
+    `observe.auto_combat` is sometimes `null` after the run stops / after death.
+    (c) `auto stop` writes no `stopped` event, so run boundaries are lost in the
+    decision log. Deferred as low-severity client ergonomics; raw evidence in the
+    round-3 report.
+47. **Metric note — `no_available_action` is an undocumented stop reason.**
+    The declared stop set omits it even though it is an established frozen-contract
+    stop (`hold` with a visible enemy). Round 3 recorded it as *unexpected* per the
+    pre-declared metric and fixed the observed cause (44); future metrics should
+    either declare it or keep treating every occurrence as a defect trend.

@@ -32,15 +32,24 @@ M.PRESETS={
             {id='ray',priority=40,
                 when={all={{enemy_count={ge=1}},{nearest_enemy_distance={le=10}},
                     {talent_known={talent='T_MOONLIGHT_RAY'}},
-                    {cooldown_ready={talent='T_MOONLIGHT_RAY'}}}},
+                    {cooldown_ready={talent='T_MOONLIGHT_RAY'}},
+                    -- Do not select a ray the native pool cannot pay for: an
+                    -- unaffordable cast is a reject-only denial, and falling
+                    -- through to `hold` would end the run at
+                    -- `no_available_action` without spending a turn (so the
+                    -- resource never regenerates). The resource-gated recover
+                    -- rule below spends the turn instead.
+                    {resource_value={resource='negative',ge=10}}}}, 
                 ['then']={action='use_talent',talent='T_MOONLIGHT_RAY',target='nearest_hostile'}},
-            -- Explicit, lowest-priority cooldown recovery: an enemy is in range
-            -- but the main ray is cooling down, so spend one turn waiting (which
-            -- advances the cooldown) instead of stopping every opportunity.
+            -- Explicit, lowest-priority recovery: an enemy is in range but the
+            -- main ray is cooling down or its negative-energy pool cannot pay
+            -- the 10-point cost, so spend one turn (which advances the cooldown
+            -- and regenerates resources) instead of stopping every opportunity.
             -- This is a declared data rule, not an implicit executor fallback.
             {id='recover',priority=1,
                 when={all={{enemy_count={ge=1}},{nearest_enemy_distance={le=10}},
-                    {['not']={cooldown_ready={talent='T_MOONLIGHT_RAY'}}}}},
+                    {['any']={{['not']={cooldown_ready={talent='T_MOONLIGHT_RAY'}}},
+                        {resource_value={resource='negative',lt=10}}}}}},
                 ['then']={action='wait'}},
         },
     },
