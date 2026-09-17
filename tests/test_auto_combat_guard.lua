@@ -67,8 +67,9 @@ do
         'a source drift rejects under max_selffire_risk=0')
     local soft=build{drift=function() return nil,'adapter_source_drift','hash' end,
         policy={safety={max_selffire_risk=50}}}
-    local paused=soft(attempt('T_MOONLIGHT_RAY'))
-    check(paused and paused.action=='pause','a source drift pauses when risk tolerance is non-zero')
+    local disabled=soft(attempt('T_MOONLIGHT_RAY'))
+    check(disabled and disabled.action=='reject',
+        'a source drift disables the action regardless of the risk threshold')
 end
 
 -- Beam: an ally in the line rejects; a clear line passes.
@@ -228,12 +229,20 @@ do
     check(flameshock(4,2,{native={}})~=nil,'a range-0 cone with an unexpandable footprint fails closed')
 end
 
--- D2: risk tolerance only chooses reject vs pause, never authorises a cast.
+-- Q4: risk tolerance is a numeric comparison, not a reject-vs-pause switch.
+-- The same known friendly beam risk (100%) is rejected above the threshold and
+-- permitted at/under it.
 do
-    local guard=build{policy={safety={max_selffire_risk=50}},allies={{uid=9,x=3,y=2}}}
-    local result=guard(attempt('T_MOONLIGHT_RAY'))
-    check(result and result.action=='pause' and result.reason=='selffire_risk',
-        'max_selffire_risk>0 pauses rather than casting')
+    local above=build{policy={safety={max_selffire_risk=50}},allies={{uid=9,x=3,y=2}}}
+    local result=above(attempt('T_MOONLIGHT_RAY'))
+    check(result and result.action=='reject' and result.reason=='selffire_risk',
+        'a known risk above max_selffire_risk is rejected')
+    check(result.detail and result.detail.measurement==100 and result.detail.threshold==50,
+        'the guard reports the measured risk and the policy threshold')
+    local within=build{policy={safety={max_selffire_risk=100}},allies={{uid=9,x=3,y=2}}}
+    local permitted=within(attempt('T_MOONLIGHT_RAY'))
+    check(permitted and permitted.action=='permit' and permitted.detail.measurement==100,
+        'a known risk at the policy threshold is permitted, not globally vetoed')
 end
 
 -- Conformance helper.
@@ -247,8 +256,8 @@ do
 end
 
 -- MOV-4 / Q4: the *same* known self/friendly risk is policy-owned. The plugin
--- must not hard-code a global rejection: the policy threshold alone decides
--- reject vs pause, and the risk detail is always reported.
+-- must not hard-code a global rejection: a numeric comparison against the
+-- policy threshold permits values within tolerance and reports the measurement.
 do
     local strict=build{policy={safety={max_selffire_risk=0}},allies={{uid=9,x=3,y=2}}}
     local rejected=strict(attempt('T_MOONLIGHT_RAY'))
@@ -257,11 +266,24 @@ do
     check(rejected.detail and rejected.detail.risk=='friendly' and rejected.detail.friendlies==1,
         'the known friendly-fire footprint is reported with the verdict')
     local tolerant=build{policy={safety={max_selffire_risk=50}},allies={{uid=9,x=3,y=2}}}
-    local paused=tolerant(attempt('T_MOONLIGHT_RAY'))
-    check(paused and paused.action=='pause' and paused.reason=='selffire_risk',
-        'a non-zero threshold changes the same risk to a policy pause, not a hardcoded reject')
-    local safe=tolerant(attempt('T_HEALING_LIGHT'))
+    local above=tolerant(attempt('T_MOONLIGHT_RAY'))
+    check(above and above.action=='reject' and above.detail.measurement==100,
+        'a risk above tolerance is rejected with the measurement')
+    local exact=build{policy={safety={max_selffire_risk=100}},allies={{uid=9,x=3,y=2}}}
+    local permitted=exact(attempt('T_MOONLIGHT_RAY'))
+    check(permitted and permitted.action=='permit' and permitted.detail.threshold==100,
+        'a risk within tolerance is permitted (policy authorises the cast)')
+    local safe=exact(attempt('T_HEALING_LIGHT'))
     check(safe==nil,'a self-target action is not affected by the movement/selffire policy')
+    -- An incalculable footprint still fails closed regardless of the threshold.
+    local unknown=build{policy={safety={max_selffire_risk=100}},allies={{uid=9,x=3,y=2}},
+        dynamicScalar=function() return 'unknown' end,
+        defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=function()
+            return {type='beam',range=10,selffire={dynamic='spellFriendlyFire'},
+                friendlyfire={dynamic='spellFriendlyFire'}} end}}}
+    local blocked=unknown(attempt('T_MOONLIGHT_RAY'))
+    check(blocked and blocked.action=='reject' and blocked.detail.unknown==true,
+        'an incalculable footprint fails closed even at full tolerance')
     -- The movement guard still source-pins movement adapters (a drifted one is
     -- disabled rather than silently trusted).
     local drift=build{drift=function() return nil,'adapter_source_drift','hash' end}

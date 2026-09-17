@@ -36,6 +36,8 @@ end
 local AUTO_PREDICATES=sortedKeys(PolicySchema.PREDICATES)
 local AUTO_SELECTORS=sortedKeys(PolicySchema.SELECTORS)
 local AUTO_DESTINATION_SELECTORS=sortedKeys(PolicySchema.DESTINATION_SELECTORS)
+local AUTO_NO_ENEMY_MODES=sortedKeys(PolicySchema.NO_ENEMY_MODES)
+local AUTO_LOW_HP_MODES=sortedKeys(PolicySchema.LOW_HP_MODES)
 local AUTO_COMPUTED_FIELDS=sortedKeys(PolicySchema.COMPUTED_FIELDS)
 local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304,MAX_RECENT_SNAPSHOTS=16,SNAPSHOT_BYTE_BUDGET=4194304}
 local state, serial
@@ -998,6 +1000,17 @@ local function autoCombatReads(s,policy)
             local movement=entry and entry.movement or nil
             local map=g.level and g.level.map
             local player=g.player
+            -- Effective talent level for a movement-adapter variant check. A
+            -- missing/overridden getter stays 'unknown' so no variant is
+            -- assumed; native `getTalentLevel` is an audited dynamic getter.
+            local function plannerTalentLevel(talent)
+                if type(player)~='table' or type(player.getTalentLevel)~='function' then return 'unknown' end
+                local def=type(player.talents_def)=='table' and player.talents_def[talent] or nil
+                if type(def)~='table' then return 'unknown' end
+                local ok,value=pcall(player.getTalentLevel,player,def)
+                if not ok or type(value)~='number' or value~=value then return 'unknown' end
+                return value
+            end
             local provider={
                 origin=function()
                     if player and Details.finite(player.x) and Details.finite(player.y) then
@@ -1020,6 +1033,7 @@ local function autoCombatReads(s,policy)
                     end
                     return nil
                 end,
+                talentLevel=plannerTalentLevel,
                 knowledge=function(x,y)
                     if not map or not Details.finite(x) or not Details.finite(y)
                         or not Details.finite(map.w) or not Details.finite(map.h) then
@@ -1031,8 +1045,8 @@ local function autoCombatReads(s,policy)
                     local seen=(map.seens and map.seens[index]) and true or false
                     local visible=Observer.terrainVisible(g,player,map,x,y)
                     local known=remembered or seen or visible
-                    local passable='unknown'
                     local hazard='unknown'
+                    local passable='unknown'
                     if known and type(map.map)=='table' then
                         local cell=map.map[index]
                         if type(cell)=='table' then
@@ -1049,7 +1063,7 @@ local function autoCombatReads(s,policy)
                                 if not knownTrap and type(trap.known_by)=='table' then
                                     knownTrap=trap.known_by[player] and true or false
                                 end
-                                if knownTrap then hazard=false end
+                                if knownTrap then hazard=true end
                             end
                         end
                     end
@@ -1091,15 +1105,25 @@ end
 function M.mapAutoCombatOutcome(result,action,noEnergy)
     if type(result)~='table' then return {status='error',code='no_result',energy_spent=false} end
     local spent=(Details.finite(result.energy_spent) and result.energy_spent>0) or false
-    if result.uncertain then return {status='uncertain',code=result.code,energy_spent=spent} end
+    -- MFT-REV-06: scene-change evidence is independent of the success status.
+    -- An uncertain exception may still have started/completed a level change;
+    -- carry `level_changed` so the controller resets and requires a restart.
+    local function scene(mapped)
+        if result.level_changed then mapped.level_changed=true end
+        if result.pending then mapped.pending=true end
+        return mapped
+    end
+    if result.uncertain then
+        return scene({status='uncertain',code=result.code,energy_spent=spent})
+    end
     if result.code=='native_pending' then
-        return {status='native_pending',code='native_pending',energy_spent=spent}
+        return scene({status='native_pending',code='native_pending',energy_spent=spent})
     end
     -- A pending scene confirmation (`change_level_pending`) opened a native
     -- dialog; it is not a completed transition and must hand the interaction
     -- back rather than be reported as a successful action.
     if result.code=='change_level_pending' then
-        return {status='rejected',code='change_level_pending',energy_spent=spent}
+        return scene({status='rejected',code='change_level_pending',energy_spent=spent})
     end
     if result.ok then
         local instant=false
@@ -1108,13 +1132,9 @@ function M.mapAutoCombatOutcome(result,action,noEnergy)
             if type(noEnergy)=='boolean' then instant=zero and noEnergy==true else instant=zero end
             if result.code=='already_in_desired_state' then instant=false end
         end
-        local mapped={status='ok',code=result.code,energy_spent=spent,instant=instant}
-        -- A real scene transition must reach the controller so it can pause/reset
-        -- and require an explicit restart (MOV-2).
-        if result.level_changed then mapped.level_changed=true end
-        return mapped
+        return scene({status='ok',code=result.code,energy_spent=spent,instant=instant})
     end
-    return {status='rejected',code=result.code,energy_spent=spent}
+    return scene({status='rejected',code=result.code,energy_spent=spent})
 end
 
 -- Live controller host. The executor reuses Actions.execute under a synthetic
@@ -1123,13 +1143,14 @@ end
 buildAutoCombatHost=function(s,policy,opts)
     local g=s.game
     local reads=autoCombatReads(s,policy)
-    -- AC-03/D1/D2 + v2: the guard consumes the version-pinned component
-    -- manifest. `max_selffire_risk==0` rejects (hard gate), `>0` pauses;
-    -- self-target talents are safe. Design §8.3 (v1.4) allows reading the
-    -- audited native target builder for the instant geometry while the
-    -- canonical components drive variants, ground and composition. A source
-    -- drift disables the adapter (`adapter_source_drift`). Returns nil /
-    -- {action='reject'|'pause',reason,detail}.
+    -- Q4 + v2: the guard consumes the version-pinned component manifest,
+    -- measures the known self/friendly risk and compares it with the policy's
+    -- `max_selffire_risk` (a permit carries the measurement); above tolerance or
+    -- an incalculable footprint it disables that action. Design §8.3 (v1.4)
+    -- allows reading the audited native target builder for the instant geometry
+    -- while the canonical components drive variants, ground and composition. A
+    -- source drift disables the adapter (`adapter_source_drift`). Returns nil /
+    -- {action='permit'|'reject'|'pause',reason,detail}.
     local function manifestDrift()
         local override=opts and opts.drift
         if type(override)=='function' then return override() end
@@ -1273,6 +1294,12 @@ buildAutoCombatHost=function(s,policy,opts)
             action={type='use_talent',talent_id=attempt.talent}
             if plan and plan.kind=='grid' then
                 action.x,action.y=plan.x,plan.y
+            elseif plan and (plan.kind=='none' or plan.kind=='self' or plan.kind=='native_random') then
+                -- A no-target request (self/none/random) must not prefill an
+                -- actor the policy did not ask for.
+            elseif plan and (plan.kind=='actor' or plan.kind=='native_landing') then
+                if not target then return {status='rejected',code='target_lost',energy_spent=false} end
+                action.target_id=attempt.bound_target
             elseif target then
                 action.target_id=attempt.bound_target
             end
@@ -1533,6 +1560,9 @@ local function dispatch(s,request)
                         passability={'known_passable','native'},
                         hazard={'known_safe','avoid_known','any'},
                         landing={'deterministic','allow_random'}},
+                    modes={on_no_enemy=Json.array(AUTO_NO_ENEMY_MODES),
+                        on_low_hp=Json.array(AUTO_LOW_HP_MODES)},
+                    unsupported=EffectManifest.UNSUPPORTED,
                     adapter_version=AdapterCatalog.VERSION,
                     predicates=Json.array(AUTO_PREDICATES),
                     selectors=Json.array(AUTO_SELECTORS),

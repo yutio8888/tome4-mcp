@@ -40,6 +40,16 @@ do
         energy_spent=0,level_changed=false},'change_level',nil)
     check(pendingChange.status=='rejected' and pendingChange.code=='change_level_pending',
         'a pending scene confirmation is handed back, not reported as a completed transition')
+    -- MFT-REV-06: scene-change evidence survives an uncertain outcome, so the
+    -- controller stops/resets instead of leaving a resumable paused run.
+    local uncertainChange=Runtime.mapAutoCombatOutcome({ok=false,code='execution_error',
+        energy_spent=0,uncertain=true,level_changed=true},'change_level',nil)
+    check(uncertainChange.status=='uncertain' and uncertainChange.level_changed==true,
+        'an uncertain exception preserves level_changed for the controller')
+    local uncertainNoChange=Runtime.mapAutoCombatOutcome({ok=false,code='execution_error',
+        energy_spent=0,uncertain=true,level_changed=false},'change_level',nil)
+    check(uncertainNoChange.status=='uncertain' and uncertainNoChange.level_changed==nil,
+        'an uncertain exception without a transition stays a plain uncertain outcome')
 end
 
 -- 2. Real Actions.execute -> a suspended body yields native_pending. ---------

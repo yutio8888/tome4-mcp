@@ -1,5 +1,43 @@
 # MCP Bridge 验收记录
 
+## 0.9.0：移动/重新定位第一段 rev 2（MFT-REV-01 … 09，待评审）
+
+日期：2026-09-17。分支 `feat/movement-first-tranche`（PR #15），rev 2 在 rev 1 `2e5dae2` 基础上修复独立评审 `4ba89dc2` 的 **0 P0 / 6 P1 / 3 P2**。`allow_auto_combat_execution` 保持 `false`。状态：**ready for review**。原始证据见 `tmp/movement-first-tranche/rev2/`。
+
+| 反馈 | 结果 | 修复与回归证据 |
+| --- | --- | --- |
+| MFT-REV-01 策略模式 | **PASS**：`policy.mode={on_no_enemy='stop'\|'evaluate_rules',on_low_hp='pause'\|'emergency_only'\|'evaluate_rules'}` 为显式数据；内置 preset 显式展开旧的保守行为；`evaluate_rules` 在低 HP 执行任意声明动作；`emergency` 仅为调度标签（schema 不再有动作白名单）；删除全局 flee 暂停 | `test_auto_combat_policy.lua`（新增 mode + emergency move/rest 用例）、`test_auto_combat_movement.lua`（低 HP kite 执行）、`test_auto_combat_controller.lua` |
+| MFT-REV-02 Q4 阈值 | **PASS**：`EffectRisk.measure` 冻结数值风险聚合（self=min(SF,FF)、friendly=FF，unknown 主导）；guard 与 `max_selffire_risk` 数值比较，**在容忍度内 permit 并携带 measurement/threshold/provenance**，超过或不可计算则 reject；dry-run/决策/日志均上报 | `test_effect_risk.lua`、`test_auto_combat_guard.lua`（permit/above/unknown）、`test_runtime.lua`、`test_auto_combat_service.lua`（dry-run risk） |
+| MFT-REV-03 target_plan | **PASS**：schema 校验每步 request 专属字段；`EffectManifest.verify` 与源固定 `movement.target_requests` **逐项比较**；planner 消费首个 request；多提示或 adapter 缺失以 typed reason（`unsupported_target_plan`）**暂停**，不静默忽略 | `test_auto_combat_policy.lua`、`test_auto_combat_movement.lua`、`test_effect_manifest.lua` |
+| MFT-REV-04 目的地语义 | **PASS**：`landing='deterministic'` 拒绝所有非单一落点（`bounded`+`random`）；hazard 极性统一为 `true`=已知危险、`false`=确认安全、`unknown`=未知；provider/filters/文档/测试/序列化一致 | `test_auto_combat_movement.lua`、`test_runtime.lua`（known trap） |
+| MFT-REV-05 dry-run 行为 | **PASS**：dry-run 运行与执行器相同的**有界 deny/fall-through 循环**（不提交、不调用执行器），报告被拒规则+原因，并返回 live 会提交的下一个动作 | `test_auto_combat_service.lua`（fall-through + risk） |
+| MFT-REV-06 不确定场景切换 | **PASS**：`mapAutoCombatOutcome` 独立于 status 保留 `level_changed`；控制器对任何已开始/完成的场景迁移停止/重置并拒绝 resume；dry-run 保留不确定性 | `test_auto_combat_execution.lua`、`test_auto_combat_movement.lua` |
+| MFT-REV-07 日志完整性 | **PASS**：移动标注与 guard measurement/threshold/provenance/unknown 经有界 `boundedDetail` 进入 step 结果、`PolicyLog` 与 replay | `test_auto_combat_movement.lua`（step.risk + rejection detail）、`AutoCombatService` 日志字段 |
+| MFT-REV-08 能力上报 | **PASS**：结构化 `EffectManifest.UNSUPPORTED`（talent/scope/missing/reason，含 Phase Door TL≥4 actor+grid）；Phase Door 声明 `unsupported_variants`，runtime 以同一 typed reason 拒绝；`capabilities.auto_combat.unsupported` 公布 | `test_effect_manifest.lua`、`test_auto_combat_movement.lua`（variant）、`Runtime` capabilities |
+| MFT-REV-09 原生适用性 | **PASS**：source+dist 原生探针新增 `movement-talents`（Rush actor 锚定、精确网格 Tumble、随机 Phase Door，经真实 `Actions.execute`）与 `scene-lifecycle`（真实原生 `CHANGE_LEVEL` → 层级变化、controller stopped、resume 拒绝）；`mcp-test` 竞技场扩为两级 | `tests/native/tome-auto-combat-probe/...`、`probe-source-result.json`/`probe-dist-result.json` |
+
+命令与原始证据（`tmp/movement-first-tranche/rev2/`）：
+
+| 命令 | 结果 | 文件 / sha256 |
+| --- | --- | --- |
+| `bash tests/run.sh` | 40 套全绿 | `lua-suite.log` `f0b2a15be907e0695961b324a3570a0e229f48945e2a4499775090dacd0f43bb` |
+| `PYTHONPATH=server/src <venv>/python -m unittest discover -s server/tests` | 39 OK | `python-tests.log` `3d84718e933f1e7c0dde65fc1882c911e65d7d27e3f7aa041031699156e4717e` |
+| 三个 `--check` | 3/3 exit 0 | `generator-checks.log` `2503208f26358c11c18060261b70491e476054b8e2281485592a8142d60e4ab4` |
+| auto-combat 探针 source `rev2-src-11` | **105/105** | `probe-source-result.json` `73ea4364492cf3c2885e71ae42245d4c9b3557237d0e0a7b1f7ebdc625d0f620` |
+| auto-combat 探针 dist `rev2-dist-01` | **105/105** | `probe-dist-result.json` `907b4961036810c157e4349f45f47c75415d8aa1245a6c0a78281482f5f47c0e` |
+| 原生验收 source `rev2-accept-src` | **100/100** | `acceptance-source-result.json` `378635c2897c85d77463cc4c25b567022c01a84ff1e66191ed787f7f28fb1079` |
+| 原生验收 dist `rev2-accept-dist` | **100/100** | `acceptance-dist-result.json` `ab94474352988416fd728c308792e49e597fb6abb666513b4b38055ac1f54d2c` |
+
+不变量核对（保持）：单次机会一个原生动作；尝试/瞬发预算；`native_pending` 不重复提交；手动输入收回租约；owner 仲裁；只读 `dry_run`；确定性 tie-break（无 RNG）；原生裁决最终；场景切换 pause/reset 且需显式重启。R-1…R-6 “found correct” 项经全套 Lua/Python/两套原生复跑保持。
+
+正式包 **67 个生产文件**，SHA-256（rev 1 `d4a3affe48c6cee479f69d785533105e9c3470aae32d5b7b3e032670b233c916` → rev 2）：
+
+```text
+317213c3282547e1b93fbcf9328abadb07c950e6381a72001588add8b9b1a60a
+```
+
+未修/延期：无。独立复核由 `4ba89dc2` 执行。
+
 ## 0.9.0：移动/重新定位第一段（MOV-1 … MOV-6，rev 1，待评审）
 
 日期：2026-09-17。分支 `feat/movement-first-tranche`（基线 `main@a3b3a9a`）。执行 v1.6 插件职责边界（`AGENTS.md` §插件职责边界、`docs/tome-mcp-auto-combat-plugin-design.md` §0.1/§1.2/§5.3/§5.4/§8.1）与 `docs/tome-mcp-0.9.0-movement-skills-design.md`。`allow_auto_combat_execution` 保持 `false`。状态：**ready for review**（未合并，未经独立评审）。原始证据见 `tmp/movement-first-tranche/`。

@@ -152,6 +152,31 @@ function M.critical(policy,hp_pct)
     return hp_pct<minHp
 end
 
+-- v1.6 scheduling mode resolution. This is pure data: the plugin applies the
+-- policy's chosen mode instead of a built-in tactical layer. Missing mode keeps
+-- the conservative legacy behaviour (`stop` on no enemy, `emergency_only`
+-- below the HP threshold) so an un-migrated policy is never silently widened.
+function M.scheduling(policy,hp_pct)
+    local mode=policy.mode or {}
+    local safety=policy.safety or {}
+    local minHp=safety.min_hp_pct
+    local flee=safety.flee_below_hp_pct
+    local onLowHp=mode.on_low_hp or 'emergency_only'
+    local onNoEnemy=mode.on_no_enemy or 'stop'
+    local belowFlee=type(hp_pct)=='number' and flee~=nil and hp_pct<flee
+    local lowHp=type(hp_pct)=='number' and minHp~=nil and hp_pct<minHp
+    local layer='normal'
+    local pauseReason=nil
+    if lowHp and onLowHp=='pause' then
+        layer='pause'
+        pauseReason=belowFlee and 'flee_below_hp_pct' or 'below_min_hp_pct'
+    elseif lowHp and onLowHp=='emergency_only' then
+        layer='emergency'
+    end
+    return {on_low_hp=onLowHp,on_no_enemy=onNoEnemy,low_hp=lowHp,
+        below_flee=belowFlee,layer=layer,pause_reason=pauseReason}
+end
+
 -- Returns one of (every decision carries `results`, the §10 per-rule trace):
 --   {decision='act',rule,action,talent,target,critical,emergency,results}
 --   {decision='pause',reason,critical,rule,results}
@@ -165,7 +190,11 @@ function M.evaluate(policy,ctx,opts)
     local maxActions=limits.max_actions_per_tick or 1
     local attempts=ctx.attempts or 0
     local safety=policy.safety or {}
-    local critical=M.critical(policy,ctx.hp_pct)
+    local sched=M.scheduling(policy,ctx.hp_pct)
+    local critical=sched.low_hp
+    if sched.layer=='pause' then
+        return {decision='pause',reason=sched.pause_reason,critical=true,layer='pause',results={}}
+    end
     -- Target-related conditions must be evaluated against the same selector the
     -- action will bind (§5.3). `opts.context_for(selector)` lets the caller (the
     -- controller / dry run) supply a per-selector context; without it the single
@@ -189,17 +218,18 @@ function M.evaluate(policy,ctx,opts)
     local eligible={}
     for _,rule in ipairs(policy.rules or {}) do
         local emergency=rule.emergency==true
-        if rule.enabled~=false and ((critical and emergency) or (not critical and not emergency)) then
-            eligible[#eligible+1]=rule
-        end
+        local include
+        if sched.layer=='emergency' then include=emergency
+        else include=true end
+        if rule.enabled~=false and include then eligible[#eligible+1]=rule end
     end
     table.sort(eligible,function(a,b)
         if a.priority~=b.priority then return a.priority>b.priority end
         return a.id<b.id
     end)
     local results={}
-    local layer=critical and 'emergency' or 'normal'
-    -- Budget exhaustion never falls through to a different layer: in critical
+    local layer=sched.layer
+    -- Budget exhaustion never falls through to a different layer: in emergency
     -- state it must not become a reason to fire normal output.
     if attempts>=maxActions then
         for _,rule in ipairs(eligible) do
@@ -229,9 +259,9 @@ function M.evaluate(policy,ctx,opts)
             end
         end
     end
-    if critical then
-        return {decision='pause',reason='no_emergency_action',critical=true,
-            rule=unknownRule and unknownRule.id,results=results,layer=layer}
+    if sched.layer=='emergency' then
+        return {decision='pause',reason=sched.below_flee and 'flee_below_hp_pct' or 'no_emergency_action',
+            critical=true,rule=unknownRule and unknownRule.id,results=results,layer=layer}
     end
     if unknownRule and safety.pause_on_unknown_safety~=false then
         return {decision='pause',reason='unknown_safety',rule=unknownRule.id,results=results,layer=layer}

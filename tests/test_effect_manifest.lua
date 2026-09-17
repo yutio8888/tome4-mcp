@@ -118,13 +118,20 @@ do
         'Flame variants cover the level and attribute branches')
 end
 
--- The four dynamic talents are re-admitted with source-verified components.
-check(next(Manifest.UNSUPPORTED)==nil,'the dynamic talents are no longer unsupported')
+-- The four dynamic talents are re-admitted with source-verified components; the
+-- structured unsupported list is about movement gaps only (MFT-REV-08).
+local function unsupportedFor(talent)
+    for _,entry in ipairs(Manifest.UNSUPPORTED) do if entry.talent==talent then return entry end end
+    return nil
+end
+check(unsupportedFor('T_FLAMESHOCK')==nil and unsupportedFor('T_FIREFLASH')==nil
+    and unsupportedFor('T_SHADOW_BLAST')==nil and unsupportedFor('T_STARFALL')==nil,
+    'the dynamic talents are no longer unsupported')
 for _,talent in ipairs({'T_FLAMESHOCK','T_FIREFLASH','T_SHADOW_BLAST','T_STARFALL'}) do
     local entry=Manifest.entry(talent)
     check(entry~=nil,talent..' is re-admitted')
     check(entry.conformance and entry.conformance.builder==true,talent..' declares a native builder')
-    check(Manifest.UNSUPPORTED[talent]==nil,talent..' is no longer unsupported')
+    check(unsupportedFor(talent)==nil,talent..' is no longer unsupported')
     check(Manifest.SOURCES.talents[talent].builder~=nil,talent..' pins its builder line')
     local instant
     for _,component in ipairs(entry.components) do

@@ -283,16 +283,62 @@ do
     check(not Schema.validate(noPlan),'an empty target_plan is rejected')
 end
 do
-    -- The critical layer is only for self-preservation actions (shape); the
-    -- catalogue certifies the specific talent (semantic).
+    -- v1.6: `emergency` is a scheduling label only. It is not an action
+    -- allowlist, so any declared action may carry it; the executor guard is the
+    -- safety gate for the bound `use_talent`/`attack`.
     local p=basePolicy()
     p.rules={{id='panic-rest',priority=100,emergency=true,when={always={}},
         ['then']={action='rest',max_turns=5}}}
-    check(not Schema.validate(p),'an emergency rest rule is rejected as non-self-preservation')
+    check(Schema.validate(p),'an emergency rest rule is shape-valid; emergency is a scheduling label')
+    local move=basePolicy()
+    move.rules={{id='panic-kite',priority=100,emergency=true,when={always={}},
+        ['then']={action='move',target='nearest_hostile',
+            destination={selector='away',anchor='bound_target',
+                accept={visibility='any',passability='native',hazard='any',landing='allow_random'}}}}}
+    check(Schema.validate(move),'an emergency move/kite rule is shape-valid (no action allowlist)')
     local attack=basePolicy()
     attack.rules={{id='panic-attack',priority=100,emergency=true,when={always={}},
         ['then']={action='attack',target='nearest_hostile'}}}
     check(Schema.validate(attack),'an emergency attack is shape-valid; the executor guard is the safety gate')
+end
+-- v1.6 scheduling mode (MFT-REV-01) ------------------------------------------
+do
+    local p=basePolicy()
+    p.mode={on_no_enemy='evaluate_rules',on_low_hp='evaluate_rules'}
+    check(Schema.validate(p),'an explicit scheduling mode validates')
+    local bad=basePolicy();bad.mode={on_low_hp='assist'}
+    check(not Schema.validate(bad),'an unknown low-HP mode is rejected')
+    bad=basePolicy();bad.mode={on_no_enemy='wander'}
+    check(not Schema.validate(bad),'an unknown no-enemy mode is rejected')
+    -- A policy-authored kite executes at low HP under evaluate_rules; the
+    -- conservative default keeps the emergency-only layer.
+    local kite={id='kite',priority=10,when={always={}},['then']={action='move',
+        target='nearest_hostile',destination={selector='away',anchor='bound_target',
+            accept={visibility='any',passability='native',hazard='any',landing='allow_random'}}}}
+    local explicit=basePolicy()
+    explicit.mode={on_low_hp='evaluate_rules'}
+    explicit.rules={kite}
+    local d=Evaluator.evaluate(explicit,ctx({hp_pct=10,enemy_count=1}))
+    check(d.decision=='act' and d.rule=='kite' and d.action=='move',
+        'evaluate_rules executes a declared movement rule below min_hp_pct')
+    local conservative=basePolicy()
+    conservative.safety.flee_below_hp_pct=nil
+    conservative.rules={kite}
+    local c=Evaluator.evaluate(conservative,ctx({hp_pct=10,enemy_count=1}))
+    check(c.decision=='pause' and c.reason=='no_emergency_action',
+        'the conservative default stays emergency-only below min_hp_pct')
+    local emergency=basePolicy()
+    emergency.mode={on_low_hp='emergency_only'}
+    emergency.rules={kite,{id='panic-kite',priority=100,emergency=true,when={always={}},
+        ['then']=kite['then']}}
+    local e=Evaluator.evaluate(emergency,ctx({hp_pct=10,enemy_count=1}))
+    check(e.decision=='act' and e.rule=='panic-kite','emergency_only schedules only emergency-labelled rules')
+    local paused=basePolicy()
+    paused.mode={on_low_hp='pause'}
+    paused.safety.flee_below_hp_pct=nil
+    paused.rules={kite}
+    local pa=Evaluator.evaluate(paused,ctx({hp_pct=10,enemy_count=1}))
+    check(pa.decision=='pause' and pa.reason=='below_min_hp_pct','low_hp=pause pauses below min_hp_pct')
 end
 do
     -- The evaluator carries max_turns into the act decision for the executor.

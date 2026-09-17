@@ -61,6 +61,8 @@ M.EXPECTED={
     ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
+    ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
+    ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
     ['solo-pump']={},
 }
 
@@ -490,7 +492,6 @@ local function soloPumpCheck()
     local tick_advanced=game.turn>(M.solo_turn_start or 0)
     if not tick_advanced and M.solo_frames<40 then return false end
     M.waiting_solo=false
-    M.done=true
     check('solo-pump:ran',acted and (run.attempts or 0)>0,
         {attempts=run.attempts,state=run.state,reason=run.reason,acted=acted,frames=M.solo_frames})
     check('solo-pump:tick-advanced',tick_advanced,
@@ -503,7 +504,12 @@ local function soloPumpCheck()
         and not Runtime.autoCombatExecutionEnabled(game),
         {run=after.run,execution=Runtime.autoCombatExecutionEnabled(game)})
     compare('solo-pump',{})
-    M.emit{kind='auto_combat_done',passed=M.failures==0,failures=M.failures,checks=#M.checks}
+    -- MFT-REV-09 final native scenarios run after every existing scenario, so
+    -- their native (possibly yielding) skill bodies cannot disturb the earlier
+    -- checks. The first waits for the game to report ready again.
+    M.waiting_final=true
+    M.final_stage='talents'
+    M.final_frames=0
     return true
 end
 
@@ -934,6 +940,190 @@ local function movementPlan()
     return compare('movement',signals)
 end
 
+-- MFT-REV-09: drive the three movement talents end to end through the real
+-- executor. Rush (actor target), exact-grid Tumble, and a random self teleport.
+local function movementTalents()
+    forceReady()
+    Runtime.setAutoCombatExecution(game,true)
+    local p=game.player
+    local levels={T_RUSH=5,T_SKIRMISHER_CUNNING_ROLL=5,T_PHASE_DOOR=1}
+    for talent,level in pairs(levels) do
+        if type(p.talents)~='table' then p.talents={} end
+        if not p.talents[talent] and type(p.learnTalent)=='function' then p:learnTalent(talent,true) end
+        p.talents[talent]=p.talents[talent] or level
+        p.talents[talent]=level
+    end
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local pol=policy({{id='movement-probe',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_RUSH',target='nearest_hostile',
+            destination={selector='native_landing',anchor='bound_target',accept=accept}}}})
+    local host=Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end})
+    local signals={}
+    local map=game.level.map
+    local function bound()
+        local ctx=host.snapshot('nearest_hostile')
+        return ctx and ctx.bound_target
+    end
+    -- Rush: actor-anchored line move.
+    local rushBound=bound()
+    local rushPlan=host.plan({action='use_talent',talent='T_RUSH',bound_target=rushBound,
+        target_plan={{request='actor',selector='nearest_hostile'}},
+        destination=pol.rules[1]['then'].destination})
+    local rush_ok=rushPlan and rushPlan.plan and rushPlan.plan.kind=='actor'
+    signals[#signals+1]=rush_ok and 'rush_planned' or 'rush_plan_missing'
+    check('movement-talents:rush-plan',rush_ok,{kind=rushPlan and rushPlan.plan and rushPlan.plan.kind})
+    if rush_ok then
+        local before=p.x..','..p.y
+        local out=host.request({action='use_talent',talent='T_RUSH',plan=rushPlan.plan,
+            bound_target=rushBound,rule='rush'})
+        local moved=out.status=='ok' or out.status=='native_pending'
+        signals[#signals+1]=moved and 'rush_executed' or 'rush_rejected'
+        check('movement-talents:rush-execute',moved,{status=out.status,code=out.code,
+            before=before,after=p.x..','..p.y})
+    else
+        signals[#signals+1]='rush_rejected'
+    end
+    -- Tumble: exact grid request.
+    local function openCell()
+        for r=2,4 do
+            for _,d in ipairs({{r,0},{-r,0},{0,r},{0,-r},{r,r},{-r,-r},{r,-r},{-r,r}}) do
+                local x,y=p.x+d[1],p.y+d[2]
+                if map:isBound(x,y) and not map:checkAllEntities(x,y,'block_move',p)
+                    and not map(x,y,engine.Map.ACTOR) then return x,y end
+            end
+        end
+    end
+    local tx,ty=openCell()
+    local tumble, tumbleErr
+    if tx then
+        tumble,tumbleErr=host.plan({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
+            target_plan={{request='grid',destination={selector='position',x=tx,y=ty,accept=accept}}},
+            destination={selector='position',x=tx,y=ty,accept=accept}})
+    end
+    local tumble_ok=tumble and tumble.plan and tumble.plan.kind=='grid'
+    signals[#signals+1]=tumble_ok and 'tumble_planned' or 'tumble_plan_missing'
+    check('movement-talents:tumble-plan',tumble_ok,{x=tx,y=ty,reason=tumbleErr and tumbleErr.reason})
+    if tumble_ok then
+        local before=p.x..','..p.y
+        local out=host.request({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
+            plan=tumble.plan,rule='tumble'})
+        local moved=out.status=='ok' or out.status=='native_pending'
+        signals[#signals+1]=moved and 'tumble_executed' or 'tumble_rejected'
+        check('movement-talents:tumble-execute',moved,{status=out.status,code=out.code,
+            before=before,after=p.x..','..p.y})
+    else
+        signals[#signals+1]='tumble_rejected'
+    end
+    -- Phase Door: random self teleport (no prompt at level 1).
+    local doorPlan=host.plan({action='use_talent',talent='T_PHASE_DOOR',
+        target_plan={{request='none'}},destination={selector='native_random',accept=accept}})
+    local door_ok=doorPlan and doorPlan.plan and doorPlan.plan.kind=='none'
+    signals[#signals+1]=door_ok and 'teleport_planned' or 'teleport_plan_missing'
+    check('movement-talents:teleport-plan',door_ok,{kind=doorPlan and doorPlan.plan and doorPlan.plan.kind})
+    if door_ok then
+        local before=p.x..','..p.y
+        local out=host.request({action='use_talent',talent='T_PHASE_DOOR',plan=doorPlan.plan,rule='door'})
+        local moved=out.status=='ok' or out.status=='native_pending'
+        signals[#signals+1]=moved and 'teleport_executed' or 'teleport_rejected'
+        check('movement-talents:teleport-execute',moved,{status=out.status,code=out.code,
+            before=before,after=p.x..','..p.y})
+    else
+        signals[#signals+1]='teleport_rejected'
+    end
+    Runtime.autoCombatHandle(game,'deactivate',{})
+    Runtime.setAutoCombatExecution(game,false)
+    return compare('movement-talents',signals)
+end
+
+-- MFT-REV-09: install the real native CHANGE_LEVEL handler with a source that
+-- passes the bridge's native audit. The arena test fixture does not populate
+-- `key.virtuals`; this binds the exact handler body from Game.lua (the same
+-- technique tests/test_actions.lua uses) so the production executor runs a real
+-- scene transition.
+local function ensureChangeLevelHandler()
+    local existing=game.key and game.key.virtuals and game.key.virtuals.CHANGE_LEVEL
+    if type(existing)=='function' then
+        local info=debug.getinfo(existing,'S')
+        if info and type(info.source)=='string'
+            and info.source:sub(-#'/mod/class/Game.lua')=='/mod/class/Game.lua' then
+            return true
+        end
+    end
+    local ok,source=pcall(function() return fs.readAll('/mod/class/Game.lua') end)
+    if not ok or type(source)~='string' then return false end
+    local command=source:match('CHANGE_LEVEL = (function%(%)%s*.-)%s*,%s*REST = function')
+    if not command then return false end
+    local chunk=loadstring('return function(self,Map) return '..command..' end',
+        '@/mod/class/Game.lua')
+    if not chunk then return false end
+    game.key=game.key or {}
+    game.key.virtuals=game.key.virtuals or {}
+    game.key.virtuals.CHANGE_LEVEL=chunk()(game,engine.Map)
+    return type(game.key.virtuals.CHANGE_LEVEL)=='function'
+end
+
+-- MFT-REV-09: an auto-combat stair fixture. A real native change_level through
+-- the production host must stop/reset the controller and refuse resume.
+local function sceneLifecycle()
+    forceReady()
+    if not ensureChangeLevelHandler() then
+        check('scene-lifecycle:handler',false,{note='native CHANGE_LEVEL handler unavailable'})
+        return compare('scene-lifecycle',{'no_handler'})
+    end
+    Runtime.setAutoCombatExecution(game,true)
+    -- A previous yielding talent body may have left the native targeting UI
+    -- active; clear it so the native change-level handler is not `player_busy`.
+    if game.target then game.target.active=false end
+    game.target_co=nil
+    local p=game.player
+    local map=game.level.map
+    local idx=p.x+p.y*map.w
+    local saved=map.map[idx] and map.map[idx][engine.Map.TERRAIN]
+    local stair=saved and saved:clone() or nil
+    local signals={}
+    if not stair then
+        check('scene-lifecycle:setup',false,{note='no terrain clone available'})
+        return compare('scene-lifecycle',{'no_terrain'})
+    end
+    stair.change_level=1
+    stair.block_move=false
+    stair.name='probe stairs'
+    map.map[idx][engine.Map.TERRAIN]=stair
+    local level_before=game.level
+    local pol=policy({{id='descend',priority=10,when={always={}},['then']={action='change_level'}}})
+    local host=Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end})
+    local raw
+    if host and type(host.request)=='function' then
+        local inner=host.request
+        host.request=function(attempt)
+            local out=inner(attempt)
+            raw=out
+            return out
+        end
+    end
+    local c=AutoCombat.new(pol,host,{strict=false})
+    c:start()
+    local step=c:onOpportunity()
+    local changed=game.level~=level_before
+    signals[#signals+1]=changed and 'level_changed' or 'no_change'
+    check('scene-lifecycle:changed',changed,{action=step.action,reason=step.reason,
+        code=raw and raw.code,status=raw and raw.status,attempts=c.attempts,
+        codes=(function() local t={} for _,r in ipairs(c.rejections or {}) do t[#t+1]=r.reason end return t end)()})
+    local stopped=step.action=='stopped' and step.reason=='level_changed'
+    signals[#signals+1]=stopped and 'stopped' or 'not_stopped'
+    check('scene-lifecycle:stopped',stopped,{action=step.action,reason=step.reason,state=c.state,
+        attempts=c.attempts,opportunity=c.opportunity,
+        max=pol.limits and pol.limits.max_actions_per_tick,rules=#pol.rules})
+    local resumed=c:resume()
+    local resume_refused=not (resumed and resumed.ok)
+    signals[#signals+1]=resume_refused and 'resume_refused' or 'resume_allowed'
+    check('scene-lifecycle:resume',resume_refused,{ok=resumed and resumed.ok})
+    if not changed then map.map[idx][engine.Map.TERRAIN]=saved end
+    Runtime.autoCombatHandle(game,'deactivate',{})
+    Runtime.setAutoCombatExecution(game,false)
+    return compare('scene-lifecycle',signals)
+end
+
 local function runAll()
     local ok,err=pcall(function()
         startWhenReady()
@@ -974,6 +1164,62 @@ function M.onFrame()
         return
     end
     if M.waiting_solo then soloPumpCheck() return end
+    if M.waiting_final then
+        if M.final_stage=='talents' then
+            movementTalents()
+            M.final_stage='settle'
+            M.final_frames=0
+            return
+        end
+        if M.final_stage=='settle' then
+            M.final_frames=(M.final_frames or 0)+1
+            -- Alternate a settling tick (unpaused) with a ready-boundary check
+            -- (paused); a yielding talent body needs ticks, while `ready` is
+            -- only reported at a paused boundary.
+            if M.final_frames%3==0 then
+                game.paused=false
+                if core and core.game and type(core.game.requestNextTick)=='function' then
+                    core.game.requestNextTick()
+                end
+            else
+                forceReady()
+            end
+            if game.target and game.target.active and type(game.target.close)=='function' then
+                pcall(function() game.target:close() end)
+            end
+            -- A yielding movement-talent body can leave the native targeting UI
+            -- active; clear it so the game returns to a dispatchable boundary.
+            if game.target then game.target.active=false end
+            game.target_co=nil
+            local probe=Runtime.buildAutoCombatHostFor(game,policy({WAIT}),{drift=function() return true end})
+            local phase=probe and probe.phase and probe.phase() or 'ready'
+            if phase=='ready' then
+                forceReady()
+                M.final_stage='done'
+                M.waiting_final=false
+                sceneLifecycle()
+                M.done=true
+                M.emit{kind='auto_combat_done',passed=M.failures==0,failures=M.failures,checks=#M.checks}
+                return
+            elseif M.final_frames>=120 then
+                check('movement-talents:settle',false,{phase=phase,frames=M.final_frames,
+                    paused=game.paused,active=game.target and game.target.active,
+                    dialogs=#(game.dialogs or {})})
+                forceReady()
+                M.final_stage='scene'
+            end
+            return
+        end
+        if M.final_stage=='scene' then
+            sceneLifecycle()
+            M.final_stage='done'
+            M.waiting_final=false
+            M.done=true
+            M.emit{kind='auto_combat_done',passed=M.failures==0,failures=M.failures,checks=#M.checks}
+            return
+        end
+        return
+    end
     if not M.pending then return end
     M.pending=false
     if not runAll() then

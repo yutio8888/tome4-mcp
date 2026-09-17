@@ -71,7 +71,7 @@ end
 -- 2. Acceptance filters are policy-owned, never plugin strategy gates ---------
 do
     local cells={['3,2']={in_bounds=true,visible=false,remembered=true,passable='unknown',hazard='unknown'},
-        ['2,1']={in_bounds=true,visible=true,remembered=true,passable=true,hazard=false}}
+        ['2,1']={in_bounds=true,visible=true,remembered=true,passable=true,hazard=true}}
     local p=provider({x=2,y=2},cells,{bound_target={x=6,y=2}})
     local seen=Planner.planStep({selector='toward',anchor='bound_target',
         accept=accept({visibility='known'})},p,1)
@@ -94,7 +94,14 @@ do
         'avoid_known keeps an unknown-hazard destination (policy decides)')
     local knownSafe=Planner.planStep({selector='toward',anchor='bound_target',
         accept=accept({hazard='known_safe'})},p,1)
-    check(knownSafe==nil,'known_safe fails closed when no affirmative hazard proof exists')
+    check(knownSafe==nil,'known_safe fails closed when no affirmative safe proof exists')
+    -- Polarity: a provider cell with `hazard=false` is affirmatively safe and is
+    -- accepted by known_safe / avoid_known.
+    local safeCells={['3,2']={in_bounds=true,visible=true,remembered=true,passable=true,hazard=false}}
+    local sp=provider({x=2,y=2},safeCells,{bound_target={x=6,y=2}})
+    local safe=Planner.planStep({selector='position',x=3,y=2,
+        accept=accept({hazard='known_safe'})},sp,1)
+    check(safe and safe.x==3 and safe.y==2,'hazard=false is affirmatively safe (known_safe accepts it)')
 end
 
 -- 3. Talent destinations: grid, native landing, random teleport --------------
@@ -119,10 +126,52 @@ do
         provider({x=2,y=2},{},{bound_target={x=6,y=2}}),1,{target_requests={'actor'},landing='bounded_alternatives',radius=1})
     check(landing and landing.kind=='native_landing','an actor-anchored landing uses the native envelope')
     check(landing.annotation.landing.kind=='bounded','a bounded landing is reported as bounded')
+    -- MFT-REV-04: `bounded` is a non-single landing; `landing='deterministic'`
+    -- must reject it (not only `random`).
+    local boundedStrict=Planner.planTalent({selector='native_landing',anchor='bound_target',
+        accept=accept({landing='deterministic'})},
+        provider({x=2,y=2},{},{bound_target={x=6,y=2}}),1,
+        {target_requests={'actor'},landing='bounded_alternatives',radius=1})
+    check(boundedStrict==nil,'landing=deterministic rejects a bounded (non-single) landing')
     local missing,missing_err=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
         destination={selector='native_random',accept=accept()}},p,nil)
     check(missing==nil and missing_err and missing_err.reason=='unsupported_movement_adapter',
         'native_random without a movement adapter is a capability gap, not a refusal')
+    -- MFT-REV-03: an ordered target plan is consumed by request kind.
+    local actorPlan=Planner.plan({action='use_talent',talent='T_RUSH',bound_target='a1',
+        target_plan={{request='actor',selector='nearest_hostile'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept()}},
+        provider({x=2,y=2},{},{bound_target={x=6,y=2}}),
+        {target_requests={'actor'},landing='bounded_alternatives'})
+    check(actorPlan and actorPlan.kind=='actor','a single actor target-plan step is consumed')
+    local gridPlan=Planner.plan({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
+        target_plan={{request='grid',destination={selector='position',x=4,y=4,accept=accept()}}},
+        destination={selector='position',x=4,y=4,accept=accept()}},
+        provider({x=2,y=2},{['4,4']={in_bounds=true,visible=true,remembered=true,passable=true,hazard='unknown'}}),
+        {target_requests={'grid'},landing='exact'})
+    check(gridPlan and gridPlan.kind=='grid' and gridPlan.x==4,
+        'a single grid target-plan step is consumed')
+    local nonePlan=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
+        target_plan={{request='none'}},destination={selector='native_random',accept=accept()}},
+        provider({x=2,y=2},{}),{target_requests={'none'},landing='random'})
+    check(nonePlan and nonePlan.kind=='none','a single none target-plan step is consumed')
+    local multi,multiErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
+        target_plan={{request='actor',selector='self'},{request='grid',
+            destination={selector='away',anchor='bound_target',accept=accept()}}}},
+        provider({x=2,y=2},{},{bound_target={x=6,y=2}}),
+        {target_requests={'actor','grid'},landing='random'})
+    check(multi==nil and multiErr and multiErr.reason=='unsupported_target_plan',
+        'a multi-prompt target plan is a typed capability gap, not silently ignored')
+    -- A level-limited adapter variant is rejected with the published reason.
+    local variant,variantErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',accept=accept()}},
+        {origin=function() return {x=2,y=2} end,talentLevel=function() return 4 end},
+        {target_requests={'none'},landing='random',
+            unsupported_variants={{at_least=4,scope='effective_talent_level>=4',
+                missing='actor_then_grid_target_plan'}}})
+    check(variant==nil and variantErr and variantErr.reason=='unsupported_movement_variant'
+        and variantErr.missing=='actor_then_grid_target_plan',
+        'a level-limited adapter variant is rejected with its typed reason')
 end
 
 -- 4. Production controller wiring: a plain step reaches the executor ----------
@@ -216,6 +265,85 @@ do
     local step=c:step()
     check(step.action=='paused' and step.reason=='player_interaction',
         'a pending change_level confirmation pauses for the player')
+end
+
+-- 5b. An uncertain scene change still stops/resets (MFT-REV-06).
+do
+    local p=policy()
+    p.rules={{id='descend',priority=10,when={always={}},['then']={action='change_level'}}}
+    local h=host({outcome={status='uncertain',code='execution_error',energy_spent=0,
+        level_changed=true}})
+    local c=AutoCombat.new(p,h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='stopped' and step.reason=='level_changed',
+        'an uncertain outcome that still changed level stops the run')
+    check(c.state=='stopped','the controller is stopped, not merely paused')
+    check(c:resume().ok==false,'an uncertain scene change requires an explicit start')
+end
+
+-- 5c. v1.6 mode: evaluate_rules executes a policy kite below min_hp_pct -------
+do
+    local p=policy({mode={on_low_hp='evaluate_rules'}})
+    local h=host()
+    h.snap.hp_pct=10
+    local c=AutoCombat.new(p,h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='acted' and step.rule=='kite',
+        'evaluate_rules executes a policy movement rule at low HP (no global flee gate)')
+end
+
+-- 5d. Q4: a within-tolerance guard permit surfaces the measurement -----------
+do
+    local p=policy()
+    local h=host()
+    h.guard=function() return {action='permit',detail={measurement=40,threshold=50,
+        phase='instant',provenance={selffire='explicit'}}} end
+    local c=AutoCombat.new(p,h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='acted' and step.risk and step.risk.measurement==40
+        and step.risk.threshold==50,'a permitted action carries the measured risk and threshold')
+    local recent=c:recentDecisions(4)
+    local carried=false
+    for _,event in ipairs(recent) do
+        if event.kind=='acted' and event.detail and event.detail.measurement==40 then carried=true end
+    end
+    check(carried,'the guard measurement reaches the bounded decision ring')
+end
+
+-- 5e. A rejected guard risk carries its detail into the denial record --------
+do
+    local p=policy()
+    local h=host()
+    h.guard=function() return {action='reject',reason='selffire_risk',
+        detail={measurement=90,threshold=0,unknown=false}} end
+    local c=AutoCombat.new(p,h,{strict=false})
+    c:start()
+    c:step()
+    local found
+    for _,r in ipairs(c.rejections or {}) do
+        if r.rule=='kite' then found=r.detail end
+    end
+    check(found and found.measurement==90 and found.threshold==0,
+        'the guard risk detail is retained with the denial (MFT-REV-07)')
+end
+
+-- 5f. A multi-prompt target plan pauses with a typed reason ------------------
+do
+    local p=policy()
+    p.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={{request='actor',selector='self'},{request='grid',
+                destination={selector='relative',dx=1,dy=0,accept=accept()}}}}}}
+    local h=host()
+    h.plan=function() return nil,{reason='unsupported_target_plan',count=2} end
+    local c=AutoCombat.new(p,h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='paused' and step.reason=='unsupported_target_plan',
+        'a multi-prompt target plan pauses with a typed capability reason')
 end
 
 -- 6. Schema/decision carry the destination through to the planner -------------

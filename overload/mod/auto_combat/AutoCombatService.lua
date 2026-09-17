@@ -131,56 +131,125 @@ function M.dryRun(svc,args)
     if not host or type(host.snapshot)~='function' then return fail('snapshot_unavailable') end
     local policy_hash=Schema.hash(policy)
     local default_selector=policy.targeting and policy.targeting.default
-    local ctx=host.snapshot(default_selector) or {}
-    ctx.attempts=0
-    ctx.denied={}
-    local decision=Evaluator.evaluate(policy,ctx,{context_for=function(selector)
-        if selector==default_selector then return ctx end
+    local function snapshotFor(selector)
         local rc=host.snapshot(selector) or {}
         rc.attempts=0
         rc.denied={}
         return rc
-    end})
-    -- A rule's condition and the target it acts on must bind the same object, so
-    -- mirror the controller: if the winning rule selects a different target than
-    -- the context, re-bind and re-check before reporting it.
-    local bound_target=ctx.bound_target
-    local target_distance=ctx.enemy_distance
-    local binding={ok=true,selector=ctx.binding_selector}
-    if decision.decision=='act' and decision.target~=nil and ctx.binding_selector~=nil
-        and decision.target~=ctx.binding_selector then
-        local rebound=host.snapshot(decision.target)
-        local rule=findRule(policy,decision.rule)
-        if rebound and rebound.binding_selector==decision.target
-            and rule and Evaluator.evalCondition(rule.when,rebound)==Evaluator.TRUE then
-            bound_target=rebound.bound_target
-            target_distance=rebound.enemy_distance
-            binding={ok=true,selector=decision.target,rebound=true}
-        else
-            bound_target=nil;target_distance=nil
-            binding={ok=false,selector=decision.target,reason='target_rebind_failed'}
+    end
+    local ctx=snapshotFor(default_selector)
+    -- MFT-REV-05: mirror the controller's bounded deny/fall-through loop so the
+    -- reported action is the one live execution would next submit. This never
+    -- calls request()/execute() or commits anything.
+    local maxActions=(policy.limits and policy.limits.max_actions_per_tick) or 1
+    local maxInstant=(policy.limits and policy.limits.max_instant_per_tick) or 3
+    local denied={}
+    local attempts=0
+    local trace={}
+    local decision={decision='hold',reason='no_rule_matched',results={}}
+    local bound_target,target_distance,binding,movement,risk_detail
+    local loop_paused=false
+    local rebound_flag=false
+    local bound_selector
+    for _=1,8 do
+        local base=snapshotFor(default_selector)
+        base.attempts=attempts
+        base.denied=denied
+        local d=Evaluator.evaluate(policy,base,{context_for=function(selector)
+            if selector==default_selector then return base end
+            local rc=snapshotFor(selector)
+            rc.attempts=attempts
+            rc.denied=denied
+            return rc
+        end})
+        decision=d
+        if d.decision~='act' then break end
+        -- The instant cap is a controller rule; mirror it without executing.
+        if (d.action=='use_talent' or d.action=='set_sustain') and attempts>=maxInstant then
+            decision={decision='pause',reason='instant_budget_exhausted',rule=d.rule,
+                results=d.results,layer=d.layer}
+            loop_paused=true
+            break
         end
+        -- Same-target binding check the controller performs.
+        local bt,td=base.bound_target,base.enemy_distance
+        rebound_flag=false
+        bound_selector=nil
+        local ok=true
+        if d.target~=nil and base.binding_selector~=nil and d.target~=base.binding_selector then
+            local rebound=host.snapshot(d.target)
+            local rule=findRule(policy,d.rule)
+            if rebound and rebound.binding_selector==d.target
+                and rule and Evaluator.evalCondition(rule.when,rebound)==Evaluator.TRUE then
+                bt,td=rebound.bound_target,rebound.enemy_distance
+                rebound_flag=true
+                bound_selector=d.target
+            else
+                ok=false
+            end
+        end
+        if not ok then
+            denied[d.rule]=true
+            trace[#trace+1]={rule=d.rule,reason='target_rebind_failed'}
+        else
+            local plan
+            local plan_fail,plan_fail_err
+            if d.action=='move' or d.destination~=nil or d.target_plan~=nil then
+                if type(host.plan)=='function' then
+                    local planned,planned_err=host.plan({action=d.action,talent=d.talent,
+                        destination=d.destination,target_plan=d.target_plan,direction=d.direction,
+                        bound_target=bt})
+                    if planned and planned.plan then plan=planned.plan
+                    else plan_fail=(planned and planned.reason)
+                        or (planned_err and planned_err.reason) or 'destination_unavailable'
+                        plan_fail_err=(planned_err and planned_err.annotation) or (planned and planned.annotation)
+                    end
+                else
+                    plan_fail='movement_provider_unavailable'
+                end
+            end
+            if plan_fail then
+                denied[d.rule]=true
+                trace[#trace+1]={rule=d.rule,reason=plan_fail,annotation=plan_fail_err}
+            else
+                local guard=host.guard and host.guard({rule=d.rule,action=d.action,talent=d.talent,
+                    target=d.target,bound_target=bt,emergency=d.emergency==true})
+                if guard and guard.action=='pause' then
+                    decision={decision='pause',reason=guard.reason,rule=d.rule,results=d.results,layer=d.layer}
+                    risk_detail=guard.detail
+                    loop_paused=true
+                    break
+                end
+                if guard and guard.action=='reject' then
+                    attempts=attempts+1
+                    denied[d.rule]=true
+                    trace[#trace+1]={rule=d.rule,reason=guard.reason,risk=guard.detail}
+                else
+                    -- This is the action live execution would next submit.
+                    decision=d
+                    bound_target,target_distance=bt,td
+                    -- Keep the default binding selector unless a non-default
+                    -- selector was re-bound and re-checked above.
+                    binding={ok=true,selector=bound_selector or base.binding_selector,
+                        rebound=rebound_flag or nil}
+                    risk_detail=guard and guard.detail
+                    if plan then movement={plan=plan.kind,annotation=plan.annotation} end
+                    break
+                end
+            end
+        end
+        if attempts>=maxActions then
+            decision={decision='pause',reason='budget_exhausted',rule=decision.rule,
+                results=decision.results,layer=decision.layer}
+            loop_paused=true
+            break
+        end
+    end
+    -- A planner/guard fall-through selection keeps the same binding metadata.
+    if decision.decision=='act' and binding==nil then
+        binding={ok=true,selector=decision.target}
     end
     local snapshot=type(host.snapshot_meta)=='function' and host.snapshot_meta() or nil
-    -- Movement/reposition dry-run annotation (MOV-3): run the same deterministic
-    -- planner the executor uses and report landing/visibility/passability/hazard
-    -- honestly. This never executes and never reads hidden state.
-    local movement=nil
-    if decision.decision=='act' and (decision.action=='move' or decision.destination~=nil) then
-        if type(host.plan)=='function' then
-            local planned,planned_err=host.plan({action=decision.action,talent=decision.talent,
-                destination=decision.destination,target_plan=decision.target_plan,
-                direction=decision.direction,bound_target=bound_target})
-            if planned and planned.plan then
-                movement={plan=planned.plan.kind,annotation=planned.plan.annotation}
-            else
-                movement={error=(planned and planned.reason)
-                    or (planned_err and planned_err.reason) or 'destination_unavailable'}
-            end
-        else
-            movement={error='movement_provider_unavailable'}
-        end
-    end
     return ok({dry_run=true,executed=false,side_effects='none',
         policy_hash=policy_hash,schema=Schema.SCHEMA,policy_source=source,
         snapshot=snapshot,
@@ -189,7 +258,9 @@ function M.dryRun(svc,args)
         rule=decision.rule,action=decision.action,talent=decision.talent,
         max_turns=decision.max_turns,
         target=decision.target,bound_target=bound_target,target_distance=target_distance,
-        binding=binding,movement=movement,results=decision.results or {},unsupported=Json.array()})
+        binding=binding,movement=movement,risk=risk_detail,
+        rejected=trace,paused=loop_paused or nil,
+        results=decision.results or {},unsupported=Json.array()})
 end
 
 function M.setDraft(svc,policy,expected_hash)
@@ -348,6 +419,7 @@ function M.step(svc)
     if step.action=='acted' then
         Log.add(svc.log,withContext(svc,{kind=step.action,reason=step.reason,rule=step.rule,talent=step.talent,
             target=step.bound_target,generation=step.generation,
+            movement=step.destination,risk=step.risk,
             native_result=step.outcome and step.outcome.status or nil,
             rule_results=step.results,rejections=step.rejections,
             resources_before=before,resources_after=after,policy_hash=policy_hash}))

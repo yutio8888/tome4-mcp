@@ -94,3 +94,47 @@ resolution final; scene change pauses/resets and needs an explicit restart.
 
 See `VALIDATION.md` §"0.9.0：移动/重新定位第一段（MOV-1 … MOV-6）" for the
 per-ID results, commands, raw artifacts and package SHA-256.
+
+---
+
+## rev 2 — review fixes (MFT-REV-01 … 09)
+
+Independent review of rev 1 (`4ba89dc2`) returned 0 P0 / 6 P1 / 3 P2. All nine
+are fixed; R-1…R-6 stay true.
+
+- **Policy modes (REV-01).** `policy.mode` is explicit normalized data:
+  `on_no_enemy` (`stop|evaluate_rules`) and `on_low_hp`
+  (`pause|emergency_only|evaluate_rules`). Built-in presets expand the old
+  conservative behaviour as data. `emergency` is now a scheduling label only —
+  the schema has no action allowlist, and `evaluate_rules` executes any declared
+  action at low HP. The executor no longer imposes a global flee pause.
+- **Q4 selffire (REV-02).** `EffectRisk.measure` freezes a numeric aggregation
+  (self `min(SF,FF)`, friendly `FF`, `unknown` dominates). The guard compares it
+  with `max_selffire_risk`: at/under tolerance it **permits** and carries
+  `measurement`/`threshold`/provenance; above tolerance or an incalculable
+  footprint it rejects. Dry-run, decisions and the policy log report the
+  measurement.
+- **Ordered `target_plan` (REV-03).** Each step is validated for its request
+  kind; `EffectManifest.verify` compares the ordered sequence with the
+  source-pinned `movement.target_requests`; the planner consumes the first
+  request. A multi-prompt plan pauses with the typed
+  `unsupported_target_plan` instead of being ignored.
+- **Destination semantics (REV-04).** `landing='deterministic'` rejects every
+  non-single landing (`bounded` and `random`). Hazard polarity is
+  `true`=known hazard, `false`=affirmatively safe, `unknown`=unknown.
+- **Dry-run accuracy (REV-05).** Dry-run runs the same bounded deny/fall-through
+  loop as live control (no commit/executor call) and returns the action live
+  execution would next submit, with the rejected rules and reasons.
+- **Uncertain scene change (REV-06).** `level_changed` is preserved independently
+  of the outcome status; any started/completed transition stops/resets the
+  controller and refuses `resume`.
+- **Decision-log completeness (REV-07).** Movement annotations and guard risk
+  detail flow through a bounded projection into `PolicyLog`/replay.
+- **Capability reporting (REV-08).** Structured `EffectManifest.UNSUPPORTED`
+  entries (talent/scope/missing/reason) and Phase Door `unsupported_variants`
+  are published and enforced with the same typed reason.
+- **Native applicability (REV-09).** The source and packaged auto-combat probe
+  now learn and execute Rush, exact-grid Tumble and random Phase Door through the
+  real executor, and run a real native `change_level` stair fixture (the
+  `mcp-test` arena is now two levels) observing the scene change, stopped state
+  and refused resume.

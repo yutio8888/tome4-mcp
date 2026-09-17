@@ -154,13 +154,45 @@ function M:context(selector)
 end
 
 -- Deny a rule/sustain for the rest of this action opportunity and record why.
-function M:deny(id,reason)
+-- Bounded, redaction-friendly projection of a risk/movement detail for the
+-- decision trace and policy log (MFT-REV-07). Only scalar values and a small
+-- set of known keys are carried; nested tables are shallow-copied with a cap.
+local DETAIL_KEYS={'measurement','threshold','risk','unknown','provenance','phase','component',
+    'landing','visible','remembered','known_passable','known_hazard','confidence','reasons',
+    'selector','talent','scope','missing','requests','friendlies','selffire','friendlyfire'}
+local function boundedDetail(detail)
+    if type(detail)~='table' then return nil end
+    local out={}
+    for _,key in ipairs(DETAIL_KEYS) do
+        local value=detail[key]
+        if value~=nil then
+            if type(value)=='table' then
+                local copy={}
+                local count=0
+                for k,v in pairs(value) do
+                    count=count+1
+                    if count>16 then break end
+                    if type(v)=='string' or type(v)=='number' or type(v)=='boolean' then copy[k]=v end
+                end
+                out[key]=copy
+            elseif type(value)=='string' or type(value)=='number' or type(value)=='boolean' then
+                out[key]=value
+            end
+        end
+    end
+    return out
+end
+M.boundedDetail=boundedDetail
+
+function M:deny(id,reason,detail)
     self.denied[id]=true
     reason=reason or 'denied'
-    self.rejections[#self.rejections+1]={rule=id,reason=reason}
-    self:record({kind='denied',rule=id,reason=reason})
+    local entry={rule=id,reason=reason}
+    if detail then entry.detail=boundedDetail(detail) end
+    self.rejections[#self.rejections+1]=entry
+    self:record({kind='denied',rule=id,reason=reason,detail=entry.detail})
     if self.notify then
-        self.notify({kind='denied',reason=reason,rule=id,generation=self.generation})
+        self.notify({kind='denied',reason=reason,rule=id,detail=entry.detail,generation=self.generation})
     end
 end
 
@@ -246,18 +278,16 @@ function M:step()
         paused.detail='hp_pct'
         return paused
     end
-    -- D6: `flee_below_hp_pct` is a distinct pause reason (no auto-retreat).
-    local flee=self.policy.safety and self.policy.safety.flee_below_hp_pct
-    if flee~=nil and type(pre.hp_pct)=='number' and pre.hp_pct<flee then
-        self:record({kind='paused',reason='flee_below_hp_pct'})
-        return self:pause('flee_below_hp_pct')
-    end
-    -- AC-04: the critical layer runs before sustain maintenance; and sustain
-    -- maintenance is a normal-layer combat optimization, skipped when no enemy
-    -- is visible. An explicit normal rule (rest/auto_explore) still runs; if
-    -- nothing matches, the rule loop ends the run with `no_visible_enemies`.
-    local critical=Evaluator.critical(self.policy,pre.hp_pct)
-    if not critical and (pre.enemy_count or 0)>0 then
+    -- v1.6 scheduling mode: the policy chooses no-enemy and low-HP behaviour.
+    -- The executor no longer imposes a global flee pause or a fixed emergency
+    -- layer; `emergency` is a scheduling label selected by `emergency_only`.
+    local sched=Evaluator.scheduling(self.policy,pre.hp_pct)
+    local critical=sched.low_hp
+    -- AC-04: sustain maintenance is a normal-layer combat optimization; it runs
+    -- before the rule loop only in the normal layer, and only with a visible
+    -- enemy. An explicit normal rule (rest/auto_explore) still runs in the rule
+    -- loop; if nothing matches, the no-enemy mode decides the stop reason.
+    if sched.layer=='normal' and (pre.enemy_count or 0)>0 then
         local sustain=self:sustainStep()
         if sustain then
             self.attempts=self.attempts+1
@@ -304,9 +334,11 @@ function M:step()
             return paused
         end
         if decision.decision=='hold' then
-            -- No idle waiting: when there is no executable rule (and no visible
-            -- enemy left) the run ends and explains why, returning control.
-            local holdreason=ctx.enemy_count==0 and 'no_visible_enemies' or 'no_available_action'
+            -- No idle waiting: when there is no executable rule the run ends and
+            -- explains why, returning control. The no-enemy mode chooses the
+            -- reason (`stop` = legacy `no_visible_enemies`).
+            local holdreason='no_available_action'
+            if ctx.enemy_count==0 and sched.on_no_enemy=='stop' then holdreason='no_visible_enemies' end
             self:record({kind='stopped',reason=holdreason})
             self:stop(holdreason)
             return {action='stopped',reason=holdreason,results=decision.results,
@@ -330,7 +362,7 @@ function M:step()
             -- let an independent rule be evaluated (fail closed only for
             -- execution non-determinability, never for strategy).
             local plan
-            if decision.action=='move' or decision.destination~=nil then
+            if decision.action=='move' or decision.destination~=nil or decision.target_plan~=nil then
                 if self.host and type(self.host.plan)=='function' then
                     local planned,planned_err=self.host.plan({
                         rule=decision.rule,action=decision.action,talent=decision.talent,
@@ -342,22 +374,36 @@ function M:step()
                     else
                         local reason=(planned and planned.reason)
                             or (planned_err and planned_err.reason) or 'destination_unavailable'
-                        self:deny(decision.rule,reason)
+                        local detail=(planned_err and planned_err.annotation)
+                            or (planned_err and planned_err) or (planned and planned.annotation)
+                        if reason=='unsupported_target_plan' then
+                            -- An ordered multi-prompt plan cannot be driven by the
+                            -- one-prompt executor; pause with a typed capability
+                            -- reason instead of silently ignoring the rest.
+                            self:record({kind='paused',reason=reason,rule=decision.rule,detail=boundedDetail(detail)})
+                            local paused=self:pause(reason)
+                            paused.results=decision.results;paused.rejections=self.rejections
+                            return paused
+                        end
+                        self:deny(decision.rule,reason,detail)
                     end
                 else
                     self:deny(decision.rule,'movement_provider_unavailable')
                 end
             end
             if not self.denied[decision.rule] then
-            -- AC-03/D1/D2: version-pinned adapter guard over the actual bound
-            -- target. Reject (record + try next) at max_selffire_risk==0, pause
-            -- above it.
+            -- Q4: the guard measures the actual known self/friendly risk and
+            -- compares it with the policy's `max_selffire_risk`. A known risk at
+            -- or under the threshold is permitted (detail carried for logging);
+            -- above the threshold or an incalculable footprint is a policy
+            -- rejection of this action (try the next rule), not a global veto.
             local guard=self.host and self.host.guard and self.host.guard({
                 rule=decision.rule,action=decision.action,talent=decision.talent,
                 target=decision.target,bound_target=bound.bound_target,
                 emergency=decision.emergency==true})
             if guard and guard.action=='pause' then
-                self:record({kind='paused',reason=guard.reason,rule=decision.rule})
+                self:record({kind='paused',reason=guard.reason,rule=decision.rule,
+                    detail=boundedDetail(guard.detail)})
                 local paused=self:pause(guard.reason)
                 paused.results=decision.results;paused.rejections=self.rejections
                 return paused
@@ -366,8 +412,9 @@ function M:step()
                 -- A guard rejection is a real pre-execution attempt (frozen
                 -- budget contract): count it, then try the next candidate.
                 self.attempts=self.attempts+1
-                self:deny(decision.rule,guard.reason or 'safety_rejected')
+                self:deny(decision.rule,guard.reason or 'safety_rejected',guard.detail)
             else
+            local guard_detail=guard and guard.detail
             self.attempts=self.attempts+1
             local outcome=(self.host and self.host.request and self.host.request({
                 rule=decision.rule,action=decision.action,talent=decision.talent,
@@ -375,6 +422,17 @@ function M:step()
                 max_turns=decision.max_turns,direction=decision.direction,
                 destination=decision.destination,target_plan=decision.target_plan,plan=plan,
                 target=decision.target,bound_target=bound.bound_target,generation=generation})) or {}
+            -- MFT-REV-06: a scene transition is scene-boundary evidence,
+            -- independent of the outcome status. Any started/completed
+            -- transition stops/resets the run and requires an explicit start on
+            -- the new scene (uncertainty is preserved in the diagnostic).
+            if outcome.level_changed==true then
+                self:record({kind='scene_changed',rule=decision.rule,outcome=outcome})
+                self:stop('level_changed')
+                return {action='stopped',reason='level_changed',rule=decision.rule,
+                    results=decision.results,rejections=self.rejections,outcome=outcome,
+                    state=self.state,generation=self.generation}
+            end
             if outcome.status=='native_pending' then
                 self.state='waiting_native'; self.reason='native_pending'
                 return {action='wait_native',rule=decision.rule,state=self.state,generation=generation}
@@ -382,21 +440,11 @@ function M:step()
             if outcome.status=='ok' then
                 self.actions=self.actions+1
                 self:countInstant(outcome)
-                if decision.action=='change_level'
-                    and (outcome.level_changed==true or outcome.code=='level_changed') then
-                    -- Scene transition: report it, reset the run and require an
-                    -- explicit restart on the new scene (control integrity, not
-                    -- a policy judgment).
-                    self:record({kind='scene_changed',rule=decision.rule})
-                    self:stop('level_changed')
-                    return {action='stopped',reason='level_changed',rule=decision.rule,
-                        results=decision.results,rejections=self.rejections,outcome=outcome,
-                        state=self.state,generation=self.generation}
-                end
                 self:record({kind='acted',rule=decision.rule,talent=decision.talent,
-                    target=bound.bound_target,destination=plan and plan.annotation})
+                    target=bound.bound_target,destination=plan and plan.annotation,
+                    detail=boundedDetail(guard_detail)})
                 return {action='acted',rule=decision.rule,talent=decision.talent,bound_target=bound.bound_target,
-                    destination=plan and plan.annotation,
+                    destination=plan and plan.annotation,risk=boundedDetail(guard_detail),
                     results=decision.results,rejections=self.rejections,outcome=outcome,
                     state=self.state,generation=generation}
             end

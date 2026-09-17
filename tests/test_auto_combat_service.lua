@@ -387,6 +387,67 @@ do
 end
 
 do
+    -- MFT-REV-05: dry-run runs the same deny/fall-through loop as live control,
+    -- so it reports the action live execution would next submit.
+    local host={
+        phase=function() return 'ready' end,
+        snapshot_meta=function() return {revision=1,level_instance_id='level-1'} end,
+        snapshot=function(selector)
+            return {hp_pct=80,enemy_count=1,binding_selector=selector,bound_target='e1'}
+        end,
+        plan=function(attempt)
+            if attempt.talent=='T_PHASE_DOOR' then return nil,{reason='landing'} end
+            return {plan={kind='none',annotation={}}}
+        end,
+    }
+    local accept={visibility='any',passability='native',hazard='any',landing='deterministic'}
+    local p={schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=2},
+        safety={min_hp_pct=35},targeting={default='nearest_hostile'},
+        rules={
+            {id='tp',priority=10,when={always={}},['then']={action='use_talent',
+                talent='T_PHASE_DOOR',target='self',
+                destination={selector='native_random',accept=accept}}},
+            {id='fallback',priority=1,when={always={}},['then']={action='wait'}},
+        }}
+    local svc=Service.new{dry_run_host_factory=function() return host end}
+    local dry=Service.handle(svc,'dry_run',{policy=p})
+    check(dry.decision=='act' and dry.rule=='fallback' and dry.action=='wait',
+        'dry_run falls through a planner-rejected rule to the next action')
+    local rejected=0
+    for _,entry in ipairs(dry.rejected or {}) do
+        if entry.rule=='tp' and entry.reason=='landing' then rejected=rejected+1 end
+    end
+    check(rejected==1,'dry_run reports the rejected movement rule and its acceptance reason')
+end
+
+do
+    -- MFT-REV-02: dry-run invokes the guard and reports the measured risk.
+    local host={
+        phase=function() return 'ready' end,
+        snapshot_meta=function() return {revision=1,level_instance_id='level-1'} end,
+        snapshot=function(selector)
+            return {hp_pct=80,enemy_count=1,binding_selector=selector,bound_target='e1'}
+        end,
+        guard=function()
+            return {action='reject',reason='selffire_risk',
+                detail={measurement=90,threshold=0,risk='friendly',phase='instant'}}
+        end,
+    }
+    local p={schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=2},
+        safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='nearest_hostile'},
+        rules={{id='beam',priority=10,when={always={}},
+            ['then']={action='use_talent',talent='T_MOONLIGHT_RAY',target='nearest_hostile'}}}}
+    local dry=Service.handle(Service.new{dry_run_host_factory=function() return host end},
+        'dry_run',{policy=p})
+    local risk=nil
+    for _,entry in ipairs(dry.rejected or {}) do
+        if entry.rule=='beam' then risk=entry.risk end
+    end
+    check(risk and risk.measurement==90 and risk.threshold==0,
+        'dry_run surfaces the guard risk measurement and threshold')
+end
+
+do
     -- A native-activity rule is previewed without executing it.
     local camp={schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=1},
         safety={min_hp_pct=35},targeting={default='nearest_hostile'},

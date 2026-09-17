@@ -77,13 +77,18 @@ function M.annotate(x,y,provider)
         confidence='player_known',reasons=reasons}
 end
 
-local function isRandomLanding(landing)
-    if type(landing)~='table' then return false end
-    return landing.kind=='random'
+-- A landing is deterministic only when the source proves a single landing.
+-- `bounded` (bounded native alternatives) and `random` are both non-single and
+-- require the policy's `landing='allow_random'`.
+local function isNonDeterministicLanding(landing)
+    if type(landing)~='table' then return true end
+    return landing.kind~='deterministic'
 end
 
 -- Evaluate the policy's explicit acceptance object against an annotation. All
 -- four fields are required by the schema, so there is no hidden plugin default.
+-- Hazard polarity: `known_hazard=true` is a known hazard, `false` is an
+-- affirmative safe result, `'unknown'` is unknown.
 function M.accepts(accept,annotation)
     accept=accept or {}
     if accept.visibility=='visible' and annotation.visible~=true then return false,'visibility' end
@@ -93,9 +98,11 @@ function M.accepts(accept,annotation)
     if accept.passability=='known_passable' and annotation.known_passable~=true then
         return false,'passability'
     end
-    if accept.hazard=='known_safe' and annotation.known_hazard~=true then return false,'hazard' end
-    if accept.hazard=='avoid_known' and annotation.known_hazard==false then return false,'hazard' end
-    if accept.landing=='deterministic' and isRandomLanding(annotation.landing) then return false,'landing' end
+    if accept.hazard=='known_safe' and annotation.known_hazard~=false then return false,'hazard' end
+    if accept.hazard=='avoid_known' and annotation.known_hazard==true then return false,'hazard' end
+    if accept.landing=='deterministic' and isNonDeterministicLanding(annotation.landing) then
+        return false,'landing'
+    end
     return true
 end
 
@@ -247,6 +254,88 @@ function M.planTalent(request,provider,bound,movement,origin)
     return {kind='grid',x=best.x,y=best.y,annotation=best.annotation,score=best.score}
 end
 
+-- Build the annotation for a no-explicit-endpoint native request (self/actor
+-- landing derived by native code) from the manifest's movement classification.
+local function nativeLandingAnnotation(movement,anchor)
+    movement=movement or {}
+    if movement.landing=='random' then
+        local bounds={kind='random',source='native'}
+        if finite(movement.radius) then bounds.radius=movement.radius end
+        if finite(movement.min_radius) then bounds.min_radius=movement.min_radius end
+        if finite(movement.range) then bounds.range=movement.range end
+        return {landing=bounds,visible=false,remembered=false,
+            known_passable='unknown',known_hazard='unknown',
+            confidence='source_pinned_random',
+            reasons={'native_random_landing','hidden_occupancy_not_inspected'}}
+    end
+    local kind=movement.landing=='exact' and 'deterministic' or 'bounded'
+    local landing={kind=kind}
+    if anchor then landing.center={x=anchor.x,y=anchor.y} end
+    if finite(movement.radius) then landing.radius=movement.radius end
+    if finite(movement.min_radius) then landing.min_radius=movement.min_radius end
+    return {landing=landing,visible=true,remembered=true,
+        known_passable='unknown',known_hazard='unknown',
+        confidence='source_'..tostring(movement.landing or 'defined'),
+        reasons={'actor_anchored_landing','landing_derived_by_native'}}
+end
+
+-- A source-pinned adapter may declare level/variant forms it cannot drive (for
+-- example Phase Door TL4+ actor-then-grid). The runtime rejects those with the
+-- same typed reason the catalog publishes (MFT-REV-08).
+local function unsupportedVariant(movement,provider,talent)
+    if type(movement)~='table' or type(movement.unsupported_variants)~='table' then return nil end
+    local level=provider.talentLevel and provider.talentLevel(talent) or nil
+    for _,variant in ipairs(movement.unsupported_variants) do
+        if variant.at_least and type(level)=='number' and level>=variant.at_least then return variant end
+    end
+    return nil
+end
+
+-- Consume an ordered target plan: the executor pre-fills one native prompt, so
+-- only a single-request plan is driven; a longer sequence is a typed capability
+-- pause rather than a silent ignore.
+local function planFromTargetPlan(attempt,provider,movement,origin)
+    local step=attempt.target_plan[1]
+    local request=step and step.request
+    local accept=(type(attempt.destination)=='table') and attempt.destination.accept or nil
+    local function acceptAnnotation(annotation,defaultAccept)
+        local ok,reason=M.accepts(accept or defaultAccept,annotation)
+        if not ok then return nil,{reason=reason,annotation=annotation} end
+        return annotation,nil
+    end
+    if request=='grid' then
+        return M.planTalent(step.destination,provider,attempt.bound_target,movement,origin)
+    end
+    if request=='none' then
+        local annotation=nativeLandingAnnotation(movement,nil)
+        local _,err=acceptAnnotation(annotation,{visibility='any',passability='native',
+            hazard='any',landing='allow_random'})
+        if err then return nil,err end
+        return {kind='none',annotation=annotation}
+    end
+    if request=='self' then
+        local annotation=nativeLandingAnnotation(movement,{x=origin.x,y=origin.y})
+        annotation.landing.kind=(movement.landing=='exact' or movement.landing==nil)
+            and 'deterministic' or annotation.landing.kind
+        annotation.confidence='self_request'
+        annotation.reasons={'self_request','landing_is_origin'}
+        local _,err=acceptAnnotation(annotation,{visibility='any',passability='native',
+            hazard='any',landing='allow_random'})
+        if err then return nil,err end
+        return {kind='self',annotation=annotation}
+    end
+    if request=='actor' then
+        local anchor=provider.anchor and provider.anchor('bound_target',attempt.bound_target) or nil
+        if not anchor then return nil,{reason='anchor_unavailable',selector='bound_target'} end
+        local annotation=nativeLandingAnnotation(movement,anchor)
+        local _,err=acceptAnnotation(annotation,{visibility='any',passability='native',
+            hazard='any',landing='allow_random'})
+        if err then return nil,err end
+        return {kind='actor',annotation=annotation}
+    end
+    return nil,{reason='unsupported_target_plan',talent=attempt.talent,request=request}
+end
+
 -- Dispatch by action. `movement` is only required for native-landing selectors;
 -- a missing movement adapter is a capability gap, reported as such.
 function M.plan(attempt,provider,movement)
@@ -273,6 +362,21 @@ function M.plan(attempt,provider,movement)
         end
         return M.planStep(attempt.destination,provider,attempt.bound_target,origin)
     end
+    local variant=unsupportedVariant(movement,provider,attempt.talent)
+    if variant then
+        return nil,{reason='unsupported_movement_variant',talent=attempt.talent,
+            scope=variant.scope,missing=variant.missing,at_least=variant.at_least}
+    end
+    if type(attempt.target_plan)=='table' then
+        if #attempt.target_plan~=1 then
+            return nil,{reason='unsupported_target_plan',talent=attempt.talent,
+                count=#attempt.target_plan,scope='multi_prompt'}
+        end
+        if movement==nil then
+            return nil,{reason='unsupported_movement_adapter',talent=attempt.talent}
+        end
+        return planFromTargetPlan(attempt,provider,movement,origin)
+    end
     if type(attempt.destination)~='table' then return {kind='none',annotation={landing={kind='native'}}} end
     -- Any talent destination requires a source-pinned movement adapter: without
     -- it the plugin cannot map the requested request/landing to an audited native
@@ -281,20 +385,6 @@ function M.plan(attempt,provider,movement)
     if movement==nil then
         return nil,{reason='unsupported_movement_adapter',talent=attempt.talent,
             selector=attempt.destination.selector}
-    end
-    if attempt.destination.selector=='native_random'
-        or attempt.destination.selector=='native_landing' or attempt.destination.selector=='away'
-        or attempt.destination.selector=='toward' or attempt.destination.selector=='preferred_distance' then
-        if movement.target_requests~=nil then
-            local wants_grid=false
-            for _,request in ipairs(movement.target_requests) do
-                if request=='grid' then wants_grid=true end
-            end
-            if not wants_grid and attempt.destination.selector~='native_landing'
-                and attempt.destination.selector~='native_random' then
-                return nil,{reason='movement_target_request_mismatch',talent=attempt.talent}
-            end
-        end
     end
     return M.planTalent(attempt.destination,provider,attempt.bound_target,movement,origin)
 end

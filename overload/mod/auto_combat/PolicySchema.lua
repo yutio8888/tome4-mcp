@@ -21,9 +21,11 @@ M.MOVE_ACTIONS={move=true}
 -- scene transition pauses/resets the run and requires an explicit restart (see
 -- docs/tome-mcp-0.9.0-wave1-execution-safety.md D5/D6 supersession).
 M.ACTIVITY_ACTIONS={rest=true,auto_explore=true,change_level=true}
--- Emergency is a per-talent declaration (D1): any `use_talent`/`attack` may be
--- marked emergency; the pre-execution adapter guard is what keeps it safe.
-M.SELF_PRESERVATION_ACTIONS={use_talent=true,attack=true}
+-- v1.6 scheduling modes (design §5.4). These are normalized data: the plugin
+-- does not impose a tactical layer. `emergency` is only a scheduling label used
+-- by `emergency_only`; it never grants or removes an action capability.
+M.NO_ENEMY_MODES={stop=true,evaluate_rules=true}
+M.LOW_HP_MODES={pause=true,emergency_only=true,evaluate_rules=true}
 -- P2 adds target-selection predicates built only from audited reads (rank,
 -- level, type, bound-target distance). `has_effect`/`computed`-based predicates
 -- stay out: they need a dynamic getter the bridge does not audit yet.
@@ -262,9 +264,12 @@ local function validateDestination(destination,path,errors,allowedSelectors)
     validateAccept(destination.accept,path..'.accept',errors)
 end
 
--- An ordered target plan is a list of request steps. The executor may only
--- prefill one native prompt today, so a longer plan is schema-valid but reported
--- as a capability limit at execution (never silently mis-executed).
+-- An ordered target plan is a list of request steps. Each step must be
+-- self-consistent for its request kind; `EffectManifest.verify` additionally
+-- compares the ordered sequence with the source-pinned movement adapter. The
+-- executor prefills one native prompt today, so a longer plan is schema-valid
+-- but reported as a capability/integrity limit at execution (never silently
+-- ignored).
 local function validateTargetPlan(plan,path,errors)
     if not isArray(plan) or #plan==0 then
         errors[#errors+1]={path=path,code='invalid_target_plan'};return
@@ -275,13 +280,38 @@ local function validateTargetPlan(plan,path,errors)
         if type(step)~='table' then errors[#errors+1]={path=stepPath,code='invalid_target_step'}
         else
             onlyKeys(step,{request=true,selector=true,destination=true},stepPath,errors)
-            if not M.TARGET_REQUESTS[step.request] then
+            local request=step.request
+            if not M.TARGET_REQUESTS[request] then
                 errors[#errors+1]={path=stepPath..'.request',code='invalid_target_request'}
+            elseif request=='grid' then
+                if step.destination==nil then
+                    errors[#errors+1]={path=stepPath..'.destination',code='grid_request_needs_destination'}
+                end
+                if step.selector~=nil then
+                    errors[#errors+1]={path=stepPath..'.selector',code='unexpected_selector'}
+                end
+            elseif request=='actor' then
+                if step.destination~=nil then
+                    errors[#errors+1]={path=stepPath..'.destination',code='unexpected_destination'}
+                end
+                if step.selector~=nil and not M.SELECTORS[step.selector] then
+                    errors[#errors+1]={path=stepPath..'.selector',code='unsupported_selector'}
+                end
+            else -- self / none
+                if step.selector~=nil then
+                    errors[#errors+1]={path=stepPath..'.selector',code='unexpected_selector'}
+                end
+                if step.destination~=nil then
+                    errors[#errors+1]={path=stepPath..'.destination',code='unexpected_destination'}
+                end
             end
-            if step.selector~=nil and not M.SELECTORS[step.selector] and not M.DESTINATION_SELECTORS[step.selector] then
-                errors[#errors+1]={path=stepPath..'.selector',code='unsupported_selector'}
+            if step.destination~=nil then
+                validateDestination(step.destination,stepPath..'.destination',errors,M.TALENT_DESTINATION_SELECTORS)
+                if step.destination.selector=='native_random' or step.destination.selector=='native_landing' then
+                    errors[#errors+1]={path=stepPath..'.destination.selector',
+                        code='grid_request_needs_explicit_endpoint'}
+                end
             end
-            if step.destination~=nil then validateDestination(step.destination,stepPath..'.destination',errors) end
         end
     end
 end
@@ -290,11 +320,24 @@ function M.validate(policy)
     local errors=Json.array()
     if type(policy)~='table' or policy==Json.null then return nil,{{path='',code='not_an_object'}} end
     onlyKeys(policy,{schema=true,id=true,name=true,class=true,updated=true,limits=true,
-        sustains=true,safety=true,targeting=true,rules=true,logging=true},'',errors)
+        mode=true,sustains=true,safety=true,targeting=true,rules=true,logging=true},'',errors)
     if policy.schema~=M.SCHEMA then errors[#errors+1]={path='schema',code='wrong_schema'} end
     if type(policy.id)~='string' or #policy.id==0 or #policy.id>128 then
         errors[#errors+1]={path='id',code='invalid_id'} end
     if type(policy.name)~='string' or #policy.name>128 then errors[#errors+1]={path='name',code='invalid_name'} end
+    -- v1.6 scheduling mode: explicit normalized data, no plugin tactical layer.
+    if policy.mode~=nil then
+        if type(policy.mode)~='table' then errors[#errors+1]={path='mode',code='invalid_mode'}
+        else
+            onlyKeys(policy.mode,{on_no_enemy=true,on_low_hp=true},'mode',errors)
+            if policy.mode.on_no_enemy~=nil and not M.NO_ENEMY_MODES[policy.mode.on_no_enemy] then
+                errors[#errors+1]={path='mode.on_no_enemy',code='invalid_mode_value'}
+            end
+            if policy.mode.on_low_hp~=nil and not M.LOW_HP_MODES[policy.mode.on_low_hp] then
+                errors[#errors+1]={path='mode.on_low_hp',code='invalid_mode_value'}
+            end
+        end
+    end
     if policy.limits~=nil then
         if type(policy.limits)~='table' then errors[#errors+1]={path='limits',code='invalid_limits'}
         else
@@ -495,12 +538,10 @@ function M.validate(policy)
                     elseif then_.target~=nil and not M.SELECTORS[then_.target] then
                         errors[#errors+1]={path=path..'.then.target',code='unsupported_selector'}
                     end
-                    -- Emergency rules are self-preservation only; the specific
-                    -- safety of the bound target is the executor guard's job
-                    -- (D1: any talent, no category whitelist).
-                    if rule.emergency==true and not M.SELF_PRESERVATION_ACTIONS[action] then
-                        errors[#errors+1]={path=path..'.then.action',code='emergency_not_self_preservation'}
-                    end
+                    -- v1.6: `emergency` is a scheduling label only (used by the
+                    -- `emergency_only` mode). It grants no action capability and
+                    -- imposes no type allowlist; safety is the pre-execution
+                    -- adapter guard's job.
                 end
             end
         end

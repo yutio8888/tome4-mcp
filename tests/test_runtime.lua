@@ -630,9 +630,15 @@ do
     local soft=Runtime.buildAutoCombatHostFor(g,{schema='tome-auto-combat/v1',id='p2',name='unit',
         limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=50},
         targeting={default='nearest_hostile'},rules=pl.rules},{drift=function() return true end})
-    local pausable=soft.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
-    check(pausable and pausable.action=='pause' and pausable.reason=='selffire_risk',
-        'max_selffire_risk>0 pauses on the same risk')
+    local above=soft.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
+    check(above and above.action=='reject' and above.detail and above.detail.measurement==100,
+        'a known risk above max_selffire_risk is rejected with its measurement')
+    local within=Runtime.buildAutoCombatHostFor(g,{schema='tome-auto-combat/v1',id='p3',name='unit',
+        limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=100},
+        targeting={default='nearest_hostile'},rules=pl.rules},{drift=function() return true end})
+    local permitted=within.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
+    check(permitted and permitted.action=='permit' and permitted.detail.threshold==100,
+        'a known risk within policy tolerance is permitted')
     check(live.guard({action='use_talent',talent='T_SEARING_LIGHT',bound_target=target})==nil,
         'a single-target adapter passes the ally guard')
     p.talents_def=saved_defs
@@ -678,7 +684,15 @@ do
     check(grid and grid.plan.kind=='grid' and grid.plan.annotation.visible==false
         and grid.plan.annotation.known_passable=='unknown',
         'an off-vision grid request is annotated, not refused')
+    -- MFT-REV-04: a known trap is `hazard=true` (known hazard), and avoid_known
+    -- rejects it; the provider never labels an unknown cell safe.
     g.level.map.seens[24]=true;g.level.map.infovs[24]=true;g.level.map.lites[24]=true
+    g.level.map.map[24][4]={all_know=true}
+    local trapped=live2.plan({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
+        destination={selector='position',x=4,y=4,
+            accept={visibility='any',passability='native',hazard='avoid_known',landing='allow_random'}}})
+    check(trapped==nil,'a known trap is reported as a known hazard and rejected by avoid_known')
+    g.level.map.map[24][4]=nil
     local random=live2.plan({action='use_talent',talent='T_PHASE_DOOR',
         destination={selector='native_random',
             accept={visibility='any',passability='native',hazard='any',landing='allow_random'}}})

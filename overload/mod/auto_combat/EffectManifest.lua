@@ -245,7 +245,14 @@ M.ENTRIES={
         components={},conformance={builder=true}},
     T_PHASE_DOOR={kind='movement',target='self',resource='mana',
         movement={target_requests={'none'},delivery='teleport',landing='random',
-            center='self',radius=6,min_radius=1},
+            center='self',radius=6,min_radius=1,
+            -- The no-prompt form is the only form this adapter drives. TL4+
+            -- branches to a target prompt and TL5 to a landing prompt; those
+            -- variants are published as unsupported with the same typed reason
+            -- the runtime rejects them with (MFT-REV-03/08).
+            unsupported_variants={{at_least=4,scope='effective_talent_level>=4',
+                missing='actor_then_grid_target_plan',
+                reason='Phase Door prompts for a target at TL4+ and a landing at TL5; the executor pre-fills one native prompt only'}}},
         components={},conformance={builder=false}},
 }
 
@@ -254,10 +261,28 @@ M.ENTRIES={
 for talent,entry in pairs(M.ENTRIES) do entry.source=Sources.talents[talent] end
 function M.source(talent) return Sources.talents[talent] end
 
--- Every whitelisted talent is now modelled; the dynamic talents were
--- re-admitted under the v2 manifest (TODO #55). Kept as an explicit empty table
--- so capability consumers still have a stable field.
-M.UNSUPPORTED={}
+-- Structured capability gaps (MFT-REV-08): talent, level/variant scope, the
+-- missing adapter capability and the reason. Published through `summary()` so a
+-- caller gets a typed reason rather than prose. These are ordinary movement
+-- actions whose adapters are not yet source-reviewed; they are not strategy
+-- refusals and do not affect already-supported actions.
+M.UNSUPPORTED={
+    {talent='T_PHASE_DOOR',scope='effective_talent_level>=4',
+        missing='actor_then_grid_target_plan',
+        reason='the no-prompt random self teleport is driven; target/landing prompts are not'},
+    {talent='T_BLINK_RUNE',scope='any',missing='source_reviewed_movement_adapter',
+        reason='visible grid request with a random fallback; adapter not source-reviewed'},
+    {talent='T_SKIRMISHER_VAULT',scope='any',missing='source_reviewed_movement_adapter',
+        reason='grid landing plus a visible adjacent launch actor; adapter not source-reviewed'},
+    {talent='T_DIMENSIONAL_STEP',scope='any',missing='source_reviewed_movement_adapter',
+        reason='requested-grid teleport with a possible actor swap; adapter not source-reviewed'},
+    {talent='T_SHADOWSTEP',scope='any',missing='source_reviewed_movement_adapter',
+        reason='actor-anchored random teleport plus an attack; adapter not source-reviewed'},
+    {talent='T_GIANT_LEAP',scope='any',missing='source_reviewed_movement_adapter',
+        reason='requested-grid movement with an alternate landing and radius effect; adapter not source-reviewed'},
+    {talent='*',scope='any',missing='moving_or_swapping_another_actor',
+        reason='typed multi-actor destination/effect semantics are not implemented'},
+}
 
 function M.entry(talent) return M.ENTRIES[talent] end
 function M.supported(talent) return talent~=nil and M.ENTRIES[talent]~=nil end
@@ -385,6 +410,30 @@ function M.verify(policy)
             if entry.target=='hostile' and selector~=nil and not M.HOSTILE_SELECTORS[selector]
                 and not no_target_move then
                 errors[#errors+1]={path=path,code='selector_not_hostile',talent=rule['then'].talent}
+            end
+            -- MFT-REV-03: an explicit ordered target plan must match the
+            -- source-pinned movement adapter's request sequence exactly.
+            local plan=rule['then'].target_plan
+            local movement=entry.kind=='movement' and entry.movement or nil
+            if type(plan)=='table' then
+                if not (movement and type(movement.target_requests)=='table') then
+                    errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_not_supported',
+                        talent=rule['then'].talent}
+                else
+                    local expected=movement.target_requests
+                    if #plan~=#expected then
+                        errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_mismatch',
+                            expected=table.concat(expected,','),got=#plan}
+                    else
+                        for step=1,#plan do
+                            if plan[step].request~=expected[step] then
+                                errors[#errors+1]={path=path..'.then.target_plan['..step..']',
+                                    code='target_plan_mismatch',expected=expected[step],
+                                    got=plan[step].request}
+                            end
+                        end
+                    end
+                end
             end
         elseif rule['then'] and rule['then'].action=='use_talent' then
             errors[#errors+1]={path=path,code='unsupported_talent',talent=rule['then'].talent}
