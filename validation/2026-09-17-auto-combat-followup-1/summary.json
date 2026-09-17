@@ -2,7 +2,7 @@
   "round": "round-3 follow-up (#45/#46/#47)",
   "date": "2026-09-17",
   "branch": "fix/round3-followup-control-handback",
-  "pr": "pending",
+  "pr": "#10 (https://github.com/yutio8888/tome4-mcp/pull/10)",
   "main_base": "fb2ccdd",
   "fixes": {
     "#45 Option A safety-pause handback": "flee_below_hp_pct/no_emergency_action release the lease to manual, stop the run; resume=not_running; start re-acquires; pause/stop dedupe",

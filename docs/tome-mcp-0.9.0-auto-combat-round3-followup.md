@@ -77,3 +77,8 @@ required.
   `1e671e304ed7bf77cb0e97c761ecced3b54eda80328e9b97187385ef27c28f88`.
 
 Raw probe/run evidence stays under `tmp/tome-mcp-validation/sessions/`.
+
+## Build / review
+
+Branch `fix/round3-followup-control-handback`, PR #10
+(https://github.com/yutio8888/tome4-mcp/pull/10).
