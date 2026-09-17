@@ -14,11 +14,17 @@
 ## 固定执行模型与轮换（维护者指定）
 | 代号 | provider / model | thinking | 备注 |
 | --- | --- | --- | --- |
-| **A** | `pi` / `commandcode/deepseek/deepseek-v4.1-flash` | high | 现行主力 |
-| **B** | `opencode` / `go/glm-5.3-flash` | high | 需启用 `opencode` provider（当前 daemon 配置为 `enabled:false`） |
+| **A** | `pi` / `commandcode/deepseek/deepseek-v4.1-flash` | high | **已实测通过**（需在 pi 的 `enabledModels` 中启用） |
+| **B** | `pi` / `opencode-go/glm-5.3-flash` | high | **已实测通过**（B 是 **pi 的 `opencode-go` 供应商**模型，不是 paseo 的 `opencode` provider） |
 
 **轮换规则**：按 loop 交替 A → B → A → B …，保证使用频率均等。
-**上下文窗口**：A、B 均配置为 **600K + 自动压缩（auto-compact）**（配置面见下"待办"）。
+**上下文窗口**：两者均为 1M 窗口；已在 `~/.pi/agent/settings.json` 设
+`compaction={enabled:true,reserveTokens:400000,keepRecentTokens:20000}`。pi 的自动压缩阈值
+= `contextWindow - reserveTokens` = **1,000,000 − 400,000 = 600,000**，即**有效 600K 窗口 + 自动压缩**。
+已在 `~/.pi/agent/settings.json` 的 `enabledModels` 加入 `opencode-go/glm-5.3-flash`；两个模型均已用
+paseo 试跑确认可启动并返回。
+**启用点的实测命令**：A = `--provider pi --model commandcode/deepseek/deepseek-v4.1-flash --thinking high`；
+B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 
 ## Loop 记录（回填：全部为模型 A；B 尚未启用）
 | # | 任务（分支/PR） | 执行 model | 审阅 model | 裁决 | P0 | P1 | P2 | P3 | issues |
@@ -48,10 +54,9 @@
   **迭代收敛过程**，不是独立任务的成功率；后续应以**独立任务**为统计单位，并把"同一功能的
   修复轮次"合并为一组观察。
 
-## 待办（维护者已定的配置项，尚未落实）
-1. **启用 `opencode` provider**：daemon 配置 `agents.providers.opencode.enabled=false`；需启用并确认
-   `go/glm-5.3-flash` 的确切 provider/model 串与 thinking 选项。
-2. **A/B 均设 600K 上下文窗口 + 自动压缩**：paseo 侧存在 `contextWindowMaxTokens` /
-   `autoCompactEnabled` / `autoCompactThreshold` / `autoCompactWindow` 等设置面；需确定这两个
-   provider 的具体配置键（provider 自己的配置文件或 paseo per-provider 设置）并写入，然后验证。
+## 配置状态（已完成）
+1. **A/B 串已确认并实测**（见上表"固定执行模型与轮换"）。
+2. **600K + 自动压缩已配置**：`~/.pi/agent/settings.json` 的 `compaction.reserveTokens=400000`
+   （1M − 400K = 600K 阈值）。
 3. **轮换生效点**：从**下一个独立 loop** 起，按 A→B→A→B 派发执行代理。
+   （备注：`~/.paseo/config.json` 的 `opencode` provider 启用与 B 无关，B 走 pi 的 `opencode-go`。）
