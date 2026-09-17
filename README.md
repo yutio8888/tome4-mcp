@@ -2,7 +2,7 @@
 
 让 MCP 客户端读取 ToME 1.7.6 的玩家视角状态，并执行一个原生游戏动作。由游戏内 Lua addon 与游戏外 Python MCP 服务组成，使用本机 TCP 通信。
 
-> **0.9.0**：内部 TCP 协议升级为 **v4**。写入使用规范序号命令身份 `cmd-<seq>`（由 `connect`/`observe` 的 `history.next_command_id` 给出）和有界命令账本；`status` 会区分保留结果、`command_history_expired` 与 `command_not_accepted`；v3 客户端会被明确拒绝（`protocol_mismatch`），不会自动降级。读路径本版还统一了技能费用的三态语义（未知费用不再伪报 `affordable`）与距离口径，并新增纯查询验收。集合分页、统一审核和原生长序列验收在后续完成，见 `docs/tome-mcp-0.9.0-execution-plan.md`。
+> **0.9.0**：内部 TCP 协议升级为 **v4**。写入使用规范序号命令身份 `cmd-<seq>`（由 `connect`/`observe` 的 `history.next_command_id` 给出）和有界命令账本；`status` 会区分保留结果、`command_history_expired` 与 `command_not_accepted`；v3 客户端会被明确拒绝（`protocol_mismatch`），不会自动降级。读路径本版还统一了技能费用的三态语义（未知费用不再伪报 `affordable`）与距离口径，并新增只读查询验收（只读边界改为“不提交动作、不泄露玩家未知信息”）。集合分页、统一审核和原生长序列验收在后续完成，见 `docs/tome-mcp-0.9.0-execution-plan.md`。
 
 ## 能力
 
@@ -22,13 +22,13 @@
 
 护送开场、完成奖励、告别可以属于同一条原始命令的后续页面。只显示实际栈顶，每个新页面有新的 ID；不能沿用上一页的 ID。原生自动页面由游戏自行继续。没有原生取消选项时不提供 `cancel`。重复 act/respond 不重放已经发生的移动、换层或奖励。
 
-已归属的 `change_level` 跨场景后保留当前对话和原命令，但控制租约失效：显式重新 `connect`，再 `status` 原 command_id 并回答，不能再次发起换层。原生加载等待窗口由游戏自动关闭；自动保存延后到这次交互全部结束。其他未声明的场景切换、未知 UI 或修改过的原生入口仍交给玩家。Battle Companion 的已发布换层包装及其下层原生入口均作源码校验。
+已归属的 `change_level` 跨场景后保留当前对话和原命令，但控制租约失效：显式重新 `connect`，再 `status` 原 command_id 并回答，不能再次发起换层。原生加载等待窗口由游戏自动关闭；自动保存延后到这次交互全部结束。其他未声明的场景切换、未知 UI 或不兼容的替换实现仍交给玩家。
 
 `stop` 和真实键鼠输入保留原生对话供玩家接手；手动保存也等待执行占用结束后才落盘。本版不把已有的手动对话收编到新命令中。普通单角色护送奖励已专项验证；奖励转入其他自定义窗口时按实际 provider 支持范围处理。
 
 ## 世界地图观测（0.6.1）
 
-世界地图沿原生 `playerFOV → computeFOV → applyLite` 的当前可见缓存报告地形与入口；检查相关方法身份和完整源码校验和。普通地牢仍要求 `seens + infovs`，失明时不新增地形知识。观测不触发视野计算、随机判定或移动回调。
+世界地图沿原生 `playerFOV → computeFOV → applyLite` 的当前可见缓存报告地形与入口；**直接使用当前实时的 FOV/缓存 getter**（不再以方法身份/源码校验和为运行前提）。普通地牢仍要求 `seens + infovs`，失明时不新增地形知识。观测不提交任何游戏动作，也不读取玩家未获知的信息；它**不承诺**零 RNG/零副作用，重复读取可能消耗随机数或改变只读缓存状态，但不影响正确性。相关方法源码摘要仅作可选的兼容性/遥测记录，不作运行门槛。
 
 `known=true` 表示本桥接会话曾观察过，`visible=true` 表示当前可见。原生 `remembers`、全图照明和已发现地点列表不会自动导入。视野外保留已有桥接记忆，不读取隐藏变化；重启游戏后重新积累。地图范围仍最多为身周 12 格，`is_exit` 标识可见通路，`name` 为其可见名称；不会返回隐藏目的地数据。`block_status` 只表示地形通行规则，实际移动和进入仍由原生命令判定。
 
@@ -124,8 +124,8 @@ Windows 使用相应环境的 `Scripts/python.exe`。
 
 | 字段 | 含义 |
 | --- | --- |
-| `range` | 存储的射程；动态函数标 `unknown`，不执行 |
-| `requires_target` / `target_type` | 存储的目标要求；动态函数标 `unknown` |
+| `range` | 射程；优先采用当前实时 getter 求值，缺失/报错/返回 `nil` 时标 `unknown` |
+| `requires_target` / `target_type` | 目标要求；优先采用当前实时 getter 求值，不可得时标 `unknown` |
 | `cooldown_remaining` | 当前剩余冷却 |
 | `current_costs` / `costs_complete` | 当前实时消耗（原生 `postUseTalent` 公式，含疲劳/效果）；不可知时对应项为 `unknown` |
 | `base_costs` | 存储的基础消耗，供对照 |
@@ -134,7 +134,7 @@ Windows 使用相应环境的 `Scripts/python.exe`。
 | `distance` / `in_range` | 传入 `target_id` 或 `x`/`y` 时的距离与射程比较 |
 | `prefill_supported` / `prefill_modes` | 本版本支持 `actor` 与 `position` 预填 |
 
-查询不运行 `preUseTalent`、动态 `info`、投射或命中计算，因此不会因查询产生副作用或消耗 RNG；实时 `current_costs` 只调用原生 `cost_factor`（可能读取只读疲劳 getter）。`query_is_advisory=true`，实际能否施放仍由原生执行决定。
+查询**不提交任何游戏动作**，也不暴露玩家未获知的信息；这是读取的两条红线。除此之外，查询**可以**调用当前实时的动态 getter/builder（包括 `getTalentRange`/`getTalentTarget`/`t.target` 等）来取得参考值，也**不承诺**零副作用或零 RNG：读值路径消耗随机数不影响正确性（ToME4 本身没有严格 RNG seed 系统）。动态求值报错、缺失或返回 `nil`/无效值时，对应字段保留 `unknown`，绝不猜测。`query_is_advisory=true`，实际能否施放仍由原生执行决定。
 
 **一次性目标预填。** v3 的 `use_talent` 可带 `target_id` 或 `x`/`y`：
 
@@ -208,7 +208,7 @@ Stunning Blow 和 Warshout 需要可见角色的 `target_id`；Warshout 沿该�
 
 ### 成长与物品
 
-调用 `tome.inspect(kind="progression", id="player")` 读取当前角色已具备的技能树、原始技能等级、点数成本和经过审核的条件。信息只来自玩家已有类别与已知状态；没有为展示信息调用动态技能说明或学习预检。未适配的动态条件保留 unknown，执行时仍经过原生检查。
+调用 `tome.inspect(kind="progression", id="player")` 读取当前角色已具备的技能树、原始技能等级、点数成本和经过审核的条件。信息只来自玩家已有类别与已知状态；查询不提交动作、不泄露玩家未知信息。可调用当前实时的动态 getter 求值；未适配或不可得（缺失/报错/`nil`）的动态条件保留 unknown，执行时仍经过原生检查。
 
 本版审核了普通 Berserker 可用的 11 类技能树。其他类别可以有只读摘要，学习支持以各项 `supported` 为准。**最近学习的技能点可以退还**（`unlearn_talent`），受原生 `last_learnt_talents` 窗口、非战斗和 item 授予保护约束；属性点与已解锁类别在原生升级对话框之外不可退还，因此不提供。传奇点和纹身槽扩展尚未适配。
 

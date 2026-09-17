@@ -27,8 +27,8 @@ those stay **curated**; the source review of the action and its branches remains
 the largest manual step for each new talent.
 
 This preserves the anti-goal “no generic all-teleport adapter”: the current
-contract requires every prompt to be represented by a source-pinned target plan,
-and current execution rejects multi-prompt plans rather than guessing
+contract requires every prompt to be represented by a source-reviewed, curated
+target plan, and current execution rejects multi-prompt plans rather than guessing
 (`docs/tome-mcp-0.9.0-movement-skills-design.md:186-212`;
 `overload/mod/auto_combat/MovementPlanner.lua:390-415`).
 
@@ -58,12 +58,15 @@ and current execution rejects multi-prompt plans rather than guessing
   The alternate bridge prefill seam answers only the first `getTarget` and then
   restores native targeting (`overload/mod/mcp_bridge/Actions.lua:217-280`).
 - Source files are MD5-pinned, builder source/definition lines are generated,
-  and live builder objects are checked by source line plus `rawequal`; any
-  mismatch becomes `adapter_source_drift`
+  and live builder objects are checked by source line plus `rawequal`; the
+  recorded result is emitted as `adapter_source_drift` telemetry
   (`tools/generate_effect_manifest.py:27-84,110-145`;
-  `overload/mod/auto_combat/EffectManifestDrift.lua:1-13,32-59,61-115`).
-- The current guard verifies drift and then skips every movement entry because
-  the first tranche has no movement/effect composition path
+  `overload/mod/auto_combat/EffectManifestDrift.lua:1-13,32-59,61-115`). **Under
+  the §1/§3.1 live-getter boundary this signal is advisory telemetry only**: a
+  replaced-but-working object must not disable the action, and only a
+  missing/throwing/`nil`/invalid return may.
+- The current guard records drift telemetry and then skips every movement entry
+  because the first tranche has no movement/effect composition path
   (`overload/mod/auto_combat/AutoCombatGuard.lua:181-192`). Consequently, adding
   damage components to Shadowstep or Giant Leap without changing that branch
   would silently leave those effects unguarded.
@@ -153,9 +156,10 @@ which already fails closed when the level is unavailable
 
 ### 4.2 Template taxonomy
 
-All defaults below are mechanical, not strategic. `source`, action identity,
-builder mode, helper dependencies, variants, and non-movement components are
-always explicit per talent.
+All defaults below are mechanical, not strategic. Curated semantic source
+coverage, builder mode, helper dependencies, variants, and non-movement
+components are always explicit per talent (recorded identity/digest is
+advisory metadata, not a gate).
 
 | Template | Required parameters | Mechanical defaults | Resolved current `movement` mapping |
 | --- | --- | --- | --- |
@@ -187,8 +191,10 @@ The following remain per-talent review output:
   including their center relative to the **actual** landing;
 - every state condition that changes prompts or outcomes (effective talent level,
   attributes, target occupancy, inscriptions/modifiers, and helper overrides);
-- source pins and live identities for the definition, action, builder, dynamic
-  getters, and transitively relied-on helpers; and
+- semantic source coverage for the definition, action, builder, dynamic getters,
+  and transitively relied-on helpers; recorded file digests, definition lines,
+  and live-object identities are **advisory re-review/telemetry metadata**, not
+  runtime gates (see §3.1); and
 - native rejection, energy/pending semantics, and final postconditions.
 
 These are execution semantics, not policy preferences. Templates may provide
@@ -235,18 +241,18 @@ it is not a global tactical veto
 | Condition | Proposed typed result | Scope |
 | --- | --- | --- |
 | Unknown template, missing required parameter, or malformed expansion | `movement_adapter_invalid` | Build/test failure; never publish the adapter. |
-| Builder/action/getter/helper missing, replaced, throwing, or wrong type | `adapter_source_drift` or `movement_derivation_unknown` with `dependency` detail | Disable this action before commit. |
+| Builder/action/getter/helper missing, throwing, returning `nil`, or wrong type | `movement_derivation_unknown` with `dependency` detail (a replaced live object is only telemetry; its usable return value decides) | Disable this action before commit. |
 | Builder is valid but request kind is not curated | `movement_request_kind_unknown` | Disable this action; never infer actor/grid from cursor shape. |
-| No variant, multiple variants, or an audited level/attribute read is unknown | `movement_variant_unknown` with the unresolved condition | Disable this action before commit. |
+| No variant, multiple variants, or a level/attribute read that errors or returns `nil` | `movement_variant_unknown` with the unresolved condition | Disable this action before commit. |
 | Policy target plan differs in length/order/kind | existing `target_plan_mismatch` / `target_plan_selector_mismatch` | Policy validation error or action denial. Existing exact comparison is at `overload/mod/auto_combat/EffectManifest.lua:427-456`. |
 | Adapter declares a valid multi-prompt plan but executor lacks the queue | existing `unsupported_target_plan`, `scope='multi_prompt'` | Capability pause/denial before commit (`overload/mod/auto_combat/MovementPlanner.lua:396-400`). |
 | Native asks for an extra, missing, reordered, or wrong-kind prompt after commit starts | `unexpected_target_request` with expected/observed index | Pause the executor, do not resubmit, and hand the live interaction back if safely possible. |
 | Landing kind/center/bounds cannot be proved | `movement_landing_envelope_unknown` | Disable this action before commit. |
-| Actual mover or endpoint falls outside the resolved descriptor after commit | `movement_postcondition_mismatch`, `uncertain=true` | Pause the executor; this is source/integrity drift, not normal randomness. |
+| Actual mover or endpoint falls outside the resolved descriptor after commit | `movement_postcondition_mismatch`, `uncertain=true` | Pause the executor; this is a real postcondition failure, not normal randomness. |
 | Template needs to move/swap another actor but the typed capability is absent | `moving_or_swapping_another_actor` | Publish as unsupported capability. |
 | Mixed effect footprint cannot be computed | existing effect-footprint unknown/rejection with component detail | Disable this action only. |
 
-Once request program, source identity, and landing envelope are established,
+Once request program, semantic coverage, and landing envelope are established,
 `visible=false`, `passable='unknown'`, `hazard='unknown'`, and a native-random
 choice are annotations. `MovementPlanner.accepts` already treats visibility,
 passability, hazard, and deterministic-vs-nondeterministic landing as explicit
@@ -258,13 +264,13 @@ outcome changes adapter capability.
 
 All static/derivation faults are resolved before `Actions.execute`. If the exact
 native prompt sequence can be preflighted, a mismatch never starts the action.
-If an audited action has already yielded and then produces an undeclared prompt,
+If an adapted action has already yielded and then produces an undeclared prompt,
 the controller enters waiting/pause and never submits the talent again. This
 preserves the existing rule that `native_pending` is tracked without resubmission
 (`overload/mod/mcp_bridge/Actions.lua:294-300`;
 `docs/tome-mcp-auto-combat-plugin-design.md:256-263`).
 
-## 7. Audit and drift design
+## 7. Source records and advisory drift telemetry
 
 ### 7.1 Pin set
 
@@ -278,41 +284,44 @@ Extend the generated source record for each movement adapter with:
   identity gate**; a missing/erroring getter yields `movement_derivation_unknown`;
 - engine/module helpers invoked by the action (`canProject`, `teleportRandom`,
   `findFreeGrid`, ...) are ordinary calls; and
-- the action-commit/targeting seams already checked by `NativeCompatibility`.
+- the action-commit/targeting seams already recorded by `NativeCompatibility`
+  (as advisory metadata; the project calls the live seam, it does not gate on it).
 
-The present generator pins complete engine semantics files and selected talent
-builders (`tools/generate_effect_manifest.py:63-84,125-143`), while the drift
-checker rechecks live builder identity before every guarded action
-(`overload/mod/auto_combat/EffectManifestDrift.lua:117-148`). The proposed change
-extends the same mechanism to action/getter/helper identities; it does not create
-a separate trust system.
+The present generator records semantic source coverage for complete engine
+semantics files and selected talent builders
+(`tools/generate_effect_manifest.py:63-84,125-143`); the drift checker may recheck
+live builder identity as **telemetry** before a guarded action
+(`overload/mod/auto_combat/EffectManifestDrift.lua:117-148`), but a mismatch is
+reported, never used to deny an action. The proposed change extends the same
+**review-metadata** mechanism to action/getter/helper records; it does not create
+a separate trust system, and it introduces no runtime gate.
 
 ### 7.2 Runtime probe rules
 
-The runtime probe calls only the dependency object whose identity was verified,
+The runtime probe calls the game's actual live getter/builder objects directly,
 under `pcall`, and copies only allowlisted scalar/table fields. An error,
-non-table builder result, non-finite bound, replacement object, broken dependency
-closure, or source digest mismatch becomes typed unknown and disables the one
-action. The existing dependency registry already rejects first-seen unpinned,
-wrong-file, wrong-line, and replaced functions
-(`overload/mod/mcp_bridge/NativeCompatibility.lua:50-123`).
+non-table builder result, non-finite bound, or `nil` value becomes typed unknown
+and disables the one action. A replacement object, changed helper closure, or
+source digest mismatch is **not** itself a denial: the probe simply uses the live
+object and judges its usable return value. Recorded identity/digest information
+is advisory re-review telemetry (§3.1).
 
 No “purity” or RNG tripwire is added. Deterministic policy choice still uses
-stable ranking, while audited native getters/builders may consume RNG under the
+stable ranking, while the live native getters/builders may consume RNG under the
 frozen read policy (`docs/tome-mcp-auto-combat-plugin-design.md:365-373,424-443`).
 
 ## 8. Candidate disposition
 
 | Candidate / variant | Template and derived fields | Fields still curated | Disposition |
 | --- | --- | --- | --- |
-| `T_BLINK_RUNE` | `grid_move_bounded`; audited builder supplies live `range` and cursor flags. Resolved leaf: `{'grid'}`, `teleport`, `bounded_alternatives`, `requested_grid`, radius 5, `traverses=false`, `relocates_other=false`. The action calls `teleportRandom(x,y,0)` and then grants Out of Phase (`game/modules/tome/data/talents/misc/inscriptions.lua:646-680`); radius-5 fallback comes from `game/modules/tome/class/Actor.lua:1642-1647`. | Grid semantics; LOS/terrain/projection path; helper pins; inscription-data-dependent secondary buff and its postcondition. | **Supportable with the factory** after source review and helper pins. Native uncertainty is annotated, not refused. |
+| `T_BLINK_RUNE` | `grid_move_bounded`; live builder supplies `range` and cursor flags. Resolved leaf: `{'grid'}`, `teleport`, `bounded_alternatives`, `requested_grid`, radius 5, `traverses=false`, `relocates_other=false`. The action calls `teleportRandom(x,y,0)` and then grants Out of Phase (`game/modules/tome/data/talents/misc/inscriptions.lua:646-680`); radius-5 fallback comes from `game/modules/tome/class/Actor.lua:1642-1647`. | Grid semantics; LOS/terrain/projection path; helper coverage; inscription-data-dependent secondary buff and its postcondition. | **Supportable with the factory** after source review and helper coverage. Native uncertainty is annotated, not refused. |
 | `T_SKIRMISHER_VAULT` | `grid_move_exact` with `delivery='leap'`, `traverses=false`; builder supplies live beam/range. The action adds a launch-target check, rejects blocked/unprojectable landing, and moves exactly to the requested grid (`game/modules/tome/data/talents/techniques/acrobatics.lua:27-56,61-117`). | The adjacent visible launch-actor prerequisite is action-local; exact native rejection behavior and the post-move Directed Speed effect stay manual. | **Supportable with the factory**. Native prerequisite failure is a normal rejection, not a new strategy gate. |
-| `T_DIMENSIONAL_STEP`, effective TL below 5 | `grid_move_bounded` with `delivery='teleport'`, radius 5 and live builder range. The non-swap branch calls `teleportRandom(x,y,0)` (`game/modules/tome/data/talents/chronomancy/spacetime-weaving.lua:22-46,73-84`). | Effective-level variant, requested-grid occupancy semantics, helper pins, teleport callbacks/postcondition. | **Supportable for a source-proven non-swap variant**. If occupant status needed to choose the branch is player-unknown, return `movement_variant_unknown`; do not inspect a hidden actor. |
+| `T_DIMENSIONAL_STEP`, effective TL below 5 | `grid_move_bounded` with `delivery='teleport'`, radius 5 and live builder range. The non-swap branch calls `teleportRandom(x,y,0)` (`game/modules/tome/data/talents/chronomancy/spacetime-weaving.lua:22-46,73-84`). | Effective-level variant, requested-grid occupancy semantics, helper coverage, teleport callbacks/postcondition. | **Supportable for a source-proven non-swap variant**. If occupant status needed to choose the branch is player-unknown, return `movement_variant_unknown`; do not inspect a hidden actor. |
 | `T_DIMENSIONAL_STEP`, TL5 actor target | `swap` candidate. The action may remove the target, teleport the caster, move the target to the old caster cell, or restore it on failure after resistance/hit checks (`game/modules/tome/data/talents/chronomancy/spacetime-weaving.lua:48-72`). | Both actor identities, probability/resistance branch, removal/restoration atomicity, two endpoints, effects, and postconditions. | **Remain unsupported** as `moving_or_swapping_another_actor` until typed two-actor execution and verification exist. |
 | `T_SHADOWSTEP` | `actor_anchor_teleport`; builder supplies range/cursor. Leaf: `{'actor'}`, `teleport`, `bounded_alternatives`, `actor`, radius 5, no traversal/other relocation. The action requires a visible actor, uses precise teleport fallback, and attacks only when final adjacency is one (`game/modules/tome/data/talents/cunning/shadow-magic.lua:109-149`). | Radius-helper proof; attack/damage/daze components; conditional final-adjacency branch; component footprint from actual landing. | **Remain unsupported until movement/effect composition is implemented**; then it becomes a compact template declaration. |
 | `T_GIANT_LEAP` | `grid_move_bounded` with `delivery='leap'`, radius 1, `traverses=false`. It uses the requested grid when empty and `findFreeGrid(...,1)` when occupied, then moves (`game/modules/tome/data/talents/uber/str.lua:20-59`). | Occupancy branch, `findFreeGrid` helper pin, radius-one weapon/daze effect centered on actual landing, and unioned pre-commit footprint (`game/modules/tome/data/talents/uber/str.lua:61-71`). | **Remain unsupported until movement/effect composition and `actual_landing` footprint unions exist**. |
 | `T_DISPLACEMENT_SHIELD` | No movement template. It selects an actor and installs a damage-transfer shield; it does not relocate the player when activated (`game/modules/tome/data/talents/spells/conveyance.lua:286-321`). | Delayed damage redirection, target lifecycle, chance, capacity, duration, and effect semantics. | **Remain a source-reviewed effect-adapter task**, outside this factory. |
-| Phase Door, effective TL below 4 and no precise attribute | `self_random_teleport`; `{'none'}`, `teleport`, `random`, `self`, radius from audited `t.getRange`, default native minimum 0, no traversal/other relocation. The native call uses `target:teleportRandom(x,y,range)` (`game/modules/tome/data/talents/spells/conveyance.lua:74-78,104-107,146-148`). | Exact variant condition, dynamic range getter, helper pins, final envelope/postcondition. | **Already conceptually supported, but the current fixed `radius=6,min_radius=1` should be replaced or proven for every admitted state** (`overload/mod/auto_combat/EffectManifest.lua:246-255`). |
+| Phase Door, effective TL below 4 and no precise attribute | `self_random_teleport`; `{'none'}`, `teleport`, `random`, `self`, radius from live `t.getRange`, default native minimum 0, no traversal/other relocation. The native call uses `target:teleportRandom(x,y,range)` (`game/modules/tome/data/talents/spells/conveyance.lua:74-78,104-107,146-148`). | Exact variant condition, dynamic range getter, helper coverage, final envelope/postcondition. | **Already conceptually supported, but the current fixed `radius=6,min_radius=1` should be replaced or proven for every admitted state** (`overload/mod/auto_combat/EffectManifest.lua:246-255`). |
 | Phase Door, precise attribute below TL4 | `request_then_landing` resolved to `{'grid'}` with subject self; landing is random around the requested grid with radius `getRadius`, with the source's LOS-dependent broad fallback (`game/modules/tome/data/talents/spells/conveyance.lua:71-72,104-147`). | Attribute predicate, both envelopes, LOS/fizzle branch, prompt table. | **Supportable after this state variant is declared**. Current level-only unsupported gating does not cover it. |
 | Phase Door, TL4 only, subject self | `request_then_landing` resolved to `{'actor'}` and a random landing; the actor response is self. The actor prompt begins at TL4, while the grid prompt begins at TL5 or under the precise attribute (`game/modules/tome/data/talents/spells/conveyance.lua:82-108`). | Subject binding, random center/range, effective-level and attribute matrix. | **Supportable as a single-prompt self-subject variant** after explicit source review. Selecting another actor remains the multi-actor gap. |
 | Phase Door, TL5+, subject self | `request_then_landing` with ordered `{'actor','grid'}`. Controlled landing uses the requested center and `getRadius`; an out-of-LOS fizzle can switch to a broad random envelope centered on the caster (`game/modules/tome/data/talents/spells/conveyance.lua:82-147`). | Exact request order, subject, two landing envelopes, fizzle condition/probability, dynamic getters. | **Supportable only after ordered prompt-response execution exists**. Randomness is policy-annotated; it is not the blocker. |
@@ -336,8 +345,9 @@ no-prompt leaf would be unsafe.
 3. Feed the same `type="hit"` builder fixture to actor-required, grid-only, and
    grid-or-actor curated declarations. Assert the builder never changes the
    declared semantic request kind.
-4. Test builder table/function success plus missing, replaced, throwing, non-table,
-   NaN, and out-of-range results. Each fault must have the expected typed outcome.
+4. Test builder table/function success plus missing, throwing, non-table, `nil`,
+   NaN, and out-of-range results. Each fault must have the expected typed outcome;
+   a replaced-but-working object still yields a usable value.
 5. Resolve the full Phase Door level/attribute matrix, including unknown level,
    unknown attribute, zero matches, and overlapping matches. Only one descriptor
    may emerge.
@@ -350,15 +360,17 @@ no-prompt leaf would be unsafe.
 8. Verify mixed component footprints are unioned over all possible landing cells
    and centered on `actual_landing`; an unknowable footprint disables only that
    action.
-9. Replace action, builder, getter, `teleportRandom`, and `findFreeGrid` objects one
-   at a time and change each pinned file digest. Assert fail-closed drift with no
-   fallback to stale metadata.
+9. Replace action, builder, getter, `teleportRandom`, and `findFreeGrid` objects
+   with working replacements and mutate recorded file digests. Assert the adapter
+   **still executes** (calls the live object) and that changed telemetry raises a
+   re-review signal; only a missing/throwing/`nil`/invalid result disables the one
+   action.
 10. Supply identical movement reports to strict and permissive `accept` objects.
     Assert only the policy result changes; capability and annotation remain the
     same.
 11. Assert derivation/dry-run never invokes `useTalent`, `t.action`, `move`,
     `teleportRandom`, or another action entrypoint and never queries hidden actor
-    occupancy.
+    occupancy. Calling live getters/builders is allowed and may consume RNG.
 12. For the ordered executor, assert one action opportunity, one native
     submission, exact response consumption by index/kind, and no resubmission
     while pending.
@@ -367,8 +379,8 @@ no-prompt leaf would be unsafe.
 
 For each new declaration, record:
 
-- talent ID, game version, definition/action/builder/getter/helper paths, lines,
-  digests, and live identities;
+- talent ID, game version, definition/action/builder/getter/helper paths and lines
+  (advisory review metadata; recorded digests/live identities are telemetry only);
 - every prompt and exact order for each effective-level/attribute/occupancy
   variant, including the entity value returned with coordinates;
 - mover, requested center, native projected center, all exact/alternate/random
@@ -387,8 +399,8 @@ shape declarations, not the need to understand the native action.
 ### 9.3 Native source and packaged-`dist` probes
 
 Run each scenario against the production source tree and the packaged `.teaa`,
-record the package SHA-256 and loaded manifest/source digests, and compare the
-same semantic signals. Existing acceptance already treats source and `dist` as
+record the package SHA-256 and loaded manifest/source digests as **advisory build
+provenance**, and compare the same semantic signals. Existing acceptance already treats source and `dist` as
 separate evidence and requires settled final movement postconditions rather than
 mere submission (`VALIDATION.md:18-21,43`).
 
@@ -411,22 +423,25 @@ settle to a final postcondition:
   subject, controlled versus LOS-fizzle envelope, and actual mover identity.
 - Displacement Shield: verify no activation-time relocation and separately test
   the delayed transfer effect if/when its effect adapter is designed.
-- Negative probes: source drift, live-object replacement, extra/reordered prompt,
-  unknown variant input, out-of-envelope final location, owner/revision loss, and
-  manual takeover all prevent further automated submission.
+- Negative probes: missing/throwing/`nil`/invalid getter result, extra/reordered
+  prompt, unknown variant input, out-of-envelope final location, owner/revision
+  loss, and manual takeover all prevent further automated submission. Recorded
+  source drift or live-object replacement is captured as telemetry only and must
+  not on its own stop an otherwise valid action.
 
 Sampling many random endpoints is not a proof of the envelope. The proof comes
-from pinned source/helper semantics; probes verify that production lowering and
-postcondition instrumentation match that proof.
+from the curated semantic record of the source/helper behaviour; probes verify
+that production lowering and postcondition instrumentation match that proof.
 
 ## 10. Anti-goals and genuine unsupported cases
 
 - No scan that auto-admits talents because `is_teleport`, `requires_target`, or a
   cursor `type` resembles a known talent. The source examples in §3.2 show those
   signals are semantically ambiguous.
-- No arbitrary modded talent, first-seen override, or drifted native definition.
-  It remains `unsupported_adapter` / `adapter_source_drift` until explicitly
-  reviewed and pinned.
+- No arbitrary modded talent admitted without review. Until curated it remains
+  `unsupported_adapter`; once curated the adapter calls
+  the **live** entry, and a later replacement is another addon's concern (the
+  project is not responsible for other plugins' broken implementations).
 - No movement whose request order, mover, finite landing envelope, or final
   postcondition cannot be established. This is execution non-determinability,
   not a judgment that the tactic is unsafe.
@@ -440,11 +455,12 @@ postcondition instrumentation match that proof.
   destination. Player-unknown facts remain unknown and native collision remains
   final authority (`docs/tome-mcp-0.9.0-movement-skills-design.md:242-272`).
 - No direct calls from auto-combat to `move`, `teleportRandom`, or talent actions.
-  Execution continues through audited `Actions` / native `useTalent`
+  Execution continues through `Actions` / native `useTalent` (the actual live
+  entrypoints; see §3.1)
   (`docs/tome-mcp-0.9.0-movement-skills-design.md:334-347`).
 
 Random landing, out-of-vision requests, retreat, kiting, and teleportation are
-not anti-goals. Once a source-pinned adapter proves the execution envelope, those
+not anti-goals. Once a curated adapter establishes the execution envelope, those
 facts are annotated and the data policy decides whether to accept them
 (`docs/tome-mcp-auto-combat-plugin-design.md:18-28,407-415`).
 
@@ -459,7 +475,8 @@ because only the former has a checkable postcondition.
 Recommended exact addition after that paragraph:
 
 > A stochastic endpoint is not an execution-integrity failure when the
-> source-pinned adapter proves the mover, request sequence, landing class, and a
+> curated, source-reviewed adapter establishes the mover, request sequence,
+> landing class, and a
 > finite conservative landing envelope; visibility, occupancy, passability,
 > hazard, and the chosen point inside that envelope may remain `unknown` and are
 > reported to policy. If the adapter cannot establish the mover, request order,
@@ -497,7 +514,7 @@ starts only after the previous one is accepted.
 
 | Slice | Scope | Reference |
 | --- | --- | --- |
-| **S1 (first slice)** | Closed `MovementAdapterFactory` + **single-prompt** templates (`actor_charge`, `grid_move_exact`, `grid_move_bounded`, `self_random_teleport`, `actor_anchor_teleport`) expanding into the current `movement` descriptor; the **Phase Door effective-level x `phase_door_force_precise` variant matrix** (fixes the level-only gating gap); audit/getter/helper identity pins and drift. Candidates admissible after source review: Rush, Tumble, Phase Door no-prompt/precise-attribute, Blink Rune, Vault, Dimensional Step **non-swap**. | §4.1, §4.2, §8 |
+| **S1 (first slice)** | Closed `MovementAdapterFactory` + **single-prompt** templates (`actor_charge`, `grid_move_exact`, `grid_move_bounded`, `self_random_teleport`, `actor_anchor_teleport`) expanding into the current `movement` descriptor; the **Phase Door effective-level x `phase_door_force_precise` variant matrix** (fixes the level-only gating gap); semantic source coverage and advisory drift telemetry (no runtime gate). Candidates admissible after source review: Rush, Tumble, Phase Door no-prompt/precise-attribute, Blink Rune, Vault, Dimensional Step **non-swap**. | §4.1, §4.2, §8 |
 | **S2** | `request_then_landing`: the **ordered prompt-response queue** for multi-prompt talents (Phase Door TL4/TL5 actor-then-grid, and other actor+grid skills). | §4.2, §12.1 |
 | **S3** | **Movement/effect composition**: movement talents whose landing also carries a harmful/beneficial effect (Shadowstep, Giant Leap): compose the movement report with the effect/selffire guard, union the `actual_landing` footprint, and stop skipping movement entries in the guard. | §2 (finding 2), §5 |
 | **S4** | **`swap` / moving or swapping another actor**: typed two-subject descriptor, executor and verification (Dimensional Step TL5, the `moving_or_swapping_another_actor` gap). | §4.2, §12.2 |

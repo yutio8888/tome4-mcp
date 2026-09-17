@@ -51,6 +51,12 @@
 
 ## 审查修复（review F1–F5）
 
+> **Supersession (v1.6 / design §8.3, `AGENTS.md`):** F1/F4 的“完整文件摘要、无摘要即 fail-closed、
+> 首次被覆盖的函数不再可信、函数级摘要/间接依赖闭包”等是**已废弃的严格运行期审计要求**。
+> 当前规则：直接调用游戏内实时的 getter/builder，报错/缺失/返回 `nil` 时该值才为不可得
+> （`unknown`）；源摘要/身份只作**重审提示/遥测**，**不得作为运行期门槛**。本表保留为历史记录，
+> 其字面的 fail-closed/审计要求不再是当前验收标准。
+
 针对 `tome4-mcp-review-0.9.0.md` 的 5 条发现，已在 M3 之前修复：
 
 | 编号 | 修复 | 回归 |
@@ -61,9 +67,9 @@
 | F4（P2） | 抑制 getter 缺失/不可信/抛错 → 受影响费用 unknown，不再当作“未抑制” | `test_talent_query.lua`、`test_query_purity.lua` |
 | F5（P2） | `CommandView` schema 与实际输出逐字段对齐，`generate_protocol.py` 增加代码↔schema 校验 | `tools/generate_protocol.py` |
 
-残留（spec 已归入 M4）：函数级摘要/间接依赖闭包；集合分页（M3）与原生验收（M5）仍未开始。
+残留（spec 已归入 M4）：函数级摘要/间接依赖闭包（**已废弃，见上方 supersession**）；集合分页（M3）与原生验收（M5）仍未开始。
 
 ## 下一步
 
-1. M4：`NativeCompatibility` 文件摘要/加载链统一审核（CMP-01/03，含函数级摘要与间接依赖）、`action_support` 矩阵（CMP-05）、错误 `acceptance_scope`/MCP `isError` 映射、未认证握手期限（NET-02）。
+1. M4：`NativeCompatibility` 文件摘要/加载链统一审核（CMP-01/03，含函数级摘要与间接依赖）——**运行期审计门槛已废弃**，摘要仅作重审提示/遥测；`action_support` 矩阵（CMP-05）、错误 `acceptance_scope`/MCP `isError` 映射、未认证握手期限（NET-02）。
 2. M5：原生回归、真实 >4096 命令长序列、升级/回退、候选包证据。

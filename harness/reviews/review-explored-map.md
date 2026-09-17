@@ -1,5 +1,11 @@
 # Review: explored-level map capability
 
+> **Historical review, non-normative.** This is a past review record. Its read-*purity* premises ("repeated map
+> reads do not change RNG/FOV tables/state") and any pristine-identity expectations are **superseded** by
+> `AGENTS.md` and design §8.3: reads must not submit an action or expose player-unknown information, but current
+> live getters may be evaluated and may consume RNG. The capability finding and terrain-scope analysis remain
+> valid; historical observations are preserved.
+
 ## Verdict
 
 The factual finding is **correct in substance**: MCP does not currently expose the full explored map of the current level. It exposes only a player-centred window, at most 25x25 cells, and `known` is bridge-session memory rather than native map memory. There is no hidden equivalent in `tome.list`, target interactions, world-map handling, ground items, or the frozen observation views.
@@ -187,7 +193,11 @@ The knowledge gate for terrain should initially be:
 terrain_allowed = map.remembers[index] is active OR existing_safe_visible(g, player, map, x, y)
 ```
 
-Blindness does not erase already remembered terrain. ESP-only `seens` does not authorize terrain fields. Wilderness current visibility must retain the existing `NativeCompatibility` audit. If product policy instead demands exact C-minimap `seens || remembers`, expose the extra current cells as a separate mask and keep terrain fields suppressed until their layer/field equivalence is audited.
+Blindness does not erase already remembered terrain. ESP-only `seens` does not authorize terrain fields. Wilderness current visibility must retain the existing player-knowledge boundary. If product policy instead demands exact C-minimap `seens || remembers`, expose the extra current cells as a separate mask and keep terrain fields suppressed until their layer/field equivalence is reviewed.
+
+> **Supersession note (v1.6).** The phrase "retain the existing `NativeCompatibility` audit" above is historical:
+> current policy uses the **live** FOV/cache getters directly, with digest/identity as advisory telemetry only
+> (`AGENTS.md`; design §8.3). The player-knowledge filtering and terrain-scope choices remain current.
 
 ### Detailed terrain
 
@@ -231,7 +241,8 @@ At minimum:
 7. Terrain change outside sight exercises the explicit policy decision: mirror the native map's current remembered display, or retain last-known terrain. The expected behavior must be documented.
 8. 170x100, 196x80, 120x120, and 12x500 shapes stay within frame/view budgets; alternating known/unknown patterns do not blow up RLE.
 9. Cursor expires on level change, reconnect/context change, session reset, TTL, and eviction; ordinary revision change yields a consistent historical frozen page.
-10. Repeated map reads do not change RNG, turn, revision, FOV tables, map memory, dialogs, or player state.
+10. Repeated map reads do not submit an action or expose player-unknown information, and do not advance a turn.
+    (Reads may consume RNG or change read-only caches; do **not** assert that RNG/FOV tables are byte-identical.)
 
 ## Open questions the author must decide
 

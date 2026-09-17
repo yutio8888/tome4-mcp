@@ -1,5 +1,12 @@
 # Rush 接入与 MCP 技能架构差距分析
 
+> **历史资料，非规范（Historical / non-normative）。** 本文是当时的架构差距分析。其中“只读纯性（零 RNG/
+> 回调/状态/共享目标表变更，未知就是 unknown）”、“不能从只读路径调用 `getTalentTarget`/`getTalentRange`”
+> 与“函数身份/定义位置审计”的前提已被 `AGENTS.md` 与 `docs/tome-mcp-auto-combat-plugin-design.md` §8.3
+> **取代**：当前只读边界仅为**不提交动作、不泄露玩家未知信息**，实时 getter/builder（含 `t.target`/
+> `getTalentTarget`/`getTalentRange`）可调用（允许 RNG/读副作用）；源摘要/身份只作重审遥测，不是运行门禁。
+> 保留原文仅作历史证据。
+
 日期：2026-09-15。范围：当前工作区源码的独立架构审阅与方案。本轮只新增本文；不修改生产代码、版本、安装包或历史验收证据，不进行游戏操作。已检查仓库及 `/workspace`、根目录的适用 `AGENTS.md`，未发现额外规则。
 
 ## 1. 结论

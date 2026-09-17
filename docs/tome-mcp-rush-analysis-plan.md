@@ -1,5 +1,10 @@
 # Rush 释放流程与 MCP 架构改进方案
 
+> **历史资料，非规范（Historical / non-normative）。** 本文是当时的分析方案。其中“查询保持纯度……不能直接
+> 用于 observe；拒用 RNG/感知/技能预检”的前提已被 `AGENTS.md` 与 `docs/tome-mcp-auto-combat-plugin-design.md`
+> §8.3 **取代**：当前只读边界仅为**不提交动作、不泄露玩家未知信息**，实时 getter/builder 可调用（允许 RNG/
+> 读副作用）。保留原文仅作历史证据。
+
 日期：2026-09-15。分析基线为 ToME 1.7.6 与 MCP Bridge/Python **0.4.0**。本轮按用户要求委派两名子代理分别追踪原生技能流程和审阅桥接架构，再交叉核对结论；仅新增分析文档，未修改运行代码、版本或存档。
 
 配套分析：[原生完整流程](tome-mcp-rush-native-analysis.md)、[架构审阅与验收矩阵](tome-mcp-rush-architecture-analysis.md)。

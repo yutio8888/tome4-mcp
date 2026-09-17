@@ -1,5 +1,11 @@
 你是资深架构评审。请对下面这份"AI 自动战斗逻辑如何与 MCP 插件结合"的方案做进一步分析、验证与细化。这是**评审+设计**任务：只读代码，不要修改 addon/游戏文件；可读文件、跑只读 grep/git。把结论写到 `/workspace/t-engine4/tmp/mcp-play-support/review-auto-combat.md`，最后回复 8–15 行摘要。
 
+> **历史提示词，非规范（Historical / non-normative）。** 本提示词是当时的评审简报，其中若干“硬边界”
+> （dry-run 不得调用动态 getter/RNG；只调用 digest/identity 审计后的“纯” getter）已**废弃**。若重复
+> 使用本提示词，请将读取边界替换为：**不提交游戏动作、不暴露玩家未知信息**（读取可调用当前实时
+> getter/builder，允许 RNG/读副作用；报错/缺失/`nil` 时标 `unknown`），且不以函数身份/摘要/闭包作为
+> 运行期门槛。依据 `AGENTS.md` 与 `docs/tome-mcp-auto-combat-plugin-design.md` §8.3。
+
 ## 背景与代码位置
 - MCP 插件：`/workspace/t-engine4/game/addons/tome-mcp-bridge`（0.9.0，协议 v4）。请求-响应、一次一个动作、等到回合边界；有控制租约与 `control_source`（`remote`/`battle_companion`/`manual`）以及 Battle Companion 的让权协议（见 `docs/battle-companion-mcp-control.md`、`Runtime.lua` 的 `companion()/localCombat()/control_source/battle_companion`）。
 - 只读能力：`Observer.inspect(kind="actor"/"character")` 的 `computed` 块（有效属性/速度/暴击/穿透/命中/APR…，逐 getter 审计 fail-closed，见 `ActorCombat.lua`）；`LevelMap.lua` 的 `tome.map`（explored/frontier）；`TalentQuery.lua`（消耗/冷却/射程/afford/readiness）；`Actions.admit`/`Actions.validate`（动作白名单）。
@@ -20,7 +26,7 @@
 1. **事实核对**：`Player:automaticTalents` 的触发时机/频率与调用上下文（是否在玩家回合、能否安全调用 `useTalent`、是否会被 MCP 的 `Tracker`/tick 边界干扰）；assistant 的执行方式与副作用；`control_source`/BC 让权协议的确切检查点；`auto_explore`/`rest` 生命周期能否作为执行器模板。
 2. **模型取舍**：B 是否最优？该**复用 assistant 引擎**还是**新写薄执行器**？给出理由与工作量评估；D 的适配层可行性。
 3. **策略 schema**：给出具体、可版本化的草案（字段、条件谓词白名单、目标选择器、动作、优先级/互斥、资源预算、失败处理），并说明如何表达：常驻 buff、单体/直线/AoE 选位与 **selffire 规避**（注意 Searing Light 无自伤、Shadow Blast/Starfall 用 `spellFriendlyFire()`）、治疗/护盾阈值、逃跑、rest、`auto_explore`、换层。
-4. **校验与 dry-run**：如何在不执行的前提下用当前快照验证策略（条件求值、动作合法性、目标可得性），并给出诊断格式；如何避免"dry-run 执行了动态 getter/RNG"。
+4. **校验与 dry-run**：如何在不执行的前提下用当前快照验证策略（条件求值、动作合法性、目标可得性），并给出诊断格式。读取边界为**不提交动作、不泄露玩家未知信息**（可调用实时 getter/builder，允许 RNG/读副作用；不可得时标 `unknown`）——不要以“是否调用了 RNG/动态 getter”作为可执行性门槛。
 5. **仲裁与所有权**：执行器与 MCP 租约如何严格互斥；`control_source` 扩展；抢占/恢复/存档读档/断线的状态机；若同时装了 assistant/BC 如何避免双控制。
 6. **安全/反作弊/审计**：数据 vs 代码的边界；执行器只调审计入口的做法是否足够；哪些原生函数必须禁止；如何防止策略越权（读隐藏信息、非法施法、刷资源）。
 7. **决策日志与可观测**：日志该记什么（候选、条件求值、被拒原因、资源变化、命中结果），如何通过 MCP/`Journal`/事件回放；如何做回归与 A/B 调参。

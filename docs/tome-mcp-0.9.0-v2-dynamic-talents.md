@@ -1,12 +1,20 @@
 # Re-admitting the four dynamic talents under the v2 effect manifest (TODO #55)
 
+> **Supersession banner (v1.6 / `AGENTS.md` + auto-combat design §8.3).** This is a historical
+> delivery record. Its "pinned dynamic inputs" / `rawequal` / `adapter_source_drift` language gates the
+> read on function identity/digest; that premise is **superseded**. The guard now calls the game's
+> **live** provider/getter/builders directly and treats a missing/throwing/`nil`/invalid result as
+> `unknown`; digest/identity/closure remains advisory re-review telemetry only. The dynamic model,
+> ground components and fail-closed-on-unobtainable-value behavior are preserved. Pasted hashes and
+> observed results below stay as historical evidence.
+
 Status: implemented on branch `feat/v2-dynamic-talents` (PR pending review), based
 on `main@c131389`. `allow_auto_combat_execution` is unchanged (`false`).
 
 This closes TODO #55: `T_FIREFLASH`, `T_FLAMESHOCK`, `T_SHADOW_BLAST` and
 `T_STARFALL` are removed from `EffectManifest.UNSUPPORTED` and modelled as
 first-class v2 manifest entries with pinned dynamic inputs, honest ground
-components and fail-closed drift.
+components and fail-closed on unobtainable values.
 
 ## Source review (DYN-1)
 
@@ -18,23 +26,21 @@ components and fail-closed drift.
 | `T_STARFALL` | `data/talents/celestial/star-fury.lua:141` | `ball`, `range=6`, `radius=1..2`, `selffire=spellFriendlyFire()`; `self:project` | instant ball (dynamic SF, FF 100); no ground |
 
 All four expose a `t.target` builder, so `conformance.builder=true`; the guard
-reads the live builder for the instant geometry and filter values, and the
-identity/drift check pins the builder's source path and definition line.
+reads the live builder for the instant geometry and filter values (recorded source
+path/definition line is advisory telemetry, not a gate).
 
 ## Pinned dynamic inputs (DYN-2)
 
-- `spellFriendlyFire` is resolved through a new audited provider
-  (`guard.spellFriendlyFire` in `Runtime.lua`) registered via
-  `NativeCompatibility` against `mod/class/interface/Combat.lua` (digest +
-  exact identity + `function _M:spellFriendlyFire` declaration). It is now also
-  pinned by `tools/generate_effect_manifest.py` (`combat` in `ENGINE_FILES`).
+- `spellFriendlyFire` is read through the live provider (`guard.spellFriendlyFire`
+  in `Runtime.lua`); the generated `combat` digest in
+  `tools/generate_effect_manifest.py` is advisory telemetry. There is **no**
+  runtime identity/declaration gate on the provider.
 - Manifest components declare `selffire={dynamic='spellFriendlyFire'}`; the
-  guard resolves it to the live scalar or to `unknown`, and the audited
-  provider is **authoritative**: the live builder's raw `selffire`/`friendlyfire`
-  must not overwrite an `unknown` result (an overridden method could return `0`
-  to the builder while the provider fails closed). An unavailable,
-  overridden or erroring getter leaves the component **`unknown`** (fail
-  closed) — it never yields a permissive verdict.
+  guard resolves it to the live scalar or to `unknown`. The provider's result is
+  authoritative for the manifest: the live builder's raw `selffire`/`friendlyfire`
+  must not overwrite an `unknown` result. A missing, throwing, or `nil`/invalid
+  return leaves the component **`unknown`** (fail closed on an unobtainable
+  value) — it never yields a permissive verdict.
 - Dynamic radii come from the live builder: ground components use
   `radius={from='target'}`, which the guard fills from the builder's `radius`.
   If the builder radius is unavailable the footprint is unknown.
@@ -44,7 +50,7 @@ identity/drift check pins the builder's source path and definition line.
 
 - Burning Wake (Fireflash, Flameshock) is modelled as a duration-4, per-grid
   ground component (`per_grid` where the source iterates projected grids; the
-  Fireflash branch creates one impact zone). Its SF is the audited
+  Fireflash branch creates one impact zone). Its SF is the live
   `spellFriendlyFire`; its FF defaults to **true**. The Fireflash ground is an
   impact ball; the Flameshock ground is a **source-centred directional cone**
   (`center='self', direction='target'`) whose aim vector is kept independently of
@@ -60,12 +66,13 @@ identity/drift check pins the builder's source path and definition line.
 ## Registration and drift (DYN-4)
 
 - The four talents are in `EffectManifest.ENTRIES` with `conformance.builder=true`
-  and generated source/builder pins, and in `PolicySchema.TALENTS`.
-- `tools/generate_effect_manifest.py` pins `Combat.lua` in addition to the
+  and generated source telemetry, and in `PolicySchema.TALENTS`.
+- `tools/generate_effect_manifest.py` records `Combat.lua` in addition to the
   existing engine-semantics files; `--check` is green.
-- A builder replacement/mutation still fails closed
-  (`adapter_source_drift`), and the trusted baseline is the original function
-  object (`rawequal`).
+- A builder that is missing, throwing, or returns `nil`/an invalid value fails
+  closed for that component. A replacement/mutation is **not** by itself a
+  failure: its usable return value decides (the `rawequal` baseline is
+  superseded and retained only as telemetry).
 
 ## Guard correctness fixes
 
@@ -79,7 +86,7 @@ talent has range 0.
 
 ## Rev 2 review fixes (DYN-REV-01 … DYN-REV-03)
 
-- **DYN-REV-01** the audited dynamic provider is authoritative for declared
+- **DYN-REV-01** the live dynamic provider is authoritative for declared
   dynamic filters; the raw builder value no longer overwrites an `unknown`
   provider (guard and Runtime replacement regressions for Fireflash/Starfall).
 - **DYN-REV-02** the range-0 direction special case now also requires the bound

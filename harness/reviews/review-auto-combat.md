@@ -1,5 +1,11 @@
 # AI 自动战斗与 ToME MCP Bridge 的架构评审
 
+> **历史评审，非规范（Historical / non-normative）。** 本文是当时的审阅记录。其中“动态 getter/RNG 不得调用”、
+> “只调用 digest/identity 审计后的纯 getter”、“digest/identity 任一变化→fail-closed”等前提已被 `AGENTS.md`
+> 与 `docs/tome-mcp-auto-combat-plugin-design.md` §8.3 **取代**：当前读取只有两条红线（不提交动作、不泄露
+> 玩家未知信息），实时 getter/builder 可调用（允许 RNG/读副作用）；源摘要/身份仅作重审遥测。下文“建议”
+> 类行不得当作当前硬规则使用。保留原文仅作历史证据。
+
 > 评审对象：ToME 1.7.6、`tome-mcp-bridge` 0.9.0 / protocol v4、`tome-auto_talent_assistant` 2.3.9、`tome-battle-companion`。  
 > 评审日期：2026-09-16。本文只基于静态代码阅读；没有修改 addon/游戏文件，也没有把推断当成实机结论。
 
@@ -299,9 +305,14 @@ P1a 只建议以下谓词；每个谓词在编译后绑定固定 evaluator，不
 - Shadow Blast 的即时投射和残留 effect 都使用 `spellFriendlyFire()`（`star-fury.lua:55-88`）。
 - Starfall 的 target 也携带 numeric selffire（`star-fury.lua:140-161`）。
 
-适配器只描述版本锁定的 shape、伤害区域、残留区域、selffire/friendlyfire 来源和目标入口；它不实现施法。来源文件、digest、函数 identity 任一变化就变 unknown。现有 `ActorCombat.lua:18-34` 仅用 source suffix 判 getter，强度不足；若这些 computed 值参与授权，必须升级到 `NativeCompatibility.lua:65-120` 的 path + full digest + declaration + identity + dependency closure。
+适配器只描述策展的 shape、伤害区域、残留区域、selffire/friendlyfire 来源和目标入口；它不实现施法。
+（**历史注：** “来源文件/digest/函数 identity 任一变化就变 unknown”与“升级到 path + full digest +
++ declaration + identity + dependency closure”是已废弃的运行期审计；当前直接调用实时 getter，
+源摘要/身份仅作重审遥测。）
 
-也不应在 dry-run 泛用调用 `canProject`：它会通过 `Target:getType` 构造动态 target，并可执行 `typ:block_path` 回调（`ActorProject.lua:286-342`）。P1 应使用经审计的静态 target adapter 和纯几何；不能证明的动态 target 一律 unknown。原生 `useTalent` 执行时仍会做最终 `canProject` 和合法性判断。
+也不应在 dry-run 泛用调用 `canProject`——（**历史注：** 当前政策允许调用实时 `canProject`/`typ:block_path`，
+只要不提交动作、不读隐藏信息；如不可得则标 `unknown`）。P1 可使用经策展的 target adapter；
+原生 `useTalent` 执行时仍会做最终 `canProject` 和合法性判断。
 
 ---
 
@@ -313,13 +324,17 @@ P1a 只建议以下谓词；每个谓词在编译后绑定固定 evaluator，不
 
 **decision-time dry-run**：在一个 ready revision 上先建立不可变 `PolicySnapshot`，再编译求值：
 
-1. 捕获玩家已知的 actor、地形、ground effect、talent stored scalars 和经审计 computed 值。
+1. 捕获玩家已知的 actor、地形、ground effect、talent stored scalars 和当前实时的 computed 值。
 2. 若 actors/map/candidates 被截断且相关规则需要完整集合，结果为 unknown，不可选择动作。`Observer.capture` 当前最多 32 个 actor并标 truncation（`Observer.lua:115-143`）。
 3. 对每条规则记录条件树结果和 unknown 原因。
 4. 为 true 的规则生成有界候选，做资源 after-budget、区域风险、静态射程/纯几何检查。
 5. 选出唯一动作，但不运行任何原生写入口。
 
-`TalentQuery` 的纯度边界值得保留：它明确不调用 action、`preUseTalent`、动态 info/require 或未审计 getter（`TalentQuery.lua:1-7`）。dry-run 也不得调用 `t.target()`、`getTalentTarget`、`preUseTalent`、`useTalent`、`canProject`、攻击 roll、DamageType projector、地图 `projected` callback 或任意 RNG。可见性应读取玩家 FOV/cache并对 blind/stealth 保守降级；不得为了“确认”而重算 FOV。
+`TalentQuery` 的历史纯度边界不再适用：dry-run 可调用当前实时 getter/builder（含 `t.target()`/`getTalentTarget`/
+`preUseTalent`/`canProject`/动态 info），允许消耗 RNG/有读副作用；**不得**调用提交动作的入口
+（`useTalent`、talent `action/activate`、攻击 roll、DamageType projector 的写入口）或推进回合。
+可见性仍应尊重玩家 FOV/cache 并对 blind/stealth 保守降级；不得为“确认”而读取隐藏实体信息（重算只读 FOV
+属允许的读取）。
 
 ### 4.2 建议诊断格式
 
@@ -451,11 +466,17 @@ stateDiagram-v2
 
 1. **输入能力**：严格 schema 和资源上限，策略不能表达代码、反射或任意字段访问。
 2. **观察能力**：只用玩家已知状态。`Observer.resolve` 只返回当前可见 actor（`Observer.lua:104-113`）；地图只含 remembered/安全可见地形（`LevelMap.lua:68-128`）。不得遍历 entity 列表后把不可见 actor 加入候选。
-3. **计算能力**：只调用 digest/identity 审计后的纯 getter，RNG 和动态 callback 禁止；unknown fail-closed。
+3. **计算能力**：调用当前实时 getter/builder（含动态 target/range/canProject）；允许 RNG/读副作用；
+   不可得（缺失/报错/`nil`/类型无效）时 `unknown`。**不允许**提交动作或读取玩家未知信息。
+   （**历史注：** “只调用 digest/identity 审计后的纯 getter，RNG 和动态 callback 禁止”已废弃。）
 4. **动作能力**：动作必须有明确 capability/adapter，再由原生入口执行。执行前复查 owner epoch、revision、player/level、目标仍可见、预算和候选证据。
 5. **结算能力**：只接受原生能量、冷却、资源、命中与地图规则；禁止直接写 life、energy、cooldown、talent state、坐标、effect 或 RNG state。
 
-下列原生函数在 planner/dry-run 中必须禁止：`preUseTalent`、`useTalent`、talent `action/activate/deactivate`、动态 `target/range/radius/info/require`（除非逐项登记为纯依赖）、`getTalentTarget`、通用 `canProject`、`project`、DamageType projector、`map:checkAllEntities(..., "projected")`、FOV 重算、任何 rest/run step 和 RNG。它们只能在窄执行边界或经完整纯度审计的 adapter 内出现。
+下列原生**执行入口**在 planner/dry-run 中必须禁止（会推进游戏）：`useTalent`、talent
+`action/activate/deactivate`、`project`/`projectile`/`attackTarget` 等提交路径、任何 rest/run step。
+实时**读取** getter（`preUseTalent`-类构建器、`t.target`、`getTalentTarget`、动态 `range/radius/info/require`、
+`canProject`、只读 FOV 计算）**可以调用**（允许 RNG/读副作用）；不得读取隐藏实体信息。
+（**历史注：** 原行把读取函数也一并禁止并把“逐项登记为纯依赖”作前提，已废弃。）
 
 原生入口不会自动证明“动作对自动化安全”：一个合法 talent action 可以换层、召唤、打开 chat/dialog、要求二次输入或运行 addon callback。执行层必须保留 MCP 现有的 dialog/input ownership、异常、不确定状态和 fail-stop 语义。无法 sandbox 的副作用只能靠小 capability catalog、版本审计和事后状态比较控制。
 
@@ -518,8 +539,10 @@ journal_cursor_before/after = ...
 - JSON schema：unknown field、版本、大小、节点/深度、重复 id、非法资源/谓词/selector/action。
 - 三值逻辑和短路；priority、声明序、exclusive group、稳定 tie-break。
 - resource `min_after/max_after`、failure `try_next_if_pristine`、instant/action/session limit。
-- snapshot truncation、getter unknown、adapter digest mismatch 均 fail-closed。
-- dry-run purity：把 `rng.*`、`preUseTalent`、`useTalent`、target/range callbacks、`canProject`、FOV 重算替换为抛错探针，断言调用次数为 0；沿用 `tests/test_query_purity.lua` 的思路。
+- snapshot truncation、getter 不可得（`nil`/报错/非法）均 fail-closed（**历史注：** “adapter digest mismatch
+  fail-closed”已废弃；摘要变化仅作遥测）。
+- dry-run 边界：断言不调用提交动作入口（`useTalent`/action/projector/rest/run），并尊重玩家信息边界；
+  允许调用实时 getter（含 RNG/副作用），**不**以“RNG/动态 getter 调用数为 0”作为通过条件。
 - replay：同一 normalized snapshot 连续运行得到逐字节相同的 selected/diagnostics（耗时字段除外）。
 
 ### 9.2 原生 fixture / 实机场景
@@ -561,7 +584,9 @@ journal_cursor_before/after = ...
 ### 10.1 可能推翻或显著缩小 B 的因素
 
 1. **动态技能覆盖率过低。** 大量 talent 用函数生成 range/target/radius。若目标职业的关键技能都不能通过窄 adapter 审计，B 仍成立为架构，但产品价值可能不足；必须先做 2–3 个目标职业的 coverage spike。
-2. **addon 组合顺序不可控。** assistant 或别的 addon 包装 `Actor/Player/Game` 后，身份审计可能全部 fail-closed；这应导致“不可用”，不能退化为弱审计。
+2. **addon 组合顺序不可控。** assistant 或别的 addon 包装 `Actor/Player/Game` 后，本项目**不保证也不要求**
+   入口是未改动的原生实现，**不为其它 addon 的错误实现负责**；插件直接调用实际入口，报错/缺失/`nil` 时
+   该值不可得。（**历史注：** “身份审计可能全部 fail-closed……不可退化为弱审计”已废弃。）
 3. **原生 action 的不可预见副作用。** 即使经 `useTalent`，talent 仍可能打开 UI/换层/调用 addon callback。P1 catalog 若太宽会破坏“薄且可证明”的前提。
 4. **自动化边界定义不清。** 若目标是“任何职业、任何 addon、任何技能皆自动”，则固定安全 catalog 不现实，应退回 A 或接受明显更弱的安全模型。
 5. **命中/伤害可观测不足。** 如果验收要求精确归因和在线学习，现有 Journal 不够，P2 event seam 会变成 P1 前置。

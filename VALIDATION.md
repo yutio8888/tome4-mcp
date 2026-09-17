@@ -1,5 +1,24 @@
 # MCP Bridge 验收记录
 
+> ## ⚠ 历史证据，非规范（Historical evidence, non-normative）
+>
+> 本文件是按日期归档的**历史验收证据**。其历史的 `PASS/通过` 行仍保留原观测结果、命令与哈希，
+> 不得重写或删除。但其中若干早期验收的**接受标准已被取代**，它们**不再是当前验收准则**：
+>
+> 1. **读取纯度/零 RNG**（如“无 RNG”“RNG/tick 不变”“纯度冲突”）：已废弃。当前读取只有两条红线——
+>    **不提交动作、不泄露玩家未知信息**；当前实时的 getter/builder **可以调用**，允许消耗 RNG/有读副作用。
+> 2. **运行期身份/摘要/闭包门禁**（如 `rawequal` 活身份校验、`digest+identity+declaration+closure`、
+>    `adapter_source_drift` 作为运行期拒绝）：已废弃。插件直接调用游戏内实际入口；源摘要/身份只作
+>    **重审提示/可选遥测**，本身不得作为运行期门槛。只有**值不可得**（缺失/报错/`nil`/类型无效）才使
+>    对应值/动作 unavailable。
+> 3. **插件级策略禁止**（如“`change_level` 移除”“无自动撤退”）：这些是 **`strict` preset/slice 的默认值**，
+>    不是插件级能力/安全边界。撤退/风筝/传送（含随机/视野外）/`change_level`/`rest`/`auto_explore`
+>    都是普通策略动作。
+>
+> 依据：`AGENTS.md`（“不追求运行期入口=原生入口的严格审计”“策略性限制属于预设默认值”）与
+> `docs/tome-mcp-auto-combat-plugin-design.md` §8.3（及 §0.1/§1.2/§5.3/§5.4）。下方各节在相关处已加
+> **局部 supersession 注解**；未加注解的普通功能/协议验收仍有效。
+
 ## 0.9.0：移动/重新定位第一段 + change_level 重新纳入（已合并）
 
 日期：2026-09-17。分支 `feat/movement-first-tranche`（PR #15，head `3953788d`）**已合并到 `main`（merge `f770cdd`）**。交付：策略驱动的 `move` + `destination` 选择器与接受条件、有序 `target_plan`、确定性规划器；相邻步 / Rush actor 落点 / 精确网格位移执行；随机传送按**不确定性标注**而非拒绝；`change_level` 随场景生命周期（pause+reset+显式重启）**重新纳入**；Q4 自伤阈值改为**策略可配**（容忍内 permit、超出 reject、仅不可计算 footprint fail-closed）。独立评审最终 **全 PASS（verdict=merge，无新问题）**，报告 sha256 `93801cafec5cacc193de754ddfc9382e904f5e8fd4d8e5201975e177e7e3792b`；rev 2/3/4 逐条修复（6 P1 + 3 P2 + 1 文档 P2）并各有回归。`allow_auto_combat_execution` 保持 `false`。开发对话在最终 head 独立复跑：Lua 40 套全绿、Python 39、三个 `--check` 绿、auto-combat 探针 source/dist 各 **105/105**、原生验收 source/dist 各 **100/100**、最终 `dist` sha256 `688ae61f89fc0452c91b19555f7d4467d319e3883674750054927e01e1445c77`。原始证据见 `tmp/movement-first-tranche/rev4/`。
@@ -142,6 +161,11 @@ d4a3affe48c6cee479f69d785533105e9c3470aae32d5b7b3e032670b233c916
 
 ## 0.9.0：自动战斗 v2 效果清单（V2-1 … V2-6，rev 4）
 
+> **历史/非规范注解（v1.6）。** 本节 V2-2/V2-5 的 `rawequal` 活身份、`digest+identity+declaration+closure`
+> 与 `adapter_source_drift` 作为**运行期拒绝**是当时的验收标准，**已被取代**：当前直接调用实时 builder，
+> 源摘要/身份仅作重审遥测，只有值不可得才 fail。V2-1/V2-3/V2-4/V2-6 的组件清单、footprint 对等与
+> 组合风险仍有效。下方历史 `通过` 行与哈希保留作证据。
+
 日期：2026-09-17。分支 `feat/v2-effect-manifest`（PR #13，head `6485016`）**已合并到 `main`（merge `96ce7a5`）**，执行 `docs/tome-mcp-0.9.0-selffire-investigation.md` §6–§9。执行与 `allow_auto_combat_execution` 仍为关闭。独立评审 V2-REV-01…07 最终 **7/7 PASS（verdict=merge，无新问题）**，报告 sha256 `e85f1cfa77a9cbe38bf5b06617eb4913c5c639858cd1f0f83edfc6fa95f3e170`；rev 2/3/4 逐条修复并各有回归测试。开发对话在最终 head 独立复跑：Lua 全绿（`effect_manifest` 240、`effect_footprint` 24、`effect_risk` 29、`effect_manifest_drift` 30、`auto_combat_guard` 29、`runtime` 171）、Python 39、三个 `--check` 绿、auto-combat 探针 source/dist 各 **79/79**、原生验收 source/dist 各 **100/100**、最终 `dist` sha256 `3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29`。
 
 | ID | 结果 | 证据 |
@@ -205,6 +229,9 @@ d4a3affe48c6cee479f69d785533105e9c3470aae32d5b7b3e032670b233c916
 
 日期：2026-09-17。修复独立评审的 INT-01 … INT-06 与 SAFE-01（桥接/协议接口层）。Wave 2 在 Wave 1 合入后串行执行；未重做执行安全。执行与 `change_level` 默认仍关闭。
 
+> **历史/非规范注解（v1.6）。** SAFE-01 行中 `digest+identity+declaration+closure` 作为**运行期拒绝**已被
+> 取代（当前直接调用实时 getter，摘要/身份仅作遥测）。INT-01…INT-06 仍有效。下方历史 `通过` 行与哈希保留。
+
 | 检查层 | 结果 | 证据 |
 | --- | --- | --- |
 | INT-01 协议描述实际接口 | **通过**：`requests.schema.json` 列 14 个 live op + `PolicyArgs`/`PolicyLogArgs`/`detail`/`inspect.kind`/`computed`/`status.compact`；generator 从 `Runtime.dispatch`+MCP tool 推导并双向校验；每 op 代表字段或已声明 gap | `tools/generate_protocol.py --check`、`protocol/v4/requests.schema.json` |
@@ -213,7 +240,7 @@ d4a3affe48c6cee479f69d785533105e9c3470aae32d5b7b3e032670b233c916
 | INT-04 CAS 对象 | **通过**：approve=draft、activate=approved；§11.1 与 server 描述修正 | `test_auto_combat_service.lua`（79） |
 | INT-05 能力对齐 | **通过**：`auto_explore` 纳入 actions/action_support/native_tasks | `test_runtime.lua`（163） |
 | INT-06 get/clear | **通过**：`get` 返回三版本、`clear` 只清 draft；§11 名称冻结 | 同上、`test_auto_combat_service.lua` |
-| SAFE-01 getter 审计 | **通过**：有限 computed getter 集经 `NativeCompatibility`（digest+identity+declaration+closure）注册并只经注册表解析；同标签异身份/改文件均 fail-closed | `test_native_compatibility.lua`（16）、`test_actor_combat.lua`（22） |
+| SAFE-01 getter 审计 | **通过（历史）**：有限 computed getter 集经 `NativeCompatibility`（digest+identity+declaration+closure）注册并只经注册表解析；同标签异身份/改文件均 fail-closed。（**已被取代**：不再作运行期门槛） | `test_native_compatibility.lua`（16）、`test_actor_combat.lua`（22） |
 | 原生 fixture | **通过（35/35，source 与 `dist/*.teaa` 各一次）** | `tmp/tome-mcp-validation/sessions/wave2-final-src/`、`wave2-final-teaa/` |
 | 既有套件 | Lua **33 套 / 102,008 checks**、Python **34 通过**、两个 `--check` 生成器绿 | `bash game/addons/tome-mcp-bridge/tests/run.sh` 等 |
 
@@ -227,7 +254,11 @@ c5c94255012daee3818be0f86c91e8aa04f7b02e1f43589c2dd1a179dec259c0
 
 ## 0.9.0：自动战斗插件 Wave 1（执行安全）
 
-日期：2026-09-17。修复独立评审确认的 AC-01 … AC-10（执行层安全），全部在**生产路径**上验证（真实 `Actions.execute` → 映射/主机），不再靠伪造 `{status=...}`。执行与 `change_level` 默认仍关闭。
+日期：2026-09-17。修复独立评审确认的 AC-01 … AC-10（执行层安全），全部在**生产路径**上验证（真实 `Actions.execute` → 映射/主机），不再靠伪造 `{status=...}`。执行默认仍关闭。
+
+> **历史/非规范注解（v1.6）。** AC-10 “`change_level` 移除”是当时 slice 的默认行为，**已被取代**：
+> `change_level` 现为普通策略动作（场景切换仍 pause/reset + 显式重启）。AC-04/05/D6 的“`flee_below_hp_pct`
+> 独立暂停、无自动撤退”是 **`strict` preset 默认值**，不是插件级禁止。其余 AC-01…AC-09 仍有效。
 
 | 检查层 | 结果 | 证据 |
 | --- | --- | --- |
@@ -238,7 +269,7 @@ c5c94255012daee3818be0f86c91e8aa04f7b02e1f43589c2dd1a179dec259c0
 | AC-06 瞬发预算 | **通过**：`no_energy` + 观测能量差分类；按行动机会计数与封顶 | `test_auto_combat_execution.lua`、controller 76 |
 | AC-07 单机抑制 | **通过**：`hasControl` 含 auto-combat 租约/活动 | `test_runtime.lua`、原生 `production-reads` |
 | AC-08/09 生命周期 | **通过**：替换激活作废旧代际；`start` 重新获取租约（stop/无敌人/manual 后可重启） | `test_auto_combat_service.lua`（71） |
-| AC-10 `change_level` | **通过（移除）**：从 auto-combat schema/目录/能力声明移除，作为后续阶段 | `test_auto_combat_policy.lua`（68）、`test_auto_combat_catalog.lua`（34） |
+| AC-10 `change_level` | **通过（移除，**已被取代 v1.6**）**：从 auto-combat schema/目录/能力声明移除，作为后续阶段 | `test_auto_combat_policy.lua`（68）、`test_auto_combat_catalog.lua`（34） |
 | 原生 fixture | **通过（35/35，source 与 `dist/*.teaa` 各一次）** | `tmp/tome-mcp-validation/sessions/wave1-final-src/`、`wave1-final-teaa/` |
 | 既有套件 | Lua **33 套 / 101,979 checks**、Python **33 通过**、两个 `--check` 生成器绿 | `bash game/addons/tome-mcp-bridge/tests/run.sh` 等 |
 
@@ -252,7 +283,11 @@ bc9aab70df72a5b7b2565f93b109c290adbc4f222ca23837927137a75e431688
 
 ## 0.9.0：自动战斗插件 P2.5（tooltip-safe getters）
 
-日期：2026-09-17。把玩家面板/悬浮可见的 getter 接入谓词层。仍为只读审计；无 RNG、无目标特定解析；执行与 `change_level` 默认关闭。
+日期：2026-09-17。把玩家面板/悬浮可见的 getter 接入谓词层。仍为历史只读审计记录；执行与 `change_level` 默认关闭。
+
+> **历史/非规范注解（v1.6）。** 本节“无 RNG”“getter 覆盖/缺失→unknown”体现的是当时的纯度/身份前提，
+> **已被取代**：读取仅受两条红线约束（不提交动作、不泄露玩家未知信息），实时 getter 可调用（允许
+> RNG/读副作用），不可得时标 `unknown`。F2.5 谓词枚举与 `has_effect`/`ally_count` 形状仍有效。
 
 | 检查层 | 结果 | 证据 |
 | --- | --- | --- |
@@ -316,13 +351,17 @@ P2 范围决定（含显式排除项）见 [P2 设计/状态](docs/tome-mcp-0.9.
 
 ## 0.9.0：自动战斗插件 P1b（原生活动）
 
-日期：2026-09-17。把 `rest` / `auto_explore` 变为数据策略的一等动作，抽出通用 `NativeActivity`；`change_level` 仍为显式 opt-in 且默认关闭。执行仍由 `allow_auto_combat_execution` 门控（默认关）。
+日期：2026-09-17。把 `rest` / `auto_explore` 变为数据策略的一等动作，抽出通用 `NativeActivity`；当时 `change_level` 为显式 opt-in 且默认关闭。执行仍由 `allow_auto_combat_execution` 门控（默认关）。
+
+> **历史/非规范注解（v1.6）。** 本节的 `permissions.change_level=true` opt-in / 默认关闭 是当时 P1b 的行为，
+> **已被取代**：`change_level` 现为普通策略动作（场景切换仍 pause/reset + 显式重启）；是否使用它是
+> `strict` preset 默认值，不是插件级权限门。下方历史 `通过` 行与哈希保留。
 
 | 检查层 | 结果 | 证据 |
 | --- | --- | --- |
 | `NativeActivity` 抽象 | **通过**：新增 `overload/mod/mcp_bridge/NativeActivity.lua`；`Runtime` 的 `nativePhase`/`busy`/`revoke`/`settle`/rest 回调/dialog ownership 全部委托，不再按 action.type 分支 | `tests/test_native_activity.lua`（17）、`tests/test_tasks.lua`（65） |
 | `rest` / `auto_explore` 策略动作 | **通过**：schema + capability catalogue + evaluator（`max_turns`）+ 执行器 adapter；控制器复用 `native_pending` 等待语义；活动存活期间不重提、交互即暂停 | `test_auto_combat_policy.lua`（38）、`test_auto_combat_controller.lua`（57）、`test_auto_combat_catalog.lua`（30） |
-| `change_level` opt-in | **通过**：`permissions.change_level=true` 才通过 schema/目录校验，内置预设不启用 | `test_auto_combat_policy.lua`、`test_auto_combat_catalog.lua` |
+| `change_level` opt-in | **通过（历史，**已被取代 v1.6**）**：`permissions.change_level=true` 才通过 schema/目录校验，内置预设不启用 | `test_auto_combat_policy.lua`、`test_auto_combat_catalog.lua` |
 | 原生 P1b fixture（含预声明信号） | **通过（17/17，source 与 `dist/*.teaa` 各一次）**：`rest-policy`（数据策略驱动真实原生 rest：`wait_native`→`stopped`）、`explore-policy`（原生 `enemies_in_sight` 守卫生效并声明） | `tmp/tome-mcp-validation/sessions/p1b-check-06/`、`p1b-teaa-01/` |
 | 既有套件 | Lua **30 套通过**、Python **33 通过**、两个 `--check` 生成器绿 | `bash game/addons/tome-mcp-bridge/tests/run.sh` 等 |
 
@@ -337,6 +376,10 @@ P2 范围决定（含显式排除项）见 [P2 设计/状态](docs/tome-mcp-0.9.
 ## 0.9.0：自动战斗插件 P1a（首个可用闭环）
 
 日期：2026-09-16。数据-only 战斗策略由原生执行器逐回合本地执行；MCP 只观察/校验/仲裁。人类可用游戏内编辑器独立使用（无需 MCP 客户端）。
+
+> **历史/非规范注解（v1.6）。** 本节“dry-run 规划级求值”中 `side_effects=none` 与当时“无 RNG”表述为
+> 当时的纯度前提；当前读取仅受两条红线约束，`dry_run` 不提交动作、不泄露玩家未知信息，但可调用实时
+> getter（允许 RNG/读副作用）。历史 `通过` 行与哈希保留。
 
 | 检查层 | 结果 | 证据 |
 | --- | --- | --- |
@@ -362,6 +405,10 @@ ea3c9f71ae6c6b8039445cce5d9bfda2889df0a3c7a68c484033a567a18a9487
 ## 0.8.0：协议 v3 技能查询/目标预填与原生洗点
 
 日期：2026-09-15。本版只保留协议 **v3**（v1/v2 已在测试阶段移除）：只读技能查询（射程、基础与实时消耗、冷却、条件/可用性提示）与一次性目标预填（actor/position）；新增原生 `unlearn_talent`（仅退还原生 `last_learnt_talents` 窗口内、非战斗、非 item 授予/保护的技能点）。核心游戏文件未修改，原生插入点未变。本版经独立 agent 验收，发现并修复预填绕过原生射程（F-1）与带魔像角色被拒绝成长（F-2），并补充实时消耗（`current_costs` + `base_costs`，F-3），随后复验通过。
+
+> **历史/非规范注解（v1.6）。** 下表“纯净探针 0 次 RNG/preUseTalent/info/canSee”与“动态 … 标 `unknown`”
+> 体现的是当时的读取纯度前提，**已被取代**：读取仅受两条红线约束（不提交动作、不泄露玩家未知信息），
+> 实时 getter/builder 可调用（允许 RNG/读副作用）。历史 `通过` 行与哈希保留。
 
 | 检查层 | 结果 | 证据 |
 | --- | --- | --- |
@@ -406,7 +453,7 @@ respec 原生验收使用隔离新角色，不是既有长期战役存档副本�
 
 ## 0.6.1：世界地图可见地形与入口
 
-日期：2026-09-15。正式包 34 文件，SHA-256 `7df97a9121ac75470436f48c136dbe366f12b083688f0c508d1c86e367e7af0e`。沿经源码校验的原生世界地图 `applyLite` 可见缓存修复漏报；地牢 `infovs`、ESP 和失明保护保留，核心游戏代码未改。
+日期：2026-09-15。正式包 34 文件，SHA-256 `7df97a9121ac75470436f48c136dbe366f12b083688f0c508d1c86e367e7af0e`。沿原生世界地图 `applyLite` 可见缓存修复漏报（**v1.6：** 直接使用实时缓存 getter；摘要/源码校验仅作重审遥测，不作运行门槛）；地牢 `infovs`、ESP 和失明保护保留，核心游戏代码未改。
 
 | 验收层 | 最终结果 | 证据 |
 | --- | --- | --- |
@@ -553,7 +600,7 @@ ff627dd0a9c686b27da034e86db0a5b3bc3ce075e1feeb7858aa1dc16e2c9a74
 | Python MCP | **17 个测试通过**，含真实官方 SDK stdio 和动作 schema／紧凑轮询 | `server/tests/` |
 | 普通战役，冻结源码 | **40 项通过，202 次 MCP 动作，4 次原生日志击杀** | [结果](../../../tmp/tome-mcp-validation/sessions/campaign-source-final-01/result.json) |
 | 普通战役，正式安装包 | **36 项通过，69 次 MCP 动作，4 次原生日志击杀** | [结果](../../../tmp/tome-mcp-validation/sessions/campaign-package-final-01/result.json) |
-| 正式包原有完整原生回归 | **92/92 项通过**，包含只读纯度、去重、手动接管、保存／重载 | [结果](../../../tmp/tome-mcp-validation/sessions/campaign-mcp-release-01/result.json) |
+| 正式包原有完整原生回归 | **92/92 项通过**，包含只读（**v1.6 注：** 当时称“只读纯度”，已废弃）、去重、手动接管、保存／重载 | [结果](../../../tmp/tome-mcp-validation/sessions/campaign-mcp-release-01/result.json) |
 | 三插件正式包互操作 | **35/35 项通过**，旁观／控制、助手暂停、键盘接管、保存／重载 | [结果](../../../tmp/tome-mcp-validation/sessions/campaign-control-release-01/companion-result.json) |
 | 其他插件单元回归 | BC **486 项**、Danger Alert **1540 项**通过 | 各 addon 的 `tests/run.sh` |
 
@@ -581,7 +628,8 @@ e88a46a8888f9a0d9ae2ddbb5642dae5010e0830b7a45c7114cf103036035a8d
 - 更新后的正式 MCP 包通过原有完整 **92/92 项**真实游戏验收：[结果](../tome-battle-companion/validation/2026-09-15/mcp-regression-result.json)。
 - 三插件组合分别用源码和正式 `.teaa` 通过 **35/35 项**官方 SDK MCP 验证：[源码](../tome-battle-companion/validation/2026-09-15/source-result.json)、[安装包](../tome-battle-companion/validation/2026-09-15/package-result.json)。
 - 只读旁观不获取 token、不停止助手，观察能显示连续战斗与敌方损血；显式控制接管后取消助手队列。原生键盘接管、保存、复制新测试角色存档后重载均不恢复自动动作；原存档和副本哈希不变。
-- 源码／包组合各 36 次受监测的观察／检查均保持纯度。没有 Lua 错误。
+- 源码／包组合各 36 次受监测的观察／检查均不提交动作、不读隐藏信息（**v1.6 注：** 当时以“保持纯度”
+  表述，已废弃；读取可消耗 RNG）。没有 Lua 错误。
 
 0.2.0 历史生产包有 11 个生产文件，SHA-256：`5badcb410662b0a36f0638418fb179464813544b2cc84bf0233de51a0e877bc8`。当时归档与被测文件一致。详细证据和适用范围见 [组合验收](../tome-battle-companion/VALIDATION.md) 和 [文件哈希](../tome-battle-companion/validation/2026-09-15/sha256.json)。
 
@@ -608,7 +656,7 @@ JSON 与 transport 另经 Lua 5.1 / LuaJIT 检查；500 个随机 JSON 样本与
 ## 原生验收内容
 
 - 创建独立新 Cornac 测试角色及固定竞技场，没有导入用户存档。
-- 半包、多包 TCP；重复观察和检查不改变位置、生命、资源、能量、冷却或世界 tick。探针检测到的 RNG、`canSee` 和技能预检调用数为 0；真实隐藏角色不可检查。
+- 半包、多包 TCP；重复观察和检查不改变位置、生命、资源、能量、冷却或世界 tick（**v1.6 注：** 这是当时的纯度验收，已废弃；读取可消耗 RNG/改变只读缓存，当前只要求不提交动作、不读隐藏信息）。探针检测到的 RNG、`canSee` 和技能预检调用数为 0；真实隐藏角色不可检查。
 - 等待、移动、普通近战、Lightning、自疗、瞬发 Adrenaline Surge 经过原生入口。能量、资源、冷却、效果和敌方回合按原生机制结算，最终返回玩家可行动边界。
 - 命令重复、参数冲突、旧版本拒绝；断线重连查询原结果；queued 动作被 stop 取消。
 - XTest 真实键盘事件在游戏和原生 Escape 菜单中均撤销控制；菜单期间返回 `needs_input`，拒绝世界动作。

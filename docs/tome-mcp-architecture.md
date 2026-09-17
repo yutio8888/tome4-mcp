@@ -1,5 +1,11 @@
 # ToME 4：通过 addon 接入 MCP 的架构分析
 
+> **历史资料，非规范（Historical / non-normative）。** 本文是当时的设计分析记录。其中“读取不能改变游戏 /
+> 观察纯度（相同状态重复观察不改变随机数状态，也不额外调用随机函数）/ 只读不调用 RNG、技能预检或动态
+> 说明函数”等前提已被 `AGENTS.md` 与 `docs/tome-mcp-auto-combat-plugin-design.md` §8.3 **取代**。当前规则：
+> 读取只有两条红线（**不提交动作、不泄露玩家未知信息**），当前实时的 getter/builder 可调用（允许消耗
+> RNG/有读副作用）；报错/缺失/`nil` 时标 `unknown`。保留原文仅作历史证据。
+
 分析日期：2026-09-15。依据当前工作区的 ToME / T-Engine 1.7.6 源码（HEAD `624a67329f`），以及工作区中的 Battle Companion、Danger Alert。后两者当前不在 Git 跟踪中，本文将其视为本地实现参考。
 
 本文保留初始源码分析和接口设计，下文的工具名、状态字段和目录结构均为设计建议。后续已实现首版；最终接口以 [v1 契约](tome-mcp-v1-contract.md) 和 [安装使用说明](../README.md) 为准，实际验证范围见 [验收记录](../VALIDATION.md)。
