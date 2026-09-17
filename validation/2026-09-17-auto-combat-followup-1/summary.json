@@ -1,0 +1,45 @@
+{
+  "round": "round-3 follow-up (#45/#46/#47)",
+  "date": "2026-09-17",
+  "branch": "fix/round3-followup-control-handback",
+  "pr": "pending",
+  "main_base": "fb2ccdd",
+  "fixes": {
+    "#45 Option A safety-pause handback": "flee_below_hp_pct/no_emergency_action release the lease to manual, stop the run; resume=not_running; start re-acquires; pause/stop dedupe",
+    "#46a respond/dismiss hint": "play console routes respond to dismiss for native popups; hint names the answer shape; product docstrings updated",
+    "#46b observe.auto_combat": "always a stable object, never null",
+    "#46c auto stop log": "one stopped decision-log event per real transition",
+    "#47 metric hygiene": "no_available_action declared as a legitimate stop reason"
+  },
+  "tests": {
+    "lua_suites": "pass (auto-combat controller 82, service 94, runtime 167, policy 80, ...)",
+    "python": 39,
+    "protocol_check": "OK",
+    "native_auto_combat_probe_source": {
+      "session": "ac-followup-final-src",
+      "checks": 41,
+      "game_log_sha256": "3072272c0372a2ceadf08b6143e75d663fa9a76fbefba46b60c2ac91737038c3"
+    },
+    "native_auto_combat_probe_dist": {
+      "session": "ac-followup-dist-01",
+      "checks": 41,
+      "game_log_sha256": "f2be2841bc5c94c7aca1c581a44477b4695e1c4fa712f4b613540f2c4f845572"
+    },
+    "native_acceptance_source": {
+      "session": "native-followup-src-01",
+      "checks": 100,
+      "game_log_sha256": "3c994d8e9e5e80c14b827c90489d422412bbe4cdd96bff865dbcecd7fa366e5d"
+    },
+    "native_acceptance_dist": {
+      "session": "native-followup-dist-01",
+      "checks": 100,
+      "game_log_sha256": "95147b4868ba7aab1973c5ee4672e4040d2a26ea64a2e38cab8712c51ee258c0"
+    }
+  },
+  "dist": {
+    "path": "dist/tome-mcp-bridge.teaa",
+    "sha256": "1e671e304ed7bf77cb0e97c761ecced3b54eda80328e9b97187385ef27c28f88",
+    "manifest_sha256": "9a95c737f9d8f0ea78fb625d965e1753db791aac2ed12db7a65a318e9fb14ce1"
+  },
+  "harness_sha256": "9ad96459e410b9b23f01290f1ab713fec6c96e6e6ab1c3dedb57270c00f75d11"
+}

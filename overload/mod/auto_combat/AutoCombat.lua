@@ -102,15 +102,28 @@ function M:start()
 end
 
 function M:stop(reason)
+    reason=reason or 'stopped'
+    -- A repeated stop of an already-stopped run is not a new transition: do not
+    -- advance the generation or (through callers) log another boundary event.
+    if self.state=='stopped' and self.reason==reason then
+        return {ok=true,state=self.state,generation=self.generation,action='release',deduplicated=true}
+    end
     self.generation=self.generation+1
-    self.state='stopped'; self.reason=reason or 'stopped'
+    self.state='stopped'; self.reason=reason
     self.known_enemies=nil
     return {ok=true,state=self.state,generation=self.generation,action='release'}
 end
 
 function M:pause(reason)
+    reason=reason or 'paused'
+    -- Log/notify only on a real transition. Without this a caller that keeps
+    -- re-issuing the same pause (for example the old resume-at-low-HP loop)
+    -- appended one identical event per call and evicted the bounded log.
+    if self.state=='paused' and self.reason==reason then
+        return {action='paused',state=self.state,reason=self.reason,generation=self.generation,deduplicated=true}
+    end
     self.generation=self.generation+1
-    self.state='paused'; self.reason=reason or 'paused'
+    self.state='paused'; self.reason=reason
     if self.notify then self.notify({kind='paused',reason=self.reason,generation=self.generation}) end
     return {action='paused',state=self.state,reason=self.reason,generation=self.generation}
 end

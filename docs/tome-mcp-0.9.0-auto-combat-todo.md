@@ -237,30 +237,39 @@ Validation: `validation/2026-09-17-auto-combat-playtest-3/summary.json`.
     regenerated). Fix: the preset ray rule is gated on
     `resource_value(negative)>=10` and the declared `recover` rule waits on
     cooldown **or** unaffordable. Test: `test_auto_combat_policy.lua`.
-45. **P2 `flee_below_hp_pct` control handback — DEFERRED.** The pause keeps
-    `control_owner=auto_combat`; remote actions get `control_conflict` and only an
-    explicit `connect control` / `auto stop` can proceed, while `resume` re-pauses
-    and appends one `paused` event per call (log churn). Deferred because the fix
-    changes the control/lease contract (§9) and needs a design decision on whether
-    a safety pause may keep the lease; the current workaround is explicit
-    `connect control`. Reason: not a P1a pilot blocker and not covered by a frozen
-    invariant.
-46. **P3 interface polish — DEFERRED.** (a) `respond` on a native popup returns
-    `no_pending_interaction` while the working call is
-    `dismiss{type=option, option_id=...}`; the hint should name `type`. (b)
-    `observe.auto_combat` is sometimes `null` after the run stops / after death.
-    (c) `auto stop` writes no `stopped` event, so run boundaries are lost in the
-    decision log. Deferred as low-severity client ergonomics; raw evidence in the
-    round-3 report.
-47. **Metric note — `no_available_action` is an undocumented stop reason.**
-    The declared stop set omits it even though it is an established frozen-contract
-    stop (`hold` with a visible enemy). Round 3 recorded it as *unexpected* per the
-    pre-declared metric and fixed the observed cause (44); future metrics should
-    either declare it or keep treating every occurrence as a defect trend.
+45. **P2 `flee_below_hp_pct` control handback — FIXED (Option A).** A safety
+    pause (`flee_below_hp_pct`, `no_emergency_action`) now releases the
+    auto-combat lease to `manual` and marks the run `stopped`, so a remote action
+    succeeds with no reconnect and no `control_conflict`. `resume` on a
+    stopped/released run returns `not_running` and writes no event; `start`
+    re-acquires the lease (D4). Other pause reasons keep the previous lease
+    behavior. Tests: `test_auto_combat_service.lua` (handback, one event per
+    transition, resume refusal, start re-acquire), `test_runtime.lua` (remote act
+    succeeds without reconnecting), native probe `safety-handoff` (in-game).
+    The controller also deduplicates repeated identical `pause`/`stop` calls.
+46. **P3 interface polish — FIXED.** (a) the play console now accepts `respond`
+    as an alias for `dismiss` on a native popup and its hint names
+    `tome.dismiss` with the `{type=option, option_id=...}` /
+    `{type=confirm, value=true}` shapes (the product `tome.respond`/`tome.dismiss`
+    docstrings were updated too); test `server/tests/test_harness_respond_hint.py`.
+    (b) `observe.auto_combat` is now always a stable object (never null) with
+    `enabled/active/policy_id/policy_hash/state/actions/paused_reason/generation/
+    last_decisions`; test `test_runtime.lua`. (c) `auto stop` records a single
+    `stopped` decision-log event on a real transition; test
+    `test_auto_combat_service.lua`.
+47. **Metric note — `no_available_action` is now DECLARED.** Decision: add it to
+    the metric stop set as a legitimate frozen-contract stop (`hold` with a
+    visible enemy and no executable rule), alongside `no_visible_enemies`,
+    `stopped`, `sustain_failure_cap` and `rule_loop_limit`. (The separate,
+    actionable cause found in round 3 — an unaffordable ray — is fixed in 44; a
+    recurring `no_available_action` with no resource/cooldown cause remains a
+    defect signal.) `instant_budget_exhausted` is likewise a declared internal
+    pause reason, not a defect.
 
 Round-3 close-out: the P0 (43) and P1 (44) fixes are **merged in `main` at
 `9f158f8`** (PR #9, packaged `dist` sha256
 `6eaf42e8ad78c7f88da57414ced52dbc0e9d56cac623e266c36672dc47a47ae9`). The fixed
 build was soaked in-game (`diag-fix-01`): `recover` waits advanced the tick
 (170→180→190→200), `max_consecutive_settling=0`, no `no_available_action`. The
-P2 (45) and P3 (46) items remain open/deferred as written above.
+P2 (45) and P3 (46) are resolved in the round-3 follow-up
+([docs/tome-mcp-0.9.0-auto-combat-round3-followup.md](tome-mcp-0.9.0-auto-combat-round3-followup.md)).

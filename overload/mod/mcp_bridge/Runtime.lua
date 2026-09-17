@@ -174,17 +174,19 @@ local function snapshot(s,radius,options)
     result.cancelled_native_activity=m.cancelled_native_activity
     -- Bounded auto-combat summary (design 11.2); the decision ring stays in
     -- tome.policy_log so a plain observe stays cheap and deterministic.
-    if s.auto_combat then
-        local ac=AutoCombat.status(s.auto_combat)
-        local run=ac.run
-        result.auto_combat={enabled=s.auto_combat.host_factory~=nil,active=ac.active==true,
-            policy_id=s.auto_combat.store.running and s.auto_combat.store.running.id or nil,
-            policy_hash=ac.running_hash,state=run and run.state or 'stopped',
-            actions=run and run.actions or 0,
-            paused_reason=run and run.state=='paused' and run.reason or nil,
-            generation=run and run.generation or nil,
-            last_decisions=ac.last_decisions or Json.array{}}
-    end
+    -- Stable, always-present auto-combat summary: clients can rely on the keys
+    -- before activation, after a stop, and after death (never null).
+    local ac=s.auto_combat and AutoCombat.status(s.auto_combat) or nil
+    local run=ac and ac.run or nil
+    result.auto_combat={enabled=(s.auto_combat and s.auto_combat.host_factory~=nil) or false,
+        active=(ac and ac.active==true) or false,
+        policy_id=(s.auto_combat and s.auto_combat.store.running and s.auto_combat.store.running.id) or Json.null,
+        policy_hash=(ac and ac.running_hash) or Json.null,
+        state=(run and run.state) or 'stopped',
+        actions=(run and run.actions) or 0,
+        paused_reason=((run and run.state=='paused') and run.reason) or Json.null,
+        generation=(run and run.generation) or Json.null,
+        last_decisions=(ac and ac.last_decisions) or Json.array{}}
     if s.session_root then
         local h=Interactions.current(s.session_root)
         if h then result.interaction=Interactions.describe(s.session_root,m) end

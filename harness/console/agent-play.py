@@ -32,6 +32,31 @@ from mcp import Client, StdioServerParameters  # noqa: E402
 SERVER_SRC = ROOT / 'game/addons/tome-mcp-bridge/server/src'
 
 
+# Client-facing routing/hints for native (session-owned) popups. Kept as pure
+# functions so the harness contract is unit-testable without a running game.
+def native_popup_hint(interaction=None):
+    """Name the real call and answer shape for a native popup."""
+    types = []
+    if isinstance(interaction, dict):
+        types = [t for t in (interaction.get('answer_types') or []) if isinstance(t, str)]
+    shapes = ['{"dismiss":{"type":"option","option_id":"<option_id>"}}']
+    if not types or 'confirm' in types:
+        shapes.append('{"dismiss":{"type":"confirm","value":true}}')
+    return ('no command-owned interaction is pending; this is a native popup. '
+            'Answer it with tome.dismiss, e.g. ' + ' or '.join(shapes)
+            + '; observe.interaction lists answer_types'
+            + (' ' + str(types) if types else ''))
+
+
+def respond_route(has_command_interaction, has_native_popup):
+    """Pick the tool for a respond request: 'respond', 'dismiss', or 'none'."""
+    if has_command_interaction:
+        return 'respond'
+    if has_native_popup:
+        return 'dismiss'
+    return 'none'
+
+
 CURRENT_RID = None
 
 
@@ -277,11 +302,26 @@ async def main():
                     return {'status': st, 'log': log}
                 return {'error': {'code': 'unknown_auto_op', 'op': op}}
 
+            async def dismiss_answer(answer):
+                return await call('tome.dismiss', {
+                    'session_id': state['connection']['session_id'],
+                    'control_token': state['connection']['control_token'],
+                    'answer': answer})
+
             async def respond(answer, reason):
-                if not state.get('interaction') or not state.get('command_id'):
+                # A native (session-owned) popup has no command_id; accept the
+                # respond path as an alias for dismiss instead of leaving the
+                # old misleading hint. A command-owned interaction still uses
+                # tome.respond.
+                current = state.get('current') if isinstance(state.get('current'), dict) else {}
+                native = current.get('interaction')
+                route = respond_route(bool(state.get('interaction') and state.get('command_id')),
+                                      bool(native))
+                if route == 'dismiss':
+                    return await dismiss_answer(answer)
+                if route == 'none':
                     return {'status': 'failed', 'code': 'no_pending_interaction', 'action_ok': False,
-                            'details': {'hint': 'observe.interaction lists a command interaction; '
-                                                'native popups use {"dismiss":{...}}'}}
+                            'details': {'hint': native_popup_hint(native)}}
                 interaction = state['interaction']
                 state['counter'] += 1
                 response_id = f'resp-{state["counter"]:05d}'
@@ -474,9 +514,7 @@ async def main():
                         out = await call('tome.list', {'session_id': state['connection']['session_id'],
                                                        'request': c['list']})
                     elif c.get('dismiss'):
-                        out = await call('tome.dismiss', {'session_id': state['connection']['session_id'],
-                                                          'control_token': state['connection']['control_token'],
-                                                          'answer': c['dismiss']})
+                        out = await dismiss_answer(c['dismiss'])
                     elif c.get('inspect'):
                         out = await call('tome.inspect', {'session_id': state['connection']['session_id'],
                                                           **c['inspect']})
@@ -570,4 +608,5 @@ async def main():
         r.close()
 
 
-asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(main())
