@@ -16,7 +16,7 @@ TOME_MCP_TOKEN='与你的游戏设置相同的凭据' server/.venv/bin/python -m
 
 服务不会自动控制游戏。`tome.connect(mode="observe")` 只读旁观，适合观察 Battle Companion；`mode="control"`（缺省）暂停助手并获取远程控制。旁观模式不会在旧版 addon 上自动回退到控制模式，请同时更新游戏 addon 与 Python 服务到 0.9.0。
 
-0.9.0 起协议 **4** 是唯一版本（v1/v2/v3 已移除）：写入使用规范序号 `cmd-<seq>` 与有界命令账本，`connect`/`observe`/`status` 返回 `history`，旧协议请求返回 `protocol_mismatch`。只读技能查询与一次性目标预填：`tome.inspect(kind="talent", id=..., target_id=...)`（或传 `x`/`y`）额外返回 `query`，含 `range`、`requires_target`、`target_type`、`cooldown_remaining`、`current_costs`、`base_costs`、`costs_complete`、`affordable`、`readiness`、逐资源 `resource_checks` 以及可选 `distance`/`in_range`；当前费用未知时 `affordable` 返回 `unknown`，不用基础费用猜测。查询不运行 `preUseTalent` 或动态技能函数。`use_talent` 可带 `target_id` 或 `x`/`y`，在第一次原生 `getTarget` 消费一次后交还原生目标流程，并按静态/动态射程拒绝越程或回退原生提示。
+0.9.0 起协议 **4** 是唯一版本（v1/v2/v3 已移除）：写入使用规范序号 `cmd-<seq>` 与有界命令账本，`connect`/`observe`/`status` 返回 `history`，旧协议请求返回 `protocol_mismatch`。只读技能查询与一次性目标预填：`tome.inspect(kind="talent", id=..., target_id=...)`（或传 `x`/`y`）额外返回 `query`，含 `range`、`requires_target`、`target_type`、`cooldown_remaining`、`current_costs`、`base_costs`、`costs_complete`、`affordable`、`readiness`、逐资源 `resource_checks` 以及可选 `distance`/`in_range`；当前费用未知时 `affordable` 返回 `unknown`，不用基础费用猜测。查询**不提交任何游戏动作**、不泄露玩家未获知信息；除此之外可调用当前实时的动态技能 getter/builder，也**不承诺**零副作用或零 RNG（动态求值报错/缺失/返回 `nil` 时保留 `unknown`）。`use_talent` 可带 `target_id` 或 `x`/`y`，在第一次原生 `getTarget` 消费一次后交还原生目标流程，并按静态/动态射程拒绝越程或回退原生提示。
 
 0.6.0 增加 `dialog.notice` 和 `use_item`。击杀、剧情、拾取后的说明窗口逐层关闭，同一命令保留原有副作用和执行占用；物品使用走原生协程、充能与消耗清理，不按物品名称登记脚本。使用 `{"type":"use_item","item_id":"当前拥有的物品ID"}`，按返回的实际交互回答，禁止重放原始动作来关闭窗口。
 

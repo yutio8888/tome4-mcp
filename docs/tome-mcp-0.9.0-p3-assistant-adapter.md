@@ -10,8 +10,9 @@ assistant configuration into an auto-combat **policy draft**. It never executes
 assistant logic, never calls the assistant at runtime, and never
 approves/activates/starts a run. A human confirms the draft before
 `approve`/`activate`. Execution stays behind
-`allow_auto_combat_execution` (default **off**) and `change_level` stays opt-in
-(default **off**).
+`allow_auto_combat_execution` (default **off**). The historical P3 slice also kept
+`change_level` out of its generated drafts (a **slice/preset default**, not a
+plugin-wide gate).
 
 ## 1. Pinned version
 

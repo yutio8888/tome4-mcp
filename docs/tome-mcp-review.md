@@ -1,5 +1,11 @@
 # ToME MCP 首版独立审阅
 
+> **历史资料，非规范（Historical / non-normative）。** 本文是当时的审阅记录。其中“observe/inspect 不得调用
+> `preUseTalent`、技能 action、一般 tooltip、project 或 Chat.generateList；把 RNG、preUseTalent、canSee
+> 设置为失败哨兵”等约束已被 `AGENTS.md` 与 `docs/tome-mcp-auto-combat-plugin-design.md` §8.3 **取代**：
+> 当前只读边界仅为**不提交动作、不泄露玩家未知信息**，实时 getter/builder（含动态 tooltip/目标函数）
+> 可调用（允许 RNG/读副作用）。保留原文仅作历史证据。
+
 日期：2026-09-15。审阅依据：当前原生 Lua/C 源码、架构草案与本地 Battle Companion；以下是实现约束，不代表 MCP 已通过原生验收。
 
 ## P0：首版必须满足

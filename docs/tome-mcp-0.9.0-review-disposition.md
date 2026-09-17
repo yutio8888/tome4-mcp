@@ -8,19 +8,29 @@ in `docs/tome-mcp-0.9.0-wave1-execution-safety.md` and
 
 ## Maintainer decisions (binding)
 
+> **Supersession note (v1.6).** Two decisions below are no longer current and are retained only as
+> historical record: **D5** (removal of `change_level`) and **D6** (unconditional pause-only
+> `flee_below_hp_pct`) are **superseded** by the movement design §6.2 and the Wave 1 D5/D6 supersession —
+> `change_level` is a normal, capability-backed policy action (scene transition still pauses/resets and
+> requires an explicit restart), and the low-HP behavior is a **preset/mode default**, not a plugin-wide
+> gate. **D11** (runtime digest + identity + declaration + dependency-closure registry as a *gate*) is
+> **superseded** by `AGENTS.md` and design §8.3: getters are called as live entrypoints with no identity/
+> digest/closure gate; source digests/identity are advisory re-review telemetry only. The other decisions
+> (D1–D4, D7–D10, D12) stand.
+
 | # | Decision |
 | --- | --- |
 | D1 | **Any** talent may be declared `emergency:true` (no talent-category whitelist). Safety comes from the pre-execution adapter guard over the real bound target (range / `canProject` / geometry / self-hit / ally friendly-fire) plus `max_selffire_risk`. |
 | D2 | `max_selffire_risk==0` = hard gate (reject + record); `>0` = pause threshold. Candidate selection filters by the same guard. |
 | D3 | "Instant" uses the **existing native signal**: talent `no_energy` (bool/function) consumed by `ActorTalents:useTalent`/`forceUseTalent`, corroborated by the observed energy delta. No new marker. |
 | D4 | `start` **re-acquires the auto-combat lease** for an already-active policy (`start` = ensure lease + run). `active` = a policy exists; arbiter = current control. |
-| D5 | `change_level` is **removed from the auto-combat schema/catalogue/capability** (the remote `tome.act` command is untouched); auto-level-change is a future phase. |
-| D6 | `sustain.min_resource_pct` gates sustain activation; `flee_below_hp_pct` is a distinct **pause** reason (no auto-retreat). Fields that cannot be made honest are removed, never left inert. |
+| D5 | `change_level` is **removed from the auto-combat schema/catalogue/capability** (the remote `tome.act` command is untouched); auto-level-change is a future phase. **SUPERSEDED (v1.6)** — see the note above. |
+| D6 | `sustain.min_resource_pct` gates sustain activation; `flee_below_hp_pct` is a distinct **pause** reason (no auto-retreat). Fields that cannot be made honest are removed, never left inert. **SUPERSEDED (v1.6)** for the flee behavior: it is a preset/mode default (`pause|emergency_only|evaluate_rules`), not a plugin-wide gate. |
 | D7 | Mixed: request ops/args and the **error contract** are normative and checked against the live registry; result shapes are documented per op with representative-field validation and a declared-gap mechanism (currently 0 gaps) — a full result JSON Schema is not required. |
 | D8 | `approve` CASes the **draft**, `activate` CASes the **approved** version (code as-is; docs/server/UI/tests corrected). |
 | D9 | Remote `auto_explore` is advertised in `capabilities.actions` / `action_support` / `native_tasks`. |
 | D10 | Add `get` (three versions) and `clear` (draft only); §11 formally adopts the existing names `policy_log` / `replay` / `invalid_policy` (no rename of merged tools). |
-| D11 | Computed getters are audited via `NativeCompatibility` (source digest + identity + declaration + dependency closure) and resolved only through that registry. |
+| D11 | Computed getters are audited via `NativeCompatibility` (source digest + identity + declaration + dependency closure) and resolved only through that registry. **SUPERSEDED (v1.6)** — see the note above; getters are live entrypoints, no runtime gate. |
 | D12 | Wave 2 runs serially after Wave 1 (both touch `Runtime.lua`). |
 
 ## Findings disposition
@@ -36,7 +46,7 @@ in `docs/tome-mcp-0.9.0-wave1-execution-safety.md` and
 | AC-07 Standalone auto-combat did not suppress `automaticTalents` | P1 | Fixed (`hasControl` includes the auto-combat lease / owned activity) |
 | AC-08 Policy replacement kept the old controller generation | P1 | Fixed (activation invalidates/rebinds at a safe boundary) |
 | AC-09 Restart after stop/no-enemies/manual was broken | P1 | Fixed (per D4) |
-| AC-10 `change_level` advertised but not executable | P1 | Resolved by removal (per D5); recorded as a future phase |
+| AC-10 `change_level` advertised but not executable | P1 | Resolved by removal (per D5, **superseded v1.6**: `change_level` is now a normal action); recorded as a future phase |
 | INT-01 v4 schemas did not describe the live interface | P1 | Fixed (requests: 14 live ops + args; generator derives from Runtime.dispatch + MCP names; 14 ops documented, 0 gaps) |
 | INT-02 Error contract not exhaustive/emitted | P1 | Fixed (75-code registry is the single source; Lua+Python build the full envelope; CI fails on unregistered emitted codes; 64 emitted all registered) |
 | INT-03 Policy validator not strict | P2 | Fixed (logging / tie_break / composite union / action `then` + negative tests) |
@@ -66,4 +76,6 @@ in `docs/tome-mcp-0.9.0-wave1-execution-safety.md` and
 3. **Full result JSON Schema**: not required (D7); representative fields +
    declared-gap mechanism.
 4. **Informative pure-tooltip description reads**: still excluded (no
-   RNG/state tripwire facility yet) — a P2.5 decision, unchanged.
+   RNG/state tripwire facility yet) — a P2.5 decision, **superseded v1.6**: the
+   tripwire/purity premise is gone; description reads are bounded only by the two
+   red lines (no action submission, no player-unknown information).

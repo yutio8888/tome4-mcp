@@ -23,7 +23,7 @@
 ```
 - move、撤退、拉开距离、传送、rest、auto_explore 与 change_level 均为普通策略动作；是否使用、何时使用以及接受何种可见度/危险/随机落点，由策略或命名 preset/mode 明示，插件不得另加战术门槛。
 - P1a strict preset 默认只处理当前可见战斗：无可见敌人即结束，不探索、不追击未知区域，不含自动撤退、随机传送或换层规则；这些是该 preset 的默认值，不是插件全局能力边界。
-- 插件仅在无法忠实执行时 fail closed：目标/目标请求无法解析，getter/builder/执行入口未经审计或发生 source drift，控制/lease/revision/场景边界失效，预算耗尽，原生拒绝，或无法判定原生动作是否完成。
+- 插件仅在无法忠实执行时 fail closed：目标/目标请求无法解析，必需值因 getter/builder/执行入口缺失、报错或返回 `nil`/类型无效而无法取得，控制/lease/revision/场景边界失效，预算耗尽，原生拒绝，或无法判定原生动作是否完成。（source drift 仅为重审提示/遥测，本身不构成失败。）
 - 随机落点、视野外坐标、未知通行性或未知危险属于策略信息，不等同于执行不可判定；dry-run/decision/log 必须如实标注，由策略的显式容忍度决定是否提交。不得为改善决策而读取玩家未知信息。
 - 没有匹配动作时按策略的 on_unavailable/mode 处理；不得从规则失败中隐式生成等待、巡逻、探索、撤退或换层动作。
 
@@ -41,7 +41,7 @@
 - **G3 本地执行**：原生插件在玩家回合以原生速度决策与施法，不依赖外部进程。
 - **G4 可独立**：不装 MCP 也能用（自带编辑器、快捷键、预设、角色档案）。
 - **G5 可接入 MCP**：装 MCP 时暴露 `tome.policy`/`tome.policy_log`、观察摘要与统一控制仲裁。
-- **G6 安全可证**：只读玩家已知信息；只调已审计原生入口（**含动态 getter/builder**）；未知即保守；不跑任意策略代码。
+- **G6 安全可证**：只读玩家已知信息；只调当前实时的原生入口（**含动态 getter/builder**，不要求证明其未被替换）；未知即保守；不跑任意策略代码。
 - **G7 可验证可回放**：确定性决策（无 RNG 平局）、dry-run 诊断、有界决策日志。
 
 ### 1.2 非目标（v1）
@@ -58,7 +58,8 @@
 
 1. **数据，不是代码**。策略只允许 JSON 标量/数组/对象；禁止函数名、字段路径、正则、Lua 表达式。
 2. **三值信息 + 分层 fail-closed**。条件与信息结果为 `true/false/unknown`。执行完整性未知（控制、目标请求、
-   审计/source pin、预算、原生完成状态）必须 fail closed；战术结果未知（视野、通行、危险、随机落点）必须
+   必需值不可得（getter/builder 缺失/报错/`nil`/类型无效）、预算、原生完成状态）必须 fail closed；战术结果
+   未知（视野、通行、危险、随机落点）必须
    如实报告并由策略显式接受条件求值；效果 footprint 无法计算时禁用该动作。
 3. **单一真相 + 稳定往返**。UI 编辑与 JSON 导入导出使用同一 schema；规范化序列化（字段顺序固定、数值整型化）。
 4. **一次一动作**。每回合（ready→pump）只执行一个耗能动作；instant 技能可在同一 pump 内继续，但受硬上限约束。
@@ -91,7 +92,7 @@ flowchart LR
     MCP <--> STORE
     STORE --> SCHEMA[PolicySchema\n严格校验 + normalize + 迁移]
     SCHEMA --> EVAL[PolicyEvaluator\n三值条件 + 优先级]
-    SNAP[PolicySnapshot\n玩家已知 + 审计 getter + 有界] --> EVAL
+    SNAP[PolicySnapshot\n玩家已知 + 实时 getter + 有界] --> EVAL
     EVAL --> CAT[CapabilityCatalog\n声明式技能/目标/自伤 adapter]
     CAT --> GUARD[执行守卫\nowner epoch / revision / refs / canProject]
     ARB[ControlArbiter\nmanual|remote|auto_combat|battle_companion] --> GUARD
@@ -111,7 +112,7 @@ flowchart LR
 | `ControlArbiter.lua` | owner/epoch/lease、原子接管、监听器、reset；统一四类控制源 |
 | `PolicyStore.lua` | 保存/加载策略（内存 + 角色档案 + 文件），规范化、hash、版本迁移 |
 | `PolicySchema.lua` | 严格 schema 校验；默认值；limits 只可收紧 |
-| `PolicySnapshot.lua` | **每个行动机会**取一次“玩家已知”快照；瞬发后重取；审计 getter；截断标记 |
+| `PolicySnapshot.lua` | **每个行动机会**取一次“玩家已知”快照；瞬发后重取；实时 getter；截断标记 |
 | `PolicyEvaluator.lua` | 条件三值求值、优先级、目标选择、诊断 |
 | `AutoCombatCatalog.lua` | 受支持技能的**声明式** adapter（几何/目标/自伤/前置） |
 | `AutoCombat.lua` | 执行状态机：ready/pump/onTickEnd、instant 上限、pause/resume/stop |
@@ -233,7 +234,7 @@ flowchart LR
 
 `target` 绑定 actor；`destination` 以纯数据 selector 表达移动请求，并携带显式的
 visibility/passability/hazard/landing 接受条件。多次原生选目标用与版本固定 manifest 一致的有序 `target_plan`。
-计划器的候选与 tie-break 必须确定；经审计原生动作自身的随机结果允许执行，并在 dry-run/decision/log 标注。
+计划器的候选与 tie-break 必须确定；原生动作自身的随机结果允许执行，并在 dry-run/decision/log 标注。
 `change_level` 是普通显式动作。原生换层后执行器按场景边界暂停、清除旧 level/target/destination/lease 状态，
 并要求在新场景显式重新启动；此生命周期不等于禁止策略选择换层。
 
@@ -278,7 +279,7 @@ visibility/passability/hazard/landing 接受条件。多次原生选目标用与
 - 移动与效果信息**合取求值**：两部分都必须可计算且都被策略接受。`max_selffire_risk` 是**策略字段**：
   已知自伤/友伤风险只**报告**，是否拒绝由策略阈值决定；内置 preset 默认保守（`0`），但插件**不再硬编码**
   为全局拒绝；只有**风险 footprint 无法确定**时才 fail-closed 禁用该动作。（Q4 已定，v1.6。）
-- owner/场景/lease/revision、未经审计入口或 getter/builder、source drift、预算、原生拒绝或动作完成状态
+- owner/场景/lease/revision、必需值不可得（getter/builder 缺失/报错/`nil`/类型无效）、预算、原生拒绝或动作完成状态
   不明属于**执行完整性边界**，策略不得放宽。
 - `change_level` 成功或开始场景迁移后总是暂停并重置旧场景状态，要求显式重新启动。
 
@@ -297,17 +298,17 @@ pause/no-change-level 行为，但执行器**不再全局施加**这两项限制
 ### 5.6 `computed` 谓词引用（与只读接口一致）
 策略可引用 `inspect(kind="actor")` 已暴露的有效计算值：`computed.crit.physical`、
 `computed.resists.FIRE`、`computed.offense.resistance_penetration.FIRE`、`computed.defense.fatigue`、
-`computed.stats.mag`、`computed.speeds.movement` 等。这些值来自**已审计的 getter**（§8）。
+`computed.stats.mag`、`computed.speeds.movement` 等。这些值由当前实时的 getter 读取（§8）。
 
 **字段是有限枚举，不是任意路径**（P2.5）：`computed` 是**数值比较** `{field, cmp, value}`，
 `field` 必须属于固定枚举（`PolicySchema.COMPUTED_FIELDS`，即 `ActorCombat.computed` 暴露的
-角色面板路径）；枚举外路径是 schema 错误。getter 被覆盖/缺失/报错时该字段为 `unknown`，
+角色面板路径）；枚举外路径是 schema 错误。getter 缺失/报错/返回 `nil`/类型无效时该字段为 `unknown`，
 绝不猜测。`has_effect`（`who ∈ {self,target}`，target 为动作将绑定的同一目标）与
 `ally_count` 同样来自有界的可见读取，数据不可得时为 `unknown`。
 
 **Getter 安全判据（P2.5，玩家面板/悬浮可见）：** 一次读取是安全的，当且仅当
-(a) 玩家可在角色面板或悬浮/提示框中看到该值，且 (b) 它来自**已审计的原生 getter/标量字段**，
-在 getter 被覆盖/缺失/报错时 **fail-closed 为 `unknown`**。标量面板数据（属性、速度、暴击、力量、
+(a) 玩家可在角色面板或悬浮/提示框中看到该值，且 (b) 它来自当前实时的原生 getter/标量字段，
+在 getter 缺失/报错/返回 `nil` 时保留 `unknown`（不强求“未替换”）。标量面板数据（属性、速度、暴击、力量、
 命中/APR/伤害、防御/护甲/疲劳、豁免、抗性/穿透/亲和、视力、生命、等级/rank、效果列表、技能冷却/
 消耗/射程等）安全。**读取不要求"无 RNG/无副作用"**：动态 getter（含 `getTalentTarget`/`t.target`/
 `preUseTalent`/`desc` 等）与动态提示文本均**可读**，唯一红线是不得提交动作、不得暴露玩家未获知
@@ -327,11 +328,12 @@ pause/no-change-level 行为，但执行器**不再全局施加**这两项限制
 每个技能由 `mod.auto_combat.EffectManifest`（schema `tome-auto-combat-adapters/v2`）给出
 **独立组件**（cursor / instant / projectile / secondary / ground），每组件记录 `delivery`、
 `shape`、`range`/`radius`、`center`、`duration`、`selffire`/`friendlyfire`/`player_selffire` 及
-来源。守卫（`AutoCombatGuard`）只从这些规范组件推导风险；条件分支只由已审计标量读取
+来源。守卫（`AutoCombatGuard`）只从这些规范组件推导风险；条件分支只由实时标量读取
 （`talent_level`/`attr`）解析，无法解析则保留保守并集。footprint 由 `EffectFootprint` 展开
 （游戏内使用原生 `core.fov` 后端，已由原生探针对 `ActorProject:project` 逐格验证）。源文件
-哈希/定义行由 `tools/generate_effect_manifest.py` 生成并由 `EffectManifestDrift` 校验；不匹配
-返回 `adapter_source_drift`，绝不使用过期元数据。动态技能见 `EffectManifest.UNSUPPORTED`。
+哈希/定义行由 `tools/generate_effect_manifest.py` 生成，`EffectManifestDrift` 可作**遥测**重查；
+哈希不匹配本身**不**禁用动作（它不是运行期门槛），只有组件值缺失/报错/`nil`/类型无效才使对应组件
+为 `unknown`。动态技能见 `EffectManifest.UNSUPPORTED`。
 
 ---
 
@@ -368,7 +370,7 @@ pause/no-change-level 行为，但执行器**不再全局施加**这两项限制
 1. **Schema 级**：严格类型/上限/白名单；拒绝未知字段与非法值。返回 `policy_invalid` + 逐字段错误。
 2. **规划级（dry_run）**：用**当前只读快照**对策略求值，不执行任何动作：
    - 每条规则 → `true/false/unknown`，被选中的动作/目标，拒绝原因（冷却/资源/射程/selffire/adapter 不支持）。
-   - 允许调用审计过的动态 getter/builder（`getTalentTarget`/`t.target`/`preUseTalent` 等）：本项目**不要求读取无 RNG/无副作用**，
+   - 允许调用当前实时的动态 getter/builder（`getTalentTarget`/`t.target`/`preUseTalent` 等）：本项目**不要求读取无 RNG/无副作用**，
      唯一红线是不得提交动作、不得暴露玩家未获知信息（§8.3）；`tie_break` 仍用稳定排序以保证诊断可回放。
    - 产品语义是“**预览此刻会选什么**”，**不是**“证明该动作一定安全/一定成功”。
 - 诊断格式：
@@ -381,19 +383,19 @@ pause/no-change-level 行为，但执行器**不再全局施加**这两项限制
 
 ---
 
-## 8. 安全、反作弊与审计
+## 8. 安全与执行边界
 
 - **数据 only**：策略不含可执行内容；执行器是实现方，不是策略的一部分。
 - **只读玩家已知**：快照只含玩家可见信息（可见敌人/自身/已知地图）；不读隐藏实体、未识别物品属性。
 - **Getter 安全判据（P2.5，玩家面板/悬浮可见）**：一次读取安全 iff (a) 玩家可在角色面板或
-  悬浮/提示框中看到该值，且 (b) 来自**已审计的原生 getter/标量字段**，被覆盖/缺失/报错时
-  **fail-closed 为 `unknown`**（实现见 `ActorCombat.computed` + `ActorCombat.field`，谓词枚举见 §5.6）。
+  悬浮/提示框中看到该值，且 (b) 它来自当前实时的原生 getter/标量字段，缺失/报错/返回 `nil` 时
+  保留 `unknown`（不要求证明其未被替换；实现见 `ActorCombat.computed` + `ActorCombat.field`，谓词枚举见 §5.6）。
   动态 getter 与动态提示文本**可读**（不要求无 RNG/无副作用）；唯一红线是不得提交动作、不得
   暴露玩家未获知信息（见 §8.3）。谓词优先使用可回放的标量面板 getter 以获得稳定诊断。
 - **getter 无严格审计**：planner 直接以游戏内实际 getter/builder 为正常入口；**不要求**证明其未被替换
   （Lua 动态、其它 addon 可替换，本项目不为他人实现负责）。getter 报错/缺失/返回 `nil` → 该值 `unknown`。
   `NativeCompatibility` 的摘要/身份信息可作为**策展重审提示或可选遥测**，**不得作为运行期门禁**。
-- **能力目录**：每个受支持技能一个 version-pinned adapter，声明：
+- **能力目录**：每个受支持技能一个 version-pinned adapter（版本固定指**策展元数据**将随发行重新审查，不是运行期身份门槛），声明：
   - 静态几何（`range/radius/shape/target_type`）与 `direct_hit`；
   - 目标选择要求（如必须是 hostile/单体/AoE 最少目标数）；
   - **自伤语义**（显式/动态/无），必要时按运行时 `target_geometry` 复核；
@@ -409,7 +411,7 @@ pause/no-change-level 行为，但执行器**不再全局施加**这两项限制
 | 未知/异常 | 规范行为 |
 | --- | --- |
 | 控制权、当前角色、场景边界、lease/revision、原生动作是否结束不明确 | **整个执行器暂停** |
-| 必需目标/目标请求无法解析，或原生入口/getter/builder 未审计、source drift | **禁用该动作**；若已提交或影响唯一控制边界则暂停 |
+| 必需目标/目标请求无法解析，或原生入口/getter/builder 缺失/报错/返回 `nil`/类型无效 | **禁用该动作**；若已提交或影响唯一控制边界则暂停。记录到的 source drift 仅为遥测，本身不禁用动作 |
 | 某范围技能的友伤/效果 footprint 无法计算 | **禁用该动作**，不否定其它报告完整的动作 |
 | 移动落点随机、视野外，或通行性/危险为 unknown | 保留 unknown 注解，**按策略显式接受条件求值**；不得读取隐藏状态来消除 unknown |
 | 仅用于目标优化的属性不明确 | 跳过依赖它的规则，或用策略规定的简单 selector |
@@ -427,21 +429,25 @@ pause/no-change-level 行为，但执行器**不再全局施加**这两项限制
   读值路径消耗随机数不影响正确性；把"无 RNG/无状态变更"当作读取门槛是**错误**的方向，
   此前多次因此过度保守（排除可用 getter、加"绊线"、拒绝动态文本），**本版正式废弃**。
 - **唯一执行边界**是真正提交动作的原生入口（`useTalent`/`attack`/`use_item`/`rest`/
-  `auto_explore`/`change_level` 等）。除此之外**审计过的原生动态方法均可调用**，例如
+  `auto_explore`/`change_level` 等）。除此之外**当前实时的原生动态方法均可调用**，例如
   `getTalentTarget`/`t.target`、`preUseTalent`、`getTalentRange`/`getTalentRadius`/
   `getTalentRadius`、`canProject`、`spellFriendlyFire`、`desc`/`info`、`getTalentRequires` 等。
-- **"审计"只保证可定位与可信**：函数来自原生文件（源路径 + 摘要 + 身份 + 依赖闭包），
-  被覆盖/缺失/报错时 fail-closed 为 `unknown`。它**不**意味着"纯函数"，也不要求证明无副作用。
+- **不要求“运行期入口 = 原生入口”的严格审计**：Lua 动态，其它 addon 可替换任何函数；本项目
+  **无法保证、也不要求保证**入口就是未被改动的原生实现，且**不为其它 addon 的错误实现负责**。
+  因此不存在“身份/摘要/依赖闭包”门槛：直接以游戏内实际的 getter/builder 为正常入口调用，
+  报错/缺失/返回 `nil` 时该值即为不可得（`unknown`）。源摘要/身份只能作为**策展数据的重审提示
+  或可选遥测**，**不得作为运行期门禁**。
 - **读取的两条红线**（除此之外不加限制）：
   1. 不得提交动作（不得调用 `useTalent` 等执行入口）；
   2. 不得把玩家未获知的信息喂给 planner（隐藏实体、未识别物品属性、未探索地图）。
-- **安全由执行前 adapter 门禁 + 原生返回保证**，而不是靠禁止读取；未知/不可审计时保守处理
-  （见 §8.1），但不因"可能有副作用"而放弃读取。
+- **安全由执行前 adapter 门禁 + 原生返回保证**，而不是靠禁止读取；只要必需值可取得就继续，
+  值不可得时保守处理（见 §8.1），但不因“可能有副作用”或“可能被替换”而放弃读取。
 - **明确废弃的过度保守假设**（未来不得再引入）：
   1. "读值必须无 RNG/无状态变更，否则排除或加 RNG/状态绊线"；
   2. "不得调用 `t.target`/`getTalentTarget` 等动态构建器来做执行前判定"；
   3. "动态提示文本一律不得读取"；
-  4. "必须为每个 getter 单独建立纯函数证明"。
+  4. "必须为每个 getter 单独建立纯函数证明"；
+  5. "必须先证明函数未被其它 addon 替换（身份/摘要/依赖闭包）才可使用"。
 
 ---
 
@@ -541,12 +547,13 @@ pause/no-change-level 行为，但执行器**不再全局施加**这两项限制
 ## 12. 与现有插件的关系
 
 - **`tome-auto_talent_assistant`**：不复用其运行态/引擎。它的 hook 自造、状态存 `actor.Assistant`、
-  含 RNG 与换装/队友/休息等副作用、初始化埋在万行 UI 实现里，**不是稳定 ABI**。
+  初始化埋在万行 UI 实现里、字段无稳定契约，**不是稳定 ABI**（读值路径是否含 RNG 不是拒绝理由；
+  本项目只关心动作提交与玩家信息边界）。
   两者并装 = 双控制 → **拒绝启用自动**（与 Battle Companion 的做法一致）。
   Phase 3 可选做一个**固定版本 + 显式字段映射**的"只生成配置、不直接启用、人工确认"的适配器。
 - **`tome-battle-companion`**：沿用其 ready/pump/`onTickEnd` 调度与"执行前检查控制权"的模板；
   同装时由仲裁器决定唯一 owner。
-- **MCP Bridge**：提供观察（`inspect`/`tome.map`）、审计 getter、控制租约与仲裁；
+- **MCP Bridge**：提供观察（`inspect`/`tome.map`）、getter 读取、控制租约与仲裁；
   本插件的 `remote` owner 与 Bridge 的控制租约是同一条链。
 
 ---
@@ -554,15 +561,15 @@ pause/no-change-level 行为，但执行器**不再全局施加**这两项限制
 ## 13. 兼容与本地化
 
 - **职业覆盖**：以 adapter 目录逐职业推进；未覆盖技能在 dry-run 中显式列出，不静默降级。
-- **Mod**：modded talent 通过新增 adapter 支持；load order 变化导致身份审计失败 → fail-closed（不可用而非弱审计）。
+- **Mod**：modded talent 通过新增 adapter 支持；load order 变化或其它 addon 替换实现的摘要/身份变化只作为**重审提示/遥测**，不得作为运行期门槛（实际调用其当前实现，报错/`nil` 才视为不可得）。
 - **本地化**：谓词/动作/字段的 `labels.zh_hans.lua`、`labels.en.lua`；JSON 只存 id。
 
 ---
 
 ## 14. 测试与验收
 
-- **单元（Lua）**：`test_policy_schema`、`test_policy_evaluator`（三值逻辑）、`test_policy_purity`
-  （无 RNG、无未审计 getter）、`test_control_arbiter`、`test_auto_combat_controller`、`test_auto_combat_catalog`。
+- **单元（Lua）**：`test_policy_schema`、`test_policy_evaluator`（三值逻辑）、`test_policy_read_boundary`
+  （不提交动作、不读隐藏信息；实时 getter 报错/`nil` → `unknown`）、`test_control_arbiter`、`test_auto_combat_controller`、`test_auto_combat_catalog`。
 - **原生 fixture**：常驻/治疗/普通攻击/单体/直线/AoE（含 selffire）/一步撤退/未知暂停/目标丢失/
   dialog/manual+remote 接管/save-load-death。
 - **MCP 集成（Python）**：`tome.policy` schema 与错误映射、dry-run、分页日志、接管。
@@ -589,7 +596,7 @@ pause/no-change-level 行为，但执行器**不再全局施加**这两项限制
 | 阶段 | 内容 | 估计 |
 | --- | --- | --- |
 | **P1a 首个可用闭环** | 模块骨架 + `tome.policy`/`dry_run`/status/日志；**简单编辑器（不写 JSON）+ 角色持久化 + 一个完整试点构筑**（治疗/护盾/资源恢复/稳定输出全流程可用）；常驻/普攻/一个静态单体/一个 beam/fixture 验证的 Searing·Shadow Blast·Starfall adapter | **3–5 周** |
-| **P1b 原生活动** | 抽出通用 `NativeActivity`，纳入 `rest`/`auto_explore`；自动换层默认关闭 | +2–3 周 |
+| **P1b 原生活动** | 抽出通用 `NativeActivity`，纳入 `rest`/`auto_explore`；自动换层默认关闭（**v1.6：** 这是 P1b/`strict` slice 默认值，不是插件级禁用） | +2–3 周 |
 | **P2 调优** | 更多谓词/选择器、决策回放、A/B 调参、更多职业 adapter | +2–3 周 |
 | **P3 适配** | 固定版本 assistant 配置适配器（只生成、人工确认） | 6–10 周起（持续维护） |
 
@@ -620,7 +627,7 @@ P1a `strict` preset **不生成**这些规则：队友/装备/物品/召唤管�
 **仍待确认（不阻塞 P1a 开工）**：
 1. daily 模式的风险定义与 preset 默认（**默认仍为 strict**，作为 P1b 之后）。
 2. manual 输入是 pause 还是断开 MCP transport（无论哪种，owner 必须先回 manual）。
-3. `rest`/`auto_explore` 进入 P1b 的具体版本；自动换层是否永久 opt-in。
+3. `rest`/`auto_explore` 进入 P1b 的具体版本；`change_level` 由策略/preset 选择（**v1.6：** 不再存在“永久 opt-in”这类插件级门禁；`strict` preset 默认不含它）。
 
 ---
 

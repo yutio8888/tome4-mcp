@@ -1,5 +1,10 @@
 # 第六轮 Insane 实机反馈：处理记录
 
+> **历史资料，非规范（Historical / non-normative）。** 本文是当时一轮测试的反馈处理记录。其中“原生 `selffire`
+> 多为动态/函数值，只读查询不执行”的写法受当时纯度前提影响，已被 `AGENTS.md` 与
+> `docs/tome-mcp-auto-combat-plugin-design.md` §8.3 **取代**：实时 getter 可调用（允许 RNG/读副作用），
+> 报错/缺失/`nil` 时标 `unknown`。历史观测与处理结果保留作证据。
+
 来源：`tmp/mcp-play-support/agent-ham-insane-06-report.md`（半身人/星月术士/Insane，Lv1 整局冻结）。
 处理日期：2026-09-16。基线：0.9.0 / 内部协议 v4。
 

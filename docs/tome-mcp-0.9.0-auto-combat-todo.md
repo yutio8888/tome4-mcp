@@ -93,9 +93,11 @@ The three §16 open items are resolved:
     lease.
 18. **rest / auto_explore / change_level**: `rest` (optional bounded
     `max_turns`) and `auto_explore` enter in P1b as additive schema-v1 actions
-    gated by `capabilities.auto_combat`; `change_level` is opt-in via
-    `permissions.change_level=true` and is **default off** (no preset enables
-    it). The pilot preset is unchanged.
+    gated by `capabilities.auto_combat`; `change_level` is a normal policy action
+    in the current schema. **Superseded (v1.6):** the earlier `permissions.change_level=true`
+    opt-in / default-off **hard gate** no longer applies — whether to change levels
+    is a `strict` preset default, not a plugin-wide permission bit. The pilot
+    preset simply contains no change-level rule.
 
 Items 12–13 remain the only deferred tuning decisions (sustain
 `min_resource_pct`, `flee_below_hp_pct`); the P1b `NativeActivity` work did not
@@ -127,7 +129,9 @@ P2 ships the bounded tuning slice documented in
 Items 12–13 (sustain `min_resource_pct`, `flee_below_hp_pct`) were **resolved by
 Wave 1** (D6): `min_resource_pct` now gates sustain activation and
 `flee_below_hp_pct` is a distinct pause reason (no auto-retreat). See the Wave 1
-close-out below.
+close-out below. **Superseded (v1.6):** the "no auto-retreat" part of D6 is a
+`strict` preset default (`pause|emergency_only|evaluate_rules`), not a plugin-wide
+prohibition — retreat/kiting are ordinary policy actions.
 
 ## P2.5 close-out (tooltip-safe getters)
 
@@ -135,17 +139,17 @@ P2.5 wires the player-panel / tooltip-visible getters into the predicate layer
 (doc: [docs/tome-mcp-0.9.0-p2.5-tooltip-getters.md](tome-mcp-0.9.0-p2.5-tooltip-getters.md)):
 
 27. **`computed`** is now a numeric comparison `{field, cmp, value}` over the
-    finite `PolicySchema.COMPUTED_FIELDS` enum (the audited
-    `ActorCombat.computed` panel paths); arbitrary paths are rejected and an
-    overridden/missing getter is `unknown`.
+    finite `PolicySchema.COMPUTED_FIELDS` enum (the live
+    `ActorCombat.computed` panel paths); arbitrary paths are rejected and a
+    missing/erroring/`nil` getter is `unknown`.
 28. **`has_effect`** (with `who ∈ {self,target}`; target = the bound target the
     action uses) and **`ally_count`** now read the bounded visible effect list
     and a bounded visible friendly/neutral `allies()` list; a missing/truncated
     list is `unknown`.
-29. **Dynamic tooltip text is never a predicate** and never auto-identifies.
-    Informational pure-description reads (audited source + RNG/state tripwire +
-    already-identified entity) remain **excluded** in this slice: the tripwire/
-    allowlist infrastructure is not built yet, so no such source is enabled.
+29. **Dynamic tooltip text is never a predicate** and never auto-identifies —
+    that is a data-model choice. **Superseded (v1.6):** the tripwire/audited-source
+    purity prerequisite is gone; informational description reads are allowed under
+    the two read red lines (no action submission, no player-unknown information).
     `most_dangerous`-by-`computed`, `cluster_center`/AoE and
     `map_frontier`/`turn_parity` remain excluded as before.
 
@@ -176,7 +180,8 @@ Wave 1 fixes AC-01 … AC-10 from the independent review; see
 The four binding maintainer decisions are recorded there (D1 any-talent
 emergency with a real-target guard; D2 hard gate vs pause threshold; D3
 `no_energy` + observed-delta instant; D4 start re-acquires; D5 `change_level`
-removed from auto-combat claims; D6 honest sustain/flee thresholds).
+removed from auto-combat claims — **D5/D6 superseded v1.6, see the notes above**
+and [movement-skills-design](tome-mcp-0.9.0-movement-skills-design.md) §6.2).
 
 27. **AC-01** `native_pending` is mapped before the success branch, the live
     auto root is tracked for `nativePhase`, and `resume` refuses a live body.
@@ -193,7 +198,9 @@ removed from auto-combat claims; D6 honest sustain/flee thresholds).
     `start` re-acquires the lease (stop/no-enemy/manual restartable).
 34. **AC-10** `change_level` removed from the auto-combat policy
     schema/catalogue/capabilities this wave (future phase); the general MCP
-    `tome.act change_level` action is untouched.
+    `tome.act change_level` action is untouched. **Superseded (v1.6):** the general
+    `change_level` action is now re-admitted as a normal auto-combat policy action
+    (scene transition still pauses/resets and requires explicit restart).
 35. **P2.5 follow-up**: the assistant adapter no longer warns
     `condition_unknown_at_runtime` for `has_effect`/`computed` (the host now
     resolves them).
@@ -217,7 +224,8 @@ Decisions D7–D12 recorded there.
 41. **INT-06** `get`/`clear` added; §11 names blessed (`policy_log`/`replay`/
     `invalid_policy`).
 42. **SAFE-01** finite computed getters registered through
-    `NativeCompatibility` (digest + identity + declaration + closure).
+    `NativeCompatibility` (digest + identity + declaration + closure). **Superseded (v1.6):**
+    getters are read via the live entrypoints; the registry is advisory telemetry, not a runtime gate.
 
 ## Round 3 metric-driven playtest (2026-09-17)
 

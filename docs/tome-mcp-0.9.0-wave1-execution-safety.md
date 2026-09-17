@@ -48,6 +48,12 @@ exists; the arbiter reports the *current* control. `stop`,
 deactivate detour.
 
 ### D5 — AC-10 `change_level`: removed from auto-combat claims this wave
+
+> **SUPERSEDED (v1.6)** — see the D5/D6 supersession below and movement design §6.2:
+> `change_level` is now a normal, capability-backed policy action; the `strict`
+> preset simply contains no change-level rule. The text below is retained as the
+> historical Wave 1 decision.
+
 `change_level` is removed from `PolicySchema.ACTIONS`/`ACTIVITY_ACTIONS`,
 `AutoCombatCatalog.ACTIONS` and `capabilities.auto_combat.actions` (and the
 `change_level='opt_in'` claim); `permissions` is removed from the schema.
@@ -57,11 +63,18 @@ invalidation/pause), and the frozen contract keeps auto change-level off. The
 general MCP `change_level` action is untouched. Recorded as a future phase.
 
 ### D6 — AC-04/D6 sustain and flee thresholds are honest
+
+> **SUPERSEDED for the flee behavior (v1.6):** the pause-only `flee_below_hp_pct`
+> is a `strict` preset/mode default (`pause|emergency_only|evaluate_rules`), not a
+> plugin-wide prohibition; retreat/kiting are ordinary policy actions. The
+> `min_resource_pct` sustain gate stands.
+
 - `sustain.min_resource_pct` now gates activation: a sustain is only attempted
   when the adapter's resource percentage is known and `>= min_resource_pct`.
 - `flee_below_hp_pct` is a distinct **pause** reason (`flee_below_hp_pct`), no
   auto-retreat: while `hp_pct < flee_below_hp_pct` the run pauses and returns
-  control to the player.
+  control to the player. (Historical slice behavior; superseded as a plugin-wide
+  rule — see the note above.)
 
 ## Findings to fixes
 

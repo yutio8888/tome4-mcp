@@ -1,5 +1,10 @@
 # 第四轮 Insane 实机反馈：处理记录
 
+> **历史资料，非规范（Historical / non-normative）。** 本文是当时一轮测试的反馈处理记录。其中“需求函数是
+> 动态的，只读查询不求值”的写法受当时纯度前提影响，已被 `AGENTS.md` 与 `docs/tome-mcp-auto-combat-plugin-design.md`
+> §8.3 **取代**：读取仅受两条红线约束（不提交动作、不泄露玩家未知信息），实时 getter 可调用（允许 RNG/读副作用）。
+> 历史观测与处理结果保留作证据。
+
 来源：`tmp/mcp-play-support/agent-ham-insane-04-report.md`（半身人/星月术士/Insane，存活 Lv1，9 杀）。
 处理日期：2026-09-16。基线：0.9.0 / 内部协议 v4。
 

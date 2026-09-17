@@ -1,5 +1,14 @@
 # Auto-combat v2 effect manifest, native-equivalent footprint, drift-safe guard
 
+> **Supersession banner (v1.6 / `AGENTS.md` + auto-combat design §8.3).** This is a historical
+> delivery record. The text below describes source-drift detection and `rawequal`/dependency-closure
+> identity as **runtime gates** that disable an adapter; that premise is **superseded**. Current policy:
+> the guard calls the game's **live** getter/builder as a normal entrypoint and reads its return value;
+> a missing/throwing/`nil`/invalid result makes that value `unknown`, while a replaced object, changed
+> closure, or source-digest mismatch is **advisory re-review telemetry only** and never by itself disables
+> an action. The curated component/risk model is preserved. Pasted hashes and observed results below are
+> kept as historical evidence, not as current acceptance criteria.
+
 Status: implemented on **PR [#13](https://github.com/yutio8888/tome4-mcp/pull/13)**
 (rev 4, reviewed head reported to the dispatcher); **not merged**. The actual
 `main` base is `f9b34c2` and the branch stays unmerged until review accepts it.
@@ -34,7 +43,7 @@ capability summary can never disagree with the canonical components.
 
 `Runtime.buildAutoCombatHost.reads.guard` now:
 
-1. requires the manifest entry and a source-drift pass;
+1. requires the manifest entry and calls the **live** builder (no identity/drift gate; recorded drift is telemetry);
 2. reads the audited native builder only for the instant geometry, keeping the
    canonical components authoritative for secondary/ground/variants;
 3. expands each active component's exact footprint;
@@ -52,16 +61,17 @@ grid collection exactly and delegates line/circle/cone geometry to the audited
 native `core.fov` helpers. `M.model` is an engine-free model used by unit tests
 and headless fixtures. The guard prefers native in-game.
 
-### 4. Source-drift detection (`overload/mod/auto_combat/EffectManifestDrift.lua`)
+### 4. Source-drift telemetry (`overload/mod/auto_combat/EffectManifestDrift.lua`)
 
-`tools/generate_effect_manifest.py` pins the md5 of the 24 talent source files
+`tools/generate_effect_manifest.py` records the md5 of the 24 talent source files
 and the seven engine-semantics files (`Target.lua`, `ActorProject.lua`,
 `Map.lua`, `utils.lua`, ToME `Actor.lua`, `ActorTalents.lua`, `Combat.lua`) plus
-each definition and builder line. At load time a mismatch returns
-`adapter_source_drift` and the adapter is disabled; the identity/closure check
-requires a live definition for **every** entry and catches a target builder
-added, removed, replaced or mutated under an unchanged data hash.
-`generate_effect_manifest.py --check` fails CI on drift.
+each definition and builder line. **Under the current live-getter boundary these
+records are advisory re-review telemetry, not a runtime gate**: the guard calls
+the live builder and judges its usable return; only a missing, throwing,
+`nil`, or invalid builder result makes the adapter's geometry `unknown`.
+`generate_effect_manifest.py --check` still fails CI on recorded-source drift, as
+an offline review signal.
 
 ## Rev 2 review fixes (V2-REV-01 … V2-REV-07)
 
@@ -114,6 +124,9 @@ across the target-spec `player_selffire` and the actor `allow_player_selffire`
 `false`. Regressions cover both directions and the both-false case.
 
 ### Rev 4: final V2-REV-02 identity gap
+
+> **Superseded (v1.6).** The `rawequal` baseline below is historical; the live-getter boundary
+> (see the banner) replaced it. Its regression is no longer a current acceptance test.
 
 Rev 3 compared bytecode dumps, but Lua bytecode does **not** include captured
 upvalue values: two closures from the same prototype at the same source/line
