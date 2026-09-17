@@ -12,6 +12,9 @@ local NativeActivity=require 'mod.mcp_bridge.NativeActivity'
 local Presets=require 'mod.auto_combat.PolicyPresets'
 local Schema=require 'mod.auto_combat.PolicySchema'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
+local EffectFootprint=require 'mod.auto_combat.EffectFootprint'
+local EffectManifest=require 'mod.auto_combat.EffectManifest'
+local ManifestDrift=require 'mod.auto_combat.EffectManifestDrift'
 local M={pending=false,checks={},failures=0,solo_frames=0}
 
 local function encode(value)
@@ -53,6 +56,8 @@ M.EXPECTED={
     ['production-reads']={'has_control','scalar_resource','guard_wired'},
     ['pilot-presets']={'ok','ok','ok','cast'},
     ['guard-real-spec']={'self_reject','builder_safe','grasp_safe'},
+    ['effect-footprint-parity']={'parity_ok'},
+    ['manifest-drift']={'verified','hash_rejected','identity_ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['solo-pump']={},
 }
@@ -600,6 +605,86 @@ local function guardRealSpec()
     return compare('guard-real-spec',signals)
 end
 
+local function sameSet(a,b)
+    local function count(set)
+        local n=0
+        for _,column in pairs(set or {}) do for _ in pairs(column) do n=n+1 end end
+        return n
+    end
+    if count(a)~=count(b) then return false end
+    for x,column in pairs(a or {}) do
+        for y in pairs(column) do if not (b[x] and b[x][y]) then return false end end
+    end
+    return true
+end
+
+-- V2-3: the production footprint backend must reproduce the real
+-- ActorProject:project grid collection for every audited shape.
+function M.effectFootprintParity()
+    local p=game.player
+    local ctx={game=game,source=p}
+    local cases={
+        {name='hit',spec={type='hit',range=20,no_restrict=true},target={x=p.x+4,y=p.y}},
+        {name='bolt',spec={type='bolt',range=20,no_restrict=true},target={x=p.x+5,y=p.y}},
+        {name='beam',spec={type='beam',range=20,no_restrict=true},target={x=p.x+5,y=p.y}},
+        {name='ball1',spec={type='ball',range=20,radius=1,no_restrict=true},target={x=p.x+4,y=p.y}},
+        {name='ball2',spec={type='ball',range=20,radius=2,no_restrict=true},target={x=p.x+3,y=p.y+1}},
+        {name='widebeam1',spec={type='widebeam',range=20,radius=1,no_restrict=true},target={x=p.x+4,y=p.y}},
+        {name='widebeam2',spec={type='widebeam',range=20,radius=2,no_restrict=true},target={x=p.x+3,y=p.y+2}},
+        {name='cone1',spec={type='cone',range=20,radius=1,no_restrict=true},target={x=p.x+4,y=p.y}},
+        {name='cone2',spec={type='cone',range=20,radius=2,no_restrict=true},target={x=p.x+3,y=p.y+2}},
+        {name='bolt_block',spec={type='bolt',range=20,no_restrict=true,
+            block_path=function(typ,lx,ly) return lx==p.x+2 and ly==p.y end},target={x=p.x+5,y=p.y}},
+        {name='beam_block',spec={type='beam',range=20,no_restrict=true,
+            block_path=function(typ,lx,ly) return lx==p.x+2 and ly==p.y end},target={x=p.x+5,y=p.y}},
+        {name='corner',spec={type='beam',range=20,no_restrict=true,
+            block_path=function(typ,lx,ly) return lx==p.x+2 and ly==p.y+1 end},target={x=p.x+5,y=p.y+3}},
+    }
+    local all=true
+    for _,case in ipairs(cases) do
+        local spec={}
+        for key,value in pairs(case.spec) do spec[key]=value end
+        spec.target={x=case.target.x,y=case.target.y}
+        local native=EffectFootprint.native(ctx,spec)
+        local recorded=p:project(spec,case.target.x,case.target.y,function() return false end,0)
+        local match=native~=nil and sameSet(native,recorded)
+        check('effect-footprint:'..case.name,match,
+            {native=EffectFootprint.count(native),recorded=EffectFootprint.count(recorded)})
+        if not match then all=false end
+    end
+    return compare('effect-footprint-parity',{all and 'parity_ok' or 'parity_failed'})
+end
+
+-- V2-5: the live source hashes verify, a tampered hash is rejected, and the
+-- builder identity/closure check passes for the real talents_def.
+function M.manifestDrift()
+    local md5=require('md5')
+    local signals={}
+    local ok,reason=ManifestDrift.verify(EffectManifest.SOURCES,fs.readAll,md5.sumhexa,
+        {game_version=EffectManifest.GAME_VERSION})
+    check('manifest-drift:verified',ok==true,{reason=reason})
+    signals[#signals+1]=ok==true and 'verified' or 'verify_failed'
+    local tampered={schema=EffectManifest.SOURCES.schema,game_version=EffectManifest.SOURCES.game_version,
+        engine=EffectManifest.SOURCES.engine,talents={}}
+    for talent,pin in pairs(EffectManifest.SOURCES.talents) do
+        local files={}
+        for index,file in ipairs(pin.files) do
+            files[index]={path=file.path,md5=index==1 and string.rep('0',32) or file.md5}
+        end
+        tampered.talents[talent]={files=files,line=pin.line}
+    end
+    local rejected,why=ManifestDrift.verify(tampered,fs.readAll,md5.sumhexa,
+        {game_version=EffectManifest.GAME_VERSION})
+    check('manifest-drift:rejected',rejected==nil and why==ManifestDrift.REASON,{reason=why})
+    signals[#signals+1]=rejected==nil and 'hash_rejected' or 'hash_accepted'
+    local identity_ok=ManifestDrift.identity(EffectManifest,function(talent)
+        return game.player.talents_def and game.player.talents_def[talent] or nil
+    end)
+    check('manifest-drift:identity',identity_ok==true,{})
+    signals[#signals+1]=identity_ok==true and 'identity_ok' or 'identity_failed'
+    return compare('manifest-drift',signals)
+end
+
 local function runAll()
     local ok,err=pcall(function()
         startWhenReady()
@@ -615,6 +700,8 @@ local function runAll()
         productionReads()
         pilotPresets()
         guardRealSpec()
+        M.effectFootprintParity()
+        M.manifestDrift()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok

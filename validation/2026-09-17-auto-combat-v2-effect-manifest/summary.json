@@ -1,0 +1,61 @@
+{
+  "round": "round 6 - v2 effect manifest, native-equivalent footprint, drift-safe guard",
+  "date": "2026-09-17",
+  "branch": "feat/v2-effect-manifest",
+  "pr": "pending",
+  "main_base": "f9b34c25a3370ae63460fda7862ae357a2864b8f",
+  "manifest": {
+    "version": "tome-auto-combat-adapters/v2",
+    "schema": "tome-auto-combat/v1",
+    "sources_schema": "tome-effect-manifest-sources/v1",
+    "game_version": "1.7.6",
+    "entries": 21,
+    "pinned_talent_files": 20,
+    "pinned_engine_files": ["engine/Target.lua", "engine/interface/ActorProject.lua", "engine/Map.lua", "engine/utils.lua", "mod/class/Actor.lua"]
+  },
+  "tests": {
+    "lua_suites": "pass: effect manifest 217, effect manifest drift 13, effect footprint 22, effect risk 28, auto-combat guard 17, runtime 171, catalog 50, pilots 61, friendly fire 35, ...",
+    "python": 39,
+    "protocol_check": "OK",
+    "native_seams_check": "OK",
+    "effect_manifest_check": "OK",
+    "native_auto_combat_probe_source": {
+      "session": "v2-effect-manifest-src3",
+      "checks": 74,
+      "new_footprint_parity": 12,
+      "new_drift_checks": 3,
+      "failures": 0,
+      "game_log_sha256": "30465977bfb5748e3592a4f5585b3cc9bd5a082be03bcbee39dd58bdbd0593f0"
+    },
+    "native_auto_combat_probe_dist": {
+      "session": "v2-effect-manifest-dist",
+      "checks": 74,
+      "failures": 0,
+      "game_log_sha256": "2e1e9c4182ecdbf585624e3be2dff507004489eeb07e7581bed46fe3c71fdbbb"
+    },
+    "native_acceptance_source": {
+      "session": "v2-effect-manifest-accept-src",
+      "checks": 100,
+      "game_log_sha256": "670d93cc26786bfcfe13296c5992638f6e8a59f8d805892e99ed8265c6c92a61"
+    },
+    "native_acceptance_dist": {
+      "session": "v2-effect-manifest-accept-dist",
+      "checks": 100,
+      "game_log_sha256": "dd5057cb0d22e07982d969539c6144ae12f31afb8c7e02fd41719accfcc94dbf"
+    }
+  },
+  "dist": {
+    "path": "dist/tome-mcp-bridge.teaa",
+    "sha256": "8c7fd4c25aa38269ed8ed330ae2b96fe2ade414090dfb92cef7316bba17fddd5",
+    "baseline_sha256": "4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29",
+    "manifest_sha256": "5610838e56d66a90b83d6f6402d9594acd087a0a74581a28bf0f9c5f1899e60b"
+  },
+  "invariants": [
+    "allow_auto_combat_execution stays false",
+    "emergency layer, action budget, target binding, native_pending, manual revocation, read-only dry_run unchanged",
+    "no protocol/server/wire change; only capabilities.adapter_version becomes v2"
+  ],
+  "deferred": [
+    "T_FIREFLASH/T_FLAMESHOCK/T_SHADOW_BLAST/T_STARFALL dynamic-talent re-admission (pinned spellFriendlyFire closure + ground model)"
+  ]
+}
