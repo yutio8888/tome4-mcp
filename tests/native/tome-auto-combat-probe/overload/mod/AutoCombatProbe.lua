@@ -56,9 +56,9 @@ M.EXPECTED={
     ['computed-predicate']={'act','false_holds','enum_rejected'},
     ['production-reads']={'has_control','scalar_resource','guard_wired'},
     ['pilot-presets']={'ok','ok','ok','cast'},
-    ['guard-real-spec']={'pristine_ok','mutation_drift','restored_ok','grasp_safe'},
+    ['guard-real-spec']={'pristine_ok','mutation_used','restored_ok','grasp_safe'},
     ['effect-footprint-parity']={'parity_ok'},
-    ['manifest-drift']={'verified','hash_rejected','identity_ok'},
+    ['manifest-drift']={'verified','hash_reported','identity_ok','advisory_ok'},
     ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
@@ -597,12 +597,16 @@ local function guardRealSpec()
     local pristine_ok=pristine==nil or pristine.reason~='adapter_source_drift'
     check('guard-real-spec:pristine',pristine_ok,pristine)
     signals[#signals+1]=pristine_ok and 'pristine_ok' or 'pristine_drift'
+    -- NO-AUDIT (v1.6): a replaced builder is USED, not gated. The replacement is
+    -- a huge self/friendly-hitting ball, so the guard rejects it on its measured
+    -- value (selffire_risk), never on identity.
     local original=def.target
     def.target=function() return {type='ball',range=100,radius=10,selffire=true,friendlyfire=true,player_selffire=true} end
     local mutated=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
-    local mutation_drift=mutated and mutated.reason=='adapter_source_drift'
-    check('guard-real-spec:mutated',mutation_drift,mutated)
-    signals[#signals+1]=mutation_drift and 'mutation_drift' or 'mutation_accepted'
+    local mutation_used=(mutated==nil) or (mutated.reason~='adapter_source_drift'
+        and mutated.reason~='unsupported_adapter')
+    check('guard-real-spec:mutated',mutation_used,mutated)
+    signals[#signals+1]=mutation_used and 'mutation_used' or 'mutation_gated'
     def.target=original
     local restored=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
     local restored_ok=restored==nil or restored.reason~='adapter_source_drift'
@@ -723,15 +727,15 @@ function M.effectFootprintParity()
     return compare('effect-footprint-parity',{all and 'parity_ok' or 'parity_failed'})
 end
 
--- V2-5: the live source hashes verify, a tampered hash is rejected, and the
--- builder identity/closure check passes for the real talents_def.
+-- NO-AUDIT (v1.6): the live source hashes and builder identities are ADVISORY
+-- telemetry only. They must report drift and never gate a decision.
 function M.manifestDrift()
     local md5=require('md5')
     local signals={}
-    local ok,reason=ManifestDrift.verify(EffectManifest.SOURCES,fs.readAll,md5.sumhexa,
+    local review=ManifestDrift.review(EffectManifest.SOURCES,fs.readAll,md5.sumhexa,
         {game_version=EffectManifest.GAME_VERSION})
-    check('manifest-drift:verified',ok==true,{reason=reason})
-    signals[#signals+1]=ok==true and 'verified' or 'verify_failed'
+    check('manifest-drift:verified',review.drift==false,{findings=review.findings})
+    signals[#signals+1]=review.drift==false and 'verified' or 'verify_failed'
     local tampered={schema=EffectManifest.SOURCES.schema,game_version=EffectManifest.SOURCES.game_version,
         engine=EffectManifest.SOURCES.engine,talents={}}
     for talent,pin in pairs(EffectManifest.SOURCES.talents) do
@@ -741,15 +745,22 @@ function M.manifestDrift()
         end
         tampered.talents[talent]={files=files,line=pin.line}
     end
-    local rejected,why=ManifestDrift.verify(tampered,fs.readAll,md5.sumhexa,
+    local tamperedReview=ManifestDrift.review(tampered,fs.readAll,md5.sumhexa,
         {game_version=EffectManifest.GAME_VERSION})
-    check('manifest-drift:rejected',rejected==nil and why==ManifestDrift.REASON,{reason=why})
-    signals[#signals+1]=rejected==nil and 'hash_rejected' or 'hash_accepted'
-    local identity_ok=ManifestDrift.identity(EffectManifest,function(talent)
+    check('manifest-drift:reported',tamperedReview.drift==true,{})
+    signals[#signals+1]=tamperedReview.drift==true and 'hash_reported' or 'hash_ignored'
+    local identityReview=ManifestDrift.identity(EffectManifest,function(talent)
         return game.player.talents_def and game.player.talents_def[talent] or nil
     end)
-    check('manifest-drift:identity',identity_ok==true,{})
-    signals[#signals+1]=identity_ok==true and 'identity_ok' or 'identity_failed'
+    check('manifest-drift:identity',identityReview.drift==false,{findings=identityReview.findings})
+    signals[#signals+1]=identityReview.drift==false and 'identity_ok' or 'identity_drift'
+    -- Advisory telemetry always returns a record and never gates.
+    local record=ManifestDrift.telemetry({sources=EffectManifest.SOURCES,read=fs.readAll,
+        digest=md5.sumhexa,expected={game_version=EffectManifest.GAME_VERSION},
+        manifest=EffectManifest,identity=function(talent)
+            return game.player.talents_def and game.player.talents_def[talent] or nil end})
+    check('manifest-drift:advisory',type(record)=='table' and record.advisory==true,{})
+    signals[#signals+1]=type(record)=='table' and 'advisory_ok' or 'advisory_missing'
     return compare('manifest-drift',signals)
 end
 

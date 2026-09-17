@@ -902,12 +902,12 @@ do
     p.talents={T_FLAME=1}
     local live=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
     local target=live.snapshot('nearest_hostile').bound_target
-    -- V2-REV-02: without live hash services the adapter is disabled, not
-    -- silently trusted. This host uses the real (absent) fs/md5 path.
+    -- NO-AUDIT (v1.6): the absent fs/md5 hash service is advisory telemetry; it
+    -- does not disable the action. The live builder is used directly.
     local undrifted=Runtime.buildAutoCombatHostFor(g,pl)
-    local disabled=undrifted.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
-    check(disabled and disabled.reason=='adapter_source_drift',
-        'missing live hash services reject with adapter_source_drift')
+    local advisory=undrifted.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
+    check(advisory==nil or advisory.reason~='adapter_source_drift',
+        'missing live hash services are advisory, not a runtime gate')
     -- The builder spec wins over the catalog: a friendly-safe ball over a beam
     -- catalog entry passes even though the catalog would warn about the ally line.
     p.talents_def={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',
@@ -935,9 +935,9 @@ do
         'an active Burning Wake ground zone rejects')
     p.talents_def,p.talents,p.attr=saved_def,saved_talents,saved_attr
 end
--- DYN-REV-01 (Runtime path): an overridden/unverifiable spellFriendlyFire makes
--- the audited dynamic input unknown; a raw builder selffire=0 must not turn that
--- into a permissive verdict.
+-- NO-AUDIT (v1.6): `spellFriendlyFire` is called directly as a normal
+-- entrypoint. A replacement returning a usable number IS used; an erroring or
+-- non-finite one is `unknown` and the component then fails closed on its value.
 do
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
     Runtime.reset(g);g:display()
@@ -953,12 +953,17 @@ do
     local saved_sff=p.spellFriendlyFire
     p.talents_def={T_FIREFLASH={id='T_FIREFLASH',target=function()
         return {type='ball',range=7,radius=5,selffire=0} end}}
+    -- A replacement returning a usable value (0) is used: nothing to reject.
     p.spellFriendlyFire=function() return 0 end
     local live=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
     local target=live.snapshot('nearest_hostile').bound_target
-    local verdict=live.guard({action='use_talent',talent='T_FIREFLASH',bound_target=target})
-    check(verdict and verdict.reason=='selffire_risk',
-        'an overridden spellFriendlyFire fails closed even when the builder returns 0')
+    local used=live.guard({action='use_talent',talent='T_FIREFLASH',bound_target=target})
+    check(used==nil,'a replaced spellFriendlyFire returning a usable value is used, not gated')
+    -- An erroring replacement is unknown; the dynamic component fails closed.
+    p.spellFriendlyFire=function() error('boom') end
+    local broken=live.guard({action='use_talent',talent='T_FIREFLASH',bound_target=target})
+    check(broken and broken.reason=='selffire_risk',
+        'an erroring spellFriendlyFire is unknown and the component fails closed')
     p.talents_def,p.spellFriendlyFire=saved_defs,saved_sff
 end
 -- Wave 2: capability alignment (INT-05) and the full error envelope (INT-02).

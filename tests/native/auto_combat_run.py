@@ -10,6 +10,7 @@ the probe before the run; this runner only collects and reports them.
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import time
 import traceback
@@ -17,7 +18,7 @@ from pathlib import Path
 
 from runtime import DEFAULT_DEPS, DEFAULT_SOURCE, WORKSPACE, Runtime, sha
 
-ADDON = WORKSPACE / "game/addons/tome-mcp-bridge"
+ADDON = Path(os.environ["TOME_MCP_ADDON_DIR"]) if os.environ.get("TOME_MCP_ADDON_DIR") else WORKSPACE / "game/addons/tome-mcp-bridge"
 
 
 def main() -> int:

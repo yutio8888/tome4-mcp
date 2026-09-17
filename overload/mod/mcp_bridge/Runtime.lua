@@ -888,16 +888,16 @@ local function autoCombatReads(s,policy,opts)
         if pct<0 then pct=0 elseif pct>100 then pct=100 end
         return pct
     end
-    -- Effect-manifest source-drift check for the guard (component model only;
-    -- movement getters/builders are not gated). Shared by the planner and the
-    -- guard. `opts.drift` lets a headless caller inject a verdict.
+    -- NO-AUDIT (v1.6): advisory source/identity telemetry only. It is computed
+    -- for logging and never gates a decision (the guard calls the live builders
+    -- directly). `opts.drift` lets a headless caller inject a record.
     local function manifestDrift()
         local override=opts and opts.drift
         if type(override)=='function' then return override() end
         local has_md5,md5=pcall(require,'md5')
         local reader=type(fs)=='table' and type(fs.readAll)=='function' and fs.readAll or nil
         local digest=has_md5 and type(md5.sumhexa)=='function' and md5.sumhexa or nil
-        return ManifestDrift.ensure(s,{sources=EffectManifest.SOURCES,read=reader,
+        return ManifestDrift.telemetry({sources=EffectManifest.SOURCES,read=reader,
             digest=digest,expected={game_version=EffectManifest.GAME_VERSION},
             manifest=EffectManifest,identity=function(talent)
                 local def=g.player and g.player.talents_def
@@ -984,8 +984,8 @@ local function autoCombatReads(s,policy,opts)
     end
     local reads={
         policy=policy,
-        -- Shared with the guard (effect-manifest drift is a guard-only check;
-        -- movement getters/builders are called directly with no gate).
+        -- Advisory source/identity telemetry (NO-AUDIT): available for logging,
+        -- never a gate. The guard and planner call live builders directly.
         manifestDrift=manifestDrift,
         effectiveTalentLevel=effectiveTalentLevel,
         phase=function()
@@ -1242,27 +1242,15 @@ end
 buildAutoCombatHost=function(s,policy,opts)
     local g=s.game
     local reads=autoCombatReads(s,policy,opts)
-    -- The guard reuses the effective-level getter (the effect-manifest drift is
-    -- guard-only; the movement planner no longer preflights).
-    local manifestDrift=reads.manifestDrift
     local effectiveTalentLevel=reads.effectiveTalentLevel
-    -- Audited `self:spellFriendlyFire()` (the dynamic SF/FF input used by the
-    -- re-admitted talents). Registered through NativeCompatibility so the
-    -- source digest, exact identity and declaration are required; an unavailable,
-    -- overridden or erroring getter is `unknown` and fails closed.
+    -- NO-AUDIT (v1.6): call the live `self:spellFriendlyFire()` directly as a
+    -- normal entrypoint. No digest/identity requirement: a replacement returning
+    -- a usable number is used; an unavailable/erroring/non-finite value is
+    -- `unknown` (the component then fails closed on its own value).
     local function dynamicSpellFriendlyFire()
         local p=g.player
         if type(p)~='table' or type(p.spellFriendlyFire)~='function' then return 'unknown' end
-        if not Compat.hasDependency('guard.spellFriendlyFire') then
-            Compat.registerDependency('guard.spellFriendlyFire','talent_query',p.spellFriendlyFire,
-                '/mod/class/interface/Combat.lua','spell friendly-fire chance',
-                EffectManifest.SOURCES.engine and EffectManifest.SOURCES.engine.combat
-                    and EffectManifest.SOURCES.engine.combat.md5,
-                'function _M:spellFriendlyFire',{})
-        end
-        local fn=Compat.dependency('guard.spellFriendlyFire',p.spellFriendlyFire)
-        if type(fn)~='function' then return 'unknown' end
-        local ok,value=pcall(fn,p)
+        local ok,value=pcall(p.spellFriendlyFire,p)
         if not ok or type(value)~='number' or value~=value then return 'unknown' end
         return value
     end
@@ -1302,7 +1290,6 @@ buildAutoCombatHost=function(s,policy,opts)
         native=(type(core)=='table' and type(core.fov)=='table') and {game=g,source=g.player} or nil,
         talentLevel=effectiveTalentLevel,
         dynamicScalar=dynamicScalar,
-        drift=manifestDrift,
     }
     local function safetyGuard(attempt)
         local ok,result=pcall(guard,attempt)

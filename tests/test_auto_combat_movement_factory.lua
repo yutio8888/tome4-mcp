@@ -425,7 +425,7 @@ do
     check(ax==nil and axErr.reason=='movement_adapter_invalid','a named axis is rejected')
 end
 
--- 9. MAF-REV-06: movement action/getter/range pins are advisory only --------
+-- 9. NO-AUDIT (v1.6): movement action/getter/range pins are advisory only ---
 do
     local function fnAt(path,line,marker)
         local lines={}
@@ -433,25 +433,32 @@ do
         lines[line]='return function(self,t) return {marker='..marker..'} end'
         return assert(loadstring(table.concat(lines,'\n'),'@'..path))()
     end
+    local function kindOf(review,kind)
+        for _,finding in ipairs(review.findings) do
+            if finding.kind==kind then return true end
+        end
+        return false
+    end
     local path='/data/t/move.lua'
     local manifest={ENTRIES={T_MOVE={kind='movement',conformance={builder=false},
         source={action={path=path,line=2},getters={getRange={path=path,line=3}}}}}}
     local live={T_MOVE={action=fnAt(path,2,1),getRange=fnAt(path,3,1)}}
     Drift.reset()
-    check(Drift.identity(manifest,function(t) return live[t] end)==true,
-        'a movement entry with advisory pins passes')
-    -- A replaced action/getter is no longer a gate: the live value is used.
+    check(Drift.identity(manifest,function(t) return live[t] end).drift==false,
+        'a movement entry with matching advisory pins reports no drift')
+    -- A replaced movement action/getter never gates: the live value is used.
     local replaced={T_MOVE={action=fnAt(path,4,1),getRange=fnAt(path,5,1)}}
-    check(Drift.identity(manifest,function(t) return replaced[t] end)==true,
+    check(Drift.identity(manifest,function(t) return replaced[t] end).drift==false,
         'a replaced movement action/getter is advisory, not a gate')
     -- Even a movement entry without advisory pins is not gated.
     local unpinned={ENTRIES={T_MOVE={kind='movement',conformance={builder=false},source={}}}}
-    check(Drift.identity(unpinned,function(t) return live[t] end)==true,
+    check(Drift.identity(unpinned,function(t) return live[t] end).drift==false,
         'a movement entry without pins is not gated')
-    -- A missing definition still fails closed (the action is unavailable).
-    local missing,missingReason=Drift.identity(manifest,function() return nil end)
-    check(missing==nil and missingReason==Drift.REASON,
-        'a missing movement definition still fails closed')
+    -- A missing definition is reported (advisory), and the planner fails closed
+    -- on the unobtainable value, not on identity.
+    local missing=Drift.identity(manifest,function() return nil end)
+    check(missing.drift==true and kindOf(missing,'definition_missing'),
+        'a missing movement definition is reported as advisory drift')
     Drift.reset()
 end
 
