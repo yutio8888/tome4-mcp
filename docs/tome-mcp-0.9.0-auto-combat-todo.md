@@ -124,9 +124,10 @@ P2 ships the bounded tuning slice documented in
     scenarios, baseline vs tuned) and the Halfling/Sun Paladin pilot
     (`sun_paladin_p2`, `T_SUN_BEAM`/`T_WEAPON_OF_LIGHT` adapters).
 
-Items 12–13 (sustain `min_resource_pct`, `flee_below_hp_pct`) remain deferred:
-both are execution-tuning that interacts with native resource/retreat semantics
-and stay out of the bounded P2 slice.
+Items 12–13 (sustain `min_resource_pct`, `flee_below_hp_pct`) were **resolved by
+Wave 1** (D6): `min_resource_pct` now gates sustain activation and
+`flee_below_hp_pct` is a distinct pause reason (no auto-retreat). See the Wave 1
+close-out below.
 
 ## P2.5 close-out (tooltip-safe getters)
 
@@ -167,3 +168,32 @@ Decisions recorded here:
 26. **`has_effect`/`computed`** stay warned as runtime-unknown; wiring host
     getters for panel/tooltip-visible values is a future enablement, out of this
     generation-only slice.
+
+## Wave 1 close-out (auto-combat execution safety)
+
+Wave 1 fixes AC-01 … AC-10 from the independent review; see
+[docs/tome-mcp-0.9.0-wave1-execution-safety.md](tome-mcp-0.9.0-wave1-execution-safety.md).
+The four binding maintainer decisions are recorded there (D1 any-talent
+emergency with a real-target guard; D2 hard gate vs pause threshold; D3
+`no_energy` + observed-delta instant; D4 start re-acquires; D5 `change_level`
+removed from auto-combat claims; D6 honest sustain/flee thresholds).
+
+27. **AC-01** `native_pending` is mapped before the success branch, the live
+    auto root is tracked for `nativePhase`, and `resume` refuses a live body.
+28. **AC-02** scalar resource projection (`min_`/`max_`, unlock gate).
+29. **AC-03** version-pinned pre-execution adapter guard (range/`canProject`/
+    geometry/self-ally selffire) + adapter certification removed (D1/D2).
+30. **AC-04/AC-05/D6** boundary ordering (no-enemy → critical → sustain),
+    unknown-HP pause, `min_resource_pct` gating and the `flee_below_hp_pct`
+    pause.
+31. **AC-06** instant classification via `no_energy` + observed delta and the
+    per-opportunity instant cap.
+32. **AC-07** `hasControl` includes the standalone auto-combat lease.
+33. **AC-08/AC-09** replacement activation invalidates the old generation;
+    `start` re-acquires the lease (stop/no-enemy/manual restartable).
+34. **AC-10** `change_level` removed from the auto-combat policy
+    schema/catalogue/capabilities this wave (future phase); the general MCP
+    `tome.act change_level` action is untouched.
+35. **P2.5 follow-up**: the assistant adapter no longer warns
+    `condition_unknown_at_runtime` for `has_effect`/`computed` (the host now
+    resolves them).

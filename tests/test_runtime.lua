@@ -45,6 +45,7 @@ local function fixture()
     function g:onTickEndExists() return #self.queue>0 end
     function p:moveDir() self.x=self.x-1;self.energy.value=0;g.paused=false;return true end
     function p:waitTurn() self.energy.value=0;g.paused=false end
+    function p:canProject() return true end
     Runtime.reset(g);g:display()
     local seq=0
     local function request(op,args)
@@ -541,5 +542,65 @@ do
     check(stopped.ok,'the standalone editor can stop execution')
     Runtime.setAutoCombatExecution(g,false)
     check(not Runtime.autoCombatExecutionEnabled(g),'local execution can be revoked')
+end
+-- Wave 1 production-path: scalar resources, the executor guard and hasControl.
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+    Runtime.reset(g);g:display()
+    local pl={schema='tome-auto-combat/v1',id='p1',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='nearest_hostile'},
+        rules={{id='ray',priority=1,when={always={}},
+            ['then']={action='use_talent',talent='T_MOONLIGHT_RAY',target='nearest_hostile'}}}}
+    -- AC-02: scalar resources with min_/max_ and an unlocked pool.
+    p.positive=40;p.max_positive=100;p.min_positive=0
+    p.negative=10;p.max_negative=50;p.min_negative=0
+    p.resources_def={positive={talent='T_POS_POOL'},negative={talent='T_NEG_POOL'}}
+    p.talents={T_POS_POOL=1,T_NEG_POOL=1}
+    local read=Runtime.buildAutoCombatReadHostFor(g,pl)
+    check(read.resource_value('positive')==40,'the scalar positive resource is read correctly')
+    check(read.resource_pct('positive')==40,'the scalar positive percent is value/max')
+    check(read.resource_value('negative')==10 and read.resource_pct('negative')==20,
+        'the negative resource is read correctly')
+    local logged=read.resources()
+    check(logged and logged.positive==40 and logged.negative==10,
+        'resource logging keeps the scalar values instead of nil')
+    p.resources_def={positive={talent='T_LOCKED'}}
+    local locked=Runtime.buildAutoCombatReadHostFor(g,pl)
+    check(locked.resource_value('positive')==nil,'an unlocked-pool gate hides a locked resource')
+    p.resources_def=nil
+
+    -- AC-03: the version-pinned guard over the real bound target.
+    p.x,p.y=2,2
+    local ally={uid=99,name='ally',__is_actor=true,x=3,y=2,life=100,max_life=100,reaction=1,attr=p.attr}
+    enemy.x,enemy.y=4,2;enemy.reaction=-1
+    g.level.entities={[1]=p,[2]=ally,[3]=enemy}
+    g.level.map.map[12][3]=p;g.level.map.map[13][3]=ally;g.level.map.map[14][3]=enemy
+    local live=Runtime.buildAutoCombatHostFor(g,pl)
+    local ctx=live.snapshot('nearest_hostile')
+    local target=ctx and ctx.bound_target
+    check(target~=nil,'the hostile target binds for the guard test')
+    local hard=live.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
+    check(hard and hard.action=='reject' and hard.reason=='selffire_risk',
+        'max_selffire_risk=0 rejects a beam with an ally in the line')
+    local soft=Runtime.buildAutoCombatHostFor(g,{schema='tome-auto-combat/v1',id='p2',name='unit',
+        limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=50},
+        targeting={default='nearest_hostile'},rules=pl.rules})
+    local pausable=soft.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
+    check(pausable and pausable.action=='pause' and pausable.reason=='selffire_risk',
+        'max_selffire_risk>0 pauses on the same risk')
+    check(live.guard({action='use_talent',talent='T_SEARING_LIGHT',bound_target=target})==nil,
+        'a single-target adapter passes the ally guard')
+
+    -- AC-07: the standalone lease is part of hasControl (native automatic
+    -- talents are suppressed without any MCP control token).
+    Runtime.reset(g);g:display()
+    local set=Runtime.autoCombatHandle(g,'set_draft',{policy=pl})
+    Runtime.autoCombatHandle(g,'approve',{expected_hash=set.draft_hash})
+    local activated=Runtime.autoCombatStatus(g)
+    Runtime.autoCombatHandle(g,'activate',{expected_hash=activated.approved_hash})
+    check(Runtime.hasControl(p) and Runtime.autoCombatStatus(g).control_owner=='auto_combat',
+        'the standalone auto-combat lease is part of hasControl')
+    Runtime.autoCombatHandle(g,'deactivate',{})
+    check(not Runtime.hasControl(p),'releasing the lease removes hasControl')
 end
 print('Runtime: '..count..' checks passed')

@@ -13,6 +13,7 @@
 -- Generation numbers guard deferred work: a step captured under generation N is
 -- stale once the controller pauses/resumes/stops (generation > N).
 local Evaluator=require 'mod.auto_combat.PolicyEvaluator'
+local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
 local M={}
 -- A rejected sustain is not retried forever: after this many rejected attempts
 -- in one run the sustain is disabled for that run (design 5.3).
@@ -115,7 +116,11 @@ function M:pause(reason)
 end
 
 function M:resume()
-    if self.state~='paused' and self.state~='waiting_native' and self.state~='awaiting_ready' then
+    if self.state=='waiting_native' then
+        -- AC-01: never force a live native body; only a settled boundary resumes.
+        local phase=self.host and self.host.phase and self.host.phase()
+        if phase~='ready' then return {ok=false,code='native_pending',state=self.state} end
+    elseif self.state~='paused' and self.state~='awaiting_ready' then
         return {ok=false,code='not_paused',state=self.state}
     end
     self.generation=self.generation+1
@@ -153,6 +158,7 @@ function M:sustainStep()
     if not (self.host and type(self.host.sustain_on)=='function') then return nil end
     local limit=(self.policy.limits and self.policy.limits.max_actions_per_tick) or 1
     if self.attempts>=limit then return nil end
+    if self:instantBudgetExhausted() then return nil end
     local ordered={}
     for _,sustain in ipairs(self.policy.sustains or {}) do ordered[#ordered+1]=sustain end
     table.sort(ordered,function(a,b)
@@ -165,16 +171,37 @@ function M:sustainStep()
             local on=self.host.sustain_on(sustain.talent)
             if on==false then
                 local known=self.host.talent_known and self.host.talent_known(sustain.talent)
-                if known~=false then return sustain end
+                if known~=false and self:sustainResourceOk(sustain) then return sustain end
             end
         end
     end
     return nil
 end
 
--- A rule's condition and its action must bind the same target. When the winning
--- rule uses a selector other than the context's, re-bind and re-check the
--- condition against the actually bound target before acting.
+-- AC-06: per-opportunity instant budget. `instant_attempts` is reset only by a
+-- new action opportunity, never by a display frame or snapshot refresh.
+-- D6: `min_resource_pct` gates sustain activation. Unknown resource state is
+-- not activated (fail-closed).
+function M:sustainResourceOk(sustain)
+    if not sustain.min_resource_pct then return true end
+    local entry=Catalog.entry(sustain.talent)
+    local resource=entry and entry.resource
+    if not resource or not (self.host and type(self.host.resource_pct)=='function') then return false end
+    local pct=self.host.resource_pct(resource)
+    if type(pct)~='number' then return false end
+    return pct>=sustain.min_resource_pct
+end
+
+function M:instantBudgetExhausted()
+    local maxInstant=(self.policy.limits and self.policy.limits.max_instant_per_tick) or 3
+    return self.instant_attempts>=maxInstant
+end
+
+function M:countInstant(outcome)
+    if outcome and outcome.status=='ok' and outcome.instant==true then
+        self.instant_attempts=self.instant_attempts+1
+    end
+end
 function M:rebind(ctx,decision)
     if not (self.host and self.host.snapshot) or ctx.binding_selector==nil
         or decision.target==nil or ctx.binding_selector==decision.target then
@@ -195,36 +222,57 @@ function M:step()
     local generation=self.generation
     local reason=self:checkEnemies()
     if reason then return self:pause(reason) end
-    -- Declared sustains are maintained before spending the opportunity on an
-    -- offensive rule. Unknown sustain state is skipped, not paused: it is an
-    -- optimization input, not a safety boundary.
-    local sustain=self:sustainStep()
-    if sustain then
-        self.attempts=self.attempts+1
-        local outcome=(self.host and self.host.request and self.host.request({
-            rule='sustain:'..sustain.talent,action='set_sustain',talent=sustain.talent,
-            target='self',generation=generation})) or {}
-        if outcome.status=='native_pending' then
-            self.state='waiting_native'; self.reason='native_pending'
-            return {action='wait_native',rule='sustain:'..sustain.talent,state=self.state,generation=generation}
-        end
-        if outcome.status=='ok' then
-            self.actions=self.actions+1
-            self:record({kind='acted',rule='sustain:'..sustain.talent,talent=sustain.talent})
-            return {action='acted',rule='sustain:'..sustain.talent,talent=sustain.talent,
-                outcome=outcome,rejections=self.rejections,state=self.state,generation=generation}
-        end
-        if outcome.status=='rejected' and outcome.energy_spent~=true then
-            local count=(self.sustain_failures[sustain.talent] or 0)+1
-            self.sustain_failures[sustain.talent]=count
-            local capped=count>=M.SUSTAIN_FAILURE_CAP
-            if capped then self.sustain_disabled[sustain.talent]=true end
-            self:deny(sustain.talent,capped and 'sustain_failure_cap' or 'sustain_rejected')
-        else
-            return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
+    local default_selector=self.policy.targeting and self.policy.targeting.default
+    local pre=self:context(default_selector)
+    -- AC-05: an unavailable health threshold is an executor-level unknown-safety
+    -- boundary before any rule/layer evaluation (never fail open).
+    local minHp=self.policy.safety and self.policy.safety.min_hp_pct
+    if minHp~=nil and type(pre.hp_pct)~='number' then
+        self:record({kind='paused',reason='unknown_safety',rule='health'})
+        local paused=self:pause('unknown_safety')
+        paused.detail='hp_pct'
+        return paused
+    end
+    -- D6: `flee_below_hp_pct` is a distinct pause reason (no auto-retreat).
+    local flee=self.policy.safety and self.policy.safety.flee_below_hp_pct
+    if flee~=nil and type(pre.hp_pct)=='number' and pre.hp_pct<flee then
+        self:record({kind='paused',reason='flee_below_hp_pct'})
+        return self:pause('flee_below_hp_pct')
+    end
+    -- AC-04: the critical layer runs before sustain maintenance; and sustain
+    -- maintenance is a normal-layer combat optimization, skipped when no enemy
+    -- is visible. An explicit normal rule (rest/auto_explore) still runs; if
+    -- nothing matches, the rule loop ends the run with `no_visible_enemies`.
+    local critical=Evaluator.critical(self.policy,pre.hp_pct)
+    if not critical and (pre.enemy_count or 0)>0 then
+        local sustain=self:sustainStep()
+        if sustain then
+            self.attempts=self.attempts+1
+            local outcome=(self.host and self.host.request and self.host.request({
+                rule='sustain:'..sustain.talent,action='set_sustain',talent=sustain.talent,
+                target='self',generation=generation})) or {}
+            if outcome.status=='native_pending' then
+                self.state='waiting_native'; self.reason='native_pending'
+                return {action='wait_native',rule='sustain:'..sustain.talent,state=self.state,generation=generation}
+            end
+            if outcome.status=='ok' then
+                self.actions=self.actions+1
+                self:countInstant(outcome)
+                self:record({kind='acted',rule='sustain:'..sustain.talent,talent=sustain.talent})
+                return {action='acted',rule='sustain:'..sustain.talent,talent=sustain.talent,
+                    outcome=outcome,rejections=self.rejections,state=self.state,generation=generation}
+            end
+            if outcome.status=='rejected' and outcome.energy_spent~=true then
+                local count=(self.sustain_failures[sustain.talent] or 0)+1
+                self.sustain_failures[sustain.talent]=count
+                local capped=count>=M.SUSTAIN_FAILURE_CAP
+                if capped then self.sustain_disabled[sustain.talent]=true end
+                self:deny(sustain.talent,capped and 'sustain_failure_cap' or 'sustain_rejected')
+            else
+                return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
+            end
         end
     end
-    local default_selector=self.policy.targeting and self.policy.targeting.default
     for _=1,8 do
         local ctx=self:context(default_selector)
         ctx.attempts=self.attempts
@@ -251,13 +299,41 @@ function M:step()
             return {action='stopped',reason=holdreason,results=decision.results,
                 rejections=self.rejections,state=self.state,generation=self.generation}
         end
+        -- AC-06: the instant cap is applied before another instant-capable
+        -- submission in the same opportunity.
+        if (decision.action=='use_talent' or decision.action=='set_sustain') and self:instantBudgetExhausted() then
+            self:record({kind='paused',reason='instant_budget_exhausted',rule=decision.rule})
+            local paused=self:pause('instant_budget_exhausted')
+            paused.results=decision.results; paused.rejections=self.rejections
+            return paused
+        end
         local bound=self:rebind(ctx,decision)
         if bound==nil then
             self:deny(decision.rule,'target_rebind_failed')
         else
+            -- AC-03/D1/D2: version-pinned adapter guard over the actual bound
+            -- target. Reject (record + try next) at max_selffire_risk==0, pause
+            -- above it.
+            local guard=self.host and self.host.guard and self.host.guard({
+                rule=decision.rule,action=decision.action,talent=decision.talent,
+                target=decision.target,bound_target=bound.bound_target,
+                emergency=decision.emergency==true})
+            if guard and guard.action=='pause' then
+                self:record({kind='paused',reason=guard.reason,rule=decision.rule})
+                local paused=self:pause(guard.reason)
+                paused.results=decision.results;paused.rejections=self.rejections
+                return paused
+            end
+            if guard and guard.action=='reject' then
+                -- A guard rejection is a real pre-execution attempt (frozen
+                -- budget contract): count it, then try the next candidate.
+                self.attempts=self.attempts+1
+                self:deny(decision.rule,guard.reason or 'safety_rejected')
+            else
             self.attempts=self.attempts+1
             local outcome=(self.host and self.host.request and self.host.request({
                 rule=decision.rule,action=decision.action,talent=decision.talent,
+                emergency=decision.emergency==true,
                 max_turns=decision.max_turns,
                 target=decision.target,bound_target=bound.bound_target,generation=generation})) or {}
             if outcome.status=='native_pending' then
@@ -266,6 +342,7 @@ function M:step()
             end
             if outcome.status=='ok' then
                 self.actions=self.actions+1
+                self:countInstant(outcome)
                 self:record({kind='acted',rule=decision.rule,talent=decision.talent,target=bound.bound_target})
                 return {action='acted',rule=decision.rule,talent=decision.talent,bound_target=bound.bound_target,
                     results=decision.results,rejections=self.rejections,outcome=outcome,
@@ -277,6 +354,7 @@ function M:step()
                 self:deny(decision.rule,'native_rejected')
             else
                 return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
+            end
             end
         end
     end

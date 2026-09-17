@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-17",
+  "wave": "1 (auto-combat execution safety)",
+  "AC-01": "native_pending mapped before success; live auto root tracked; resume refuses",
+  "AC-02": "scalar resource projection (value + min_/max_ + unlock gate)",
+  "AC-03": "version-pinned pre-execution guard (range/canProject/geometry/self-ally selffire); max_selffire_risk==0 reject, >0 pause",
+  "AC-04": "no-enemy end -> critical -> sustain(normal only)",
+  "AC-05": "unknown hp = executor-level unknown_safety pause",
+  "AC-06": "instant = no_energy (bool/function) + observed zero delta; per-opportunity cap",
+  "AC-07": "hasControl includes standalone auto-combat lease/activity",
+  "AC-08": "replacement activation stops the old controller generation",
+  "AC-09": "start re-acquires the lease; stop/no-enemy/manual keep the active policy",
+  "AC-10": "change_level removed from auto-combat claims (future phase); MCP act untouched",
+  "D1": "any talent may be emergency; the real-target guard is the safety gate",
+  "D2": "max_selffire_risk==0 hard reject; >0 pause threshold",
+  "D3": "instant definition via native no_energy + observed delta",
+  "D4": "start = ensure lease + run",
+  "D5": "change_level removed this wave",
+  "D6": "min_resource_pct gates sustains; flee_below_hp_pct is a distinct pause",
+  "dist_sha256": "bc9aab70df72a5b7b2565f93b109c290adbc4f222ca23837927137a75e431688"
+}

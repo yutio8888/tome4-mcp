@@ -29,10 +29,6 @@ M.SETTINGS_KEYS={max_actions_per_tick=true,min_hp_pct=true,flee_below_hp_pct=tru
 M.TALENT_KEYS={id=true,talent=true,enabled=true,priority=true,emergency=true,
     action=true,when=true,target=true,min_resource_pct=true}
 M.SUSTAIN_KEYS={talent=true,enabled=true,priority=true,min_resource_pct=true}
--- Conditions whose runtime answer is always `unknown` in the auto-combat host
--- (they need an unaudited dynamic getter). They are accepted (data is valid)
--- but warned so the human knows the rule will not fire on them.
-M.UNKNOWN_AT_RUNTIME={has_effect=true,computed=true}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 local function isArray(t) return type(t)=='table' and #t>0 end
@@ -118,11 +114,6 @@ local function translateCondition(cond,path,warnings,unsupported,depth)
     if not Schema.PREDICATES[name] then
         reportUnsupported(unsupported,path,'unsupported_condition',{condition=tostring(name)})
         return nil
-    end
-    -- The condition itself is data-valid; the live host may still answer it
-    -- unknown. Warn rather than drop so the human can decide.
-    if M.UNKNOWN_AT_RUNTIME[name] then
-        reportWarning(warnings,path,'condition_unknown_at_runtime',{condition=name})
     end
     return {[name]=value}
 end

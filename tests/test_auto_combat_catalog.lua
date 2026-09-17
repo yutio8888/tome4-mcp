@@ -79,8 +79,9 @@ end
 
 -- P1b native-activity action adapters --------------------------------------
 do
-    check(Catalog.actionSupported('rest') and Catalog.actionSupported('auto_explore')
-        and Catalog.actionSupported('change_level'),'the catalogue knows the P1b activity actions')
+    check(Catalog.actionSupported('rest') and Catalog.actionSupported('auto_explore'),
+        'the catalogue knows the P1b activity actions')
+    check(not Catalog.actionSupported('change_level'),'change_level was removed from the auto-combat actions')
     check(not Catalog.actionSupported('teleport'),'an unknown action is not supported by the catalogue')
     local camp=policy({id='camp',priority=1,when={always={}},['then']={action='rest',max_turns=5}})
     check(Catalog.verify(camp),'a rest rule is semantically compatible')
@@ -88,12 +89,12 @@ do
     check(Catalog.verify(explore),'an auto_explore rule is semantically compatible')
     local descend=policy({id='descend',priority=1,when={always={}},['then']={action='change_level'}})
     local ok,errors=Catalog.verify(descend)
-    check(ok==nil and errors[1].code=='change_level_not_enabled',
-        'the catalogue refuses change_level without explicit permission')
-    descend.permissions={change_level=true}
-    check(Catalog.verify(descend),'the catalogue accepts change_level once enabled')
+    check(ok==nil and errors[1].code=='unsupported_action',
+        'the catalogue no longer accepts change_level')
     local summary=Catalog.summary()
-    check(#summary.actions>=6,'the capability summary lists the action adapters')
+    check(#summary.actions>=5 and summary.adapter_version==Catalog.VERSION,
+        'the capability summary lists the action adapters and the adapter version')
+    check(not summary.self_preservation,'emergency is not a catalogue talent category (D1)')
 end
 
 print('Auto-combat catalog: '..checks..' checks passed')

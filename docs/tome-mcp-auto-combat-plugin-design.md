@@ -268,6 +268,11 @@ flowchart LR
 - 自保动作同样要过 adapter/`canProject`/原生返回；`unknown` 按 §8.1 处理。
 - **阈值边界（冻结用例）**：`hp_pct < min_hp_pct` 即禁止普通输出（进入第 2 层）；例如 `min_hp_pct=35` 时，
   生命 30% 不得放普通输出，与是否低于 `flee_below_hp_pct` 无关。
+- **Wave 1（D6）阈值诚实化**：`flee_below_hp_pct` 是**独立的暂停原因**（`flee_below_hp_pct`），
+  只把控制权交还玩家，不做自动撤退；`sustain.min_resource_pct` 真正门控常驻激活（资源未知则不激活）。
+- **Wave 1（D1/D2）自保与自伤**：`emergency:true` 可声明任意 `use_talent`/`attack`，安全性由执行前的
+  版本固定 adapter guard 在实际绑定目标上判定（射程/`canProject`/几何/自伤/友伤 + `max_selffire_risk`）；
+  `max_selffire_risk==0` 为硬拒绝，`>0` 为暂停阈值。
 
 ### 5.5 简单模式 ↔ 高级模式（同一数据）
 - **简单模式**：有序技能优先级列表 + 阈值滑杆（HP/资源/敌人距离），生成等价规则。
