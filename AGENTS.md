@@ -26,7 +26,7 @@ ToME MCP Bridge 把 ToME 1.7.6（T-Engine）接入 MCP，让 LLM / Agent 以**�
 
 - **不修改游戏核心**。所有介入只通过 addon 的 hooks / superload / overload 缝隙完成。
 - **`superload/` 下标注 `GENERATED ... do not edit by hand` 的文件由 `tools/generate_native_seams.py` 生成**，不要手改；源码哈希由 `NativeCompatibility` 在运行时校验。
-- **观察不改变游戏状态**：读操作不得触发 RNG、推进回合或产生副作用；只暴露玩家已知信息。
+- **观察不提交动作、不越权**：读操作**可以**调用已审计的原生 getter/builder（**允许消耗 RNG**，不要求“无副作用”——见 `docs/tome-mcp-auto-combat-plugin-design.md` §8.3，v1.4 已废弃旧的“纯度”假设）；但**不得提交动作**（`useTalent` 等执行入口）或推进回合，且只暴露玩家已知信息（不读隐藏实体/未识别属性）。读取只有这两条红线：不提交动作、不泄露玩家未知信息。
 - **写操作严格串行且只走原生入口**：不按技能 ID 写死脚本；未适配的界面返回 `needs_input` 交给玩家。
 - **运行态不进存档**：socket、命令队列、协程引用、控制租约只保留在内存。
 - 改动协议字段或新增能力时，同步更新 `server/`、`docs/` 与测试。
