@@ -58,27 +58,21 @@ function M.verify(sources,read,digest,expected)
     return true
 end
 
--- Function identity: a content fingerprint that distinguishes distinct
--- closures at the same source location while accepting a genuine reload with
--- byte-identical code.
-local function fingerprint(fn)
-    local ok,dump=pcall(string.dump,fn,true)
-    if not ok then ok,dump=pcall(string.dump,fn) end
-    if ok and type(dump)=='string' then return 'lua:'..dump end
-    return 'obj:'..tostring(fn)
-end
-
--- Baseline function objects seen for a verified builder. A later replacement
--- (even at the same source/line) is caught; an identical reload is accepted.
+-- Trusted builder objects, captured on the first verified sight per session.
+-- Object identity (`rawequal`) is the only accepted proof: Lua bytecode does not
+-- include captured upvalue values, so a byte-identical dump cannot be trusted.
+-- A distinct object is rejected; a legitimate reload resets the baseline only at
+-- an explicit session boundary (`ensure` with a new key).
 local baselines={}
+local active_key=nil
 
 -- Identity/closure: every manifest entry must expose its declared target
 -- expectation. `conformance.builder` is `true` (a pinned native builder),
 -- `false` (an action-local target, so no builder) or `'none'` (a self/no-target
 -- entry). Every entry requires a live definition; a missing definition, a
--- missing/undeclared/unpinned builder, an unexpected builder, or a replaced
--- closure all fail closed. The live check runs on every guarded action so a
--- mutation after a cached hash success is still caught.
+-- missing/undeclared/unpinned builder, an unexpected builder, or any distinct
+-- (even byte-identical) replacement closure all fail closed. The live check runs
+-- on every guarded action so a mutation after a cached hash success is caught.
 function M.identity(manifest,getDef)
     if type(manifest)~='table' or type(manifest.ENTRIES)~='table' or type(getDef)~='function' then
         return nil,M.REASON,'identity_unavailable'
@@ -105,13 +99,12 @@ function M.identity(manifest,getDef)
                 return nil,M.REASON,talent..':builder_replaced'
             end
             local baseline=baselines[talent]
-            local fp=fingerprint(builder)
             if baseline==nil then
-                baselines[talent]={fn=builder,fp=fp}
-            elseif not rawequal(baseline.fn,builder) and baseline.fp~=fp then
+                baselines[talent]=builder
+            elseif not rawequal(baseline,builder) then
+                -- A distinct object (same source/line, possibly identical
+                -- bytecode) is a replacement; never overwrite the baseline.
                 return nil,M.REASON,talent..':builder_replaced'
-            else
-                baselines[talent]={fn=builder,fp=fp}
             end
         else
             -- `false` and `'none'` both require the absence of a target builder.
@@ -127,12 +120,18 @@ local hash_cache={}
 
 function M.reset()
     baselines={}
+    active_key=nil
     hash_cache={}
 end
 
--- Runtime check. `key` distinguishes contexts (for example the session id);
--- `opts` = {sources=,read=,digest=,identity=,manifest=}.
+-- Runtime check. `key` distinguishes contexts (for example the session id); a
+-- new key is an explicit lifecycle boundary and resets the trusted builder
+-- baseline. `opts` = {sources=,read=,digest=,identity=,manifest=}.
 function M.ensure(key,opts)
+    if key~=active_key then
+        active_key=key
+        baselines={}
+    end
     local cached=hash_cache[key]
     local ok,reason,detail
     if cached then

@@ -1,17 +1,17 @@
 {
-  "round": "round 6 rev 3 - v2 effect manifest, native-equivalent footprint, drift-safe guard (V2-REV-02/04 re-fixes)",
+  "round": "round 6 rev 4 - v2 effect manifest (V2-REV-02 object-identity closure fix)",
   "date": "2026-09-17",
   "branch": "feat/v2-effect-manifest",
   "pr": "#13 (https://github.com/yutio8888/tome4-mcp/pull/13)",
   "main_base": "f9b34c25a3370ae63460fda7862ae357a2864b8f",
   "review_findings_fixed": {
-    "V2-REV-01": "PASS (kept): audited effective talent level (getTalentLevel) for variants; unavailable -> conservative",
-    "V2-REV-02": "every entry (incl. self) requires a live definition and a declared builder shape; real function fingerprint (string.dump) plus source/line catches a distinct closure at the same location; only immutable hashes are cached and the live identity check re-runs before every guarded action",
+    "V2-REV-01": "PASS (kept): audited effective talent level for variants",
+    "V2-REV-02": "trusted builder is the original function object compared with rawequal; a distinct same-prototype/different-upvalue closure (equal bytecode dump) is rejected and never overwrites the baseline; a reload resets the baseline only at an explicit session boundary; live identity re-runs before every guarded action",
     "V2-REV-03": "PASS (kept): native expansion failure returns unknown, never the model",
-    "V2-REV-04": "effective projectile opt-in is a boolean OR (spec player_selffire OR actor allow_player_selffire); false never vetoes true; T_SOUL_ROT/T_BLOOD_GRASP leave the opt-in absent",
-    "V2-REV-05": "PASS (kept): three-return corner block_path, square-map assertion, production guard reports footprint_backend=native",
-    "V2-REV-06": "PASS (kept): ground self risk requires SF AND FF; SF=100/FF=0 safe",
-    "V2-REV-07": "PASS (kept): status locates the work on PR #13, not on main"
+    "V2-REV-04": "PASS (kept): projectile opt-in is a boolean OR",
+    "V2-REV-05": "PASS (kept): corner/hex parity + production guard native backend",
+    "V2-REV-06": "PASS (kept): ground self risk requires SF AND FF",
+    "V2-REV-07": "PASS (kept): status locates the work on PR #13"
   },
   "manifest": {
     "version": "tome-auto-combat-adapters/v2",
@@ -23,41 +23,40 @@
     "pinned_engine_files": ["engine/Target.lua", "engine/interface/ActorProject.lua", "engine/Map.lua", "engine/utils.lua", "mod/class/Actor.lua", "engine/interface/ActorTalents.lua"]
   },
   "tests": {
-    "lua_suites": "pass: effect manifest 240, effect manifest drift 25, effect footprint 24, effect risk 29, auto-combat guard 29, friendly fire 40, runtime 172, ...",
+    "lua_suites": "pass: effect manifest 240, effect manifest drift 30, effect footprint 24, effect risk 29, auto-combat guard 29, friendly fire 40, runtime 172, ...",
     "python": 39,
     "protocol_check": "OK",
     "native_seams_check": "OK",
     "effect_manifest_check": "OK",
     "native_auto_combat_probe_source": {
-      "session": "v2-rev3-src",
+      "session": "v2-rev4-src",
       "checks": 79,
       "failures": 0,
-      "builder_mutation_guard": "adapter_source_drift:T_FLAME:builder_replaced",
-      "game_log_sha256": "81934e36bbacede4a4e87ba7af5ffabdee86587c443bcf7cc08974d72e256ceb"
+      "game_log_sha256": "6889b0e8ba29fb471bc93d8d9925742b12a3ea21333d92a80ab5aec62d2427cd"
     },
     "native_auto_combat_probe_dist": {
-      "session": "v2-rev3-dist",
+      "session": "v2-rev4-dist",
       "checks": 79,
       "failures": 0,
-      "game_log_sha256": "ed3b46400fb6e1ff57dd829e8fb7f55cdd3726f6a90a760d13b08ffb21ab4cf2"
+      "game_log_sha256": "e6ce6fce82359571409d24d6eef4a2b006f28469e0dbf46898e6074891c07456"
     },
     "native_acceptance_source": {
-      "session": "v2-rev3-accept-src",
+      "session": "v2-rev4-accept-src",
       "checks": 100,
-      "game_log_sha256": "3b7c81fa8b31f81d36bd1fac62eb6c1bc670469857397362edfa5a841aa41a03"
+      "game_log_sha256": "399adebf3e01fe348842b104da158d3e3c52e48afcc0d0dea3d426569520e394"
     },
     "native_acceptance_dist": {
-      "session": "v2-rev3-accept-dist",
+      "session": "v2-rev4-accept-dist",
       "checks": 100,
-      "game_log_sha256": "aa104b8aff30aab3a437a8dcec1a19fe561e37c448c36f333bb21ad7b9103aa2"
+      "game_log_sha256": "5fb2ba8483fb42c91b456e036cc5aad09f0a55657357af7ab9c0bb5287e4d28c"
     }
   },
   "dist": {
     "path": "dist/tome-mcp-bridge.teaa",
-    "sha256": "fce6831aeb718c07546de628dcc230b86781c17a74f3daa6f3c5b96f008506bd",
-    "previous_sha256": "ceb1e3799b827b6d9bc192b9bdb5c3e0407053e10f4e6514260617f793e27518",
+    "sha256": "3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29",
+    "previous_sha256": "fce6831aeb718c07546de628dcc230b86781c17a74f3daa6f3c5b96f008506bd",
     "baseline_sha256": "4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29",
-    "manifest_sha256": "73754565f4a019624babbd3e825bf10cb167f667082f752e8a41b2a14f9be6eb"
+    "manifest_sha256": "c2c1a1b21a91ae5075f1def569e247539839b91cdefb80266c584cce70b47b7e"
   },
   "invariants": [
     "allow_auto_combat_execution stays false",

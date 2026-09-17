@@ -1,7 +1,7 @@
 # Auto-combat v2 effect manifest, native-equivalent footprint, drift-safe guard
 
 Status: implemented on **PR [#13](https://github.com/yutio8888/tome4-mcp/pull/13)**
-(rev 3, reviewed head reported to the dispatcher); **not merged**. The actual
+(rev 4, reviewed head reported to the dispatcher); **not merged**. The actual
 `main` base is `f9b34c2` and the branch stays unmerged until review accepts it.
 This round executes `docs/tome-mcp-0.9.0-selffire-investigation.md` §6–§9 and
 closes TODO #54 (versioned component manifest, exact footprint parity, composed
@@ -94,16 +94,18 @@ would have failed before:
 
 ## Rev 3 review fixes (V2-REV-02 / V2-REV-04)
 
-- **V2-REV-02 (identity/closure, complete):** `identity()` now requires a live
-definition and a declared `conformance.builder` (`true` / `false` / `'none'`)
-for **every** manifest entry, including self/no-target entries; a missing or
-unexpected builder on any entry fails. It pins a real **function fingerprint**
-(`string.dump`) plus source path/line, so a distinct closure at the same
-source/line is rejected while a byte-identical reload is accepted. Only the
-immutable file hashes are cached; the live identity check is re-run before
-**every** guarded action, so a definition mutation after a cached success is
-caught. Regressions: missing/unexpected self builder, same-source/line distinct
-closure, mutation after cached success.
+- **V2-REV-02 (identity/closure):** `identity()` requires a live definition and
+a declared `conformance.builder` (`true` / `false` / `'none'`) for **every**
+manifest entry, including self/no-target entries; a missing or unexpected
+builder on any entry fails. It pins the trusted builder **function object**
+(`rawequal`) plus source path/line, so any distinct closure — including one with
+identical bytecode but different captured upvalues — is rejected. The baseline
+is captured on the first verified sight and reset only at an explicit session
+boundary. Only the immutable file hashes are cached; the live identity check is
+re-run before **every** guarded action, so a definition mutation after a cached
+success is caught. Regressions: missing/unexpected self builder,
+same-source/line distinct closure, same-prototype/different-upvalue closure
+(baseline not overwritten), mutation after cached success.
 - **V2-REV-04 (opt-in OR):** the effective projectile opt-in is a boolean OR
 across the target-spec `player_selffire` and the actor `allow_player_selffire`
 (`ObservationDetails.playerSelfOverride` and `AutoCombatGuard.playerOverride`);
@@ -111,14 +113,26 @@ across the target-spec `player_selffire` and the actor `allow_player_selffire`
 `T_BLOOD_GRASP`) now leave the per-projectile opt-in **absent** rather than
 `false`. Regressions cover both directions and the both-false case.
 
+### Rev 4: final V2-REV-02 identity gap
+
+Rev 3 compared bytecode dumps, but Lua bytecode does **not** include captured
+upvalue values: two closures from the same prototype at the same source/line
+with different captured state had equal dumps and the second silently replaced
+the baseline. Rev 4 retains the original function object as the trusted baseline
+and accepts only `rawequal(current, pinned)`; a distinct object is rejected and
+never overwrites the baseline. A legitimate reload is supported only through an
+explicit session boundary (`ensure` with a new key). The regression builds two
+closures from one factory (rawequal false, equal dumps, different behavior) and
+requires the second to be rejected while the first still verifies.
+
 ## Native evidence
 
 | Layer | Session | Result |
 | --- | --- | --- |
-| Auto-combat probe (source) | `v2-rev3-src` | **79/79**, incl. 13 footprint cases + 3 `manifest-drift:*` + the builder-mutation guard case |
-| Auto-combat probe (`dist`) | `v2-rev3-dist` | **79/79** |
-| Native acceptance (source) | `v2-rev3-accept-src` | **100/100** |
-| Native acceptance (`dist`) | `v2-rev3-accept-dist` | **100/100** |
+| Auto-combat probe (source) | `v2-rev4-src` | **79/79**, incl. 13 footprint cases + 3 `manifest-drift:*` + the builder-mutation guard case |
+| Auto-combat probe (`dist`) | `v2-rev4-dist` | **79/79** |
+| Native acceptance (source) | `v2-rev4-accept-src` | **100/100** |
+| Native acceptance (`dist`) | `v2-rev4-accept-dist` | **100/100** |
 
 Footprint parity compares the production backend against the real
 `ActorProject:project` grid set for `hit`, `bolt`, `beam`, `ball` (r1/r2),
@@ -128,7 +142,7 @@ both corner cases report a non-zero corner-callback count and the expected stop
 set. The production guard reports `footprint_backend='native'`.
 
 Lua suites: full `tests/run.sh` green, including the new
-`test_effect_manifest` (240), `test_effect_manifest_drift` (25),
+`test_effect_manifest` (240), `test_effect_manifest_drift` (30),
 `test_effect_footprint` (24), `test_effect_risk` (29),
 `test_auto_combat_guard` (29) and `test_friendly_fire` (40). Python: 39/39. All
 three `--check` generators green.
@@ -136,7 +150,7 @@ three `--check` generators green.
 `dist/tome-mcp-bridge.teaa` repackaged:
 
 ```
-sha256 = fce6831aeb718c07546de628dcc230b86781c17a74f3daa6f3c5b96f008506bd
+sha256 = 3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29
 ```
 
 (`main` baseline artifact `4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29`.)

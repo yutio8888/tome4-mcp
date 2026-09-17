@@ -101,6 +101,29 @@ do
     check(selfBuilder==nil and reason9==Drift.REASON,'an unexpected builder on a self entry is rejected')
 end
 
+-- Same prototype, different captured upvalue: `rawequal` false, bytecode dump
+-- equal, behavior differs. The second closure must be rejected and must not
+-- overwrite the trusted baseline.
+do
+    local upManifest={ENTRIES={T_UP={conformance={builder=true},
+        source={builder={path='/data/x.lua',line=2}}}}}
+    local factory=assert(loadstring('local captured=...\nreturn function(self,t) return {v=captured} end','@/data/x.lua'))
+    local upA=factory(1)
+    local upB=factory(2)
+    check(rawequal(upA,upB)==false and string.dump(upA)==string.dump(upB),
+        'the upvalue regression is non-tautological (distinct objects, equal dump)')
+    check(upA(nil,nil).v~=upB(nil,nil).v,'the two closures behave differently')
+    Drift.reset()
+    check(Drift.identity(upManifest,function() return {target=upA} end)==true,
+        'the first same-prototype closure establishes the trusted baseline')
+    local rejected,reason=Drift.identity(upManifest,function() return {target=upB} end)
+    check(rejected==nil and reason==Drift.REASON,
+        'a same-prototype closure with a different captured upvalue is rejected')
+    check(Drift.identity(upManifest,function() return {target=upA} end)==true,
+        'the rejected replacement does not overwrite the trusted baseline')
+    Drift.reset()
+end
+
 -- V2-REV-02(3): only immutable hashes are cached; the live identity check runs
 -- again on every call, so a mutation after a cached success is caught.
 do
