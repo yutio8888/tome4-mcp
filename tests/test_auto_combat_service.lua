@@ -504,6 +504,32 @@ do
 end
 
 do
+    -- MFT-REV-03 (Option A): dry-run binds an actor step selector when the
+    -- policy declares no action/default selector.
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local host={
+        phase=function() return 'ready' end,
+        snapshot_meta=function() return {revision=1,level_instance_id='level-1'} end,
+        snapshot=function(selector)
+            local bound='e1'
+            if selector=='self' or selector==nil then bound=nil end
+            return {hp_pct=80,enemy_count=1,binding_selector=selector,bound_target=bound}
+        end,
+        plan=function() return {plan={kind='actor',annotation={landing={kind='bounded'}}}} end,
+    }
+    local p={schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35},
+        rules={{id='rush',priority=1,when={always={}},['then']={action='use_talent',talent='T_RUSH',
+            target_plan={{request='actor',selector='nearest_hostile'}},
+            destination={selector='native_landing',anchor='bound_target',accept=accept}}}}}
+    local dry=Service.handle(Service.new{dry_run_host_factory=function() return host end},
+        'dry_run',{policy=p})
+    check(dry.decision=='act' and dry.rule=='rush' and dry.binding.selector=='nearest_hostile'
+        and dry.bound_target=='e1',
+        'dry_run binds the declared actor step selector with no action selector (MFT-REV-03)')
+end
+
+do
     -- MFT-REV-07: the production controller -> PolicyLog -> service log/replay
     -- path keeps the accepted movement annotation and permitted-risk detail.
     local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}

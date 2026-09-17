@@ -333,17 +333,25 @@ local function planFromTargetPlan(attempt,provider,movement,origin)
         return {kind='self',annotation=annotation}
     end
     if request=='actor' then
-        -- MFT-REV-03: an actor step selector must agree with the action
-        -- binding. A contradiction is execution non-determinability, never
-        -- silently resolved to the already-bound target.
+        -- MFT-REV-03 (Option A): an actor step selector is the declared binding
+        -- when the action has no selector. A contradiction with an explicit
+        -- action binding is non-determinability, never silently resolved.
         local stepSelector=step.selector
         local actionSelector=attempt.target
         if stepSelector~=nil and actionSelector~=nil and stepSelector~=actionSelector then
             return nil,{reason='target_plan_selector_mismatch',talent=attempt.talent,
                 expected=actionSelector,got=stepSelector}
         end
-        local anchor=provider.anchor and provider.anchor('bound_target',attempt.bound_target) or nil
-        if not anchor then return nil,{reason='anchor_unavailable',selector='bound_target'} end
+        local effective=stepSelector or actionSelector
+        local anchor
+        if effective=='self' then
+            anchor=provider.anchor and provider.anchor('self') or nil
+        else
+            anchor=provider.anchor and provider.anchor('bound_target',attempt.bound_target) or nil
+        end
+        if not anchor then
+            return nil,{reason='anchor_unavailable',selector=effective or 'bound_target'}
+        end
         local annotation=nativeLandingAnnotation(movement,anchor)
         local _,err=acceptAnnotation(annotation,{visibility='any',passability='native',
             hazard='any',landing='allow_random'})

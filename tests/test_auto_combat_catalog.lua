@@ -136,6 +136,28 @@ do
         if error.code=='target_plan_selector_mismatch' then mismatchCode=true end
     end
     check(mismatchCode,'the contradiction carries target_plan_selector_mismatch')
+    -- MFT-REV-03 (Option A): the actor step selector is the effective binding when
+    -- `then.target` and `targeting.default` are both absent, and it is checked
+    -- against the talent (so an omitted 'self' on a hostile talent is rejected).
+    local function noDefault(rule)
+        local p=policy(rule)
+        p.targeting=nil
+        return p
+    end
+    local omitted=noDefault({id='rush',priority=1,when={always={}},['then']={action='use_talent',
+        talent='T_RUSH',target_plan={{request='actor',selector='nearest_hostile'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept}}})
+    check(Catalog.verify(omitted),'an actor step selector binds when no action selector exists (MFT-REV-03)')
+    local omittedSelf=noDefault({id='rush',priority=1,when={always={}},['then']={action='use_talent',
+        talent='T_RUSH',target_plan={{request='actor',selector='self'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept}}})
+    local omittedOk,omittedErrors=Catalog.verify(omittedSelf)
+    check(omittedOk==nil,'the omitted action selector uses the declared actor step selector')
+    local omittedCode=false
+    for _,error in ipairs(omittedErrors or {}) do
+        if error.code=='selector_not_hostile' then omittedCode=true end
+    end
+    check(omittedCode,'an omitted self step selector is rejected for a hostile talent')
     local summary=Catalog.summary()
     check(#summary.actions>=6 and summary.adapter_version==Catalog.VERSION,
         'the capability summary lists the action adapters and the adapter version')

@@ -399,6 +399,17 @@ function M.verify(policy)
         local entry=rule['then'] and rule['then'].talent and M.ENTRIES[rule['then'].talent] or nil
         if entry then
             local selector=rule['then'].target or (policy.targeting and policy.targeting.default)
+            -- MFT-REV-03 (Option A): an actor step selector is the effective
+            -- binding when the action/default selector is absent, so the
+            -- self/hostile consistency check honours it.
+            if selector==nil and type(rule['then'].target_plan)=='table' then
+                for _,step in ipairs(rule['then'].target_plan) do
+                    if step.request=='actor' and step.selector~=nil then
+                        selector=step.selector
+                        break
+                    end
+                end
+            end
             -- A no-target movement request (position/relative/native_random) needs
             -- no actor selector; the plugin must not invent a self requirement.
             local destination=rule['then'].destination

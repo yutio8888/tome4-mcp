@@ -74,7 +74,7 @@ local function makeHost()
         enemies={},responses={}}
     h.phase=function() return h.phase_ end
     h.opportunity_id=function() return h.oid end
-    h.snapshot=function() return h.snap end
+    h.snapshot=function(selector) h.snap.binding_selector=selector; return h.snap end
     h.enemy_ids=function() return h.enemies end
     h.notify=function(ev) h.notifications[#h.notifications+1]=ev end
     h.request=function(attempt)

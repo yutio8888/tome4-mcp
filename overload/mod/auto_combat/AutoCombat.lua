@@ -248,8 +248,16 @@ function M:countInstant(outcome)
     end
 end
 function M:rebind(ctx,decision)
-    if not (self.host and self.host.snapshot) or ctx.binding_selector==nil
-        or decision.target==nil or ctx.binding_selector==decision.target then
+    -- MFT-REV-03: the action binding is authoritative even when the default
+    -- snapshot selector was nil (for example an actor step selector with no
+    -- `then.target`/`targeting.default`). The current binding is the snapshot
+    -- selector, or the policy default when the snapshot omitted it. Re-bind and
+    -- re-check when the decision target differs.
+    local default_selector=self.policy.targeting and self.policy.targeting.default
+    local current=ctx.binding_selector
+    if current==nil then current=default_selector end
+    if not (self.host and self.host.snapshot) or decision.target==nil
+        or current==decision.target then
         return ctx
     end
     local rule=self:findRule(decision.rule)

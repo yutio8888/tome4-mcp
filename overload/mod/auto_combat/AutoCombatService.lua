@@ -181,7 +181,9 @@ function M.dryRun(svc,args)
         rebound_flag=false
         bound_selector=nil
         local ok=true
-        if d.target~=nil and base.binding_selector~=nil and d.target~=base.binding_selector then
+        local current=base.binding_selector
+        if current==nil then current=default_selector end
+        if d.target~=nil and d.target~=current then
             local rebound=host.snapshot(d.target)
             local rule=findRule(policy,d.rule)
             if rebound and rebound.binding_selector==d.target

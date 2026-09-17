@@ -1,5 +1,35 @@
 # MCP Bridge 验收记录
 
+## 0.9.0：移动/重新定位第一段 rev 4（MFT-REV-03 omitted binding，待评审）
+
+日期：2026-09-17。分支 `feat/movement-first-tranche`（PR #15），rev 4 在 rev 3 `25421dc` 基础上关闭改版复核 `4ba89dc2` 唯一剩余 P1（其余全部 PASS，已保持）。`allow_auto_combat_execution` 保持 `false`。状态：**ready for review**。原始证据见 `tmp/movement-first-tranche/rev4/`。
+
+| 反馈 | 结果 | 修复与回归证据 |
+| --- | --- | --- |
+| MFT-REV-03 omitted binding | **PASS（Option A）**：当 `then.target` 与 `targeting.default` 均缺失时，actor step selector 成为真实绑定——`PolicyEvaluator` 从首个 actor step 推导 action target 并用它求值条件；`AutoCombat:rebind` 以“快照 selector 或策略默认”为当前绑定并重新绑定/re-check；`MovementPlanner` actor 分支用 step selector 选择 anchor（`self`→origin，否则 bound target），并仍拒绝与显式 action selector 的矛盾（`target_plan_selector_mismatch`）；`EffectManifest.verify` 用推导出的 selector 做 self/hostile 一致性检查；dry-run 同步 | `test_auto_combat_catalog.lua`（omitted 一致/矛盾）、`test_auto_combat_movement.lua`（planner self/hostile + controller omitted self/hostile）、`test_auto_combat_service.lua`（dry-run omitted） |
+
+命令与原始证据（`tmp/movement-first-tranche/rev4/`）：
+
+| 命令 | 结果 | 文件 / sha256 |
+| --- | --- | --- |
+| `bash tests/run.sh` | 40 套全绿 | `lua-suite.log` `30482fb6e52bb4c129e7ed8f6128c482f57db71d74fa1013faf7369bde5ded54` |
+| Python unittest | 39 OK | `python-tests.log` `1eca7c668f68bd62c118620f38320033f711f35e243da2a9248cb6f022c42f75` |
+| 三个 `--check` | 3/3 exit 0 | `generator-checks.log` `2503208f26358c11c18060261b70491e476054b8e2281485592a8142d60e4ab4` |
+| auto-combat 探针 source `rev4-final-src` | **105/105** | `probe-source-result.json` `eb243fece8578bd23c3e9da958211dbae66bc1affba230a25d52e43b9a5f5cad` |
+| auto-combat 探针 dist `rev4-final-dist` | **105/105** | `probe-dist-result.json` `c33c499c33944805617692c93d9bd699a28fa7fb50b2fc9c90612811537f041e` |
+| 原生验收 source `rev4-accept-src` | **100/100** | `acceptance-source-result.json` `1e607a4127a41910399f42898a0247024852f39171c46cbe327a5414a5801d63` |
+| 原生验收 dist `rev4-accept-dist` | **100/100** | `acceptance-dist-result.json` `ec06a31c4bb3c954eafa257c473ac58dbe6edc54328e42dce4cc3f63528790d7` |
+
+不变量核对（保持）：单次机会一个原生动作；尝试/瞬发预算；`native_pending` 不重复提交；手动输入收回租约；owner 仲裁；只读 `dry_run`；确定性 tie-break（无 RNG）；原生裁决最终；场景切换 pause/reset 且需显式重启。rev 3 的 MFT-REV-03（矛盾）/05/07/08/09、MFT-NEW-01 与 rev 2 的 01/02/04/06、R-1…R-6 经全套复跑保持 PASS。
+
+正式包 **67 个生产文件**，SHA-256（rev 3 `36d5868724c81ffce84553723c271b44257469f940ff6f7118b880ed6e22f4b4` → rev 4）：
+
+```text
+688ae61f89fc0452c91b19555f7d4467d319e3883674750054927e01e1445c77
+```
+
+未修/延期：无。独立复核由 `4ba89dc2` 执行。
+
 ## 0.9.0：移动/重新定位第一段 rev 3（MFT-REV-03/05/07/08/09 + MFT-NEW-01，待评审）
 
 日期：2026-09-17。分支 `feat/movement-first-tranche`（PR #15），rev 3 在 rev 2 `b705489` 基础上处理改版复核 `4ba89dc2`（保留 01/02/04/06 PASS）的 **3 P1 + 2 P2 + 1 文档 P2**。`allow_auto_combat_execution` 保持 `false`。状态：**ready for review**。原始证据见 `tmp/movement-first-tranche/rev3/`。

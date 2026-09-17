@@ -157,6 +157,24 @@ do
         and contradictErr.reason=='target_plan_selector_mismatch'
         and contradictErr.expected=='nearest_hostile' and contradictErr.got=='self',
         'a contradictory actor step selector is rejected (MFT-REV-03)')
+    -- MFT-REV-03 (Option A): with no action selector, the actor step selector is
+    -- the binding. A self step must use the self anchor, not the pre-bound enemy.
+    local omittedSelf=Planner.plan({action='use_talent',talent='T_RUSH',bound_target='enemy-1',
+        target_plan={{request='actor',selector='self'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept()}},
+        provider({x=2,y=2},{},{bound_target={x=6,y=2}}),
+        {target_requests={'actor'},landing='bounded_alternatives'})
+    check(omittedSelf and omittedSelf.kind=='actor'
+        and omittedSelf.annotation.landing.center.x==2 and omittedSelf.annotation.landing.center.y==2,
+        'an omitted action selector binds the self actor step, not the pre-bound enemy')
+    local omittedHostile=Planner.plan({action='use_talent',talent='T_RUSH',bound_target='enemy-1',
+        target_plan={{request='actor',selector='nearest_hostile'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept()}},
+        provider({x=2,y=2},{},{bound_target={x=6,y=2}}),
+        {target_requests={'actor'},landing='bounded_alternatives'})
+    check(omittedHostile and omittedHostile.kind=='actor'
+        and omittedHostile.annotation.landing.center.x==6,
+        'an omitted action selector binds a hostile actor step to the bound target')
     local gridPlan=Planner.plan({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
         target_plan={{request='grid',destination={selector='position',x=4,y=4,accept=accept()}}},
         destination={selector='position',x=4,y=4,accept=accept()}},
@@ -218,7 +236,7 @@ local function host(opts)
             resource_pct=function() return 100 end}}
     h.phase=function() return h.phase_ end
     h.opportunity_id=function() return h.oid end
-    h.snapshot=function() return h.snap end
+    h.snapshot=function(selector) h.snap.binding_selector=selector; return h.snap end
     h.enemy_ids=function() return {} end
     h.notify=function() end
     h.plan=function(attempt)
@@ -261,6 +279,49 @@ do
     local denied
     for _,r in ipairs(step.rejections or {}) do if r.rule=='kite' then denied=r.reason end end
     check(denied=='no_acceptable_destination','the movement rejection is recorded with its reason')
+end
+
+-- 4b. MFT-REV-03 (Option A): an actor step selector is the controller binding
+-- even when the policy declares no action/default selector.
+do
+    local function omittedPolicy(selector,anchor)
+        return {schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=1},
+            safety={min_hp_pct=35},
+            rules={{id='kite',priority=50,when={enemy_count={ge=1}},
+                ['then']={action='use_talent',talent='T_RUSH',
+                    target_plan={{request='actor',selector=selector}},
+                    destination={selector='native_landing',anchor=anchor,accept=accept()}}}}}
+    end
+    local function omittedHost(selector)
+        local h=host()
+        h.snapshot=function(binding_selector)
+            local bound='actor-1'
+            if binding_selector=='self' or binding_selector==nil then bound=nil end
+            return {hp_pct=80,enemy_count=1,binding_selector=binding_selector,
+                bound_target=bound,resource_pct=function() return 100 end}
+        end
+        h.plan=function(attempt) h.planned=attempt
+            return {plan={kind='actor',annotation={landing={kind='bounded'}}}} end
+        h.request=function(attempt) h.requests[#h.requests+1]=attempt
+            return {status='ok',energy_spent=1000} end
+        return h
+    end
+    local h=omittedHost()
+    local c=AutoCombat.new(omittedPolicy('nearest_hostile','bound_target'),h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='acted' and step.rule=='kite',
+        'an omitted action selector binds the declared actor step selector')
+    check(h.planned and h.planned.target=='nearest_hostile' and h.planned.bound_target=='actor-1',
+        'the planner receives the declared hostile actor step binding')
+    local s=omittedHost()
+    local sc=AutoCombat.new(omittedPolicy('self','self'),s,{strict=false})
+    sc:start()
+    local selfStep=sc:step()
+    check(selfStep.action=='acted' and selfStep.rule=='kite',
+        'an omitted action selector binds a self actor step')
+    check(s.planned and s.planned.target=='self' and s.planned.bound_target==nil,
+        'the planner receives the self actor step and no unrelated enemy binding')
 end
 
 -- 5. change_level lifecycle: success stops/resets and requires an explicit start

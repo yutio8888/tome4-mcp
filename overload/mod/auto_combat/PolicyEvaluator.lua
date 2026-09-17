@@ -183,6 +183,20 @@ end
 --   {decision='hold',reason,results}
 -- `results` is an ordered array of {rule, result='true'|'false'|'unknown'|'denied',
 -- emergency=bool} for the rules considered in this layer, bounded by the rule cap.
+-- MFT-REV-03 (Option A): the ordered target plan may declare the actor binding
+-- even when `then.target` and `targeting.default` are both absent. The first
+-- actor step selector is the source of truth for the action binding in that
+-- case, so it is resolved by the snapshot and honoured by the planner.
+local function actorStepSelector(then_)
+    local plan=then_ and then_.target_plan
+    if type(plan)~='table' then return nil end
+    for _,step in ipairs(plan) do
+        if step.request=='actor' and step.selector~=nil then return step.selector end
+    end
+    return nil
+end
+M.actorStepSelector=actorStepSelector
+
 function M.evaluate(policy,ctx,opts)
     ctx=ctx or {}
     opts=opts or {}
@@ -205,6 +219,7 @@ function M.evaluate(policy,ctx,opts)
     local function ctx_for(rule)
         if not context_for then return ctx end
         local selector=rule['then'].target or default_selector
+        if selector==nil then selector=actorStepSelector(rule['then']) end
         if selector==nil then return ctx end
         local cached=selector_cache[selector]
         if cached==nil then
@@ -249,6 +264,7 @@ function M.evaluate(policy,ctx,opts)
             results[#results+1]={rule=rule.id,result=value,emergency=rule.emergency==true}
             if value==TRUE then
                 local target=rule['then'].target or (policy.targeting and policy.targeting.default)
+                if target==nil then target=actorStepSelector(rule['then']) end
                 return {decision='act',rule=rule.id,action=rule['then'].action,talent=rule['then'].talent,
                     max_turns=rule['then'].max_turns,
                     direction=rule['then'].direction,

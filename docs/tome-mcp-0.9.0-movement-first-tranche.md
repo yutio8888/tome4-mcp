@@ -171,3 +171,29 @@ findings plus one documentation contradiction. All are fixed.
 - **Documentation (NEW-01).** The MOV-4 section and the `AutoCombatGuard` header
   now describe the Q4 numeric comparison (permit within tolerance, reject above,
   fail closed only for an incalculable footprint).
+
+---
+
+## rev 4 — omitted action selector binding (MFT-REV-03 final case)
+
+The rev-3 mismatch check only covered the both-selectors-present-and-different
+case. A schema-valid actor step selector with **no** `then.target`/`targeting.default`
+was still ignored. Option A is now implemented: the actor step selector is a real
+source of truth.
+
+- `PolicyEvaluator` derives the action binding from the first actor
+  `target_plan[].selector` when `then.target` and `targeting.default` are absent,
+  and evaluates the rule condition against that binding.
+- `AutoCombat:rebind` treats the snapshot selector (or the policy default when the
+  snapshot omitted it) as the current binding, so the declared actor step selector
+  re-binds and re-checks even when the default snapshot selector is nil.
+- `MovementPlanner`'s actor branch uses the step selector to choose the anchor
+  (`self` → origin; otherwise the bound target) and still rejects a contradiction
+  with an explicit action selector (`target_plan_selector_mismatch`).
+- `EffectManifest.verify` derives the effective selector from the actor step when
+  the action/default selector is absent, so the self/hostile consistency check
+  rejects an omitted `self` step on a hostile talent.
+- `AutoCombatService.dryRun` mirrors the same rebind semantics.
+
+Regressions cover schema/catalog, the pure planner, the production controller,
+and dry-run for the omitted-action-selector case.
