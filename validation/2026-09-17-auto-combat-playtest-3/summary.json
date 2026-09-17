@@ -112,7 +112,7 @@
   ],
   "fix_build": {
     "branch": "fix/auto-combat-wait-tick",
-    "pr": "pending",
+    "pr": "#9 (https://github.com/yutio8888/tome4-mcp/pull/9)",
     "dist_sha256": "6eaf42e8ad78c7f88da57414ced52dbc0e9d56cac623e266c36672dc47a47ae9",
     "preset_hash": "b5c357564461941420b2214817df624d"
   },

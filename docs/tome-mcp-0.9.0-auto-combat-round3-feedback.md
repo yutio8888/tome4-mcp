@@ -153,7 +153,7 @@ In-game confirmation evidence (`tmp/tome-mcp-validation/sessions/diag-fix-01/`):
 | `tmp/mcp-play-support/settle-evidence.json` | `55787422c5945f3e828d09eb755593f9ead19f847eb28d818132b08798874117` |
 
 Build artifacts:
-- branch `fix/auto-combat-wait-tick` (not yet pushed / no PR yet)
+- branch `fix/auto-combat-wait-tick`, PR #9 (`https://github.com/yutio8888/tome4-mcp/pull/9`)
 - fixed packaged `dist/tome-mcp-bridge.teaa` sha256
   `6eaf42e8ad78c7f88da57414ced52dbc0e9d56cac623e266c36672dc47a47ae9`
 - native auto-combat probe 36/36 (source + dist); native acceptance suite 100/100
