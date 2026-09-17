@@ -76,7 +76,7 @@ do
     for _,component in ipairs(rot.components) do if component.phase=='projectile' then instant=component end end
     check(instant and instant.delivery=='projectile' and instant.shape=='bolt',
         'Soul Rot is a projectile bolt')
-    check(instant.player_selffire==false,'Soul Rot models the absent player self opt-in')
+    check(instant.player_selffire==nil,'Soul Rot leaves the per-projectile opt-in absent, not false')
     local grasp=Manifest.entry('T_BLOOD_GRASP')
     for _,component in ipairs(grasp.components) do if component.phase=='projectile' then instant=component end end
     check(instant.selffire==0 and instant.friendlyfire==0,'Blood Grasp is a self/friendly-safe bolt')

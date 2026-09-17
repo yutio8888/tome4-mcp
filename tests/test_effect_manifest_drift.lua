@@ -51,36 +51,78 @@ do
     check(ok==nil and reason==Drift.REASON,'a source-schema mismatch is adapter_source_drift')
 end
 
--- Identity/closure: an entry that declares a native builder must expose the
--- *pinned* builder function (same source path and definition line). A
--- same-type replacement, a missing definition and a throwing/non-table builder
--- all fail closed; an action-local target must not expose a builder.
+-- Identity/closure: every entry requires a live definition and a declared
+-- target-builder expectation. A missing/unexpected builder (including on a
+-- self entry), a distinct closure at the same source/line, and a definition
+-- mutation after a cached success all fail closed.
 do
-    local function builderAt(path,line)
+    Drift.reset()
+    local function builderAt(path,line,marker)
         local lines={}
         for i=1,line-1 do lines[i]='' end
-        lines[line]='return function(self,t) return {} end'
+        lines[line]='return function(self,t) return {marker='..marker..'} end'
         local chunk=assert(loadstring(table.concat(lines,'\n'),'@'..path))
         return chunk()
     end
     local manifest={ENTRIES={T_X={conformance={shape='beam',builder=true},
         source={builder={path='/data/x.lua',line=2}}}}}
-    local good=builderAt('/data/x.lua',2)
+    local good=builderAt('/data/x.lua',2,1)
     check(Drift.identity(manifest,function() return {target=good} end)==true,
         'the pinned builder satisfies the identity check')
-    local replaced=builderAt('/data/x.lua',4)
+    local replaced=builderAt('/data/x.lua',4,1)
     local bad,reason=Drift.identity(manifest,function() return {target=replaced} end)
     check(bad==nil and reason==Drift.REASON,'a same-type replacement on another line is rejected')
-    local otherFile=builderAt('/data/other.lua',2)
+    local otherFile=builderAt('/data/other.lua',2,1)
     local bad2,reason2=Drift.identity(manifest,function() return {target=otherFile} end)
     check(bad2==nil and reason2==Drift.REASON,'a same-type replacement from another file is rejected')
-    local missing,reason3=Drift.identity(manifest,function() return {target={type='beam'}} end)
-    check(missing==nil and reason3==Drift.REASON,'a missing builder disables the adapter')
-    local noDef,reason4=Drift.identity(manifest,function() return nil end)
-    check(noDef==nil and reason4==Drift.REASON,'a missing definition disables the adapter')
+    local sameLine=builderAt('/data/x.lua',2,2)
+    local bad3,reason3=Drift.identity(manifest,function() return {target=sameLine} end)
+    check(bad3==nil and reason3==Drift.REASON,
+        'a distinct closure at the same source/line is rejected')
+    local missing,reason4=Drift.identity(manifest,function() return {target={type='beam'}} end)
+    check(missing==nil and reason4==Drift.REASON,'a missing builder disables the adapter')
+    local noDef,reason5=Drift.identity(manifest,function() return nil end)
+    check(noDef==nil and reason5==Drift.REASON,'a missing definition disables the adapter')
     local unexpectedManifest={ENTRIES={T_X={conformance={builder=false}}}}
-    local unexpected,reason5=Drift.identity(unexpectedManifest,function() return {target=good} end)
-    check(unexpected==nil and reason5==Drift.REASON,'an unexpected builder disables the adapter')
+    local unexpected,reason6=Drift.identity(unexpectedManifest,function() return {target=good} end)
+    check(unexpected==nil and reason6==Drift.REASON,'an unexpected builder disables the adapter')
+    local undeclared={ENTRIES={T_U={}}}
+    local und,reason7=Drift.identity(undeclared,function() return {} end)
+    check(und==nil and reason7==Drift.REASON,'an entry without a declared builder expectation is rejected')
+    -- A self/no-target entry is inspected too.
+    local selfManifest={ENTRIES={T_SELF={conformance={builder='none'}}}}
+    Drift.reset()
+    check(Drift.identity(selfManifest,function() return {} end)==true,
+        'a self entry with no target builder satisfies the identity check')
+    local selfMissing,reason8=Drift.identity(selfManifest,function() return nil end)
+    check(selfMissing==nil and reason8==Drift.REASON,'a missing self definition is rejected')
+    Drift.reset()
+    local selfBuilder,reason9=Drift.identity(selfManifest,function() return {target=good} end)
+    check(selfBuilder==nil and reason9==Drift.REASON,'an unexpected builder on a self entry is rejected')
+end
+
+-- V2-REV-02(3): only immutable hashes are cached; the live identity check runs
+-- again on every call, so a mutation after a cached success is caught.
+do
+    Drift.reset()
+    local function builderAt(path,line)
+        local lines={}
+        for i=1,line-1 do lines[i]='' end
+        lines[line]='return function(self,t) return {} end'
+        return assert(loadstring(table.concat(lines,'\n'),'@'..path))()
+    end
+    local manifest={ENTRIES={T_X={conformance={builder=true},
+        source={builder={path='/data/x.lua',line=2}}}}}
+    local live={T_X={target=builderAt('/data/x.lua',2)}}
+    local function getDef(talent) return live[talent] end
+    local opts={sources=sources,read=reader(files),digest=fakeDigest,
+        expected={game_version='1.7.6'},manifest=manifest,identity=getDef}
+    check(Drift.ensure('mutation',opts)==true,'the first live identity check passes')
+    live.T_X=nil
+    local second,secondReason=Drift.ensure('mutation',opts)
+    check(second==false and secondReason==Drift.REASON,
+        'a definition mutation after a cached hash success fails closed')
+    Drift.reset()
 end
 
 -- Missing live hash services are a failure, not a pass.

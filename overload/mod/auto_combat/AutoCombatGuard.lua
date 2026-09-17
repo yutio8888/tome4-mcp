@@ -60,8 +60,10 @@ end
 
 local function playerOverride(component,typ,ctx)
     if component.delivery~='projectile' then return true end
-    if component.player_selffire==false then return false end
-    if component.player_selffire==true then return true end
+    -- Native evaluates `typ.player_selffire or act.allow_player_selffire`: a
+    -- component/spec opt-in short-circuits, and `false` in one source never
+    -- vetoes `true` in the other.
+    if component.player_selffire then return true end
     return ctx.details.playerSelfOverride(ctx.source,typ or {})
 end
 

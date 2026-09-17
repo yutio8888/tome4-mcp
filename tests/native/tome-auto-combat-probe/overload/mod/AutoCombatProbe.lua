@@ -55,7 +55,7 @@ M.EXPECTED={
     ['computed-predicate']={'act','false_holds','enum_rejected'},
     ['production-reads']={'has_control','scalar_resource','guard_wired'},
     ['pilot-presets']={'ok','ok','ok','cast'},
-    ['guard-real-spec']={'self_reject','builder_safe','grasp_safe'},
+    ['guard-real-spec']={'pristine_ok','mutation_drift','restored_ok','grasp_safe'},
     ['effect-footprint-parity']={'parity_ok'},
     ['manifest-drift']={'verified','hash_rejected','identity_ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
@@ -566,40 +566,38 @@ local function pilotPresets()
     return compare('pilot-presets',signals)
 end
 
--- 13 (round 5): the guard reads the real target builder. The catalog still
--- advises a widebeam for Flame, but a temporary builder override must drive the
--- verdict (and Blood Grasp's real builder must classify as safe).
+-- 13: builder identity/closure is enforced on every guarded action. A genuine
+-- builder is accepted; a replacement (even for an otherwise-valid target spec)
+-- is a mutation and fails closed; restoring the genuine builder recovers. Blood
+-- Grasp's real builder classifies as safe.
 local function guardRealSpec()
     local p=game.player
     if not p:knowTalent('T_FLAME') then p:learnTalent('T_FLAME',true) end
     if not p:knowTalent('T_BLOOD_GRASP') then p:learnTalent('T_BLOOD_GRASP',true) end
     local pol=policy({WAIT})
     local host=Runtime.buildAutoCombatHostFor(game,pol)
-    local ctx=host and host.snapshot('nearest_hostile')
-    local bound=ctx and ctx.bound_target
+    local bound=host and host.snapshot('nearest_hostile').bound_target
     local def=p.talents_def and p.talents_def.T_FLAME
     if not bound or not (def and type(def.target)=='function') then
         check('guard-real-spec:setup',false,{bound=bound,has_builder=def~=nil})
-        return compare('guard-real-spec',{'no_setup','no_setup','no_setup'})
+        return compare('guard-real-spec',{'no_setup','no_setup','no_setup','no_setup'})
     end
-    local entry=Catalog.entry('T_FLAME')
-    check('guard-real-spec:catalog',entry.shape=='widebeam','the catalog still advises a widebeam')
-    local original=def.target
     local signals={}
-    -- A builder-provided self-hitting ball must reject with the builder as the
-    -- source even though the catalog would not flag it as a self-hit. The flame
-    -- bolt branch is a player projectile, so the self-hit needs the projectile
-    -- opt-in.
+    local pristine=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
+    local pristine_ok=pristine==nil or pristine.reason~='adapter_source_drift'
+    check('guard-real-spec:pristine',pristine_ok,pristine)
+    signals[#signals+1]=pristine_ok and 'pristine_ok' or 'pristine_drift'
+    local original=def.target
     def.target=function() return {type='ball',range=100,radius=10,selffire=true,friendlyfire=true,player_selffire=true} end
-    local selfhit=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
-    check('guard-real-spec:self',selfhit and selfhit.reason=='selffire_risk'
-        and selfhit.detail and selfhit.detail.source=='builder' and selfhit.detail.phase=='instant',selfhit)
-    signals[#signals+1]=(selfhit and selfhit.reason=='selffire_risk') and 'self_reject' or 'self_pass'
-    def.target=function() return {type='ball',range=100,radius=1,selffire=false,friendlyfire=false} end
-    local safe=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
-    check('guard-real-spec:safe',safe==nil,safe)
-    signals[#signals+1]=safe==nil and 'builder_safe' or 'still_risky'
+    local mutated=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
+    local mutation_drift=mutated and mutated.reason=='adapter_source_drift'
+    check('guard-real-spec:mutated',mutation_drift,mutated)
+    signals[#signals+1]=mutation_drift and 'mutation_drift' or 'mutation_accepted'
     def.target=original
+    local restored=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
+    local restored_ok=restored==nil or restored.reason~='adapter_source_drift'
+    check('guard-real-spec:restored',restored_ok,restored)
+    signals[#signals+1]=restored_ok and 'restored_ok' or 'restored_drift'
     -- Blood Grasp's real builder is a bolt with explicit SF 0 / FF 0.
     local grasp=host.guard({action='use_talent',talent='T_BLOOD_GRASP',bound_target=bound})
     check('guard-real-spec:grasp',grasp==nil,grasp)

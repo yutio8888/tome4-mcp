@@ -36,7 +36,7 @@ local MAP_DEFAULT=M.PROVENANCE.MAP_DEFAULT
 local CURATED=M.PROVENANCE.CURATED_FORMULA
 
 local function selfEntry(kind,resource)
-    return {kind=kind,target='self',resource=resource,components={}}
+    return {kind=kind,target='self',resource=resource,components={},conformance={builder='none'}}
 end
 
 -- Every hostile entry keeps `cursor` (targeting geometry) separate from the
@@ -130,8 +130,8 @@ M.ENTRIES={
         components={
             {id='cursor',phase='cursor',delivery='projectile',shape='bolt',range=10,center='target'},
             {id='instant',phase='projectile',delivery='projectile',shape='bolt',range=10,center='target',
-                selffire=100,friendlyfire=100,player_selffire=false,
-                provenance={selffire=TARGET_DEFAULT,friendlyfire=TARGET_DEFAULT,player_selffire=EXPLICIT}},
+                selffire=100,friendlyfire=100,
+                provenance={selffire=TARGET_DEFAULT,friendlyfire=TARGET_DEFAULT}},
         }},
     T_BLOOD_GRASP={kind='attack',target='hostile',resource='vim',range=10,
         cursor={shape='bolt',range=10},
@@ -139,8 +139,8 @@ M.ENTRIES={
         components={
             {id='cursor',phase='cursor',delivery='projectile',shape='bolt',range=10,center='target'},
             {id='instant',phase='projectile',delivery='projectile',shape='bolt',range=10,center='target',
-                selffire=0,friendlyfire=0,player_selffire=false,
-                provenance={selffire=EXPLICIT,friendlyfire=EXPLICIT,player_selffire=EXPLICIT}},
+                selffire=0,friendlyfire=0,
+                provenance={selffire=EXPLICIT,friendlyfire=EXPLICIT}},
         }},
     T_DARK_RITUAL=selfEntry('sustain','vim'),
     T_SHATTERING_BLOW={kind='attack',target='hostile',resource='stamina',range=1,melee=true,
@@ -154,6 +154,7 @@ M.ENTRIES={
     -- applies a non-damage debuff in a source-centred radius-6 ball with
     -- friendlyfire=false (SF omitted -> true, so self is safe via FF=0).
     T_DAUNTING_PRESENCE={kind='sustain',target='self',resource='stamina',components={},
+        conformance={builder='none'},
         callbacks={
             {id='daunting_pulse',phase='secondary',delivery='project',shape='ball',center='self',radius=6,
                 selffire=100,friendlyfire=0,

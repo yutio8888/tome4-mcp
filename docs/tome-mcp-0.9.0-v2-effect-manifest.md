@@ -1,7 +1,7 @@
 # Auto-combat v2 effect manifest, native-equivalent footprint, drift-safe guard
 
 Status: implemented on **PR [#13](https://github.com/yutio8888/tome4-mcp/pull/13)**
-(rev 2, reviewed head reported to the dispatcher); **not merged**. The actual
+(rev 3, reviewed head reported to the dispatcher); **not merged**. The actual
 `main` base is `f9b34c2` and the branch stays unmerged until review accepts it.
 This round executes `docs/tome-mcp-0.9.0-selffire-investigation.md` §6–§9 and
 closes TODO #54 (versioned component manifest, exact footprint parity, composed
@@ -55,12 +55,13 @@ and headless fixtures. The guard prefers native in-game.
 ### 4. Source-drift detection (`overload/mod/auto_combat/EffectManifestDrift.lua`)
 
 `tools/generate_effect_manifest.py` pins the md5 of the 20 talent source files
-and the five engine-semantics files (`Target.lua`, `ActorProject.lua`,
-`Map.lua`, `utils.lua`, ToME `Actor.lua`) plus each definition line. At load
-time a mismatch returns `adapter_source_drift` and the adapter is disabled; the
-identity/closure check also catches a target builder added, removed or replaced
-under an unchanged data hash. `generate_effect_manifest.py --check` fails CI on
-drift.
+and the six engine-semantics files (`Target.lua`, `ActorProject.lua`,
+`Map.lua`, `utils.lua`, ToME `Actor.lua`, `ActorTalents.lua`) plus each
+definition and builder line. At load time a mismatch returns
+`adapter_source_drift` and the adapter is disabled; the identity/closure check
+requires a live definition for **every** entry and catches a target builder
+added, removed, replaced or mutated under an unchanged data hash.
+`generate_effect_manifest.py --check` fails CI on drift.
 
 ## Rev 2 review fixes (V2-REV-01 … V2-REV-07)
 
@@ -91,14 +92,33 @@ would have failed before:
   friendly risk (adds the SF=100/FF=0 safe case).
 - **V2-REV-07** this status now locates the work on PR #13, not on `main`.
 
+## Rev 3 review fixes (V2-REV-02 / V2-REV-04)
+
+- **V2-REV-02 (identity/closure, complete):** `identity()` now requires a live
+definition and a declared `conformance.builder` (`true` / `false` / `'none'`)
+for **every** manifest entry, including self/no-target entries; a missing or
+unexpected builder on any entry fails. It pins a real **function fingerprint**
+(`string.dump`) plus source path/line, so a distinct closure at the same
+source/line is rejected while a byte-identical reload is accepted. Only the
+immutable file hashes are cached; the live identity check is re-run before
+**every** guarded action, so a definition mutation after a cached success is
+caught. Regressions: missing/unexpected self builder, same-source/line distinct
+closure, mutation after cached success.
+- **V2-REV-04 (opt-in OR):** the effective projectile opt-in is a boolean OR
+across the target-spec `player_selffire` and the actor `allow_player_selffire`
+(`ObservationDetails.playerSelfOverride` and `AutoCombatGuard.playerOverride`);
+`false` in one source never vetoes `true` in the other. `T_SOUL_ROT` (and
+`T_BLOOD_GRASP`) now leave the per-projectile opt-in **absent** rather than
+`false`. Regressions cover both directions and the both-false case.
+
 ## Native evidence
 
 | Layer | Session | Result |
 | --- | --- | --- |
-| Auto-combat probe (source) | `v2-rev2-src` | **79/79**, incl. 13 footprint cases + 3 `manifest-drift:*` |
-| Auto-combat probe (`dist`) | `v2-rev2-dist` | **79/79** |
-| Native acceptance (source) | `v2-rev2-accept-src` | **100/100** |
-| Native acceptance (`dist`) | `v2-rev2-accept-dist` | **100/100** |
+| Auto-combat probe (source) | `v2-rev3-src` | **79/79**, incl. 13 footprint cases + 3 `manifest-drift:*` + the builder-mutation guard case |
+| Auto-combat probe (`dist`) | `v2-rev3-dist` | **79/79** |
+| Native acceptance (source) | `v2-rev3-accept-src` | **100/100** |
+| Native acceptance (`dist`) | `v2-rev3-accept-dist` | **100/100** |
 
 Footprint parity compares the production backend against the real
 `ActorProject:project` grid set for `hit`, `bolt`, `beam`, `ball` (r1/r2),
@@ -108,14 +128,15 @@ both corner cases report a non-zero corner-callback count and the expected stop
 set. The production guard reports `footprint_backend='native'`.
 
 Lua suites: full `tests/run.sh` green, including the new
-`test_effect_manifest` (240), `test_effect_manifest_drift` (18),
-`test_effect_footprint` (24), `test_effect_risk` (29) and
-`test_auto_combat_guard` (26). Python: 39/39. All three `--check` generators green.
+`test_effect_manifest` (240), `test_effect_manifest_drift` (25),
+`test_effect_footprint` (24), `test_effect_risk` (29),
+`test_auto_combat_guard` (29) and `test_friendly_fire` (40). Python: 39/39. All
+three `--check` generators green.
 
 `dist/tome-mcp-bridge.teaa` repackaged:
 
 ```
-sha256 = ceb1e3799b827b6d9bc192b9bdb5c3e0407053e10f4e6514260617f793e27518
+sha256 = fce6831aeb718c07546de628dcc230b86781c17a74f3daa6f3c5b96f008506bd
 ```
 
 (`main` baseline artifact `4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29`.)

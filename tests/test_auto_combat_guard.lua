@@ -25,7 +25,7 @@ local function build(opts)
         defs={}
         for talent,entry in pairs(Manifest.ENTRIES) do
             local conformance=entry.conformance
-            if conformance and conformance.builder then
+            if conformance and conformance.builder==true then
                 defs[talent]={id=talent,target=function(self,t)
                     return {type=conformance.shape,range=entry.range,radius=entry.radius}
                 end}
@@ -148,19 +148,24 @@ do
         'a native expansion failure rejects instead of using the model')
 end
 
--- V2-REV-04: the player projectile opt-in is composed by the guard.
+-- V2-REV-04: the player projectile opt-in is a boolean OR across the live
+-- target-spec opt-in and the actor flag; `false` in one never vetoes `true` in
+-- the other.
 do
-    local function flameBuild(allow)
+    local function flameBuild(allow,specOptIn)
         local defs={T_FLAME={id='T_FLAME',target=function()
-            return {type='ball',range=10,radius=5,selffire=true,friendlyfire=true} end}}
+            local spec={type='ball',range=10,radius=5,selffire=true,friendlyfire=true}
+            if specOptIn~=nil then spec.player_selffire=specOptIn end
+            return spec end}}
         local guard=build{defs=defs,talentLevel=function() return 1 end,
             player_fields={allow_player_selffire=allow}}
         return guard(attempt('T_FLAME'))
     end
-    local optedIn=flameBuild(true)
-    check(optedIn and optedIn.reason=='selffire_risk',
-        'a player projectile with the opt-in is a self risk')
-    check(flameBuild(false)==nil,'a player projectile without the opt-in suppresses the self-hit')
+    check(flameBuild(true,nil)~=nil,'the actor opt-in makes a self-hit a risk')
+    check(flameBuild(false,nil)==nil,'without any opt-in the self-hit is suppressed')
+    check(flameBuild(true,false)~=nil,'spec player_selffire=false does not veto the actor opt-in')
+    check(flameBuild(false,true)~=nil,'spec player_selffire=true does not need the actor opt-in')
+    check(flameBuild(false,false)==nil,'both opt-in sources false suppresses the self-hit')
 end
 
 -- D2: risk tolerance only chooses reject vs pause, never authorises a cast.
