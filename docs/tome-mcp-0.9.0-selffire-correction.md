@@ -94,3 +94,8 @@ defaults true and the Burning Wake ground cone has dynamic SF / default-true FF.
   ground components.
 - The current geometry helpers remain warning-quality; the guard's pre-commit
   proof will come from the manifest.
+
+## Build / review
+
+Branch `fix/selffire-catalog-drift`, PR #12
+(https://github.com/yutio8888/tome4-mcp/pull/12).

@@ -2,7 +2,7 @@
   "round": "round 5 - selffire catalog correction (pre-v2)",
   "date": "2026-09-17",
   "branch": "fix/selffire-catalog-drift",
-  "pr": "pending",
+  "pr": "#12 (https://github.com/yutio8888/tome4-mcp/pull/12)",
   "main_base": "c4777eb",
   "corrected": {
     "T_SEARING_LIGHT": "cursor ball range 7 radius 1; instant hit; safe r1 dur4 ground",
