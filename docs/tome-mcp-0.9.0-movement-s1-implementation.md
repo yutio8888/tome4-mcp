@@ -101,13 +101,25 @@ the target builder), and a movement entry without an action pin fails closed
 
 ## 6. Evidence
 
-- `tests/test_auto_combat_movement_factory.lua` — 43 checks: every template's
+Final artifact: `dist/tome-mcp-bridge.teaa`
+`736fc9f6600443f3ac590db2af2a2e82c9171ed46547e9eb686b979a54a8aeae`
+(baseline `688ae61f89fc0452c91b19555f7d4467d319e3883674750054927e01e1445c77`).
+`allow_auto_combat_execution` remains `false` (read-only unless explicitly set).
+
+- `tests/test_auto_combat_movement_factory.lua` — 45 checks: every template's
   exact descriptor, closed-key/type/negative-envelope rejections, the full Phase
   Door matrix including unknown level/attribute and overlapping/no-match
-  variants, dynamic bound resolution, bounded grid annotation, and action/getter
-  drift negatives (including a distinct same-line closure).
+  variants, the S2 ordered plan as a declared-but-unavailable capability,
+  dynamic bound resolution, bounded grid annotation, and action/getter drift
+  negatives (including a distinct same-line closure).
 - `tests/test_effect_manifest.lua`, `tests/test_effect_manifest_drift.lua`,
   `tests/test_auto_combat_movement.lua`, `tests/test_runtime.lua` updated for the
-  matrix API and the dynamic getters.
-- Full suite, Python and the three generator `--check` runs are recorded in the
-  round report under `tmp/`.
+  matrix API, the dynamic getters and the movement action/getter pins.
+- Full Lua suite 41/41 green; Python 39/39; the three generator `--check` runs
+  exit 0.
+- Native probes (source + `dist`) settle the task and assert final postconditions:
+  auto-combat probe 110/110 each (including `movement-talents:door-execute` for
+  the Phase Door no-prompt branch and `movement-factory:*` for the precise-grid
+  variant, the unknown-attribute fail-closed, the Dimensional Step TL5 swap gap
+  and Vault exact), full native acceptance 100/100 each. Raw output is under
+  `tmp/s1/`.

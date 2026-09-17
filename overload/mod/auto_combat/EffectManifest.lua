@@ -288,6 +288,7 @@ M.ENTRIES={
             {when={kind='talent_level',at_least=4},
                 unsupported={scope='effective_talent_level>=4',
                     missing='actor_then_grid_target_plan',
+                    requests={{'actor'},{'actor','grid'}},
                     reason='Phase Door prompts for a target at TL4+ and a landing at TL5; the executor pre-fills one native prompt only'}},
         }),
         components={},conformance={builder=false}},
@@ -337,6 +338,13 @@ function M.requestSequences(entry)
         for _,variant in ipairs(movement.variants) do
             if variant.movement and type(variant.movement.target_requests)=='table' then
                 out[#out+1]=variant.movement.target_requests
+            elseif variant.unsupported and type(variant.unsupported.requests)=='table' then
+                -- A known but unimplemented branch still declares its request
+                -- sequence, so a policy using the S2 shape validates statically
+                -- and then gets the typed capability reason at plan time.
+                for _,requests in ipairs(variant.unsupported.requests) do
+                    out[#out+1]=requests
+                end
             end
         end
         return out

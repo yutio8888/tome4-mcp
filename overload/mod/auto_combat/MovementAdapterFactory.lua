@@ -202,7 +202,8 @@ function M.matrix(branches)
                 return nil,{reason=M.REASON_INVALID,detail='bad_variant_unsupported',index=index}
             end
             variant.unsupported={scope=unsupported.scope or 'any',
-                missing=unsupported.missing,reason=unsupported.reason}
+                missing=unsupported.missing,reason=unsupported.reason,
+                requests=unsupported.requests}
         else
             local movement,err=M.expand(branch.template,branch.params or {})
             if not movement then

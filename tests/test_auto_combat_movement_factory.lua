@@ -164,6 +164,25 @@ do
         'zero variant matches are movement_variant_unknown')
 end
 
+-- 3b. The S2 ordered Phase Door plan is a declared capability, not a schema
+-- error: static verification accepts it and plan time returns the typed gap.
+do
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local ok=Manifest.verify({sustains={},rules={
+        {id='door',priority=1,when={always={}},['then']={action='use_talent',
+            talent='T_PHASE_DOOR',target='self',
+            target_plan={{request='actor',selector='self'},
+                {request='grid',destination={selector='relative',dx=1,dy=0,accept=accept}}}}}}})
+    check(ok==true,'the Phase Door TL4+ ordered plan validates statically as a declared capability')
+    local bad,errors=Manifest.verify({sustains={},rules={
+        {id='door',priority=1,when={always={}},['then']={action='use_talent',
+            talent='T_PHASE_DOOR',target='self',
+            target_plan={{request='grid',destination={selector='relative',dx=1,dy=0,accept=accept}},
+                {request='actor',selector='self'}}}}}})
+    check(bad==nil and errors and errors[1].code=='target_plan_mismatch',
+        'a reordered request plan is rejected against the declared sequences')
+end
+
 -- 4. Dynamic envelope bounds: audited getter only ----------------------------
 do
     local movement=assert(Factory.expand('grid_move_bounded',{delivery='teleport',traverses=false,

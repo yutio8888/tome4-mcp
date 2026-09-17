@@ -107,8 +107,8 @@ check(Manifest.entry('T_RUSH').movement.landing=='bounded_alternatives','Rush is
 -- Phase Door is a closed matrix: the no-prompt and precise-grid branches are
 -- single-prompt; the TL4+ branch is the ordered-queue capability gap.
 local phaseDoorSequences=Manifest.requestSequences(Manifest.entry('T_PHASE_DOOR'))
-check(#phaseDoorSequences==2 and phaseDoorSequences[1][1]=='none' and phaseDoorSequences[2][1]=='grid',
-    'Phase Door declares the no-prompt and precise-grid request sequences')
+check(#phaseDoorSequences==4 and phaseDoorSequences[1][1]=='none' and phaseDoorSequences[2][1]=='grid',
+    'Phase Door declares the no-prompt, precise-grid and TL4+ request sequences')
 check(Manifest.entry('T_PHASE_DOOR').movement.variants~=nil,'Phase Door declares a state-variant matrix')
 check(Manifest.SOURCES.talents['T_PHASE_DOOR'].getters~=nil,'Phase Door pins its dynamic getters')
 check(Manifest.compat(Manifest.entry('T_FLAME')).shape=='widebeam','Flame compat reports the widest union member')
