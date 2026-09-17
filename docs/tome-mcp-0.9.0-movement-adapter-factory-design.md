@@ -533,6 +533,15 @@ evidence stays under `tmp/`.
   swap position with a monster** (two-subject swap) and report both actors'
   post-positions and effects; then stop. Verifies S4 (`swap` / moving another actor).
 
+S3/S4 live tests use the test-only fixtures in
+`docs/tome-mcp-0.9.0-movement-test-fixtures.md` (Shadowblade + training dummy;
+Temporal Warden + swap monster).
+
 Sequencing: S1 → S1 live test → S2 → S2 live test → S3 → S3 live test → S4 → S4 live
 test; order may be re-prioritised by the maintainer. None of them authorises
 execution by default (`allow_auto_combat_execution` stays `false`).
+
+**Post-acceptance (maintainer):** after **all four slices are accepted and merged**,
+resume the **regular test subagent** with a **Halfling / Celestial-Anorithil
+(星月术士)** Insane/Roguelike run on the merged build (standard metrics) to
+re-validate the whole plugin on the pilot build after the movement work.
