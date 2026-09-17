@@ -136,7 +136,7 @@ M.ENTRIES={
             {id='instant',phase='instant',delivery='project',shape='cone',center='target',
                 selffire=0,friendlyfire=100,
                 provenance={selffire=EXPLICIT,friendlyfire=TARGET_DEFAULT}},
-            {id='ground',phase='ground',delivery='map_effect',shape='cone',center='self',
+            {id='ground',phase='ground',delivery='map_effect',shape='cone',center='self',direction='target',
                 radius={from='target'},
                 when={kind='attr',id='burning_wake'},
                 duration=4,

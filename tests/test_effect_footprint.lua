@@ -104,4 +104,20 @@ do
     check(headless~=nil,'an explicitly headless context still uses the pure model')
 end
 
+-- DYN-REV-03: the aim direction is independent of the AoE centre. A
+-- source-centred cone keeps the bound target as its direction, so the guard's
+-- footprint is the real directional Burning Wake shape, not a degenerate apex.
+do
+    local Guard=require 'mod.auto_combat.AutoCombatGuard'
+    local origin={x=0,y=0}
+    local bound={x=4,y=0}
+    local directional=Guard.footprintSpec({shape='cone',radius=2,center='self',direction='target'},origin,bound)
+    check(directional.origin.x==0 and directional.target.x==4,'direction keeps the bound target as the aim vector')
+    local set=Footprint.model(directional,{})
+    check(Footprint.at(set,1,0),'the directional source-centred cone includes the immediately-east grid')
+    check(Footprint.count(set)>1,'the directional cone is not degenerate')
+    local degenerate=Guard.footprintSpec({shape='cone',radius=2,center='self'},origin,bound)
+    check(degenerate.target.x==0 and degenerate.target.y==0,'a centre-only component collapses to the caster')
+end
+
 print('Effect footprint: '..checks..' checks passed')

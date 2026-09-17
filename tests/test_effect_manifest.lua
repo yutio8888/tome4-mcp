@@ -146,7 +146,8 @@ do
         if component.phase=='instant' then flameshock_instant=component end
     end
     check(flameshock_ground and flameshock_ground.center=='self' and flameshock_ground.shape=='cone'
-        and flameshock_ground.duration==4,'Flameshock Burning Wake is a source-centred duration-4 cone')
+        and flameshock_ground.direction=='target' and flameshock_ground.duration==4,
+        'Flameshock Burning Wake is a source-centred duration-4 cone aimed at the target')
     check(flameshock_instant.selffire==0,'Flameshock instant cone is explicitly self-safe')
     local shadow=Manifest.entry('T_SHADOW_BLAST')
     local shadow_ground

@@ -1,6 +1,6 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "2860a9fbf7c5a54916a75446a4c94ec3751ee45f5c8d4f4379f0b9d7574131f7",
+  "sha256": "1c06737021456a84a29b74aeaa5aaed50e5c467adc5b779e013195158b3413d7",
   "files": {
     "README.md": "21ca37fc6d9ab107a7690cb70c16f273f6296522811cadc2b46902e74bac55a3",
     "hooks/load.lua": "8c11d088a300e6ce1a4778c7388ef42a9c868fe60b41fa1e4fde37f667a061f6",
@@ -8,12 +8,12 @@
     "overload/mod/auto_combat/AssistantAdapter.lua": "a2cb10f2d749d780ce493bcc01eb64f3e1a07916bf87fc42c901aec876db79b5",
     "overload/mod/auto_combat/AutoCombat.lua": "cb4f44bcd61a9230a66f0680c530b501d12759c7991a2916dc3cccea1c8565a1",
     "overload/mod/auto_combat/AutoCombatCatalog.lua": "2a0a7b569dc415f2697868e970d4667b7b33f429c3f47e9fa37a12404afbce82",
-    "overload/mod/auto_combat/AutoCombatGuard.lua": "21a6d67b7729d928d9cd00aea8b7e5180317d377a9864d4784d9e27f171e216c",
+    "overload/mod/auto_combat/AutoCombatGuard.lua": "018bcfd6f0ba33cecdd26e3202acac6bcb963533c164046f8f5cd619e6d4c20c",
     "overload/mod/auto_combat/AutoCombatHost.lua": "c1d259a26cda329c7b5db0a9345be1addc416ff60eb42046823a04528c3aabd7",
     "overload/mod/auto_combat/AutoCombatService.lua": "d30fa923fe7a6dd2120d2c32414929a2a088c4f8d049ee99af0faff882fed96f",
     "overload/mod/auto_combat/ControlArbiter.lua": "22c1b40fd80ac46f81bbbe23c93e32922b9ee88a8d9a20c5e59f95b11ecb302e",
-    "overload/mod/auto_combat/EffectFootprint.lua": "2ccb56189f06d6ec00affc457eb824c1654896713928282352d5f126a0a7a166",
-    "overload/mod/auto_combat/EffectManifest.lua": "c0ca23250062c160f4191cac8a06b3aa208602a0bf3b8e25ac2da195d785dc01",
+    "overload/mod/auto_combat/EffectFootprint.lua": "636732926c7a5e29d9aa6ee6dce6cda1e6fd0a2aa73ff2be1c8b59a89a5df4d6",
+    "overload/mod/auto_combat/EffectManifest.lua": "b852415d3027dd778daa9bba52a167bdcee135f1ecf31d0fca76438af3c28f2e",
     "overload/mod/auto_combat/EffectManifestDrift.lua": "e18c65a702b9171d8d5befbadd6a6cf98eab2a9c4d2fd69c662fe6bef7b180d4",
     "overload/mod/auto_combat/EffectManifestSources.lua": "249dc59ec3fa0a2a17055d03661fe5922e91cc81988127aec89b19c7b17ba370",
     "overload/mod/auto_combat/EffectRisk.lua": "336858bba411b2b26668d5aa7889f6a4f9b37182abcbeaf6f0667953ec79064c",

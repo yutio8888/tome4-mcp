@@ -29,7 +29,10 @@ identity/drift check pins the builder's source path and definition line.
   exact identity + `function _M:spellFriendlyFire` declaration). It is now also
   pinned by `tools/generate_effect_manifest.py` (`combat` in `ENGINE_FILES`).
 - Manifest components declare `selffire={dynamic='spellFriendlyFire'}`; the
-  guard resolves it to the live scalar or to `unknown`. An unavailable,
+  guard resolves it to the live scalar or to `unknown`, and the audited
+  provider is **authoritative**: the live builder's raw `selffire`/`friendlyfire`
+  must not overwrite an `unknown` result (an overridden method could return `0`
+  to the builder while the provider fails closed). An unavailable,
   overridden or erroring getter leaves the component **`unknown`** (fail
   closed) — it never yields a permissive verdict.
 - Dynamic radii come from the live builder: ground components use
@@ -42,7 +45,10 @@ identity/drift check pins the builder's source path and definition line.
 - Burning Wake (Fireflash, Flameshock) is modelled as a duration-4, per-grid
   ground component (`per_grid` where the source iterates projected grids; the
   Fireflash branch creates one impact zone). Its SF is the audited
-  `spellFriendlyFire`; its FF defaults to **true**.
+  `spellFriendlyFire`; its FF defaults to **true**. The Fireflash ground is an
+  impact ball; the Flameshock ground is a **source-centred directional cone**
+  (`center='self', direction='target'`) whose aim vector is kept independently of
+  its centre and matches the real `Map:addEffect` fan geometry.
 - Shadow Blast's persistent radius-3 ball is a ground component (duration up to
   9) with dynamic SF and default-true FF.
 - Starfall has **no** ground component.
@@ -61,37 +67,54 @@ identity/drift check pins the builder's source path and definition line.
   (`adapter_source_drift`), and the trusted baseline is the original function
   object (`rawequal`).
 
-## Guard correctness fix
+## Guard correctness fixes
 
 Flameshock is a `range=0` self-centred cone. The guard previously rejected it:
 the distance range check (`distance > 0`) and `canProject` (which reports only
 the origin as a hit for a range-0 projection) both fired. The guard now skips
-the target-distance and `canProject` gates for a range-0 effect; the line of
-sight is still validated implicitly and the cone footprint is expanded natively.
-No other whitelist talent has range 0.
+the target-distance and `canProject` gates for a range-0 effect, but requires
+the bound hostile to lie in the **resolved native instant footprint** — a far
+or wall-blocked target is rejected (`target_out_of_range`). No other whitelist
+talent has range 0.
+
+## Rev 2 review fixes (DYN-REV-01 … DYN-REV-03)
+
+- **DYN-REV-01** the audited dynamic provider is authoritative for declared
+  dynamic filters; the raw builder value no longer overwrites an `unknown`
+  provider (guard and Runtime replacement regressions for Fireflash/Starfall).
+- **DYN-REV-02** the range-0 direction special case now also requires the bound
+  target to be inside the expanded native instant footprint (near allowed, far
+  and wall-blocked rejected); the probe asserts the exact intended verdict.
+- **DYN-REV-03** the Flameshock ground cone carries `center='self',
+  direction='target'`; ground (`map_effect`) footprints use the real
+  `Map:addEffect` geometry (a directional `beam_any_angle` fan), and a native
+  grid-set parity check proves the eastward grid is included.
 
 ## Evidence (DYN-5)
 
 | Layer | Session | Result |
 | --- | --- | --- |
-| Auto-combat probe (source) | `v2-dyn-src` | **85/85** (incl. `dynamic-talents:*`) |
-| Auto-combat probe (`dist`) | `v2-dyn-dist` | **85/85** |
-| Native acceptance (source) | `v2-dyn-accept-src` | **100/100** |
-| Native acceptance (`dist`) | `v2-dyn-accept-dist` | **100/100** |
+| Auto-combat probe (source) | `v2-dynrev2-src` | **87/87** (incl. wall + ground-direction) |
+| Auto-combat probe (`dist`) | `v2-dynrev2-dist` | **87/87** |
+| Native acceptance (source) | `v2-dynrev2-accept-src` | **100/100** |
+| Native acceptance (`dist`) | `v2-dynrev2-accept-dist` | **100/100** |
 
-Lua suites green including `test_effect_manifest` (312) and
-`test_auto_combat_guard` (35); Python 39/39; all three `--check` generators
-green. Native `dynamic-talents` records `spellFriendlyFire=0` resolved, Shadow
-Blast's ground verdict `phase=ground`, `risk=friendly`, FF 100, and the
-production guard's `source=builder`/`footprint_backend=native`.
+Lua suites green including `test_effect_manifest` (312),
+`test_auto_combat_guard` (40) and `test_effect_footprint` (28); Python 39/39; all
+three `--check` generators green. Native `dynamic-talents` records
+`spellFriendlyFire=0` resolved, Shadow Blast's ground verdict `phase=ground`,
+`risk=friendly`, FF 100, the wall-blocked Flameshock rejection
+(`outside_instant_footprint`), and the directional ground cone matching
+`beam_any_angle_grids` (east grid included).
 
 `dist/tome-mcp-bridge.teaa` repackaged:
 
 ```
-sha256 = 2860a9fbf7c5a54916a75446a4c94ec3751ee45f5c8d4f4379f0b9d7574131f7
+sha256 = 1c06737021456a84a29b74aeaa5aaed50e5c467adc5b779e013195158b3413d7
 ```
 
-(`main` baseline `3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29`.)
+(rev 1 package `2860a9fbf7c5a54916a75446a4c94ec3751ee45f5c8d4f4379f0b9d7574131f7`;
+`main` baseline `3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29`.)
 
 ## Still unsupported
 

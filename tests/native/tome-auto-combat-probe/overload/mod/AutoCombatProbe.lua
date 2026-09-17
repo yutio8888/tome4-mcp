@@ -748,6 +748,7 @@ end
 -- read their real builders, resolve the audited spellFriendlyFire input, and
 -- apply the persistent-ground rules (Shadow Blast's ground has default-true FF).
 function M.dynamicTalents()
+    local Guard=require 'mod.auto_combat.AutoCombatGuard'
     local p=game.player
     for _,talent in ipairs({'T_FLAMESHOCK','T_FIREFLASH','T_SHADOW_BLAST','T_STARFALL'}) do
         if not p:knowTalent(talent) then p:learnTalent(talent,true) end
@@ -766,21 +767,61 @@ function M.dynamicTalents()
     local provider_ok=type(friendly)=='number' and friendly>=0 and friendly<=100
     check('dynamic-talents:provider',provider_ok,{spellFriendlyFire=friendly})
     signals[#signals+1]=provider_ok and 'provider_ok' or 'provider_bad'
-    local expectations={T_FLAMESHOCK=false,T_FIREFLASH=false,T_SHADOW_BLAST='ground',T_STARFALL=false}
+    -- Exact intended outcomes: allowed (nil) vs the persistent-ground rejection.
+    local expectations={T_FLAMESHOCK='allowed',T_FIREFLASH='allowed',T_SHADOW_BLAST='ground',T_STARFALL='allowed'}
     for _,talent in ipairs({'T_FLAMESHOCK','T_FIREFLASH','T_SHADOW_BLAST','T_STARFALL'}) do
         local verdict=host.guard({action='use_talent',talent=talent,bound_target=bound})
         local drift=verdict and (verdict.reason=='adapter_source_drift' or verdict.reason=='unsupported_adapter'
             or verdict.reason=='adapter_builder_failed' or verdict.reason=='adapter_builder_missing')
-        local expected_phase=expectations[talent]
-        local phase_ok
-        if expected_phase==false then
-            phase_ok=(verdict==nil) or (verdict.reason=='selffire_risk')
+        local expected=expectations[talent]
+        local outcome_ok
+        if expected=='allowed' then
+            outcome_ok=(verdict==nil)
         else
-            phase_ok=verdict and verdict.reason=='selffire_risk' and verdict.detail
-                and verdict.detail.phase==expected_phase
+            outcome_ok=verdict and verdict.reason=='selffire_risk' and verdict.detail
+                and verdict.detail.phase==expected
         end
-        check('dynamic-talents:'..talent,(not drift) and phase_ok,{verdict=verdict,drift=drift})
+        check('dynamic-talents:'..talent,(not drift) and outcome_ok,{verdict=verdict,drift=drift})
         signals[#signals+1]=(not drift) and (talent..':ok') or (talent..':drift')
+    end
+    -- DYN-REV-02: a wall between the caster and the bound hostile removes it
+    -- from the resolved range-0 cone, so the guard rejects the unreachable target.
+    local terrain=game.level.map(p.x+1,p.y,engine.Map.TERRAIN)
+    local saved_block=terrain and terrain.block_move
+    if terrain then terrain.block_move=true end
+    local walled=host.guard({action='use_talent',talent='T_FLAMESHOCK',bound_target=bound})
+    check('dynamic-talents:flameshock-wall',walled and walled.reason=='target_out_of_range',walled)
+    if terrain then terrain.block_move=saved_block end
+    -- DYN-REV-03: the source-centred ground cone keeps its aim direction and
+    -- matches the real `Map:addEffect` fan geometry.
+    local def=p.talents_def and p.talents_def.T_FLAMESHOCK
+    local radius=def and p:getTalentRadius(def) or nil
+    local bound_uid=tonumber(tostring(bound):match('actor%-(%d+)$'))
+    local bound_actor=nil
+    for _,actor in pairs(game.level.entities or {}) do
+        if actor and actor.uid==bound_uid then bound_actor=actor end
+    end
+    if radius and bound_actor then
+        local dx=bound_actor.x-p.x
+        local dy=bound_actor.y-p.y
+        local spec=Guard.footprintSpec({shape='cone',radius=radius,center='self',direction='target',
+            delivery='map_effect'},{x=p.x,y=p.y},{x=bound_actor.x,y=bound_actor.y})
+        local set=EffectFootprint.native({game=game,source=p},spec)
+        local east=EffectFootprint.at(set,p.x+1,p.y)
+        local map=game.level.map
+        local recorded=core.fov.beam_any_angle_grids(p.x,p.y,radius,55,p.x,p.y,dx,dy,
+            function(_,lx,ly)
+                if not map:isBound(lx,ly) then return true end
+                local trn=map:checkEntity(lx,ly,engine.Map.TERRAIN,'block_move')
+                if trn and not map:checkEntity(lx,ly,engine.Map.TERRAIN,'pass_projectile') then return true end
+                return false
+            end)
+        check('dynamic-talents:flameshock-ground-direction',
+            set~=nil and east and EffectFootprint.count(set)>1 and sameSet(set,recorded),
+            {count=EffectFootprint.count(set),east=east,recorded=EffectFootprint.count(recorded),
+                dx=dx,dy=dy})
+    else
+        check('dynamic-talents:flameshock-ground-direction',false,{radius=radius,actor=bound_actor~=nil})
     end
     p.combat_spell_friendlyfire=saved
     return compare('dynamic-talents',signals)

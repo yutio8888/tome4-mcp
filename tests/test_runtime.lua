@@ -700,6 +700,32 @@ do
         'an active Burning Wake ground zone rejects')
     p.talents_def,p.talents,p.attr=saved_def,saved_talents,saved_attr
 end
+-- DYN-REV-01 (Runtime path): an overridden/unverifiable spellFriendlyFire makes
+-- the audited dynamic input unknown; a raw builder selffire=0 must not turn that
+-- into a permissive verdict.
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+    Runtime.reset(g);g:display()
+    local pl={schema='tome-auto-combat/v1',id='p1',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='nearest_hostile'},
+        rules={{id='fire',priority=1,when={always={}},
+            ['then']={action='use_talent',talent='T_FIREFLASH',target='nearest_hostile'}}}}
+    p.x,p.y=2,2
+    enemy.x,enemy.y=6,2;enemy.reaction=-1
+    g.level.entities={[1]=p,[2]=enemy}
+    g.level.map.map[12][3]=p;g.level.map.map[16][3]=enemy
+    local saved_defs=p.talents_def
+    local saved_sff=p.spellFriendlyFire
+    p.talents_def={T_FIREFLASH={id='T_FIREFLASH',target=function()
+        return {type='ball',range=7,radius=5,selffire=0} end}}
+    p.spellFriendlyFire=function() return 0 end
+    local live=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
+    local target=live.snapshot('nearest_hostile').bound_target
+    local verdict=live.guard({action='use_talent',talent='T_FIREFLASH',bound_target=target})
+    check(verdict and verdict.reason=='selffire_risk',
+        'an overridden spellFriendlyFire fails closed even when the builder returns 0')
+    p.talents_def,p.spellFriendlyFire=saved_defs,saved_sff
+end
 -- Wave 2: capability alignment (INT-05) and the full error envelope (INT-02).
 do
     Runtime.reset(g);g:display()
