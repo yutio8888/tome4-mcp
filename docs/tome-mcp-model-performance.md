@@ -64,3 +64,15 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
    （1M − 400K = 600K 阈值）。
 3. **轮换生效点**：从**下一个独立 loop** 起，按 A→B→A→B 派发执行代理。
    （备注：`~/.paseo/config.json` 的 `opencode` provider 启用与 B 无关，B 走 pi 的 `opencode-go`。）
+
+
+## S1 合并后的收尾清单（维护者已同意）
+1. **补 DOC-04**：`docs/tome-mcp-0.9.0-movement-s1-implementation.md` 只在
+   `feat/movement-adapter-factory`；S1 合并后按文档修复口径（去掉运行期身份/摘要/闭包门控，
+   说明"audited"=策展/可观测元数据）修正并提交。
+2. **最终核验 `NativeCompatibility` 仅诊断**：grep 确认 `ActorCombat.computed`、`TalentQuery`、
+   `Actions` 执行入口不再以 source-diff/identity/digest/closure 决定可用性；替换但可用→使用，
+   不可用→typed unknown；执行侧仅保留控制/租约/序列化/pending/native-result 不变量。
+3. **更新 `VALIDATION.md`**：记录 v1.6 原则在**代码与文档两侧**的落地——"不追求运行期入口=原生入口的
+   严格审计"、"读取无纯度/RNG 门"、"无插件级策略门（限制属 preset 默认）"，并注明本条为现行验收口径。
+4. **账本写入** S1 rev8 的最终 loop 结果（该 loop 仍是 A 任务的延续；下一个独立任务起用 B）。
