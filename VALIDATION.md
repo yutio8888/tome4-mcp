@@ -28,11 +28,11 @@
 3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29
 ```
 
-（rev 3 包 `fce6831aeb718c07546de628dcc230b86781c17a74f3daa6f3c5b96f008506bd`；rev 2 包 `ceb1e3799b827b6d9bc192b9bdb5c3e0407053e10f4e6514260617f793e27518`；rev 1 包 `c96faee23db2b7d218295a97ecc1f728d334483ca4e0c62a5bd7b932ee2f7cbd`；基线 `4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29`。）冻结不变量保持：紧急层、预算、目标绑定、`native_pending`、手动撤销、只读 `dry_run` 不变；无协议/服务端字段变化，仅 `capabilities.adapter_version` 变为 v2。未决：动态技能（Fireflash/Flameshock/Shadow Blast/Starfall）留作 TODO #55。详见 [V2 文档](docs/tome-mcp-0.9.0-v2-effect-manifest.md)。
+（rev 3 包 `fce6831aeb718c07546de628dcc230b86781c17a74f3daa6f3c5b96f008506bd`；rev 2 包 `ceb1e3799b827b6d9bc192b9bdb5c3e0407053e10f4e6514260617f793e27518`；rev 1 包 `c96faee23db2b7d218295a97ecc1f728d334483ca4e0c62a5bd7b932ee2f7cbd`；基线 `4e60984fd7d4859db2e1b0f956185348fff5070b7c8e1308b35f658d6d13bd29`。）冻结不变量保持：紧急层、预算、目标绑定、`native_pending`、手动撤销、只读 `dry_run` 不变；无协议/服务端字段变化，仅 `capabilities.adapter_version` 变为 v2。动态技能（Fireflash/Flameshock/Shadow Blast/Starfall）当时留作 TODO #55，**后续已解决，见下节**。详见 [V2 文档](docs/tome-mcp-0.9.0-v2-effect-manifest.md)。
 
 ## 0.9.0：四动态技能重新纳入（TODO #55，DYN-1 … DYN-5）
 
-日期：2026-09-17。基于 `main@c131389` 的分支 `feat/v2-dynamic-talents`（PR 待审）。`T_FIREFLASH`/`T_FLAMESHOCK`/`T_SHADOW_BLAST`/`T_STARFALL` 从 `EffectManifest.UNSUPPORTED` 移入 v2 组件清单。
+日期：2026-09-17。分支 `feat/v2-dynamic-talents`（PR #14，head `afa6335`）**已合并到 `main`（merge `f4d6c69`）**。独立评审最终 **全 PASS（verdict=merge，无新问题）**，报告 sha256 `1df802aca9718c7f06753f24c1924e40f4ee28b9adc33db276294306d18ce7c1`；开发对话在最终 head 独立复跑：Lua 全绿、Python 39、三个 `--check` 绿、auto-combat 探针 source/dist 各 **88/88**、原生验收 source/dist 各 **100/100**、最终 `dist` sha256 `7035d6026488df5e612d72ab4a745bcd2892af25fdfa5f0f2ee7e01282e4c09e`。`T_FIREFLASH`/`T_FLAMESHOCK`/`T_SHADOW_BLAST`/`T_STARFALL` 从 `EffectManifest.UNSUPPORTED` 移入 v2 组件清单。
 
 | ID | 结果 | 证据 |
 | --- | --- | --- |
