@@ -42,6 +42,7 @@ local function build(opts)
         blockPath=opts.blockPath or function() return false end,
         details=Details,native=opts.native,
         talentLevel=opts.talentLevel,
+        dynamicScalar=opts.dynamicScalar,
         drift=opts.drift or function() return true end,
     }
     return Guard.build(ctx),p,target
@@ -166,6 +167,65 @@ do
     check(flameBuild(true,false)~=nil,'spec player_selffire=false does not veto the actor opt-in')
     check(flameBuild(false,true)~=nil,'spec player_selffire=true does not need the actor opt-in')
     check(flameBuild(false,false)==nil,'both opt-in sources false suppresses the self-hit')
+end
+
+-- DYN-2/DYN-3/DYN-REV-01: the re-admitted dynamic talents resolve their
+-- audited `spellFriendlyFire` input, which is authoritative over the raw
+-- builder value; an unavailable provider fails closed even when the builder
+-- returns 0. The persistent grounds (Burning Wake, Shadow Blast) keep
+-- default-true FF.
+do
+    local function fireflash(sf,extra,specSelffire)
+        local opts={defs={T_FIREFLASH={id='T_FIREFLASH',target=function()
+            local spec={type='ball',range=7,radius=5}
+            if specSelffire~=nil then spec.selffire=specSelffire end
+            return spec end}},talentLevel=function() return 1 end}
+        if sf~=nil then opts.dynamicScalar=function() return sf end end
+        for key,value in pairs(extra or {}) do opts[key]=value end
+        return build(opts)(attempt('T_FIREFLASH'))
+    end
+    check(fireflash(0)==nil,'a zero spellFriendlyFire suppresses the Fireflash self-hit')
+    check(fireflash(100)~=nil,'a positive spellFriendlyFire makes the Fireflash self-hit a risk')
+    check(fireflash(nil)~=nil,'an unavailable spellFriendlyFire fails closed')
+    check(fireflash(nil,nil,0)~=nil,'a builder selffire=0 cannot override an unavailable provider')
+    local wake=fireflash(0,{attr=function(_,id) if id=='burning_wake' then return 1 end end})
+    check(wake and wake.reason=='selffire_risk' and wake.detail.phase=='ground',
+        'the Fireflash Burning Wake ground rejects with default-true FF')
+end
+do
+    local shadowDefs={T_SHADOW_BLAST={id='T_SHADOW_BLAST',target=function()
+        return {type='ball',range=6,radius=3} end}}
+    local shadow=build{defs=shadowDefs,dynamicScalar=function() return 0 end}
+    local result=shadow(attempt('T_SHADOW_BLAST'))
+    check(result and result.reason=='selffire_risk' and result.detail.phase=='ground',
+        'Shadow Blast persistent ground rejects with default-true FF')
+    local starDefs={T_STARFALL={id='T_STARFALL',target=function()
+        return {type='ball',range=6,radius=5} end}}
+    local star=build{defs=starDefs,dynamicScalar=function() return 0 end}
+    check(star(attempt('T_STARFALL'))==nil,'Starfall has no persistent ground component')
+    -- The real Starfall builder calls spellFriendlyFire; a raw 0 must not
+    -- override the audited provider's failure.
+    local starBad=build{defs={T_STARFALL={id='T_STARFALL',target=function()
+        return {type='ball',range=6,radius=5,selffire=0} end}}}
+    local bad=starBad(attempt('T_STARFALL'))
+    check(bad and bad.reason=='selffire_risk',
+        'a Starfall builder selffire=0 cannot override an unavailable provider')
+end
+
+-- DYN-REV-02: a range-0 self-centred cone authorizes only a bound target that
+-- lies in the resolved instant footprint.
+do
+    local defs={T_FLAMESHOCK={id='T_FLAMESHOCK',target=function()
+        return {type='cone',range=0,radius=4,selffire=false} end}}
+    local function flameshock(tx,ty,extra)
+        local opts={defs=defs,talentLevel=function() return 1 end,tx=tx,ty=ty}
+        for key,value in pairs(extra or {}) do opts[key]=value end
+        return build(opts)(attempt('T_FLAMESHOCK'))
+    end
+    check(flameshock(4,2)==nil,'a bound target inside the range-0 cone is allowed')
+    local far=flameshock(9,2)
+    check(far and far.reason=='target_out_of_range','a bound target outside the range-0 cone is rejected')
+    check(flameshock(4,2,{native={}})~=nil,'a range-0 cone with an unexpandable footprint fails closed')
 end
 
 -- D2: risk tolerance only chooses reject vs pause, never authorises a cast.

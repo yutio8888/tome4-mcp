@@ -107,10 +107,57 @@ do
         'Flame variants cover the level and attribute branches')
 end
 
--- Unsupported dynamic talents are recorded, never silently re-admitted.
-for talent,_ in pairs(Manifest.UNSUPPORTED) do
-    check(not Manifest.supported(talent),talent..' is not re-admitted')
+-- The four dynamic talents are re-admitted with source-verified components.
+check(next(Manifest.UNSUPPORTED)==nil,'the dynamic talents are no longer unsupported')
+for _,talent in ipairs({'T_FLAMESHOCK','T_FIREFLASH','T_SHADOW_BLAST','T_STARFALL'}) do
+    local entry=Manifest.entry(talent)
+    check(entry~=nil,talent..' is re-admitted')
+    check(entry.conformance and entry.conformance.builder==true,talent..' declares a native builder')
+    check(Manifest.UNSUPPORTED[talent]==nil,talent..' is no longer unsupported')
+    check(Manifest.SOURCES.talents[talent].builder~=nil,talent..' pins its builder line')
+    local instant
+    for _,component in ipairs(entry.components) do
+        if component.phase=='instant' then instant=component end
+    end
+    check(instant~=nil,talent..' has an instant component')
+    if talent=='T_FLAMESHOCK' then
+        -- The instant cone is explicitly self-safe; its dynamic input is the
+        -- Burning Wake ground component checked below.
+        check(instant.selffire==0,talent..' instant cone is explicitly self-safe')
+    else
+        check(type(instant.selffire)=='table' and instant.selffire.dynamic=='spellFriendlyFire',
+            talent..' pins its instant selffire to the audited spellFriendlyFire input')
+    end
 end
-check(Manifest.UNSUPPORTED.T_FIREFLASH and Manifest.UNSUPPORTED.T_STARFALL,'the deferred dynamics are documented')
+-- Ground/secondary honesty for the re-admitted talents.
+do
+    local fireflash=Manifest.entry('T_FIREFLASH')
+    local ground
+    for _,component in ipairs(fireflash.components) do if component.phase=='ground' then ground=component end end
+    check(ground and ground.duration==4 and ground.when and ground.when.id=='burning_wake',
+        'Fireflash Burning Wake is a duration-4 impact ball')
+    check(ground.radius and ground.radius.from=='target','Fireflash ground radius comes from the live builder')
+    check(ground.friendlyfire==100,'Fireflash ground FF defaults to true')
+    check(fireflash.components[2].player_selffire==true,'Fireflash is a player projectile with the self opt-in')
+    local flameshock=Manifest.entry('T_FLAMESHOCK')
+    local flameshock_ground, flameshock_instant
+    for _,component in ipairs(flameshock.components) do
+        if component.phase=='ground' then flameshock_ground=component end
+        if component.phase=='instant' then flameshock_instant=component end
+    end
+    check(flameshock_ground and flameshock_ground.center=='self' and flameshock_ground.shape=='cone'
+        and flameshock_ground.direction=='target' and flameshock_ground.duration==4,
+        'Flameshock Burning Wake is a source-centred duration-4 cone aimed at the target')
+    check(flameshock_instant.selffire==0,'Flameshock instant cone is explicitly self-safe')
+    local shadow=Manifest.entry('T_SHADOW_BLAST')
+    local shadow_ground
+    for _,component in ipairs(shadow.components) do if component.phase=='ground' then shadow_ground=component end end
+    check(shadow_ground and shadow_ground.shape=='ball' and shadow_ground.radius==3,
+        'Shadow Blast has a persistent radius-3 ball')
+    local starfall=Manifest.entry('T_STARFALL')
+    local starfall_ground=false
+    for _,component in ipairs(starfall.components) do if component.phase=='ground' then starfall_ground=true end end
+    check(not starfall_ground,'Starfall has no persistent ground component')
+end
 
 print('Effect manifest: '..checks..' checks passed')

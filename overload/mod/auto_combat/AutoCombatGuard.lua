@@ -44,15 +44,55 @@ local function resolveWhen(when,providers)
     return 'unknown'
 end
 
+-- Resolve a component filter value: an audited dynamic input (for example
+-- `spellFriendlyFire`) becomes its live scalar, or `unknown` when the provider
+-- is unavailable/erroring (the guard then fails closed).
+local function resolveDynamic(value,ctx,talent,def)
+    if type(value)=='table' and value.dynamic then
+        if type(ctx.dynamicScalar)~='function' then return 'unknown' end
+        local ok,result=pcall(ctx.dynamicScalar,value.dynamic,talent,def)
+        if not ok then return 'unknown' end
+        return result
+    end
+    return value
+end
+
+local function isDynamicInput(value)
+    return type(value)=='table' and value.dynamic~=nil
+end
+
+-- Resolve a component radius declared as `{from='target'}` from the live
+-- builder spec; an unavailable radius is unknown and fails closed.
+local function resolveRadius(value,typ)
+    if type(value)=='table' and value.from=='target' then
+        if typ and finite(typ.radius) then return typ.radius end
+        return 'unknown'
+    end
+    return value
+end
+
+-- Map a component's AoE centre and aim direction to a pure footprint spec.
+-- `center='self'` centres the effect on the caster; `direction='target'` keeps
+-- the bound target as the aim vector. The source-centred Burning Wake cone is
+-- `center='self', direction='target'`: the native `Map:addEffect` places the
+-- effect at the caster but passes the target delta as its direction, so the
+-- footprint must not collapse the direction to zero.
+function M.footprintSpec(component,origin,bound)
+    local tx,ty=bound.x,bound.y
+    if component.direction~='target' and (component.center or 'target')=='self' then
+        tx,ty=origin.x,origin.y
+    end
+    return {shape=component.shape,range=component.range,radius=component.radius,angle=component.angle,
+        map_effect=component.delivery=='map_effect',
+        origin={x=origin.x,y=origin.y},target={x=tx,y=ty}}
+end
+
 -- Union of footprints for the component list; a component whose condition is
 -- unknown is included conservatively.
 local function footprintFor(component,ctx,target)
     local p=ctx.source
-    local center=component.center or 'target'
-    local tx,ty=target.x,target.y
-    if center=='self' then tx,ty=p.x,p.y end
-    local spec={shape=component.shape,range=component.range,radius=component.radius,
-        origin={x=p.x,y=p.y},target={x=tx,y=ty}}
+    local spec=M.footprintSpec(component,p,target)
+    local tx,ty=spec.target.x,spec.target.y
     local set,backend=Footprint.expand(spec,{native=ctx.native,blockPath=ctx.blockPath,
         blockRadius=ctx.blockRadius})
     return set,backend,tx,ty
@@ -175,22 +215,32 @@ function M.build(ctx)
         end
         local range=entry.range
         if typ and finite(typ.range) then range=typ.range end
-        if finite(range) and Distance.grid(p.x,p.y,target.x,target.y)>range then
+        -- A range-0 self-centred effect (Flameshock's cone) is aimed by
+        -- direction; the effect is centred on the caster, so the target distance
+        -- does not bound it. Only positive ranges are distance-checked; the
+        -- bound target is instead required to lie in the resolved instant
+        -- footprint (checked after expansion).
+        local range0=finite(range) and range==0
+        if finite(range) and range>0 and Distance.grid(p.x,p.y,target.x,target.y)>range then
             return verdict(hard,'target_out_of_range',{range=range,source=builderSource})
         end
         local probe_typ=typ or {type=entry.cursor and entry.cursor.shape,range=range,
             radius=entry.radius,talent=talent}
-        if type(p.canProject)=='function' then
+        -- A range-0 self-centred effect (Flameshock's cone) is aimed by direction
+        -- and does not require the aim grid itself to be hittable; `canProject`
+        -- would report the origin as the only hit and falsely deny it.
+        if type(p.canProject)=='function' and not range0 then
             local ok,can=pcall(p.canProject,p,probe_typ,target.x,target.y)
             if not ok or can==nil then return verdict(hard,'canproject_unknown',{source=builderSource}) end
             if can==false then return verdict(hard,'no_line_of_sight',{source=builderSource}) end
-        else
+        elseif type(p.canProject)~='function' and not range0 then
             return verdict(hard,'canproject_unavailable')
         end
         -- Resolve every canonical component. Variants come only from audited
         -- scalar reads; an unresolved branch stays in the conservative union.
         local components={}
         local membershipsBy={}
+        local instant_miss=false
         local providers={
             talentLevel=function()
                 -- Effective level (`self:getTalentLevel(t)`), never raw points:
@@ -214,26 +264,42 @@ function M.build(ctx)
                 if active~=false then
                     local resolved={id=component.id,phase=component.phase,delivery=component.delivery,
                         shape=component.shape,range=component.range,radius=component.radius,
-                        center=component.center,selffire=component.selffire,
+                        center=component.center,direction=component.direction,selffire=component.selffire,
                         friendlyfire=component.friendlyfire,player_selffire=component.player_selffire,
                         provenance=component.provenance,when=component.when,resolved_when=active,
                         builder_source=builderSource}
+                    resolved.selffire=resolveDynamic(resolved.selffire,ctx,talent,def)
+                    resolved.friendlyfire=resolveDynamic(resolved.friendlyfire,ctx,talent,def)
+                    resolved.radius=resolveRadius(resolved.radius,typ)
                     -- The real builder supplies the instant/projectile geometry.
+                    -- A field declared as an audited dynamic input is
+                    -- authoritative: the raw builder value must never overwrite
+                    -- an unknown/failed provider (an overridden method could
+                    -- make the builder return 0 while the provider fails closed).
                     if typ and component.phase=='instant' then
                         if typ.type then resolved.shape=typ.type end
                         if finite(typ.range) then resolved.range=typ.range end
                         if finite(typ.radius) then resolved.radius=typ.radius end
-                        if typ.selffire~=nil then resolved.selffire=typ.selffire end
-                        if typ.friendlyfire~=nil then resolved.friendlyfire=typ.friendlyfire end
+                        if typ.selffire~=nil and not isDynamicInput(component.selffire) then resolved.selffire=typ.selffire end
+                        if typ.friendlyfire~=nil and not isDynamicInput(component.friendlyfire) then resolved.friendlyfire=typ.friendlyfire end
                     end
                     local set,backend,tx,ty=footprintFor(resolved,ctx,target)
                     resolved.footprint_backend=backend
                     components[#components+1]=resolved
+                    if range0 and component.phase=='instant' and not Footprint.at(set,target.x,target.y) then
+                        instant_miss=true
+                    end
                     membershipsBy[resolved.id or resolved.phase]=memberships(resolved,set,ctx,typ)
                     membershipsBy[resolved.id or resolved.phase].tx=tx
                     membershipsBy[resolved.id or resolved.phase].ty=ty
                 end
             end
+        end
+        -- A range-0 self-centred effect must still affect the bound target; the
+        -- exact native instant footprint is the reachability predicate.
+        if range0 and instant_miss then
+            return verdict(hard,'target_out_of_range',{range=range,talent=talent,
+                reason='outside_instant_footprint',source=builderSource})
         end
         -- Melee already returned; a hostile entry with no effect component is a
         -- manifest fault, not a safe pass.

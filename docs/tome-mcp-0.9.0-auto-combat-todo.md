@@ -323,7 +323,10 @@ Status doc: [docs/tome-mcp-0.9.0-selffire-correction.md](tome-mcp-0.9.0-selffire
     (`EffectManifestDrift`, `adapter_source_drift`). Dynamic talents remain a
     documented follow-up (`EffectManifest.UNSUPPORTED`). See
     [docs/tome-mcp-0.9.0-v2-effect-manifest.md](tome-mcp-0.9.0-v2-effect-manifest.md).
-55. **Dynamic-talent re-admission (follow-up).** `T_FIREFLASH`,
-    `T_FLAMESHOCK`, `T_SHADOW_BLAST`, `T_STARFALL` need a pinned
-    `spellFriendlyFire` input closure and full ground modelling before they can
-    enter the manifest. `allow_auto_combat_execution` stays `false`.
+55. **Dynamic-talent re-admission — FIXED (this round).** `T_FIREFLASH`,
+    `T_FLAMESHOCK`, `T_SHADOW_BLAST`, `T_STARFALL` are re-admitted as v2
+    manifest entries with a pinned audited `spellFriendlyFire` provider, honest
+    Burning Wake / persistent-ball ground components, builder identity pins and
+    a range-0 cone guard fix. `EffectManifest.UNSUPPORTED` is empty. See
+    [docs/tome-mcp-0.9.0-v2-dynamic-talents.md](tome-mcp-0.9.0-v2-dynamic-talents.md).
+    `allow_auto_combat_execution` stays `false`.

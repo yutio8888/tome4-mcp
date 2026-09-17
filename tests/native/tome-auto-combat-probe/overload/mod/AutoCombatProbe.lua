@@ -58,6 +58,7 @@ M.EXPECTED={
     ['guard-real-spec']={'pristine_ok','mutation_drift','restored_ok','grasp_safe'},
     ['effect-footprint-parity']={'parity_ok'},
     ['manifest-drift']={'verified','hash_rejected','identity_ok'},
+    ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['solo-pump']={},
 }
@@ -743,6 +744,123 @@ function M.manifestDrift()
     return compare('manifest-drift',signals)
 end
 
+-- TODO #55: the four re-admitted dynamic talents. The production guard must
+-- read their real builders, resolve the audited spellFriendlyFire input, and
+-- apply the persistent-ground rules (Shadow Blast's ground has default-true FF).
+function M.dynamicTalents()
+    local Guard=require 'mod.auto_combat.AutoCombatGuard'
+    local p=game.player
+    for _,talent in ipairs({'T_FLAMESHOCK','T_FIREFLASH','T_SHADOW_BLAST','T_STARFALL'}) do
+        if not p:knowTalent(talent) then p:learnTalent(talent,true) end
+    end
+    local saved=p.combat_spell_friendlyfire
+    p.combat_spell_friendlyfire=200 -- force spellFriendlyFire to 0
+    local host=Runtime.buildAutoCombatHostFor(game,policy({WAIT}))
+    local bound=host and host.snapshot('nearest_hostile').bound_target
+    local signals={}
+    if not bound then
+        check('dynamic-talents:setup',false,{bound=bound})
+        p.combat_spell_friendlyfire=saved
+        return compare('dynamic-talents',{'no_setup'})
+    end
+    local friendly=select(2,pcall(p.spellFriendlyFire,p))
+    local provider_ok=type(friendly)=='number' and friendly>=0 and friendly<=100
+    check('dynamic-talents:provider',provider_ok,{spellFriendlyFire=friendly})
+    signals[#signals+1]=provider_ok and 'provider_ok' or 'provider_bad'
+    -- Exact intended outcomes: allowed (nil) vs the persistent-ground rejection.
+    local expectations={T_FLAMESHOCK='allowed',T_FIREFLASH='allowed',T_SHADOW_BLAST='ground',T_STARFALL='allowed'}
+    for _,talent in ipairs({'T_FLAMESHOCK','T_FIREFLASH','T_SHADOW_BLAST','T_STARFALL'}) do
+        local verdict=host.guard({action='use_talent',talent=talent,bound_target=bound})
+        local drift=verdict and (verdict.reason=='adapter_source_drift' or verdict.reason=='unsupported_adapter'
+            or verdict.reason=='adapter_builder_failed' or verdict.reason=='adapter_builder_missing')
+        local expected=expectations[talent]
+        local outcome_ok
+        if expected=='allowed' then
+            outcome_ok=(verdict==nil)
+        else
+            outcome_ok=verdict and verdict.reason=='selffire_risk' and verdict.detail
+                and verdict.detail.phase==expected
+        end
+        check('dynamic-talents:'..talent,(not drift) and outcome_ok,{verdict=verdict,drift=drift})
+        signals[#signals+1]=(not drift) and (talent..':ok') or (talent..':drift')
+    end
+    -- DYN-REV-02: a wall between the caster and the bound hostile removes it
+    -- from the resolved range-0 cone, so the guard rejects the unreachable target.
+    -- The arena floor grid is shared, so clone it for the single blocked cell.
+    local map=game.level.map
+    local wall_idx=(p.x+1)+p.y*map.w
+    local saved_terrain=map.map[wall_idx] and map.map[wall_idx][engine.Map.TERRAIN]
+    local wall_grid=saved_terrain and saved_terrain:clone()
+    if wall_grid then
+        wall_grid.block_move=true
+        map.map[wall_idx][engine.Map.TERRAIN]=wall_grid
+    end
+    local walled=host.guard({action='use_talent',talent='T_FLAMESHOCK',bound_target=bound})
+    check('dynamic-talents:flameshock-wall',walled and walled.reason=='target_out_of_range',walled)
+    if saved_terrain then map.map[wall_idx][engine.Map.TERRAIN]=saved_terrain end
+    -- DYN-REV-03 / DYN-REV2-01: the source-centred ground cone keeps its aim
+    -- direction and matches the grid set recorded by a real `Map:addEffect`,
+    -- including the engine's boolean-true terrain blocking rule.
+    local def=p.talents_def and p.talents_def.T_FLAMESHOCK
+    local radius=def and p:getTalentRadius(def) or nil
+    local bound_uid=tonumber(tostring(bound):match('actor%-(%d+)$'))
+    local bound_actor=nil
+    for _,actor in pairs(game.level.entities or {}) do
+        if actor and actor.uid==bound_uid then bound_actor=actor end
+    end
+    if radius and bound_actor then
+        local dx=bound_actor.x-p.x
+        local dy=bound_actor.y-p.y
+        local spec=Guard.footprintSpec({shape='cone',radius=radius,center='self',direction='target',
+            delivery='map_effect'},{x=p.x,y=p.y},{x=bound_actor.x,y=bound_actor.y})
+        -- Record the grid set the real engine builds for the Flameshock ground.
+        local function groundGrids()
+            local e=map:addEffect(p,p.x,p.y,4,'INFERNO',0,radius,
+                {delta_x=dx,delta_y=dy},55,nil,nil,0)
+            local grids=e.grids
+            for i=#map.effects,1,-1 do if map.effects[i]==e then table.remove(map.effects,i) end end
+            map.changed=true
+            return grids
+        end
+        local set=EffectFootprint.native({game=game,source=p},spec)
+        local recorded=groundGrids()
+        local east=EffectFootprint.at(set,p.x+1,p.y)
+        check('dynamic-talents:flameshock-ground-direction',
+            set~=nil and east and EffectFootprint.count(set)>1 and sameSet(set,recorded),
+            {count=EffectFootprint.count(set),recorded=EffectFootprint.count(recorded),east=east,dx=dx,dy=dy})
+        -- Movement-blocking, projectile-passable terrain (e.g. Trollmire STEW):
+        -- the engine's boolean-true rule blocks it; the old pass_projectile-exempt
+        -- rule would not. Clone the shared floor grid for one cell.
+        local terrain_idx=(p.x+2)+p.y*map.w
+        local tile=map.map[terrain_idx] and map.map[terrain_idx][engine.Map.TERRAIN]
+        local stew=tile and tile:clone()
+        if stew then
+            stew.block_move=true
+            stew.pass_projectile=true
+            map.map[terrain_idx][engine.Map.TERRAIN]=stew
+        end
+        local wall_set=EffectFootprint.native({game=game,source=p},spec)
+        local wall_recorded=groundGrids()
+        local old_rule=core.fov.beam_any_angle_grids(p.x,p.y,radius,55,p.x,p.y,dx,dy,
+            function(_,lx,ly)
+                if not map:isBound(lx,ly) then return true end
+                local b=map:checkEntity(lx,ly,engine.Map.TERRAIN,'block_move')
+                if b and not map:checkEntity(lx,ly,engine.Map.TERRAIN,'pass_projectile') then return true end
+                return false
+            end)
+        check('dynamic-talents:map-effect-terrain-parity',
+            stew~=nil and wall_set~=nil and sameSet(wall_set,wall_recorded) and not sameSet(wall_set,old_rule),
+            {count=EffectFootprint.count(wall_set),recorded=EffectFootprint.count(wall_recorded),
+                old=EffectFootprint.count(old_rule),behind=EffectFootprint.at(wall_set,p.x+3,p.y)})
+        if tile then map.map[terrain_idx][engine.Map.TERRAIN]=tile end
+    else
+        check('dynamic-talents:flameshock-ground-direction',false,{radius=radius,actor=bound_actor~=nil})
+        check('dynamic-talents:map-effect-terrain-parity',false,{radius=radius})
+    end
+    p.combat_spell_friendlyfire=saved
+    return compare('dynamic-talents',signals)
+end
+
 local function runAll()
     local ok,err=pcall(function()
         startWhenReady()
@@ -760,6 +878,7 @@ local function runAll()
         guardRealSpec()
         M.effectFootprintParity()
         M.manifestDrift()
+        M.dynamicTalents()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok

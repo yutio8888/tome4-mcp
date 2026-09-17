@@ -54,10 +54,10 @@ and headless fixtures. The guard prefers native in-game.
 
 ### 4. Source-drift detection (`overload/mod/auto_combat/EffectManifestDrift.lua`)
 
-`tools/generate_effect_manifest.py` pins the md5 of the 20 talent source files
-and the six engine-semantics files (`Target.lua`, `ActorProject.lua`,
-`Map.lua`, `utils.lua`, ToME `Actor.lua`, `ActorTalents.lua`) plus each
-definition and builder line. At load time a mismatch returns
+`tools/generate_effect_manifest.py` pins the md5 of the 24 talent source files
+and the seven engine-semantics files (`Target.lua`, `ActorProject.lua`,
+`Map.lua`, `utils.lua`, ToME `Actor.lua`, `ActorTalents.lua`, `Combat.lua`) plus
+each definition and builder line. At load time a mismatch returns
 `adapter_source_drift` and the adapter is disabled; the identity/closure check
 requires a live definition for **every** entry and catches a target builder
 added, removed, replaced or mutated under an unchanged data hash.
@@ -165,10 +165,11 @@ wire field changed.
 
 ## Deferred
 
-- Dynamic talents (`T_FIREFLASH`, `T_FLAMESHOCK`, `T_SHADOW_BLAST`,
-  `T_STARFALL`) are documented under `EffectManifest.UNSUPPORTED` with their
-  reason; they still need a pinned `spellFriendlyFire` input closure plus full
-  ground modelling before re-admission.
+- The four dynamic talents (`T_FIREFLASH`, `T_FLAMESHOCK`, `T_SHADOW_BLAST`,
+  `T_STARFALL`) have since been re-admitted with a pinned `spellFriendlyFire`
+  input and full ground modelling; see
+  [docs/tome-mcp-0.9.0-v2-dynamic-talents.md](tome-mcp-0.9.0-v2-dynamic-talents.md).
+  `EffectManifest.UNSUPPORTED` is now empty.
 - `EffectFootprint.model` is a pure approximation used only for an explicitly
   headless context (no `core.fov`); the in-game guard uses the native backend and
   fails closed (`native_failed`) if it cannot expand, which the probe shows is

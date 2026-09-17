@@ -10,6 +10,7 @@ return {
         utils={path='/engine/utils.lua',md5='182f990aecfacbe1c6d745ce36451f2e'},
         actor={path='/mod/class/Actor.lua',md5='073c82289c99dec963d3be9de89ed68a'},
         actor_talents={path='/engine/interface/ActorTalents.lua',md5='d3dbdbffd0df8ac45baba738b344b077'},
+        combat={path='/mod/class/interface/Combat.lua',md5='2e458d48c383927339a5aa665e08d8d2'},
     },
     talents={
         T_CHANT_OF_FORTRESS={files={{path='/data/talents/celestial/chants.lua',md5='542e9d2a1078541dabe46169aa61833e'}},line=85},
@@ -33,5 +34,9 @@ return {
         T_DAUNTING_PRESENCE={files={{path='/data/talents/techniques/conditioning.lua',md5='f6a16c2ee477ba0ebc2d0e7b84acef11'}},line=100},
         T_ADRENALINE_SURGE={files={{path='/data/talents/techniques/conditioning.lua',md5='f6a16c2ee477ba0ebc2d0e7b84acef11'}},line=144},
         T_ATTACK={files={{path='/data/talents/misc/misc.lua',md5='0bf698c9396e29ec55eaab4742dce32f'}},line=37,builder={path='/data/talents/misc/misc.lua',line=47}},
+        T_FLAMESHOCK={files={{path='/data/talents/spells/fire.lua',md5='96520fcd5edcfec567bb3c9d89638143'}},line=90,builder={path='/data/talents/spells/fire.lua',line=104}},
+        T_FIREFLASH={files={{path='/data/talents/spells/fire.lua',md5='96520fcd5edcfec567bb3c9d89638143'}},line=141,builder={path='/data/talents/spells/fire.lua',line=153}},
+        T_SHADOW_BLAST={files={{path='/data/talents/celestial/star-fury.lua',md5='ca67e25be0d33ddec6790a449506a231'}},line=56,builder={path='/data/talents/celestial/star-fury.lua',line=68}},
+        T_STARFALL={files={{path='/data/talents/celestial/star-fury.lua',md5='ca67e25be0d33ddec6790a449506a231'}},line=141,builder={path='/data/talents/celestial/star-fury.lua',line=153}},
     },
 }

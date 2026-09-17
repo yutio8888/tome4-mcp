@@ -140,8 +140,10 @@ function M.model(spec,opts)
     end
     if (shape=='cone') and finite(spec.radius) and spec.radius>0 then
         single=false
-        local dist=Distance.grid(spec.origin.x,spec.origin.y,stop_x,stop_y)
-        local dx,dy=stop_x-spec.origin.x,stop_y-spec.origin.y
+        -- The engine cone is centred on the origin with the direction taken from
+        -- the (aim) target; the walking stop point is unrelated when a range or
+        -- blocker stops the line early (for example a range-0 self-centred cone).
+        local dx,dy=spec.target.x-spec.origin.x,spec.target.y-spec.origin.y
         local length=math.sqrt(dx*dx+dy*dy)
         if length>0 then
             local ux,uy=dx/length,dy/length
@@ -156,7 +158,6 @@ function M.model(spec,opts)
                 end
             end
         end
-        add(stop_x,stop_y)
         add(spec.origin.x,spec.origin.y)
     end
     if shape=='bolt' then
@@ -179,7 +180,32 @@ local function nativeDeps()
     return Target
 end
 
+-- Map-effect (persistent ground) grid sets use the `Map:addEffect` geometry:
+-- a ball is a circle around the centre, and a cone is a source-centred
+-- `beam_any_angle` fan whose direction is independent of the centre. The block
+-- argument is the boolean `true` that `Map:addEffect` passes, so the helper's
+-- own predicate (terrain `block_move`, with no `pass_projectile` exemption) is
+-- used; this must not be replaced by a custom callback.
+function M.nativeMapEffect(ctx,spec)
+    if type(ctx)~='table' or type(ctx.game)~='table' then return nil end
+    local map=ctx.game.level and ctx.game.level.map
+    if not map or type(core)~='table' or type(core.fov)~='table' then return nil end
+    if spec.shape=='ball' then
+        return core.fov.circle_grids(spec.target.x,spec.target.y,spec.radius or 0,true)
+    end
+    if spec.shape=='cone' then
+        local dx=spec.target.x-spec.origin.x
+        local dy=spec.target.y-spec.origin.y
+        return core.fov.beam_any_angle_grids(spec.origin.x,spec.origin.y,spec.radius or 0,
+            spec.angle or 55,spec.origin.x,spec.origin.y,dx,dy,true)
+    end
+    return nil
+end
+
 function M.native(ctx,spec)
+    if type(spec)=='table' and spec.map_effect then
+        return M.nativeMapEffect(ctx,spec)
+    end
     if type(ctx)~='table' or type(ctx.game)~='table' then return nil end
     local g=ctx.game
     local map=g.level and g.level.map

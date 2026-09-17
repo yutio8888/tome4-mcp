@@ -49,6 +49,11 @@ TALENTS = {
     "T_DAUNTING_PRESENCE": ("data/talents/techniques/conditioning.lua", "Daunting Presence"),
     "T_ADRENALINE_SURGE": ("data/talents/techniques/conditioning.lua", "Adrenaline Surge"),
     "T_ATTACK": ("data/talents/misc/misc.lua", "Attack"),
+    # Re-admitted dynamic talents (TODO #55).
+    "T_FLAMESHOCK": ("data/talents/spells/fire.lua", "Flameshock"),
+    "T_FIREFLASH": ("data/talents/spells/fire.lua", "Fireflash"),
+    "T_SHADOW_BLAST": ("data/talents/celestial/star-fury.lua", "Shadow Blast"),
+    "T_STARFALL": ("data/talents/celestial/star-fury.lua", "Starfall"),
 }
 
 # Talents whose `t.target` builder the guard reads. The generator pins the exact
@@ -57,6 +62,7 @@ TALENTS = {
 BUILDER_TALENTS = {
     "T_MOONLIGHT_RAY", "T_SUN_BEAM", "T_FLAME", "T_BLOOD_GRASP",
     "T_SHATTERING_BLOW", "T_ATTACK",
+    "T_FLAMESHOCK", "T_FIREFLASH", "T_SHADOW_BLAST", "T_STARFALL",
 }
 
 # Engine / module semantics files the filter and footprint model is pinned to.
@@ -69,6 +75,7 @@ ENGINE_FILES = {
     "utils": ("engine/utils.lua", "game/engines/default/engine/utils.lua"),
     "actor": ("mod/class/Actor.lua", "game/modules/tome/class/Actor.lua"),
     "actor_talents": ("engine/interface/ActorTalents.lua", "game/engines/default/engine/interface/ActorTalents.lua"),
+    "combat": ("mod/class/interface/Combat.lua", "game/modules/tome/class/interface/Combat.lua"),
 }
 
 

@@ -1,0 +1,62 @@
+{
+  "round": "TODO #55 rev 3 - re-admitted dynamic talents (DYN-REV2-01 + DYN-EVID-01)",
+  "date": "2026-09-17",
+  "branch": "feat/v2-dynamic-talents",
+  "pr": "#14 (pending)",
+  "main_base": "c131389 (post-v2-merge)",
+  "review_findings_fixed": {
+    "DYN-REV2-01": "nativeMapEffect passes the engine's boolean true block argument (the real Map:addEffect predicate: block_move with no pass_projectile exemption); native regression records the real Map:addEffect grids and adds a block_move=true/pass_projectile=true terrain case where the boolean-true and old exempt rules differ",
+    "DYN-EVID-01": "rev2 report labels corrected: result.json and game.log hashes are now identified separately"
+  },
+  "talents": {
+    "re_admitted": ["T_FIREFLASH", "T_FLAMESHOCK", "T_SHADOW_BLAST", "T_STARFALL"],
+    "still_unsupported": []
+  },
+  "tests": {
+    "lua_suites": "pass: effect manifest 312, effect manifest drift 30, auto-combat guard 40, effect footprint 30, runtime 173, ... (all 39 suites)",
+    "python": 39,
+    "protocol_check": "OK",
+    "native_seams_check": "OK",
+    "effect_manifest_check": "OK",
+    "native_auto_combat_probe_source": {
+      "session": "v2-dynrev3-src",
+      "checks": 88,
+      "failures": 0,
+      "result_json_sha256": "066f894d3719d07e899244b837ceb4c79c67a3057fb59eb909460b650a50555b",
+      "game_log_sha256": "d2ead59f89b51cf2760dcd1de6d72b72435b6c76b886b76363fb46dab08df7f9"
+    },
+    "native_auto_combat_probe_dist": {
+      "session": "v2-dynrev3-dist",
+      "checks": 88,
+      "failures": 0,
+      "result_json_sha256": "9c1241c61067f75d6f12bb7167d1a9050e5ce4394109895d4e8d4c58d45cfce9",
+      "game_log_sha256": "90b380883581b569617999d7b849fd971799991bb5b20409108ddf4776a90661"
+    },
+    "native_acceptance_source": {
+      "session": "v2-dynrev3-accept-src",
+      "checks": 100,
+      "result_json_sha256": "eac62fb306482e9acd261d14d92b8e84b4e1ba17ae229109d83a413e30b873c7",
+      "game_log_sha256": "9f6e9d38e8553ee758926611f5f2909c298e50ad2c179c690224eaa6787cbe91"
+    },
+    "native_acceptance_dist": {
+      "session": "v2-dynrev3-accept-dist",
+      "checks": 100,
+      "result_json_sha256": "269093445d67236fb7674941dc9b2ffca6e19ffe0052008b5b8d0e22e4a4c01b",
+      "game_log_sha256": "407827e85524fbfc50cf2722985fd5dda8914d81dcb3dc7b29d73347beef1e86"
+    }
+  },
+  "dist": {
+    "path": "dist/tome-mcp-bridge.teaa",
+    "sha256": "7035d6026488df5e612d72ab4a745bcd2892af25fdfa5f0f2ee7e01282e4c09e",
+    "previous_sha256": "1c06737021456a84a29b74aeaa5aaed50e5c467adc5b779e013195158b3413d7",
+    "baseline_sha256": "3d3c57be091c69ba1f9fe60e191495c528c3f8d5dfa74fd910ae3a2b8d3d9a29",
+    "manifest_sha256": "f7d97bf3e3ad91fc08e2ecbc8edadb72b3b3300d0d193a79fac12a0557718b95"
+  },
+  "invariants": [
+    "allow_auto_combat_execution stays false",
+    "emergency layer, action budget, target binding, native_pending, manual revocation, read-only dry_run unchanged",
+    "no protocol/server/wire change",
+    "trusted builder baseline is the original function object (rawequal); live identity re-runs every guarded action"
+  ],
+  "deferred": []
+}
