@@ -628,8 +628,9 @@ e88a46a8888f9a0d9ae2ddbb5642dae5010e0830b7a45c7114cf103036035a8d
 - 更新后的正式 MCP 包通过原有完整 **92/92 项**真实游戏验收：[结果](../tome-battle-companion/validation/2026-09-15/mcp-regression-result.json)。
 - 三插件组合分别用源码和正式 `.teaa` 通过 **35/35 项**官方 SDK MCP 验证：[源码](../tome-battle-companion/validation/2026-09-15/source-result.json)、[安装包](../tome-battle-companion/validation/2026-09-15/package-result.json)。
 - 只读旁观不获取 token、不停止助手，观察能显示连续战斗与敌方损血；显式控制接管后取消助手队列。原生键盘接管、保存、复制新测试角色存档后重载均不恢复自动动作；原存档和副本哈希不变。
-- 源码／包组合各 36 次受监测的观察／检查均不提交动作、不读隐藏信息（**v1.6 注：** 当时以“保持纯度”
-  表述，已废弃；读取可消耗 RNG）。没有 Lua 错误。
+- 源码／包组合各 36 次受监测的观察／检查均保持纯度。没有 Lua 错误。
+  > **Supersession note (v1.6):** 该历史观测中的“保持纯度”作为**当前验收准则**已被取代（读取仅受两条红线约束：
+  > 不提交动作、不泄露玩家未知信息；实时 getter 可调用，允许 RNG/读副作用）。原观测文字逐字保留为历史证据。
 
 0.2.0 历史生产包有 11 个生产文件，SHA-256：`5badcb410662b0a36f0638418fb179464813544b2cc84bf0233de51a0e877bc8`。当时归档与被测文件一致。详细证据和适用范围见 [组合验收](../tome-battle-companion/VALIDATION.md) 和 [文件哈希](../tome-battle-companion/validation/2026-09-15/sha256.json)。
 

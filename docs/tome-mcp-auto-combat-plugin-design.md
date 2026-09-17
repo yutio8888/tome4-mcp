@@ -596,7 +596,7 @@ pause/no-change-level 行为，但执行器**不再全局施加**这两项限制
 | 阶段 | 内容 | 估计 |
 | --- | --- | --- |
 | **P1a 首个可用闭环** | 模块骨架 + `tome.policy`/`dry_run`/status/日志；**简单编辑器（不写 JSON）+ 角色持久化 + 一个完整试点构筑**（治疗/护盾/资源恢复/稳定输出全流程可用）；常驻/普攻/一个静态单体/一个 beam/fixture 验证的 Searing·Shadow Blast·Starfall adapter | **3–5 周** |
-| **P1b 原生活动** | 抽出通用 `NativeActivity`，纳入 `rest`/`auto_explore`；自动换层默认关闭 | +2–3 周 |
+| **P1b 原生活动** | 抽出通用 `NativeActivity`，纳入 `rest`/`auto_explore`；自动换层默认关闭（**v1.6：** 这是 P1b/`strict` slice 默认值，不是插件级禁用） | +2–3 周 |
 | **P2 调优** | 更多谓词/选择器、决策回放、A/B 调参、更多职业 adapter | +2–3 周 |
 | **P3 适配** | 固定版本 assistant 配置适配器（只生成、人工确认） | 6–10 周起（持续维护） |
 
@@ -627,7 +627,7 @@ P1a `strict` preset **不生成**这些规则：队友/装备/物品/召唤管�
 **仍待确认（不阻塞 P1a 开工）**：
 1. daily 模式的风险定义与 preset 默认（**默认仍为 strict**，作为 P1b 之后）。
 2. manual 输入是 pause 还是断开 MCP transport（无论哪种，owner 必须先回 manual）。
-3. `rest`/`auto_explore` 进入 P1b 的具体版本；自动换层是否永久 opt-in。
+3. `rest`/`auto_explore` 进入 P1b 的具体版本；`change_level` 由策略/preset 选择（**v1.6：** 不再存在“永久 opt-in”这类插件级门禁；`strict` preset 默认不含它）。
 
 ---
 

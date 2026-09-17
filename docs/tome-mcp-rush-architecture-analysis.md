@@ -243,7 +243,7 @@ P0 保持该人工接管语义且明确“不保证原生动作已撤销”；�
 | 原生边界 | 施放中弹对话、玩家死亡、保存/换层、延迟 onTickEnd | needs_input/terminal/scene_changed 语义准确，不遗留误报 completed | P0 |
 | 旧能力回归 | Lightning、Heal、Stunning Blow、Warshout、infusion、rest、物品/成长 | 新异常统一不破坏正常拒绝/能量/确认/去重与只读接口 | P0 |
 | 普通验收 | 当前普通角色自然学习后在正常地图执行 Rush，再保存重载 | 实际技能可用性、位置、资源、冷却、角色/存档完整性；记录与训练 fixture 分开 | P0 |
-| 只读纯性 | 反复 observe/inspect，动态函数、未知 custom level/fatigue/cost getter 哨兵 | 零 RNG/回调/状态/共享目标表变更，未知就是unknown | P1 |
+| 只读纯性 | 反复 observe/inspect，动态函数、未知 custom level/fatigue/cost getter 哨兵 | 零 RNG/回调/状态/共享目标表变更，未知就是unknown（**历史注：** 已废弃；当前只要求不提交动作、不读隐藏信息，允许 RNG/读副作用） | P1 |
 | 纯公式差分 | 多 raw等级/掌握度/加成、Steamroller/hate、疲劳/Adrenaline | 对应已审核原生公式；变体/方法修改后降级unknown；范围并非raw等级线性值 | P1 |
 | 响应预算 | 多技能、长文本、引号、未知元数据 | 有界列表/截断，connect/snapshot/status不超传输预算 | P1 |
 | 坐标/方向 | 空格、未知格、越界、旧层、移动起点、第三actor返回 | 每profile独立规则，不能经位置请求获取隐藏actor；旧target_id兼容 | P2 |

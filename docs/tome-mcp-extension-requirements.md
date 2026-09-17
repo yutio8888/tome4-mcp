@@ -128,7 +128,7 @@
 
 ### R3.5 验收标准
 
-- 单元：多职业/多类别定义的运行时准入、来源被改写时拒绝、点数池、原生回调、只读守卫、interaction 归属。
+- 单元：多职业/多类别定义的运行时准入、来源可记录为重审遥测（但不以“被替换”为拒绝理由）、点数池、原生回调、只读守卫、interaction 归属。
 - 原生：至少两个不同职业（非 Berserker）角色经 MCP 学习技能/类别；一个自定义确认弹窗通过 `respond` 完成；未知 UI 正确转人工。
 
 ## R4. 物品丢弃与买卖
@@ -193,15 +193,15 @@
 
 | 字段 | 来源/规则 |
 | --- | --- |
-| `range` / `radius` | 已审核的原生 `getTalentRange` 等只读函数；不可靠时 `unknown` |
+| `range` / `radius` | 调用当前实时的原生 `getTalentRange` 等 getter；缺失/报错/返回 `nil`/类型无效时 `unknown` |
 | `requires_target` / `target_mode` | `getTalentRequiresTarget` / 定义字段 |
 | `cooldown` / `cooldown_remaining` | 定义字段 / `isTalentCoolingDown` |
 | `current_costs` / `costs_complete` | 当前实时消耗（原生 `postUseTalent` 公式，含当前疲劳/效果）；不可知项为 `unknown` |
 | `base_costs` | 存储的基础消耗 |
 | `affordable` | 用当前快照资源与 `current_costs` 对比，资源不可知时 `unknown` |
-| `conditions` / `readiness` | 已审核的需求公式；`available`/`blocked`/`unknown`，非最终预检 |
+| `conditions` / `readiness` | 调用实时需求函数/公式求值；`available`/`blocked`/`unknown`，非最终预检 |
 | `distance_to_target` | 当传入 `target_id` 或 `x`/`y` 时，用快照坐标计算直线距离与是否在 `range` 内 |
-| `line_of_sight` | 本轮未提供（需另定无副作用判定）；不猜测 |
+| `line_of_sight` | 可调用实时 LOS 函数求值（允许读副作用）；缺失/报错/`nil` 时 `unknown` |
 | `prefill_supported` | 本连接是否允许预填目标 |
 
 - 不提交任何动作，也不泄露玩家未知信息；可调用当前实时的动态 `info`/`target`/需求函数（允许 RNG/读副作用），不可得时标 `unknown`；不保证施法成功。
