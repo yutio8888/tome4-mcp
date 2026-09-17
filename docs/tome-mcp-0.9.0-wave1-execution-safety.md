@@ -109,3 +109,17 @@ The review's root cause was fake `{status='...'}` host outcomes. This wave adds:
   `bc9aab70df72a5b7b2565f93b109c290adbc4f222ca23837927137a75e431688`.
 - Does not start Wave 2 (protocol generator, error registry, validator
   strictness, CAS-object doc, capability naming, ActorCombat digest audit).
+
+
+---
+
+### D5/D6 supersession — policy-owned movement behavior (v1.6)
+
+D5's removal of `change_level` from auto-combat and D6's unconditional pause-only
+flee behavior are **superseded**. Re-admit `change_level` as a
+capability-backed policy action; after a native scene transition, pause/reset and
+require an explicit restart. `flee_below_hp_pct` behavior is selected by the
+normalized preset/mode (`pause|emergency_only|evaluate_rules`). P1a `strict`
+expands to the former pause/no-change-level behavior, but the executor imposes
+neither restriction globally. See `docs/tome-mcp-auto-combat-plugin-design.md`
+§0.1/§5.3/§5.4 and `docs/tome-mcp-0.9.0-movement-skills-design.md` §7.

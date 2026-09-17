@@ -15,16 +15,17 @@
 核心判断：**AI 写策略（数据），原生执行器本地跑战斗，MCP 负责观察/校验/仲裁/接管**。
 不让 LLM 逐回合发动作（网络往返 + 回合边界不划算），也不让 AI 写任意 Lua（不可审计）。
 
-### 0.1 产品契约（v1.1 冻结，先于一切实现）
-**按下启动后，它只负责“处理当前可见战斗”**：
+### 0.1 产品契约（v1.6：策略忠实执行）
+插件是数据策略的忠实执行器 + 玩家已知信息提供者 + 控制仲裁器，不是战术制定者：
 ```
-启动 → 校验策略/技能支持 → 自动处理当前可见战斗
-     → 出现明确风险时暂停并解释 → 无可见敌人时结束 → 控制权交还玩家
+启动 → 校验策略、能力与控制边界 → 按策略逐机会选择并提交一个原生动作
+     → 记录原生结果/不确定性 → 在完整性边界或策略指定的停止条件暂停 → 控制权交还玩家
 ```
-- **无可见敌人即结束**；不探索、不追击进未知区域、不自动换层。
-- **没有可用动作时不空等**：不因规则失败就隐式等待冷却/巡逻，而是**停止并说明原因**。
-- 自动等待/巡逻只作为**独立的显式模式**，不从规则失败中隐式产生。
-- “接管到什么程度”是产品承诺，必须先冻结；复杂能力（rest/auto_explore/换层/复杂撤退）后移。
+- move、撤退、拉开距离、传送、rest、auto_explore 与 change_level 均为普通策略动作；是否使用、何时使用以及接受何种可见度/危险/随机落点，由策略或命名 preset/mode 明示，插件不得另加战术门槛。
+- P1a strict preset 默认只处理当前可见战斗：无可见敌人即结束，不探索、不追击未知区域，不含自动撤退、随机传送或换层规则；这些是该 preset 的默认值，不是插件全局能力边界。
+- 插件仅在无法忠实执行时 fail closed：目标/目标请求无法解析，getter/builder/执行入口未经审计或发生 source drift，控制/lease/revision/场景边界失效，预算耗尽，原生拒绝，或无法判定原生动作是否完成。
+- 随机落点、视野外坐标、未知通行性或未知危险属于策略信息，不等同于执行不可判定；dry-run/decision/log 必须如实标注，由策略的显式容忍度决定是否提交。不得为改善决策而读取玩家未知信息。
+- 没有匹配动作时按策略的 on_unavailable/mode 处理；不得从规则失败中隐式生成等待、巡逻、探索、撤退或换层动作。
 
 ### 0.2 规范的效力（v1.2）
 **本文件正文 §0–§16 即规范（normative）**；§17 仅为修订历史（non-normative）。
@@ -45,7 +46,8 @@
 
 ### 1.2 非目标（v1）
 - 不追求"任意职业/任意 mod/任意技能"全覆盖；用**声明式能力目录**逐项支持。
-- 不做队友指挥、自动换装/工匠、召唤管理、自动换层（放 P1b/P2）。
+- 不做队友指挥、自动换装/工匠、召唤管理。`change_level` **是受支持的策略动作**（原生场景迁移后
+  pause+reset+显式重启）；P1a `strict` preset 的内置规则不含它——那是 **preset 默认**，不是插件全局禁用。
 - 不做在线学习/自适应；策略由人或 AI 显式编写。
 - 不链接现有 `tome-auto_talent_assistant` 的运行态（见 §12）。
 - 不替代 MCP 的逐动作精细控制（Boss/未知场景仍用 A 模式接管）。
@@ -55,8 +57,9 @@
 ## 2. 设计原则
 
 1. **数据，不是代码**。策略只允许 JSON 标量/数组/对象；禁止函数名、字段路径、正则、Lua 表达式。
-2. **三值逻辑 + fail-closed**。条件求值结果 `true/false/unknown`；`unknown` 的传播规则显式定义；
-   安全类输入为 `unknown` 必须 **pause**，非安全类可 skip 该规则。
+2. **三值信息 + 分层 fail-closed**。条件与信息结果为 `true/false/unknown`。执行完整性未知（控制、目标请求、
+   审计/source pin、预算、原生完成状态）必须 fail closed；战术结果未知（视野、通行、危险、随机落点）必须
+   如实报告并由策略显式接受条件求值；效果 footprint 无法计算时禁用该动作。
 3. **单一真相 + 稳定往返**。UI 编辑与 JSON 导入导出使用同一 schema；规范化序列化（字段顺序固定、数值整型化）。
 4. **一次一动作**。每回合（ready→pump）只执行一个耗能动作；instant 技能可在同一 pump 内继续，但受硬上限约束。
 5. **只走原生入口**。执行只用原生 `useTalent`/`moveDir`/`restInit`/`autoExplore` 等；原生返回值是最终裁决。
@@ -225,15 +228,21 @@ flowchart LR
   "then": { "action": "use_talent", "talent": "T_HEALING_LIGHT", "target": "self" } }
 ```
 
-动作白名单：`use_talent`（带 `target` selector 或 `x/y`）、`attack`、`move`（`direction` 或 `retreat` 一步/多步）、
-`wait`、`use_item`、`rest`（P1b）、`auto_explore`（P1b）、`change_level`（默认禁用，需显式 opt-in）。
+动作白名单由已实现 schema 与生成 catalog 共同给出：`use_talent`、`attack`、`move`、`wait`、
+`use_item`、`rest`、`auto_explore`、`change_level`。未实现阶段必须按 capability 报告，不得把路线图动作伪报为可执行。
+
+`target` 绑定 actor；`destination` 以纯数据 selector 表达移动请求，并携带显式的
+visibility/passability/hazard/landing 接受条件。多次原生选目标用与版本固定 manifest 一致的有序 `target_plan`。
+计划器的候选与 tie-break 必须确定；经审计原生动作自身的随机结果允许执行，并在 dry-run/decision/log 标注。
+`change_level` 是普通显式动作。原生换层后执行器按场景边界暂停、清除旧 level/target/destination/lease 状态，
+并要求在新场景显式重新启动；此生命周期不等于禁止策略选择换层。
 
 目标 selector：`nearest_hostile`、`lowest_hp_hostile`、`highest_rank_hostile`、
 `most_dangerous`（按 `computed`）、`cluster_center`（AoE：`min_targets`、`max_selffire`）、`self`、`position`。
 
-**规则字段（冻结）**：`id`、`priority`（越大越先）、`when`、`then`、可选 `emergency:true`、可选 `enabled`。
-**危急自保必须由 `emergency:true` 显式标记**，执行器再用能力目录验证该动作确实满足自保要求；
-**不得靠规则名为 `heal` 或优先级高低推断**。
+**规则字段（v1.6）**：`id`、`priority`（越大越先）、`when`、`then`、可选 `emergency:true`、可选 `enabled`。
+`emergency:true` 仅供 preset/mode 调度规则组，**不赋予或撤销动作能力**；撤退、拉开距离、随机传送和换层
+均**不要求**该标记。不得靠规则名或优先级推断语义。
 
 **目标绑定（冻结，v1.1 修正）**：每条规则按固定顺序执行，避免“条件检查 A、动作选到 B”：
 ```
@@ -256,23 +265,27 @@ flowchart LR
 **常驻（sustains）是“维持期望状态”**：表达“希望该 sustain 开启”，执行器先查期望态（桥接 `set_sustain`
 已有 `already_in_desired_state`），而不是“条件满足就再切换”；并规定常驻/救急优先级与重复失败重试上限。
 
-### 5.4 危急状态与自保语义（v1.2 冻结）
-执行器按固定三层，策略只能**收紧**不能放宽：
-1. **执行边界异常**（owner/场景/原生错误/unsafe unknown）→ 停止或暂停。
-2. **危急状态**（`hp_pct < flee_below_hp_pct` 或卫生守卫触发）→ **只**尝试预设中明确允许的紧急自保
-   （治疗/护盾/解控/一步撤离）；**无可用方案则暂停并交还玩家，不继续普通输出**。
-3. **其余状态** → 执行普通规则（按 priority）。
-- `min_hp_pct`：**启动/继续门槛**——低于它不开始/不继续普通规则（进入第 2 层）。
-- `flee_below_hp_pct`：第 2 层紧急自保触发阈值；必须 `<= min_hp_pct`。
-- **首版默认不出自动撤退**；`move{retreat}` 仅在预设显式启用且通过目的地判定测试后可用。
-- 自保动作同样要过 adapter/`canProject`/原生返回；`unknown` 按 §8.1 处理。
-- **阈值边界（冻结用例）**：`hp_pct < min_hp_pct` 即禁止普通输出（进入第 2 层）；例如 `min_hp_pct=35` 时，
-  生命 30% 不得放普通输出，与是否低于 `flee_below_hp_pct` 无关。
-- **Wave 1（D6）阈值诚实化**：`flee_below_hp_pct` 是**独立的暂停原因**（`flee_below_hp_pct`），
-  只把控制权交还玩家，不做自动撤退；`sustain.min_resource_pct` 真正门控常驻激活（资源未知则不激活）。
-- **Wave 1（D1/D2）自保与自伤**：`emergency:true` 可声明任意 `use_talent`/`attack`，安全性由执行前的
-  版本固定 adapter guard 在实际绑定目标上判定（射程/`canProject`/几何/自伤/友伤 + `max_selffire_risk`）；
-  `max_selffire_risk==0` 为硬拒绝，`>0` 为暂停阈值。
+### 5.4 策略模式、危急状态与风险信息（v1.6）
+执行器不内置固定战术层。命名 preset/mode 必须把下列行为规范化为**显式数据**：无可见敌人时
+`stop|evaluate_rules`；低于 `min_hp_pct`/`flee_below_hp_pct` 时 `pause|emergency_only|evaluate_rules`；
+以及移动可见度、已知通行性、已知危险与随机落点的接受条件。
+- **P1a strict preset 保留旧行为**：无可见敌人停止；低生命进入 `emergency_only` 或暂停；无撤退、随机
+  传送、探索或换层规则；目的地要求由该 preset 明示。其它 preset/mode 可选择不同值。
+- `emergency:true` 只标记可被 `emergency_only` 调度的规则，**不是动作能力或安全授权**。普通规则可以
+  撤退、拉开距离、传送或换层；策略对其后果负责。
+- 插件报告 player-known 的 reachability/visibility/passability/hazard/landing 信息。视野外、随机或安全性
+  未知的落点按**不确定性标注**，并由策略接受条件决定；不得据此读取隐藏状态。
+- 移动与效果信息**合取求值**：两部分都必须可计算且都被策略接受。已知自伤/友伤风险由策略容忍度决定；
+  风险 footprint 无法确定时仅禁用该动作。`max_selffire_risk` 的度量与内置 preset 默认必须单独冻结。
+- owner/场景/lease/revision、未经审计入口或 getter/builder、source drift、预算、原生拒绝或动作完成状态
+  不明属于**执行完整性边界**，策略不得放宽。
+- `change_level` 成功或开始场景迁移后总是暂停并重置旧场景状态，要求显式重新启动。
+
+#### 5.4.1 Wave 1 D5/D6 取代（v1.6）
+D5 对 `change_level` 的移除以及 D6 无条件仅暂停的逃跑行为**被取代**。**重新接纳 `change_level`** 为
+capability-backed policy action；原生场景迁移后 pause/reset 并要求 explicit restart。`flee_below_hp_pct`
+行为由规范化 preset/mode 选择（`pause|emergency_only|evaluate_rules`）。P1a strict 展开为原
+pause/no-change-level 行为，但执行器**不再全局施加**这两项限制。
 
 ### 5.5 简单模式 ↔ 高级模式（同一数据）
 - **简单模式**：有序技能优先级列表 + 阈值滑杆（HP/资源/敌人距离），生成等价规则。
@@ -391,12 +404,13 @@ flowchart LR
 - **旁观连接不抢控制**。
 
 ### 8.1 `unknown` 的作用范围（v1.1 修正，不能一票否决）
-| 未知/异常 | 建议行为 |
+| 未知/异常 | 规范行为 |
 | --- | --- |
-| 控制权、当前角色、场景边界、原生动作是否结束不明确 | **整个执行器暂停** |
-| 某范围技能的友伤/几何不明确 | **禁用该动作**，不否定其它已验证动作 |
-| 仅用于目标优化的属性不明确 | 跳过依赖它的规则，或用规定好的简单 selector |
-| 当前唯一自保动作是否安全不明确 | 暂停并交给玩家 |
+| 控制权、当前角色、场景边界、lease/revision、原生动作是否结束不明确 | **整个执行器暂停** |
+| 必需目标/目标请求无法解析，或原生入口/getter/builder 未审计、source drift | **禁用该动作**；若已提交或影响唯一控制边界则暂停 |
+| 某范围技能的友伤/效果 footprint 无法计算 | **禁用该动作**，不否定其它报告完整的动作 |
+| 移动落点随机、视野外，或通行性/危险为 unknown | 保留 unknown 注解，**按策略显式接受条件求值**；不得读取隐藏状态来消除 unknown |
+| 仅用于目标优化的属性不明确 | 跳过依赖它的规则，或用策略规定的简单 selector |
 | 玩家学了一个策略未使用的未适配技能 | 显示“未支持”，**不阻止启动** |
 
 三值逻辑要**尊重短路**：技能已明确在冷却，就不必因其伤害属性未知而暂停全部自动战斗。
@@ -582,15 +596,17 @@ flowchart LR
 - **技能白名单**（仅这些进入 P1a 可提交 schema，每个都有 adapter）：`T_CHANT_OF_FORTRESS`、
   `T_HYMN_OF_SHADOWS`、`T_HEALING_LIGHT`、`T_BARRIER`、`T_TWILIGHT`、`T_MOONLIGHT_RAY`、
   `T_SEARING_LIGHT`、`T_ATTACK`（普攻）。
-- **模式**：strict（`pause_on_new_enemy=true`）；`max_selffire_risk=0`；**默认无自动撤退**；
-  **不含 rest/auto_explore/change_level**。
-- 不进入首版的动作/选择器不进 schema（仅在能力目录/路线图说明）。
+- **模式（P1a `strict` preset）**：`pause_on_new_enemy=true`；风险容忍度按 §5.4 的度量冻结；
+  内置规则**不含**自动撤退、随机传送、rest/auto_explore/change_level。
+- schema/catalog/capability 必须诚实区分“执行器已支持”与“该 preset 未使用”；preset 缺省**不得**被
+  解释为插件全局禁用。未进入该 preset 的动作/选择器仍按 capability 报告。
 - **协议**：v4 **增量能力门控**（`capabilities.auto_combat`）；后续语义无法兼容再升 v5。
 - **`expected_hash` 指向唯一对象**：写 draft（`set_draft`）与 `approve` 比较 **draft** 当前 hash；
   `activate` 比较 **approved** 版本 hash；不匹配返回 `policy_conflict`。（实现与 UI 一致：
   approve 为 draft 的 CAS，activate 为 approved 的 CAS。）
 
-P1a **不做**：队友/装备/物品/召唤管理、rest、auto-explore、换层、assistant 翻译、在线学习。
+P1a `strict` preset **不生成**这些规则：队友/装备/物品/召唤管理、rest、auto-explore、换层、assistant 翻译、在线学习；
+其中 `rest`/`auto_explore`/`change_level` 是**执行器已支持**的动作，只是该 preset 未使用。
 
 ---
 
