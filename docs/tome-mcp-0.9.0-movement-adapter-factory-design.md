@@ -490,3 +490,24 @@ source makes the grid prompt depend on either TL5 or that attribute
    versus postcondition-only metadata. Harmful/mixed effects cannot use the
    current unconditional movement guard skip.
 
+
+## 13. Delivery slices (roadmap)
+
+The movement work is delivered in four slices. Each slice is a
+branch + PR that goes through an independent review before merge; the next slice
+starts only after the previous one is accepted.
+
+| Slice | Scope | Reference |
+| --- | --- | --- |
+| **S1 (first slice)** | Closed `MovementAdapterFactory` + **single-prompt** templates (`actor_charge`, `grid_move_exact`, `grid_move_bounded`, `self_random_teleport`, `actor_anchor_teleport`) expanding into the current `movement` descriptor; the **Phase Door effective-level x `phase_door_force_precise` variant matrix** (fixes the level-only gating gap); audit/getter/helper identity pins and drift. Candidates admissible after source review: Rush, Tumble, Phase Door no-prompt/precise-attribute, Blink Rune, Vault, Dimensional Step **non-swap**. | §4.1, §4.2, §8 |
+| **S2** | `request_then_landing`: the **ordered prompt-response queue** for multi-prompt talents (Phase Door TL4/TL5 actor-then-grid, and other actor+grid skills). | §4.2, §12.1 |
+| **S3** | **Movement/effect composition**: movement talents whose landing also carries a harmful/beneficial effect (Shadowstep, Giant Leap): compose the movement report with the effect/selffire guard, union the `actual_landing` footprint, and stop skipping movement entries in the guard. | §2 (finding 2), §5 |
+| **S4** | **`swap` / moving or swapping another actor**: typed two-subject descriptor, executor and verification (Dimensional Step TL5, the `moving_or_swapping_another_actor` gap). | §4.2, §12.2 |
+
+Separate, non-movement item: **Displacement Shield** (actor-target damage-transfer
+shield that does not relocate the player) is an effect-adapter task, outside this
+factory (§8).
+
+Sequencing: S1 first; then the live playtest of S1; S2–S4 as follow-ups whose
+order may be re-prioritised by the maintainer. None of them authorises execution
+by default (`allow_auto_combat_execution` stays `false`).
