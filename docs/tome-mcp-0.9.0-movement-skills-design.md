@@ -299,6 +299,16 @@ knowable. The manifest records known bounds; missing bounds appear as `unknown`.
 Fail closed only when the native entry/target sequence cannot be audited or its
 source pin drifts—not because a verified native entry intentionally uses RNG.
 
+**随机端点 vs 未知包络（v1.6 澄清，来自 movement-adapter-factory 调研 §11）：** 当 source-pinned
+adapter 已证明 **mover、请求序列、落点类别与一个有限保守落点包络**时，随机端点**不是**执行完整性失败——
+可见性/占用/通行性/危险/包络内具体落点可保持 `unknown` 并报告给策略。若 adapter **无法**确立 mover、
+请求顺序或任何"验证最终后置条件所需的有限保守包络"，则该动作以 **typed** movement 能力/推导原因标为
+不可用。这不是策略拒绝，也不影响其它完整动作。
+
+**Phase Door 变体矩阵（v1.6）：** 仅按有效等级门控**不充分**——当 `phase_door_force_precise` 属性存在时，
+grid 提示在 **TL4 以下**就会出现。adapter 必须解析 **有效等级 × `phase_door_force_precise`** 的二维矩阵；
+任一输入为 unknown 时返回 `movement_variant_unknown` 并 **fail closed**（不得提交无提示形态）。
+
 ### 5.2 Information report
 
 Every dry-run and committed decision includes a movement report such as:
