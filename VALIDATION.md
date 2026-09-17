@@ -1,5 +1,29 @@
 # MCP Bridge 验收记录
 
+## 0.9.0：自动战斗插件 Wave 2（接口/契约）
+
+日期：2026-09-17。修复独立评审的 INT-01 … INT-06 与 SAFE-01（桥接/协议接口层）。Wave 2 在 Wave 1 合入后串行执行；未重做执行安全。执行与 `change_level` 默认仍关闭。
+
+| 检查层 | 结果 | 证据 |
+| --- | --- | --- |
+| INT-01 协议描述实际接口 | **通过**：`requests.schema.json` 列 14 个 live op + `PolicyArgs`/`PolicyLogArgs`/`detail`/`inspect.kind`/`computed`/`status.compact`；generator 从 `Runtime.dispatch`+MCP tool 推导并双向校验；每 op 代表字段或已声明 gap | `tools/generate_protocol.py --check`、`protocol/v4/requests.schema.json` |
+| INT-02 错误契约 | **通过**：75 码注册表为单一来源；生成 Lua/Python envelope；`Runtime.fail`/Python `as_dict` 均补齐 category/scope/recovery；CI 对未注册 emit 码失败；逐条 envelope 过 schema | `protocol/v4/vectors/error-codes.json`、`ErrorRegistry.lua`、`error_registry.py`、`server/tests`（34） |
+| INT-03 严格校验器 | **通过**：logging/tie_break/复合条件/动作形状的 union 严格校验 + 负例 | `test_auto_combat_policy.lua`（78） |
+| INT-04 CAS 对象 | **通过**：approve=draft、activate=approved；§11.1 与 server 描述修正 | `test_auto_combat_service.lua`（79） |
+| INT-05 能力对齐 | **通过**：`auto_explore` 纳入 actions/action_support/native_tasks | `test_runtime.lua`（163） |
+| INT-06 get/clear | **通过**：`get` 返回三版本、`clear` 只清 draft；§11 名称冻结 | 同上、`test_auto_combat_service.lua` |
+| SAFE-01 getter 审计 | **通过**：有限 computed getter 集经 `NativeCompatibility`（digest+identity+declaration+closure）注册并只经注册表解析；同标签异身份/改文件均 fail-closed | `test_native_compatibility.lua`（16）、`test_actor_combat.lua`（22） |
+| 原生 fixture | **通过（35/35，source 与 `dist/*.teaa` 各一次）** | `tmp/tome-mcp-validation/sessions/wave2-final-src/`、`wave2-final-teaa/` |
+| 既有套件 | Lua **33 套 / 102,008 checks**、Python **34 通过**、两个 `--check` 生成器绿 | `bash game/addons/tome-mcp-bridge/tests/run.sh` 等 |
+
+正式包 **60 个生产文件**，SHA-256：
+
+```text
+c5c94255012daee3818be0f86c91e8aa04f7b02e1f43589c2dd1a179dec259c0
+```
+
+四项决定（INT-04/05/06、SAFE-01）与 D7–D12 见 [Wave 2 文档](docs/tome-mcp-0.9.0-wave2-interface-contract.md)。
+
 ## 0.9.0：自动战斗插件 Wave 1（执行安全）
 
 日期：2026-09-17。修复独立评审确认的 AC-01 … AC-10（执行层安全），全部在**生产路径**上验证（真实 `Actions.execute` → 映射/主机），不再靠伪造 `{status=...}`。执行与 `change_level` 默认仍关闭。

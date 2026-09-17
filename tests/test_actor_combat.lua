@@ -2,6 +2,12 @@
 local root=(arg[0]:match('^(.*)/tests/[^/]+$') or 'game/addons/tome-mcp-bridge')
 package.path=root..'/overload/?.lua;'..package.path
 local ActorCombat=require 'mod.mcp_bridge.ActorCombat'
+local Compat=require 'mod.mcp_bridge.NativeCompatibility'
+-- SAFE-01 unit isolation: the registry digest/identity audit is covered by
+-- tests/test_native_compatibility.lua; here the mock getters are not real
+-- files, so admit them and keep testing the value extraction.
+Compat.registerDependency=function() return true end
+Compat.dependency=function(id,fn) return fn end
 local count=0
 local function check(v,m) count=count+1;assert(v,m) end
 local COMBAT='/mod/class/interface/Combat.lua'

@@ -7,6 +7,8 @@ import json
 import uuid
 from typing import Any
 
+from . import error_registry
+
 PROTOCOL_VERSION = 4
 MAX_MESSAGE = 1024 * 1024
 TERMINAL = frozenset({"completed", "failed", "cancelled", "needs_input"})
@@ -38,12 +40,14 @@ class BridgeError(Exception):
         self.response_id = response_id
 
     def as_dict(self) -> dict[str, Any]:
-        result: dict[str, Any] = {
-            "code": self.code,
-            "message": self.message,
-            "accepted": self.accepted,
-            "uncertain": self.uncertain,
-        }
+        # INT-02: build the complete envelope from the generated registry so a
+        # Python-side error carries category/scope/recovery too.
+        result: dict[str, Any] = dict(error_registry.defaults(self.code))
+        result["code"] = self.code
+        result["message"] = self.message
+        if self.accepted is not None or "accepted" not in result:
+            result["accepted"] = self.accepted
+        result["uncertain"] = bool(self.uncertain or result.get("uncertain", False))
         if self.acceptance_scope is not None:
             result["acceptance_scope"] = self.acceptance_scope
         if self.recovery is not None:

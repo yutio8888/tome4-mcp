@@ -459,10 +459,21 @@ flowchart LR
 | `get` | — | 返回 draft / approved / running 三个版本与各自 hash |
 | `validate` | `policy` | 只做 schema 校验，不执行 |
 | `dry_run` | `policy` | 对当前快照求值，返回 §7 诊断 |
-| `set` | `policy`, `expected_hash`, `activate:bool=false` | 写入草稿/批准；`expected_hash` 不匹配则拒绝覆盖；`activate` 仅在本地点明授权时生效 |
+| `set_draft` | `policy`, `expected_hash` | 写入草稿；`expected_hash` 不匹配当前 **draft** hash 则拒绝（`policy_conflict`） |
+| `approve` | `expected_hash` | 认证 draft；CAS 对象是 **draft** hash；不匹配拒绝 |
+| `activate` | `expected_hash` | 把 approved 提升为 running 并请求租约；CAS 对象是 **approved** hash |
+| `deactivate` | — | 停止执行并清空 running（保留 draft/approved） |
 | `clear` | — | 清空草稿；**不删除已批准版本** |
-| `start`/`pause`/`resume` | — | 控制执行器 |
-| `status` | — | owner、epoch、三个版本 hash、是否运行、最近决策摘要 |
+| `start`/`stop`/`pause`/`resume` | — | 控制执行器 |
+| `status` | — | owner、lease、三个版本 hash、是否运行、最近决策摘要 |
+| `log` | `limit` | 最新优先的有界决策事件 tail |
+| `replay` | `after_seq`,`limit` | 旧→新分页的 §10 追踪 + run header |
+| `presets`/`preset`/`export`/`import` | — | 预设与导入导出 |
+| `import_assistant` | `document`/`config`,`store` | 仅生成（D7/P3）：助手导出→草稿+warnings；`store` 才写 draft |
+
+> **名称冻结（D10）**：实现中的 `set_draft`/`approve`/`activate`/`deactivate`/`log`/`replay`/
+> `presets`/`preset`/`export`/`import`/`import_assistant` 即为规范名称；`tome.policy_log` 是
+> 最新优先的有界 tail，分页追踪是 `replay`。错误码以 `invalid_policy` 为准（非 `policy_invalid`）。
 
 **版本与控制契约（v1.2 冻结）**：
 - `get`/`status` 必须区分 draft/approved/running；**停止运行不让已批准版本消失**。
@@ -472,11 +483,13 @@ flowchart LR
   但要执行普通 `act` 必须先重新取得 `remote` 控制（唯一 owner）。
 
 ### 11.2 其它
-- `tome.policy_log`（分页）。
+- `tome.policy_log`（最新优先的有界 tail）；`tome.policy` `replay`（旧→新分页追踪）。
 - `observe` 增加 `auto_combat:{enabled, policy_id, policy_hash, actions, paused_reason, last_decisions:[…]}`。
 - `control_source` 枚举加 `auto_combat`。
 - `capabilities.auto_combat`：schema 版本、支持谓词/动作/selector、adapter 列表、limits、executor 版本。
-- 错误码：`policy_invalid`、`policy_unsupported_talent`、`policy_unsafe`、`policy_safety_paused`、`control_conflict`。
+- 错误码（实现名，D10）：`invalid_policy`、`policy_conflict`、`control_conflict`、`control_not_held`、
+  `invalid_argument`、`not_approved`、`not_activated`、`execution_not_available` 等；完整注册表见
+  `protocol/v4/vectors/error-codes.json`。
 
 ---
 
@@ -544,8 +557,9 @@ flowchart LR
   **不含 rest/auto_explore/change_level**。
 - 不进入首版的动作/选择器不进 schema（仅在能力目录/路线图说明）。
 - **协议**：v4 **增量能力门控**（`capabilities.auto_combat`）；后续语义无法兼容再升 v5。
-- **`expected_hash` 指向唯一对象**：写 draft 时比较 draft 当前 hash；approve/activate 时比较
-  **approved** 版本 hash；不匹配返回 `policy_conflict`。
+- **`expected_hash` 指向唯一对象**：写 draft（`set_draft`）与 `approve` 比较 **draft** 当前 hash；
+  `activate` 比较 **approved** 版本 hash；不匹配返回 `policy_conflict`。（实现与 UI 一致：
+  approve 为 draft 的 CAS，activate 为 approved 的 CAS。）
 
 P1a **不做**：队友/装备/物品/召唤管理、rest、auto-explore、换层、assistant 翻译、在线学习。
 

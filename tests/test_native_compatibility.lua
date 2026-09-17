@@ -42,4 +42,19 @@ check(select(2,Compat.dependency('dep.orphan',parent))=='dependency_closure_brok
 local summary=Compat.closureSummary()
 check(summary['dep.parent'] and #summary['dep.parent'].depends_on==1 and summary['dep.orphan'].depends_on[1].ok==false,
     'closure summary exposes the edges and their status')
+-- SAFE-01: the finite computed-getter pattern uses the same registry.
+Compat.resetDependencies()
+files['/combat.lua']='function _M:combatCrit(self) return 22 end'
+local combat_digest=files['/combat.lua']
+local real_getter=assert(loadstring('return function(self) return 22 end','@/combat.lua'))()
+check(Compat.registerDependency('computed.combatCrit','computed',real_getter,'/combat.lua','getter',
+    combat_digest,'function _M:combatCrit',{}),'a computed getter registers with digest, identity and declaration')
+check(Compat.dependency('computed.combatCrit',real_getter)==real_getter,'the exact registered computed getter resolves')
+local spoof=assert(loadstring('return function(self) return 999 end','@/combat.lua'))()
+check(select(2,Compat.dependency('computed.combatCrit',spoof))=='dependency_replaced',
+    'a same-label / different-identity computed getter is rejected')
+Compat.resetDependencies()
+files['/combat.lua']='function _M:combatCrit(self) return 23 end'
+check(not Compat.registerDependency('computed.combatCrit','computed',real_getter,'/combat.lua','getter',
+    combat_digest,'function _M:combatCrit',{}),'a modified computed-getter file fails the digest')
 print('Native compatibility: '..count..' checks passed')

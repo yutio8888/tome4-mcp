@@ -325,4 +325,28 @@ do
         'ally_count below the threshold holds')
 end
 
+-- INT-03: strict union validation (no silently ignored extras).
+do
+    local bad=basePolicy();bad.logging={ring_size=256,extra=true}
+    check(not Schema.validate(bad),'logging rejects an unknown field')
+    bad=basePolicy();bad.logging={ring_size='256'}
+    check(not Schema.validate(bad),'logging.ring_size must be an integer')
+    bad=basePolicy();bad.targeting.tie_break={'distance','nonsense'}
+    check(not Schema.validate(bad),'targeting.tie_break rejects an unknown key')
+    bad=basePolicy();bad.rules[1].when={all={{always={}}},extra=true}
+    check(not Schema.validate(bad),'a composite condition rejects extra keys')
+    bad=basePolicy();bad.rules[1].when={always={},extra={}}
+    check(not Schema.validate(bad),'a predicate leaf rejects extra keys')
+    bad=basePolicy();bad.rules[1]['then']={action='wait',talent='T_ATTACK'}
+    check(not Schema.validate(bad),'wait rejects an irrelevant talent')
+    bad=basePolicy();bad.rules[1]['then']={action='wait',target='self'}
+    check(not Schema.validate(bad),'wait rejects an irrelevant target')
+    bad=basePolicy();bad.rules[1]['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self',max_turns=3}
+    check(not Schema.validate(bad),'use_talent rejects max_turns')
+    bad=basePolicy();bad.rules[1]['then']={action='attack',target='nearest_hostile',talent='T_ATTACK'}
+    check(not Schema.validate(bad),'attack rejects an irrelevant talent')
+    local ok=basePolicy();ok.logging={ring_size=256,log_rejections=true};ok.targeting.tie_break={'distance','hp','uid'}
+    check(Schema.validate(ok),'valid logging and tie_break are accepted')
+end
+
 print('Auto-combat policy: '..checks..' checks passed')

@@ -551,7 +551,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
 
     @server.tool(name="tome.policy", annotations=write)
     async def policy(session_id: Identifier,
-                     policy_op: Literal["status", "validate", "dry_run", "set_draft", "approve", "activate",
+                     policy_op: Literal["status", "get", "clear", "validate", "dry_run", "set_draft", "approve", "activate",
                                         "deactivate", "start", "stop", "pause", "resume", "log", "replay",
                                         "presets", "preset", "export", "import", "import_assistant"],
                      policy: dict[str, Any] | None = None,
@@ -562,7 +562,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
                      name: str | None = None,
                      document: str | None = None,
                      store: bool | None = None) -> ToolReply:
-        """Author, certify and run an auto-combat policy. policy_op=validate/set_draft take a policy document; set_draft/approve/activate compare expected_hash against the draft (writes) or the approved version (approve/activate) and return policy_conflict on a mismatch. Certification (approve) is separate from control: activate promotes the approved policy and requests the auto_combat lease. start/pause/resume/stop control the local run; execution is only available once the host adapter is wired. dry_run evaluates a policy (default: running, else approved, else draft) against the current audited snapshot and returns the decision, bound target and per-rule trace without executing anything; it is a read and works in observe mode even when execution is disabled. replay pages the bounded decision trace oldest-first with a run header (also a read). import_assistant is generation-only: it translates a pinned legacy-assistant export (document) into a policy draft with warnings/unsupported fields; store=true additionally writes it as the draft (control-only). It never approves, activates or starts. status and log are read-only."""
+        """Author, certify and run an auto-combat policy. policy_op=validate/set_draft take a policy document; set_draft and approve compare expected_hash against the current draft (the approve CAS object) while activate compares against the approved version (the activate CAS object), returning policy_conflict on a mismatch. Certification (approve) is separate from control: activate promotes the approved policy and requests the auto_combat lease. start/pause/resume/stop control the local run; execution is only available once the host adapter is wired. dry_run evaluates a policy (default: running, else approved, else draft) against the current audited snapshot and returns the decision, bound target and per-rule trace without executing anything; it is a read and works in observe mode even when execution is disabled. replay pages the bounded decision trace oldest-first with a run header (also a read). import_assistant is generation-only: it translates a pinned legacy-assistant export (document) into a policy draft with warnings/unsupported fields; store=true additionally writes it as the draft (control-only). It never approves, activates or starts. get returns the three actual versions; clear empties the draft only. status and log are read-only."""
         args: dict[str, Any] = {"session_id": session_id, "policy_op": policy_op}
         if policy is not None:
             args["policy"] = policy

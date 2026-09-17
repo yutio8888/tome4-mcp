@@ -1,0 +1,12 @@
+{
+  "date": "2026-09-17",
+  "wave": "2 (interface/contract)",
+  "INT-01": "14 live ops + additive args derived from Runtime.dispatch + MCP tools; per-op representative result fields",
+  "INT-02": "75-code registry drives generated Lua/Python envelopes; CI fails on unregistered emitted code",
+  "INT-03": "strict union validation (logging/tie_break/composite/action shapes)",
+  "INT-04": "approve CASes draft, activate CASes approved",
+  "INT-05": "auto_explore in capabilities.actions/action_support/native_tasks",
+  "INT-06": "get/clear added; policy_log+replay+invalid_policy blessed",
+  "SAFE-01": "finite computed getters registered via NativeCompatibility (digest+identity+declaration+closure)",
+  "dist_sha256": "c5c94255012daee3818be0f86c91e8aa04f7b02e1f43589c2dd1a179dec259c0"
+}

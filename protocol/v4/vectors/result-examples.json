@@ -1,5 +1,5 @@
 {
-  "$comment": "Spec v1.0 examples. These are design examples for the v4 service, not current 0.8.0 output.",
+  "$comment": "Spec v1.0 examples plus per-op representative result fields. Full result schemas are not required (D7); this map must cover every live op, and each listed field is a representative field a client may rely on.",
   "history": {
     "last_accepted_seq": 4271,
     "evicted_through_seq": 4015,
@@ -41,7 +41,13 @@
     "next_cursor": null,
     "expires_in_ms": 117000
   },
-  "tool_reply_ok": { "ok": true, "result": { "session_id": "tome-example" }, "error": null },
+  "tool_reply_ok": {
+    "ok": true,
+    "result": {
+      "session_id": "tome-example"
+    },
+    "error": null
+  },
   "tool_reply_error": {
     "ok": false,
     "result": null,
@@ -55,7 +61,91 @@
       "command_id": "cmd-17",
       "response_id": null,
       "recovery": "do_not_replay",
-      "details": { "evicted_through_seq": 100, "last_accepted_seq": 356 }
+      "details": {
+        "evicted_through_seq": 100,
+        "last_accepted_seq": 356
+      }
     }
+  },
+  "ops": {
+    "connect": [
+      "session_id",
+      "control_token",
+      "revision",
+      "protocol_version",
+      "mode",
+      "capabilities",
+      "snapshot"
+    ],
+    "connect_observer": [
+      "session_id",
+      "control_token",
+      "revision",
+      "protocol_version",
+      "mode",
+      "capabilities",
+      "snapshot"
+    ],
+    "observe": [
+      "session_id",
+      "revision",
+      "phase",
+      "actors",
+      "talents"
+    ],
+    "inspect": [
+      "id",
+      "kind"
+    ],
+    "list_collection": [
+      "view_id",
+      "session_id",
+      "collection",
+      "items",
+      "returned_count"
+    ],
+    "act": [
+      "command_id",
+      "status"
+    ],
+    "respond": [
+      "command_id",
+      "status",
+      "responses"
+    ],
+    "status": [
+      "command_id",
+      "status",
+      "code"
+    ],
+    "stop": [
+      "stopped",
+      "snapshot"
+    ],
+    "dismiss": [
+      "dismissed",
+      "snapshot"
+    ],
+    "abandon": [
+      "recovered",
+      "recovery"
+    ],
+    "level_map": [
+      "source",
+      "format",
+      "level_instance_id",
+      "w",
+      "h"
+    ],
+    "policy": [
+      "draft_hash",
+      "approved_hash",
+      "running_hash",
+      "active"
+    ],
+    "policy_log": [
+      "events",
+      "status"
+    ]
   }
 }

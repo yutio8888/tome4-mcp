@@ -6,10 +6,34 @@
 -- being trusted. No RNG, no attack rolls, no target-specific resolution.
 local Json=require 'mod.mcp_bridge.Json'
 local Details=require 'mod.mcp_bridge.ObservationDetails'
+local Compat=require 'mod.mcp_bridge.NativeCompatibility'
+local Manifest=require 'mod.mcp_bridge.NativeManifest'
 local M={}
 
 local COMBAT='/mod/class/interface/Combat.lua'
 local STATS='/engine/interface/ActorStats.lua'
+-- The finite audited computed-getter set (SAFE-01/D11). Registered through
+-- NativeCompatibility so resolution requires the source digest, the exact
+-- function identity and a declaration match, not only a source-label suffix.
+local COMBAT_METHODS={'combatMovementSpeed','combatSpeed','combatSpellSpeed','combatMindSpeed',
+    'combatCrit','combatSpellCrit','combatMindCrit','combatPhysicalpower','combatSpellpower',
+    'combatMindpower','combatAttack','combatAPR','combatDamage','combatDamageRange','combatDefense',
+    'combatDefenseRanged','combatArmor','combatArmorHardiness','combatFatigue','combatPhysicalResist',
+    'combatSpellResist','combatMentalResist','combatSeeStealth','combatSeeInvisible',
+    'combatCritReduction','combatGetDamageIncrease','combatGetResistPen','combatGetAffinity',
+    'combatGetResist'}
+local registered={}
+function M.register(actor)
+    if type(actor)~='table' or registered[actor] then return registered[actor]==true end
+    registered[actor]=true
+    Compat.registerDependency('computed.getStat','computed',actor.getStat,STATS,'effective stat',
+        Manifest.stats_md5,'function _M:getStat',{})
+    for _,name in ipairs(COMBAT_METHODS) do
+        Compat.registerDependency('computed.'..name,'computed',actor[name],COMBAT,'computed panel getter',
+            Manifest.combat_md5,'function _M:'..name,{})
+    end
+    return true
+end
 local STAT_NAMES={'str','dex','con','mag','wil','cun','lck'}
 -- ToME damage-type keys as used by resists/inc_damage/resists_pen.
 local DAMAGE_TYPES={'PHYSICAL','FIRE','COLD','LIGHTNING','ACID','NATURE','BLIGHT','LIGHT','DARKNESS','MIND','TEMPORAL','ARCANE'}
@@ -23,11 +47,17 @@ local function native(fn,suffix)
 end
 
 function M.computed(actor)
-    if type(actor)~='table' then return nil,'actor_unavailable' end    local unknown=Json.array()
+    if type(actor)~='table' then return nil,'actor_unavailable' end
+    M.register(actor)
+    local unknown=Json.array()
     -- Call an audited native getter; nil (and a note in `unknown`) otherwise.
     local function value(name,suffix,...)
         local fn=actor[name]
         if not native(fn,suffix) then unknown[#unknown+1]=name; return nil end
+        -- SAFE-01: the Compatibility registry enforces the source digest and the
+        -- exact function identity; a same-label spoof or a modified file fails.
+        local admitted=Compat.dependency('computed.'..name,fn)
+        if not admitted then unknown[#unknown+1]=name; return nil end
         local ok,v=pcall(fn,actor,...)
         if not ok or not finite(v) then unknown[#unknown+1]=name; return nil end
         return v

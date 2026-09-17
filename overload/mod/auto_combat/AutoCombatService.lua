@@ -67,6 +67,23 @@ function M.status(svc)
     return ok(status)
 end
 
+-- INT-06/D10: `get` returns the three actual versions (not only hashes);
+-- `clear` empties the draft only and never the approved/running versions.
+function M.get(svc)
+    return ok({draft=svc.store.draft,approved=svc.store.approved,running=svc.store.running,
+        active=svc.store.active,revision=svc.store.revision,hashes=Store.hashes(svc.store),
+        draft_hash=Store.hashes(svc.store).draft,approved_hash=Store.hashes(svc.store).approved,
+        running_hash=Store.hashes(svc.store).running})
+end
+
+function M.clear(svc)
+    svc.store.draft=nil
+    svc.store.revision=svc.store.revision+1
+    svc.revision=svc.revision+1
+    local hashes=Store.hashes(svc.store)
+    return ok({cleared='draft',draft_hash=hashes.draft,approved_hash=hashes.approved,running_hash=hashes.running})
+end
+
 function M.validate(svc,policy)
     local schema_ok,errors=Schema.validate(policy)
     if not schema_ok then return fail('invalid_policy',{errors=errors}) end
@@ -406,6 +423,8 @@ end
 function M.handle(svc,op,args)
     args=args or {}
     if op=='status' then return M.status(svc) end
+    if op=='get' then return M.get(svc) end
+    if op=='clear' then return M.clear(svc) end
     if op=='validate' then return M.validate(svc,args.policy) end
     if op=='dry_run' then return M.dryRun(svc,args) end
     if op=='set_draft' then return M.setDraft(svc,args.policy,args.expected_hash) end

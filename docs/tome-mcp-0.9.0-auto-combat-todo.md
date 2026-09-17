@@ -197,3 +197,24 @@ removed from auto-combat claims; D6 honest sustain/flee thresholds).
 35. **P2.5 follow-up**: the assistant adapter no longer warns
     `condition_unknown_at_runtime` for `has_effect`/`computed` (the host now
     resolves them).
+
+## Wave 2 close-out (interface / contract)
+
+Wave 2 fixes INT-01 … INT-06 and SAFE-01; see
+[docs/tome-mcp-0.9.0-wave2-interface-contract.md](tome-mcp-0.9.0-wave2-interface-contract.md).
+Decisions D7–D12 recorded there.
+
+36. **INT-01** the v4 request schema/checker derives the 14 live ops and the
+    additive args from `Runtime.dispatch` + the MCP tool list; result shapes are
+    per-op representative fields with a checked allowlist gap mechanism.
+37. **INT-02** the 75-code error registry is the single source; generated
+    Lua/Python envelopes; CI fails on an unregistered emitted code.
+38. **INT-03** strict union validation for logging/tie_break/composite
+    conditions/action shapes.
+39. **INT-04** approve CASes draft, activate CASes approved (prose corrected).
+40. **INT-05** remote `auto_explore` added to capabilities/action_support/
+    native_tasks.
+41. **INT-06** `get`/`clear` added; §11 names blessed (`policy_log`/`replay`/
+    `invalid_policy`).
+42. **SAFE-01** finite computed getters registered through
+    `NativeCompatibility` (digest + identity + declaration + closure).
