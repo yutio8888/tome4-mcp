@@ -508,6 +508,31 @@ Separate, non-movement item: **Displacement Shield** (actor-target damage-transf
 shield that does not relocate the player) is an effect-adapter task, outside this
 factory (§8).
 
-Sequencing: S1 first; then the live playtest of S1; S2–S4 as follow-ups whose
-order may be re-prioritised by the maintainer. None of them authorises execution
-by default (`allow_auto_combat_execution` stays `false`).
+### 13.1 Per-slice live-test scenarios (maintainer-specified)
+
+Each slice's live test is dispatched as a `[Test]` agent **after that slice merges**,
+with the merged build pins filled in. The test agent only plays/reports; raw
+evidence stays under `tmp/`.
+
+- **S1 — Berserker / Trollmire 1–2 / Rush.** Halfling Berserker (`berserker_p2`),
+  Insane/Roguelike; **must learn `T_RUSH` at level 1 and actually use it in real
+  combat**; clear Trollmire levels 1 and 2, then stop. (See
+  `tmp/mcp-play-support/movement-playtest-handoff.md`.)
+- **S2 — Archmage / Phase Door to effective TL5.** Archmage (`archmage_arcane_p2`),
+  learn and level `T_PHASE_DOOR` up to **effective talent level 5**, then exercise
+  the ordered prompt-response queue in play (actor prompt then grid/landing prompt)
+  and report the observed request sequence + landing annotation and postcondition;
+  then stop. Verifies multi-prompt execution, not strategy.
+- **S3 — debug Shadowblade / Shadowstep vs a training dummy.** Debug character
+  `Shadowblade`, learn `T_SHADOWSTEP`, attack a **training dummy** (傀儡) to exercise
+  the movement-talent path with its attack/damage component; report the movement +
+  effect composition (guarded effect, `actual_landing` footprint) and the native
+  postcondition; then stop. Verifies S3 (movement/effect composition).
+- **S4 — Temporal Warden / Dimensional Step TL5 / successful swap.** Temporal Warden,
+  learn `T_DIMENSIONAL_STEP` to **effective talent level 5**, then **successfully
+  swap position with a monster** (two-subject swap) and report both actors'
+  post-positions and effects; then stop. Verifies S4 (`swap` / moving another actor).
+
+Sequencing: S1 → S1 live test → S2 → S2 live test → S3 → S3 live test → S4 → S4 live
+test; order may be re-prioritised by the maintainer. None of them authorises
+execution by default (`allow_auto_combat_execution` stays `false`).
