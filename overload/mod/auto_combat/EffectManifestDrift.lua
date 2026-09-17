@@ -156,6 +156,23 @@ function M.identity(manifest,getDef)
                     return nil,M.REASON,talent..':getter_replaced:'..getter
                 end
             end
+            -- The pinned target builder dispatches through the talent's live
+            -- `range` function (`self:getTalentRange(t)` -> `t.range(self,t)`).
+            -- Verify it here so a replaced `def.range` is rejected before the
+            -- builder runs.
+            local rangePins=entry.source and entry.source.ranges or {}
+            local rangeNames={}
+            for range in pairs(rangePins) do rangeNames[#rangeNames+1]=range end
+            table.sort(rangeNames)
+            for _,range in ipairs(rangeNames) do
+                local pin=rangePins[range]
+                if type(pin)~='table' or type(pin.path)~='string' or type(pin.line)~='number' then
+                    return nil,M.REASON,talent..':range_unpinned:'..range
+                end
+                if not checkPinnedFn(def[range],pin,talent..':range:'..range) then
+                    return nil,M.REASON,talent..':range_replaced:'..range
+                end
+            end
         end
     end
     return true

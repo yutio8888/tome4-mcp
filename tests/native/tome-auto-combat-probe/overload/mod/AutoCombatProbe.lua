@@ -13,6 +13,7 @@ local Presets=require 'mod.auto_combat.PolicyPresets'
 local Schema=require 'mod.auto_combat.PolicySchema'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
 local EffectFootprint=require 'mod.auto_combat.EffectFootprint'
+local Distance=require 'mod.mcp_bridge.Distance'
 local EffectManifest=require 'mod.auto_combat.EffectManifest'
 local ManifestDrift=require 'mod.auto_combat.EffectManifestDrift'
 local M={pending=false,checks={},failures=0,solo_frames=0}
@@ -61,7 +62,7 @@ M.EXPECTED={
     ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
-    ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_exact'},
+    ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
     ['solo-pump']={},
@@ -917,10 +918,15 @@ local function movementPlan()
     else
         signals[#signals+1]='step_rejected'
     end
+    local p=game.player
+    if type(p.talents)~='table' then p.talents={} end
+    local saved_tumble=p.talents.T_SKIRMISHER_CUNNING_ROLL
+    p.talents.T_SKIRMISHER_CUNNING_ROLL=5
     local grid=host.plan({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
         destination={selector='position',x=game.player.x+3,y=game.player.y,accept=accept}})
     local grid_ok=grid and grid.plan and grid.plan.kind=='grid'
         and grid.plan.annotation and grid.plan.annotation.known_passable~=nil
+    p.talents.T_SKIRMISHER_CUNNING_ROLL=saved_tumble
     signals[#signals+1]=grid_ok and 'grid_annotated' or 'grid_missing'
     check('movement:grid-annotation',grid_ok,{kind=grid and grid.plan and grid.plan.kind,
         visible=grid and grid.plan and grid.plan.annotation and grid.plan.annotation.visible,
@@ -1042,20 +1048,31 @@ local function movementFactoryChecks()
         destination={selector='toward',anchor='bound_target',accept=accept}})
     if toward and toward.plan and toward.plan.kind=='grid'
         and type(liveRange)=='number' and liveRange<12 then
-        local dist=math.max(math.abs(toward.plan.x-p.x),math.abs(toward.plan.y-p.y))
-        towardOk=dist<=math.max(1,liveRange)
+        local dist=Distance.grid(p.x,p.y,toward.plan.x,toward.plan.y)
+        towardOk=dist<=liveRange
     end
     signals[#signals+1]=towardOk and 'vault_toward_range' or 'vault_toward_missing'
     check('movement-factory:vault-toward-range',towardOk,{range=liveRange,
         reason=towardErr and towardErr.reason})
-    p.talents.T_SKIRMISHER_VAULT=saved_vault
-    -- Vault is an exact grid move (deterministic landing annotation).
+    -- MAF-REV-03: an explicit coordinate outside the live range is rejected.
+    local farOk=false
+    if type(liveRange)=='number' then
+        local far,farErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
+            destination={selector='position',x=p.x+liveRange+5,y=p.y,accept=accept}})
+        farOk=far==nil and farErr and farErr.reason=='destination_out_of_range'
+        check('movement-factory:vault-out-of-range',farOk,{range=liveRange,
+            reason=farErr and farErr.reason})
+    end
+    signals[#signals+1]=farOk and 'vault_out_of_range' or 'vault_out_of_range_missing'
+    -- Vault is an exact grid move (deterministic landing annotation). Keep the
+    -- level-5 range so the in-range request is valid.
     local vault,vaultErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
         destination={selector='position',x=p.x+2,y=p.y,accept=accept}})
     local vaultOk=vault and vault.plan and vault.plan.kind=='grid'
         and vault.plan.annotation.landing.kind=='deterministic'
     signals[#signals+1]=vaultOk and 'vault_exact' or 'vault_missing'
     check('movement-factory:vault-exact',vaultOk,{reason=vaultErr and vaultErr.reason})
+    p.talents.T_SKIRMISHER_VAULT=saved_vault
     return compare('movement-factory',signals)
 end
 

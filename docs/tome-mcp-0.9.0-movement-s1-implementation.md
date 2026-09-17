@@ -48,18 +48,19 @@ talent name; every admitted talent keeps an explicit manifest entry.
   `movement_derivation_unknown`.
 - `M.resolveBuilder(...)` calls the pinned target builder for **live geometry/
   conformance only** and copies an allowlisted `shape`/`range`/`radius`. A wrong
-  or missing builder shape is `adapter_source_drift`/`movement_derivation_unknown`.
-  The builder never supplies actor/grid semantics or prompt order.
+  or missing builder shape is `adapter_source_drift`/`movement_derivation_unknown`;
+  a builder-backed descriptor without a finite range fails closed. The builder
+  never supplies actor/grid semantics or prompt order.
 - `M.resolveOccupancy(...)` turns a player-known `'empty'|'actor'|'unknown'` read
   into the admitted non-swap descriptor, the typed S4 gap, or
   `movement_variant_unknown` (never probing a hidden actor).
 
 `MovementPlanner.plan` runs an injected `provider.preflight` **before any variant,
 bound or builder read**, then resolves the matrix, bounds, builder and occupancy
-before any request/landing classification. `MovementPlanner.planTalent` uses the
-live finite builder range for `toward`/`away`/`preferred_distance` (an unknown
-range is `movement_range_unknown`, never a hard-coded scan), and annotates a
-bounded/random grid landing as `bounded`/`random`.
+before any request/landing classification. `MovementPlanner.planTalent` bounds
+`position`/`relative` requests and every scanned candidate by the single audited
+`Distance.grid` native metric (range 0 is an empty non-self domain), and
+annotates a bounded/random grid landing as `bounded`/`random`.
 
 ## 3. Phase Door variant matrix
 
@@ -123,31 +124,42 @@ are invoked only after `EffectManifestDrift.identity` has verified them.
 `Runtime.autoCombatReads.plan` builds the provider; `buildAutoCombatHost` reuses
 the same audited `manifestDrift`/`effectiveTalentLevel` for the guard.
 
+**Transitive helper closure (MAF-REV-02 rev 3).** The pinned target builder
+immediately dispatches through `self:getTalentRange(t)` (→ the talent's live
+`def.range`) and the engine scaling helpers (`combatTalentScale`, `combatLimit`,
+`combatTalentSpellDamage`, `combatTalentLimit`). The generator now also pins
+`ranges={range={path,line}}` for every builder-backed movement talent, and
+`EffectManifestDrift.identity` rejects a replaced `def.range` before the builder
+runs. At runtime `verifyMovementHelpers` identity-checks `getTalentRange` and the
+scaling helpers (first-seen `rawequal`, plus a `NativeCompatibility` dependency
+with the engine file digest/declaration) before invoking the outer builder or
+getter closure; a replaced helper becomes `adapter_source_drift` without being
+called.
+
 ## 6. Evidence
 
 Final artifact: `dist/tome-mcp-bridge.teaa`
-`d34bef117aa41d281f39ed07a121614fe229ea39ac76eb39f934e9549b9baff3`
-(baseline `736fc9f6600443f3ac590db2af2a2e82c9171ed46547e9eb686b979a54a8aeae`).
+`63cc6ee1f0683f2c01f3edf71ba7da92417473723c00c101ccebac01da04dd2b`
+(baseline `d34bef117aa41d281f39ed07a121614fe229ea39ac76eb39f934e9549b9baff3`).
 `allow_auto_combat_execution` remains `false` (read-only unless explicitly set).
 
-- `tests/test_auto_combat_movement_factory.lua` — 62 checks: every template's
-  exact descriptor, closed-key/type/negative-envelope and **fixed-field override**
-  rejections, closed nested getter/condition records, the full Phase Door matrix
-  (both axes pre-read, TL4+ known attribute → `unsupported_target_plan`, either
-  unknown input → `movement_variant_unknown`, overlap/no-match), the preflight
-  ordering (no dynamic reader before the preflight), live builder
-  shape/range/range-unknown, occupancy (empty/actor/unknown), bounded grid
-  annotation and action/getter drift negatives.
-- `tests/test_auto_combat_movement.lua` — the known Phase Door actor+grid rule
-  drives the real planner through the controller and asserts the **paused**
-  state with `unsupported_target_plan` and no native request.
-- `tests/test_effect_manifest.lua`, `tests/test_effect_manifest_drift.lua`,
-  `tests/test_runtime.lua` updated for the matrix/builder/occupancy model.
+- `tests/test_auto_combat_movement_factory.lua` — 86 checks: template defaults and
+  closed/fixed-field/negative-envelope rejections, discriminant-closed condition
+  and matrix/unsupported records, the full Phase Door matrix (both axes pre-read,
+  TL4+ known → `unsupported_target_plan`, either unknown → `movement_variant_unknown`),
+  preflight ordering, live builder geometry/conformance/range, occupancy
+  empty/actor/unknown, `Distance.grid` bounds for `position`/`relative`/scan
+  (cardinal+diagonal, min/max/outside under the native circular metric), range 0
+  as an empty domain, and action/getter/range drift negatives.
+- `tests/test_effect_manifest_drift.lua` — 46 checks, now including `def.range`
+  pins and a replaced-`range` identity rejection.
+- `tests/test_runtime.lua` — 186 checks, including a production-path regression
+  where a replaced transitive `combatTalentScale` is `adapter_source_drift` and is
+  never called.
 - Full Lua suite 41/41 green; Python 39/39; the three generator `--check` runs
   exit 0.
 - Native probes (source + `dist`) settle the task and assert final postconditions:
-  auto-combat probe 113/113 each (including `movement-talents:door-execute` for
-  the Phase Door no-prompt branch and `movement-factory:*` for the precise-grid
-  variant, the unknown-attribute fail-closed, the Dimensional Step empty/actor/
-  unknown occupancy cases, the Vault live-range `toward` selector and Vault
-  exact), full native acceptance 100/100 each. Raw output is under `tmp/s1/`.
+  auto-combat probe 114/114 each (including `movement-talents:door-execute` and
+  `movement-factory:*`: precise-grid, unknown-attribute, Dimensional Step
+  empty/actor/unknown, Vault live-range `toward`, Vault out-of-range rejection and
+  Vault exact), full native acceptance 100/100 each. Raw output is under `tmp/s1/`.

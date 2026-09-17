@@ -194,6 +194,35 @@ do
             end
         end
     end
+    -- Builder-backed movement entries pin their live `range` function so a
+    -- replacement is rejected before `GetTalentRange` dispatches through it.
+    for _,talent in ipairs({'T_RUSH','T_SKIRMISHER_CUNNING_ROLL','T_SKIRMISHER_VAULT',
+        'T_DIMENSIONAL_STEP'}) do
+        local pin=Manifest.SOURCES.talents[talent]
+        check(pin~=nil and type(pin.ranges)=='table' and type(pin.ranges.range)=='table'
+            and type(pin.ranges.range.line)=='number','movement range pinned for '..talent)
+    end
+end
+
+-- A replaced `def.range` is rejected by the shared identity checker.
+do
+    Drift.reset()
+    local function fnAt(path,line)
+        local lines={}
+        for i=1,line-1 do lines[i]='' end
+        lines[line]='return function(self,t) return 1 end'
+        return assert(loadstring(table.concat(lines,'\n'),'@'..path))()
+    end
+    local path='/data/t/range.lua'
+    local manifest={ENTRIES={T_R={kind='movement',conformance={builder=false},
+        source={action={path=path,line=2},ranges={range={path=path,line=3}}}}}}
+    local live={T_R={action=fnAt(path,2),range=fnAt(path,3)}}
+    check(Drift.identity(manifest,function(t) return live[t] end)==true,
+        'a pinned range identity passes')
+    local replaced={T_R={action=live.T_R.action,range=fnAt(path,5)}}
+    local bad,reason=Drift.identity(manifest,function(t) return replaced[t] end)
+    check(bad==nil and reason==Drift.REASON,'a replaced range fails closed')
+    Drift.reset()
 end
 
 print('Effect manifest drift: '..checks..' checks passed')

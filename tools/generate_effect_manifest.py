@@ -90,6 +90,14 @@ TALENT_GETTERS = {
     "T_PHASE_DOOR": ["getRange", "getRadius"],
 }
 
+# Movement talents whose `range` function the pinned target builder dispatches
+# through (`self:getTalentRange(t)` -> `t.range(self,t)`). Pinning the line lets
+# `EffectManifestDrift` reject a replaced `def.range` before the builder runs.
+TALENT_RANGES = [
+    "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL", "T_SKIRMISHER_VAULT",
+    "T_DIMENSIONAL_STEP",
+]
+
 # Engine / module semantics files the filter and footprint model is pinned to.
 # These are the exact Lua files whose bodies the guard's semantics depend on;
 # a mismatch disables the adapter rather than trusting stale metadata.
@@ -178,9 +186,13 @@ def generate(game_root: Path | None = None) -> str:
                 getter_line = _field_line(text, line, getter)
                 parts.append(f"{getter}={{path='/{relative}',line={getter_line}}}")
             getters = ",getters={" + ",".join(parts) + "}"
+        ranges = ''
+        if talent in TALENT_RANGES:
+            range_line = _field_line(text, line, 'range')
+            ranges = f",ranges={{range={{path='/{relative}',line={range_line}}}}}"
         lines.append(
             f"        {talent}={{files={{{{path='/{relative}',md5='{_md5(data)}'}}}},"
-            f"line={line}{builder}{action}{getters}}},")
+            f"line={line}{builder}{action}{getters}{ranges}}},")
     lines.append("    },")
     lines.append("}")
     return "\n".join(lines) + "\n"

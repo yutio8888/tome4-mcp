@@ -277,7 +277,7 @@ do
     local step=Manifest.entry('T_DIMENSIONAL_STEP').movement
     local function planWith(occupancy)
         return Planner.plan({action='use_talent',talent='T_DIMENSIONAL_STEP',
-            destination={selector='position',x=8,y=5,accept=ACCEPT}},
+            destination={selector='position',x=22,y=20,accept=ACCEPT}},
             provider({occupancy=function() return occupancy end,builder=function() return {shape='hit',range=8} end,
                 talentLevel=function() return 5 end}),step)
     end
@@ -307,6 +307,90 @@ do
     local ex=assert(Planner.planTalent({selector='position',x=5,y=5,accept=ACCEPT},p,nil,exact))
     check(ex.annotation.landing.kind=='deterministic',
         'an exact grid adapter keeps the deterministic landing annotation')
+end
+
+-- 8b. MAF-REV-03: the live range bounds position/relative/scan requests ------
+do
+    local saved_core=core
+    -- Reproduce the native circular metric in the headless fixture so the
+    -- diagonal (3,3) case is genuinely outside a range-3 domain.
+    core={fov={distance=function(ax,ay,bx,by)
+        return math.sqrt((ax-bx)^2+(ay-by)^2)
+    end}}
+    local p=provider()
+    local exact=assert(Factory.expand('grid_move_exact',{delivery='leap',traverses=false,
+        builder_shape='beam',landing_proof='p'}))
+    exact.range=3
+    -- position: cardinal minimum/maximum, then outside.
+    check(Planner.planTalent({selector='position',x=20,y=20,accept=ACCEPT},p,nil,exact)~=nil,
+        'position at the origin is in range')
+    check(Planner.planTalent({selector='position',x=23,y=20,accept=ACCEPT},p,nil,exact)~=nil,
+        'position at the cardinal maximum is in range')
+    local none,err=Planner.planTalent({selector='position',x=24,y=20,accept=ACCEPT},p,nil,exact)
+    check(none==nil and err.reason=='destination_out_of_range','position outside the cardinal range is rejected')
+    none,err=Planner.planTalent({selector='position',x=23,y=23,accept=ACCEPT},p,nil,exact)
+    check(none==nil and err.reason=='destination_out_of_range','position at a diagonal outside the circular range is rejected')
+    -- relative: cardinal in range and diagonal outside.
+    check(Planner.planTalent({selector='relative',dx=0,dy=3,accept=ACCEPT},p,nil,exact)~=nil,
+        'relative at the cardinal maximum is in range')
+    none,err=Planner.planTalent({selector='relative',dx=3,dy=3,accept=ACCEPT},p,nil,exact)
+    check(none==nil and err.reason=='destination_out_of_range','relative diagonal outside the circular range is rejected')
+    -- scan: `away` must not select the out-of-metric diagonal (it did before the
+    -- Distance.grid filter, because the square scan scored it best).
+    local selfAnchor=provider({anchor=function() return {x=20,y=20} end})
+    local away=assert(Planner.planTalent({selector='away',anchor='bound_target',accept=ACCEPT},
+        selfAnchor,nil,exact))
+    check(Distance.grid(20,20,away.x,away.y)<=3,'a scan candidate is inside the shared native metric')
+    check(not (away.x==23 and away.y==23),'the scan does not select an out-of-metric diagonal')
+    core=saved_core
+end
+
+-- 8c. MAF-REV-03: range 0 is an empty non-self target domain -----------------
+do
+    local p=provider()
+    local zero=assert(Factory.expand('grid_move_exact',{delivery='leap',traverses=false,
+        builder_shape='beam',landing_proof='p'}))
+    zero.range=0
+    local none,err=Planner.planTalent({selector='toward',anchor='bound_target',accept=ACCEPT},
+        p,nil,zero)
+    check(none==nil and err.reason=='no_acceptable_destination',
+        'range 0 has an empty non-self domain instead of a forced radius 1')
+end
+
+-- 8d. MAF-REV-02: the builder must expose a finite range ---------------------
+do
+    local movement=assert(Factory.expand('grid_move_exact',{delivery='leap',traverses=false,
+        builder_shape='beam',landing_proof='p'}))
+    local bad,err=Factory.resolveBuilder(movement,'T_X',
+        {builder=function() return {shape='beam'} end})
+    check(bad==nil and err.reason=='movement_derivation_unknown'
+        and err.dependency=='t.target.range','a builder without a finite range fails closed')
+end
+
+-- 8e. MAF-REV-05: discriminant-closed condition/matrix/unsupported records ----
+do
+    local function rejectWhen(when)
+        local m,err=Factory.matrix({{when=when,template='self_random_teleport',
+            params={radius=1,landing_proof='p'}}})
+        return m==nil and err.reason=='movement_adapter_invalid'
+            and type(err.detail)=='string' and err.detail:find('bad_variant_condition',1,true)~=nil
+    end
+    check(rejectWhen({kind='always',id='extraneous'}),'always rejects an attr id field')
+    check(rejectWhen({kind='talent_level',at_least=4,id='extraneous'}),'talent_level rejects an attr id field')
+    check(rejectWhen({kind='talent_level',at_least=4,truthy=true}),'talent_level rejects an attr truthy field')
+    check(rejectWhen({kind='attr',id='x',at_least=1}),'attr rejects a level bound field')
+    check(rejectWhen({kind='attr',id='x',below=1}),'attr rejects a level bound field (below)')
+    check(rejectWhen({kind='all',conditions={{kind='always'}},at_least=1}),'all rejects a scalar field')
+    check(rejectWhen({kind='all',conditions={{kind='always',id='x'}}}),'a nested child is validated too')
+    check(Factory.matrix({{when={kind='always'},template='self_random_teleport',
+        params={radius=1,landing_proof='p'}}})~=nil,'a valid closed condition is accepted')
+    local b,err=Factory.matrix({{when={kind='always'},template='self_random_teleport',
+        params={radius=1,landing_proof='p'},bogus=1}})
+    check(b==nil and err.detail=='unknown_branch_field','a matrix branch rejects an undeclared field')
+    local u,uerr=Factory.matrix({{when={kind='always'},unsupported={missing='x',reason='y',bogus=1}}})
+    check(u==nil and uerr.detail=='unknown_unsupported_field','an unsupported record rejects an undeclared field')
+    local r,rerr=Factory.matrix({{when={kind='always'},unsupported={missing='x',reason='y',requests={{'bogus'}}}}})
+    check(r==nil and rerr.detail=='bad_variant_request_kind','an unsupported request list is closed')
 end
 
 -- 9. Drift: action + getter identity pins fail closed ------------------------

@@ -749,6 +749,49 @@ do
         'a failed drift preflight disables the movement adapter before planning')
     check(getterCalls==0,'the pinned dynamic getter is not called before the preflight passes')
 end
+-- MAF-REV-02 transitive-helper regression: the pinned builder dispatches through
+-- a live `range` function and the engine scaling helpers. A replacement helper
+-- must be rejected (as adapter_source_drift) without being called.
+do
+    Runtime.reset(g);g:display()
+    local pl={schema='tome-auto-combat/v1',id='helper',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='nearest_hostile'},
+        rules={{id='vault',priority=1,when={always={}},
+            ['then']={action='use_talent',talent='T_SKIRMISHER_VAULT',
+                destination={selector='position',x=3,y=2,accept={visibility='any',
+                    passability='native',hazard='any',landing='allow_random'}}}}}}
+    p.x,p.y=2,2
+    p.getTalentLevel=function(self,def) return 5 end
+    local saved_defs=p.talents_def
+    local scale_calls=0
+    p.combatTalentScale=function(self,t,lo,hi) scale_calls=scale_calls+1; return lo end
+    p.getTalentRange=function(self,def)
+        if type(def.range)=='function' then return def.range(self,def) end
+        return def.range
+    end
+    local range_fn=assert(loadstring(
+        'return function(self,t) return math.floor(self:combatTalentScale(t,3,8)) end',
+        '@/data/talents/techniques/acrobatics.lua'))()
+    p.talents_def=p.talents_def or {}
+    p.talents_def.T_SKIRMISHER_VAULT={id='T_SKIRMISHER_VAULT',mode='activated',range=range_fn,
+        target=function(self,t) return {type='beam',range=self:getTalentRange(t)} end}
+    local host=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
+    local first,firstErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
+        destination={selector='position',x=3,y=2,accept={visibility='any',passability='native',
+            hazard='any',landing='allow_random'}}})
+    check(first and first.plan and scale_calls>0,
+        'the pinned builder dispatches through the live scaling helper')
+    local replacement_calls=0
+    p.combatTalentScale=function() replacement_calls=replacement_calls+1
+        error('replacement helper must not run') end
+    local second,secondErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
+        destination={selector='position',x=3,y=2,accept={visibility='any',passability='native',
+            hazard='any',landing='allow_random'}}})
+    check(second==nil and secondErr and secondErr.reason=='adapter_source_drift',
+        'a replaced transitive helper is adapter_source_drift')
+    check(replacement_calls==0,'the replaced transitive helper is rejected without being called')
+    p.talents_def=saved_defs
+end
 -- Round-5 correction: the guard reads the real target spec from the audited
 -- native builder and applies the engine filter defaults, not a catalog shorthand.
 do

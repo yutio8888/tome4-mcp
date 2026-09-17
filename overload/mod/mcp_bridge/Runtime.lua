@@ -28,6 +28,12 @@ local EffectManifest=require 'mod.auto_combat.EffectManifest'
 local ManifestDrift=require 'mod.auto_combat.EffectManifestDrift'
 local MovementPlanner=require 'mod.auto_combat.MovementPlanner'
 local buildAutoCombatHost
+-- First-seen identity baselines for the transitive helpers the movement builders
+-- dispatch through (getTalentRange, the talent `range` function, and the engine
+-- scaling helpers). A distinct object is rejected before the outer builder runs.
+-- `NativeCompatibility` adds the source/digest audit in production; this
+-- `rawequal` baseline is the headless-testable replacement check.
+local movementHelperBaselines={}
 local function sortedKeys(t)
     local out={}
     for key in pairs(t) do out[#out+1]=key end
@@ -455,6 +461,7 @@ end
 function M.reset(g)
     local previous=state
     state=nil
+    movementHelperBaselines={}
     if previous and previous.transport then previous.transport:close() end
     Observer.reset()
     Journal.reset()
@@ -955,21 +962,71 @@ local function autoCombatReads(s,policy,opts)
         if not ok then return nil,false end
         return value,true
     end
+    -- MAF-REV-02: the transitive helper closure used by the admitted builders
+    -- and dynamic getters. `getTalentRange` dispatches through each talent's
+    -- live `range` function, which in turn calls the engine scaling helpers.
+    -- Each is identity-checked (first-seen `rawequal`) before the outer closure
+    -- runs; `NativeCompatibility` adds the source/digest audit in production.
+    local MOVEMENT_HELPERS={
+        getTalentRange={path='/engine/interface/ActorTalents.lua',
+            declaration='function _M:getTalentRange',source='actor_talents'},
+        combatTalentScale={path='/mod/class/interface/Combat.lua',
+            declaration='function _M:combatTalentScale',source='combat'},
+        combatLimit={path='/mod/class/interface/Combat.lua',
+            declaration='function _M:combatLimit',source='combat'},
+        combatTalentSpellDamage={path='/mod/class/interface/Combat.lua',
+            declaration='function _M:combatTalentSpellDamage',source='combat'},
+        combatTalentLimit={path='/mod/class/interface/Combat.lua',
+            declaration='function _M:combatTalentLimit',source='combat'},
+    }
+    local function verifyMovementHelpers()
+        local p=g.player
+        if type(p)~='table' then return nil,'actor_unavailable' end
+        for name,spec in pairs(MOVEMENT_HELPERS) do
+            local fn=p[name]
+            if type(fn)=='function' then
+                local baseline=movementHelperBaselines[name]
+                if baseline==nil then
+                    movementHelperBaselines[name]=fn
+                elseif not rawequal(baseline,fn) then
+                    return nil,'movement_helper_replaced:'..name
+                end
+                local id='movement.helper.'..name
+                if not Compat.hasDependency(id) then
+                    local digest=EffectManifest.SOURCES.engine and spec.source
+                        and EffectManifest.SOURCES.engine[spec.source]
+                        and EffectManifest.SOURCES.engine[spec.source].md5
+                    Compat.registerDependency(id,'talent_query',fn,spec.path,
+                        'movement derivation helper',digest,spec.declaration)
+                end
+                local verified,reason=Compat.dependency(id,fn)
+                if type(verified)~='function' and not (opts and type(opts.drift)=='function') then
+                    return nil,reason or 'movement_helper_unverified:'..name
+                end
+            end
+        end
+        return true
+    end
     -- Pinned dynamic envelope getter (`def.getRange`/`def.getRadius`). The
-    -- `manifestDrift` identity check has already verified the exact object.
+    -- `manifestDrift` identity check has already verified the exact object, and
+    -- `verifyMovementHelpers` checks the transitive scaling closure first.
     local function auditedTalentGetter(talent,name)
+        local ok,reason=verifyMovementHelpers()
+        if not ok then return nil,reason end
         local p=g.player
         local def=type(p)=='table' and type(p.talents_def)=='table' and p.talents_def[talent] or nil
         if type(def)~='table' then return nil end
         local getter=def[name]
         if type(getter)~='function' then return nil end
-        local ok,value=pcall(getter,p,def)
-        if not ok or type(value)~='number' or value~=value then return nil end
+        local called,value=pcall(getter,p,def)
+        if not called or type(value)~='number' or value~=value then return nil end
         return value
     end
     -- Pinned target builder geometry. Only an allowlisted subset is copied; the
     -- builder never supplies actor/grid semantics or prompt order.
     local function auditedTargetGeometry(talent)
+        local ok,reason=verifyMovementHelpers()
+        if not ok then return nil,reason end
         local p=g.player
         local def=type(p)=='table' and type(p.talents_def)=='table' and p.talents_def[talent] or nil
         if type(def)~='table' then return nil,'definition_missing' end
@@ -977,8 +1034,8 @@ local function autoCombatReads(s,policy,opts)
         local typ
         if type(builder)=='table' then typ=builder
         elseif type(builder)=='function' then
-            local ok,value=pcall(builder,p,def)
-            if not ok or type(value)~='table' then return nil,'builder_failed' end
+            local called,value=pcall(builder,p,def)
+            if not called or type(value)~='table' then return nil,'builder_failed' end
             typ=value
         else
             return nil,'builder_missing'

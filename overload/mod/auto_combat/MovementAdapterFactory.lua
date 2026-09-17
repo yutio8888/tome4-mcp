@@ -53,6 +53,13 @@ M.CENTERS={self=true,actor=true,requested_grid=true}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 
+-- A reader may report a replaced transitive helper. That is source drift, not a
+-- mere missing value, so it must be surfaced as `adapter_source_drift`.
+local function isDriftReason(why)
+    return type(why)=='string' and (why:find('replaced',1,true)~=nil
+        or why:find('drift',1,true)~=nil)
+end
+
 local function copyArray(src)
     local out={}
     for i=1,#src do out[i]=src[i] end
@@ -93,14 +100,24 @@ local function checkEnum(value,set)
     return type(value)=='string' and set[value]==true
 end
 
--- Closed condition record: only the keys this condition kind uses are allowed.
-local WHEN_KEYS={kind=true,at_least=true,below=true,id=true,truthy=true,conditions=true}
+-- Discriminant-closed condition records: each kind allows only the fields it
+-- actually consumes. A field belonging to another kind is rejected rather than
+-- silently ignored.
+local WHEN_KIND_KEYS={
+    always={kind=true},
+    all={kind=true,conditions=true},
+    any={kind=true,conditions=true},
+    talent_level={kind=true,at_least=true,below=true},
+    attr={kind=true,id=true,truthy=true},
+}
 local function validateWhen(when,depth)
     depth=depth or 0
     if type(when)~='table' or type(when.kind)~='string' then return false,'bad_condition' end
     if depth>4 then return false,'condition_too_deep' end
+    local allowed=WHEN_KIND_KEYS[when.kind]
+    if not allowed then return false,'unknown_condition_kind' end
     for key in pairs(when) do
-        if not WHEN_KEYS[key] then return false,'unknown_condition_key' end
+        if not allowed[key] then return false,'invalid_condition_field' end
     end
     if when.kind=='always' then
         return true
@@ -292,6 +309,11 @@ function M.matrix(branches,axes)
         if type(branch)~='table' or type(branch.when)~='table' then
             return nil,{reason=M.REASON_INVALID,detail='bad_variant_when',index=index}
         end
+        for key in pairs(branch) do
+            if key~='when' and key~='template' and key~='params' and key~='unsupported' then
+                return nil,{reason=M.REASON_INVALID,detail='unknown_branch_field',index=index,key=tostring(key)}
+            end
+        end
         local ok,why=validateWhen(branch.when)
         if not ok then
             return nil,{reason=M.REASON_INVALID,detail='bad_variant_condition:'..tostring(why),index=index}
@@ -309,8 +331,30 @@ function M.matrix(branches,axes)
                 or type(unsupported.reason)~='string' then
                 return nil,{reason=M.REASON_INVALID,detail='bad_variant_unsupported',index=index}
             end
+            for key in pairs(unsupported) do
+                if key~='scope' and key~='missing' and key~='reason'
+                    and key~='typed_reason' and key~='requests' then
+                    return nil,{reason=M.REASON_INVALID,detail='unknown_unsupported_field',
+                        index=index,key=tostring(key)}
+                end
+            end
             if unsupported.typed_reason~=nil and type(unsupported.typed_reason)~='string' then
                 return nil,{reason=M.REASON_INVALID,detail='bad_variant_typed_reason',index=index}
+            end
+            if unsupported.requests~=nil then
+                if type(unsupported.requests)~='table' then
+                    return nil,{reason=M.REASON_INVALID,detail='bad_variant_requests',index=index}
+                end
+                for _,requests in ipairs(unsupported.requests) do
+                    if type(requests)~='table' or #requests==0 then
+                        return nil,{reason=M.REASON_INVALID,detail='bad_variant_requests',index=index}
+                    end
+                    for _,request in ipairs(requests) do
+                        if not M.TARGET_REQUESTS[request] then
+                            return nil,{reason=M.REASON_INVALID,detail='bad_variant_request_kind',index=index}
+                        end
+                    end
+                end
             end
             variant.unsupported={scope=unsupported.scope or 'any',
                 missing=unsupported.missing,reason=unsupported.reason,
@@ -438,9 +482,12 @@ function M.resolveBounds(movement,talent,reads)
             if type(reads.talentGetter)~='function' then
                 return nil,{reason=M.REASON_DERIVATION_UNKNOWN,dependency=value.getter}
             end
-            local ok,resolved=pcall(reads.talentGetter,talent,value.getter)
+            local ok,resolved,why=pcall(reads.talentGetter,talent,value.getter)
             if not ok or not finite(resolved) then
-                return nil,{reason=M.REASON_DERIVATION_UNKNOWN,dependency=value.getter}
+                if isDriftReason(why) then
+                    return nil,{reason='adapter_source_drift',detail=why,getter=value.getter}
+                end
+                return nil,{reason=M.REASON_DERIVATION_UNKNOWN,dependency=value.getter,detail=why}
             end
             if value.min~=nil and resolved<value.min then resolved=value.min end
             if value.max~=nil and resolved>value.max then resolved=value.max end
@@ -466,14 +513,22 @@ function M.resolveBuilder(movement,talent,reads)
     end
     local ok,geometry,why=pcall(reads.builder,talent)
     if not ok or type(geometry)~='table' then
+        if isDriftReason(why) then
+            return nil,{reason='adapter_source_drift',detail=why}
+        end
         return nil,{reason=M.REASON_DERIVATION_UNKNOWN,dependency='t.target',detail=why}
     end
     if geometry.shape~=movement.builder_shape then
         return nil,{reason='adapter_source_drift',detail='builder_shape',
             expected=movement.builder_shape,got=geometry.shape}
     end
+    -- A builder-backed grid descriptor must expose a finite range: without it the
+    -- planner cannot bound the target domain.
+    if not finite(geometry.range) or geometry.range<0 then
+        return nil,{reason=M.REASON_DERIVATION_UNKNOWN,dependency='t.target.range'}
+    end
     local out=shallowCopy(movement)
-    if finite(geometry.range) and geometry.range>=0 then out.range=geometry.range end
+    out.range=geometry.range
     out.builder_geometry={shape=geometry.shape,range=geometry.range,radius=geometry.radius}
     return out
 end

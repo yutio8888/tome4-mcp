@@ -232,6 +232,13 @@ function M.planTalent(request,provider,bound,movement,origin)
         local x,y
         if request.selector=='position' then x,y=request.x,request.y
         else x,y=origin.x+request.dx,origin.y+request.dy end
+        -- MAF-REV-03: the live native range bounds the request domain. A forced
+        -- coordinate outside it would be rejected by `Actions` and fall back to
+        -- the interactive prompt, so the planner rejects it here.
+        if finite(movement.range) and Distance.grid(origin.x,origin.y,x,y)>movement.range then
+            return nil,{reason='destination_out_of_range',x=x,y=y,range=movement.range,
+                distance=Distance.grid(origin.x,origin.y,x,y)}
+        end
         -- An occupancy-dependent adapter (Dimensional Step TL5) must resolve the
         -- mover from player-known information at the requested grid before any
         -- native request is built. A known actor is the typed S4 gap; unknown
@@ -282,7 +289,10 @@ function M.planTalent(request,provider,bound,movement,origin)
         return nil,{reason='movement_range_unknown',selector=request.selector}
     end
     local radius=math.floor(movement.range)
-    if radius<1 then radius=1 end
+    -- MAF-REV-03: range 0 is an empty non-self target domain, not a forced radius
+    -- of one. Candidate enumeration also filters by the single audited native
+    -- distance metric, not the square [-r,+r] bounding box.
+    if radius<0 then radius=0 end
     if radius>M.SCAN_RADIUS then radius=M.SCAN_RADIUS end
     local best
     local occupancy_uncertain=false
@@ -291,10 +301,11 @@ function M.planTalent(request,provider,bound,movement,origin)
         for dx=-radius,radius do
             if not (dx==0 and dy==0) then
                 local x,y=origin.x+dx,origin.y+dy
-                local candidate_ok=true
+                local candidate_ok=Distance.grid(origin.x,origin.y,x,y)<=radius
                 if movement.occupancy_dependent then
                     local occ=provider.occupancy and provider.occupancy(x,y) or nil
-                    if occ=='empty' then candidate_ok=true
+                    if occ=='empty' then
+                        -- Keep the range filter already applied above.
                     elseif occ=='actor' then candidate_ok=false; occupancy_actor=true
                     else candidate_ok=false; occupancy_uncertain=true end
                 end
