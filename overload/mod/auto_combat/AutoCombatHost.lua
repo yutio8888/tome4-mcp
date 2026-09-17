@@ -44,6 +44,9 @@ function M.new(opts)
     host.resource_value=opts.resource_value
     -- Pre-execution safety guard (AC-03/D1/D2). Only the live host provides it.
     host.guard=opts.guard
+    -- Movement/reposition planner (MOV-1). Only the live host provides it; when
+    -- missing, the controller denies a movement rule instead of guessing.
+    host.plan=opts.plan
     -- Optional {revision, level_instance_id} metadata for dry-run diagnostics.
     host.snapshot_meta=opts.snapshot_meta
     host.snapshot=function(selector) return Snapshot.build(opts,opts.policy,selector) end

@@ -75,24 +75,91 @@ do
         'log entries carry replay metadata when supplied (design 10)')
     local empty=PolicyLog.tail(log,0)
     check(#empty==0,'an empty tail is empty')
+    -- MFT-REV-07: the stored entry carries the movement annotation and the
+    -- permitted-risk detail (bounded), so tome.policy_log/replay can
+    -- reconstruct them.
+    PolicyLog.add(log,{kind='acted',rule='move-risk',movement={landing={kind='deterministic',x=4,y=4},
+        visible=true,known_passable=true,known_hazard='unknown'},
+        risk={measurement=40,threshold=50,phase='instant',provenance={selffire='explicit'}}})
+    local carried=PolicyLog.tail(log,1)[1]
+    check(carried.movement and carried.movement.landing.kind=='deterministic'
+        and carried.movement.known_passable==true,
+        'PolicyLog stores the accepted movement annotation')
+    check(carried.risk and carried.risk.measurement==40 and carried.risk.threshold==50
+        and carried.risk.provenance and carried.risk.provenance.selffire=='explicit',
+        'PolicyLog stores the permitted-risk detail (MFT-REV-07)')
+    -- A hostile deep/wide table cannot grow the entry unbounded.
+    local deep={}
+    local cursor=deep
+    for _=1,12 do cursor.next={};cursor=cursor.next end
+    PolicyLog.add(log,{kind='acted',rule='deep',movement=deep})
+    local boundedEntry=PolicyLog.tail(log,1)[1]
+    local depth,node=0,boundedEntry.movement
+    while type(node)=='table' and node.next do depth=depth+1;node=node.next end
+    check(depth<=4,'the movement detail projection is depth-bounded')
 end
 
 -- P1b native-activity action adapters --------------------------------------
 do
     check(Catalog.actionSupported('rest') and Catalog.actionSupported('auto_explore'),
         'the catalogue knows the P1b activity actions')
-    check(not Catalog.actionSupported('change_level'),'change_level was removed from the auto-combat actions')
+    check(Catalog.actionSupported('change_level') and Catalog.actionSupported('move'),
+        'v1.6 re-admits change_level and adds the move action to the catalogue')
     check(not Catalog.actionSupported('teleport'),'an unknown action is not supported by the catalogue')
     local camp=policy({id='camp',priority=1,when={always={}},['then']={action='rest',max_turns=5}})
     check(Catalog.verify(camp),'a rest rule is semantically compatible')
     local explore=policy({id='explore',priority=1,when={always={}},['then']={action='auto_explore'}})
     check(Catalog.verify(explore),'an auto_explore rule is semantically compatible')
     local descend=policy({id='descend',priority=1,when={always={}},['then']={action='change_level'}})
-    local ok,errors=Catalog.verify(descend)
-    check(ok==nil and errors[1].code=='unsupported_action',
-        'the catalogue no longer accepts change_level')
+    check(Catalog.verify(descend),'the catalogue re-admits change_level (D5 supersession, MOV-5)')
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local step=policy({id='step',priority=1,when={always={}},['then']={action='move',
+        target='nearest_hostile',destination={selector='away',anchor='bound_target',accept=accept}}})
+    check(Catalog.verify(step),'the catalogue accepts a movement rule')
+    local door=policy({id='door',priority=1,when={always={}},['then']={action='use_talent',
+        talent='T_PHASE_DOOR',destination={selector='native_random',accept=accept}}})
+    check(Catalog.verify(door),'a no-target self teleport needs no hostile selector (design 3.2)')
+    local rush=policy({id='rush',priority=1,when={always={}},['then']={action='use_talent',
+        talent='T_RUSH',target='nearest_hostile',
+        destination={selector='native_landing',anchor='bound_target',accept=accept}}})
+    check(Catalog.verify(rush),'an actor-anchored Rush rule is semantically compatible')
+    -- MFT-REV-03: an actor target_plan step selector must agree with the action
+    -- binding; a contradiction is rejected instead of silently resolved.
+    local mismatch=policy({id='rush',priority=1,when={always={}},['then']={action='use_talent',
+        talent='T_RUSH',target='nearest_hostile',
+        target_plan={{request='actor',selector='self'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept}}})
+    local mismatchOk,mismatchErrors=Catalog.verify(mismatch)
+    check(mismatchOk==nil,'a contradictory actor target_plan selector is rejected')
+    local mismatchCode=false
+    for _,error in ipairs(mismatchErrors or {}) do
+        if error.code=='target_plan_selector_mismatch' then mismatchCode=true end
+    end
+    check(mismatchCode,'the contradiction carries target_plan_selector_mismatch')
+    -- MFT-REV-03 (Option A): the actor step selector is the effective binding when
+    -- `then.target` and `targeting.default` are both absent, and it is checked
+    -- against the talent (so an omitted 'self' on a hostile talent is rejected).
+    local function noDefault(rule)
+        local p=policy(rule)
+        p.targeting=nil
+        return p
+    end
+    local omitted=noDefault({id='rush',priority=1,when={always={}},['then']={action='use_talent',
+        talent='T_RUSH',target_plan={{request='actor',selector='nearest_hostile'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept}}})
+    check(Catalog.verify(omitted),'an actor step selector binds when no action selector exists (MFT-REV-03)')
+    local omittedSelf=noDefault({id='rush',priority=1,when={always={}},['then']={action='use_talent',
+        talent='T_RUSH',target_plan={{request='actor',selector='self'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept}}})
+    local omittedOk,omittedErrors=Catalog.verify(omittedSelf)
+    check(omittedOk==nil,'the omitted action selector uses the declared actor step selector')
+    local omittedCode=false
+    for _,error in ipairs(omittedErrors or {}) do
+        if error.code=='selector_not_hostile' then omittedCode=true end
+    end
+    check(omittedCode,'an omitted self step selector is rejected for a hostile talent')
     local summary=Catalog.summary()
-    check(#summary.actions>=5 and summary.adapter_version==Catalog.VERSION,
+    check(#summary.actions>=6 and summary.adapter_version==Catalog.VERSION,
         'the capability summary lists the action adapters and the adapter version')
     check(not summary.self_preservation,'emergency is not a catalogue talent category (D1)')
 end

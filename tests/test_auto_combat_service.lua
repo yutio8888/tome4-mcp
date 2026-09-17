@@ -387,6 +387,199 @@ do
 end
 
 do
+    -- MFT-REV-05: dry-run runs the same deny/fall-through loop as live control,
+    -- so it reports the action live execution would next submit.
+    local host={
+        phase=function() return 'ready' end,
+        snapshot_meta=function() return {revision=1,level_instance_id='level-1'} end,
+        snapshot=function(selector)
+            return {hp_pct=80,enemy_count=1,binding_selector=selector,bound_target='e1'}
+        end,
+        plan=function(attempt)
+            if attempt.talent=='T_PHASE_DOOR' then return nil,{reason='landing'} end
+            return {plan={kind='none',annotation={}}}
+        end,
+    }
+    local accept={visibility='any',passability='native',hazard='any',landing='deterministic'}
+    local p={schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=2},
+        safety={min_hp_pct=35},targeting={default='nearest_hostile'},
+        rules={
+            {id='tp',priority=10,when={always={}},['then']={action='use_talent',
+                talent='T_PHASE_DOOR',target='self',
+                destination={selector='native_random',accept=accept}}},
+            {id='fallback',priority=1,when={always={}},['then']={action='wait'}},
+        }}
+    local svc=Service.new{dry_run_host_factory=function() return host end}
+    local dry=Service.handle(svc,'dry_run',{policy=p})
+    check(dry.decision=='act' and dry.rule=='fallback' and dry.action=='wait',
+        'dry_run falls through a planner-rejected rule to the next action')
+    local rejected=0
+    for _,entry in ipairs(dry.rejected or {}) do
+        if entry.rule=='tp' and entry.reason=='landing' then rejected=rejected+1 end
+    end
+    check(rejected==1,'dry_run reports the rejected movement rule and its acceptance reason')
+end
+
+do
+    -- MFT-REV-02: dry-run invokes the guard and reports the measured risk.
+    local host={
+        phase=function() return 'ready' end,
+        snapshot_meta=function() return {revision=1,level_instance_id='level-1'} end,
+        snapshot=function(selector)
+            return {hp_pct=80,enemy_count=1,binding_selector=selector,bound_target='e1'}
+        end,
+        guard=function()
+            return {action='reject',reason='selffire_risk',
+                detail={measurement=90,threshold=0,risk='friendly',phase='instant'}}
+        end,
+    }
+    local p={schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=2},
+        safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='nearest_hostile'},
+        rules={{id='beam',priority=10,when={always={}},
+            ['then']={action='use_talent',talent='T_MOONLIGHT_RAY',target='nearest_hostile'}}}}
+    local dry=Service.handle(Service.new{dry_run_host_factory=function() return host end},
+        'dry_run',{policy=p})
+    local risk=nil
+    for _,entry in ipairs(dry.rejected or {}) do
+        if entry.rule=='beam' then risk=entry.risk end
+    end
+    check(risk and risk.measurement==90 and risk.threshold==0,
+        'dry_run surfaces the guard risk measurement and threshold')
+end
+
+do
+    -- MFT-REV-05(a): the instant cap counts only successful instants, not
+    -- rejected candidates. Dry-run must not charge an instant slot for a
+    -- guard-rejected rule before the permitted one.
+    local host={
+        phase=function() return 'ready' end,
+        snapshot_meta=function() return {revision=1,level_instance_id='level-1'} end,
+        snapshot=function(selector)
+            return {hp_pct=80,enemy_count=1,binding_selector=selector,bound_target='e1'}
+        end,
+        guard=function(attempt)
+            if attempt.rule=='first' then
+                return {action='reject',reason='selffire_risk',
+                    detail={measurement=100,threshold=0}}
+            end
+            return nil
+        end,
+    }
+    local p={schema='tome-auto-combat/v1',id='p1',name='p1',
+        limits={max_actions_per_tick=2,max_instant_per_tick=1},
+        safety={min_hp_pct=35},targeting={default='nearest_hostile'},
+        rules={
+            {id='first',priority=10,when={always={}},['then']={action='use_talent',
+                talent='T_MOONLIGHT_RAY',target='nearest_hostile'}},
+            {id='second',priority=5,when={always={}},['then']={action='use_talent',
+                talent='T_SEARING_LIGHT',target='nearest_hostile'}},
+        }}
+    local dry=Service.handle(Service.new{dry_run_host_factory=function() return host end},
+        'dry_run',{policy=p})
+    check(dry.decision=='act' and dry.rule=='second',
+        'dry_run does not charge an instant slot for a guard-rejected candidate (MFT-REV-05a)')
+end
+
+do
+    -- MFT-REV-05(b): a multi-prompt target plan pauses in dry-run, exactly as
+    -- live control does, instead of deny+fall-through.
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local host={
+        phase=function() return 'ready' end,
+        snapshot_meta=function() return {revision=1,level_instance_id='level-1'} end,
+        snapshot=function(selector)
+            return {hp_pct=80,enemy_count=1,binding_selector=selector,bound_target='e1'}
+        end,
+        plan=function() return nil,{reason='unsupported_target_plan',count=2} end,
+    }
+    local p={schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=2},
+        safety={min_hp_pct=35},targeting={default='nearest_hostile'},
+        rules={{id='kite',priority=1,when={always={}},['then']={action='move',
+            target='nearest_hostile',destination={selector='away',anchor='bound_target',
+                accept=accept}}}}}
+    local dry=Service.handle(Service.new{dry_run_host_factory=function() return host end},
+        'dry_run',{policy=p})
+    check(dry.decision=='pause' and dry.reason=='unsupported_target_plan',
+        'dry_run pauses on a multi-prompt plan like live (MFT-REV-05b)')
+end
+
+do
+    -- MFT-REV-03 (Option A): dry-run binds an actor step selector when the
+    -- policy declares no action/default selector.
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local host={
+        phase=function() return 'ready' end,
+        snapshot_meta=function() return {revision=1,level_instance_id='level-1'} end,
+        snapshot=function(selector)
+            local bound='e1'
+            if selector=='self' or selector==nil then bound=nil end
+            return {hp_pct=80,enemy_count=1,binding_selector=selector,bound_target=bound}
+        end,
+        plan=function() return {plan={kind='actor',annotation={landing={kind='bounded'}}}} end,
+    }
+    local p={schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35},
+        rules={{id='rush',priority=1,when={always={}},['then']={action='use_talent',talent='T_RUSH',
+            target_plan={{request='actor',selector='nearest_hostile'}},
+            destination={selector='native_landing',anchor='bound_target',accept=accept}}}}}
+    local dry=Service.handle(Service.new{dry_run_host_factory=function() return host end},
+        'dry_run',{policy=p})
+    check(dry.decision=='act' and dry.rule=='rush' and dry.binding.selector=='nearest_hostile'
+        and dry.bound_target=='e1',
+        'dry_run binds the declared actor step selector with no action selector (MFT-REV-03)')
+end
+
+do
+    -- MFT-REV-07: the production controller -> PolicyLog -> service log/replay
+    -- path keeps the accepted movement annotation and permitted-risk detail.
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local host={
+        phase=function() return 'ready' end,
+        opportunity_id=function() return 1 end,
+        snapshot=function(selector)
+            return {hp_pct=80,enemy_count=1,binding_selector=selector,bound_target='e1'}
+        end,
+        enemy_ids=function() return {} end,
+        notify=function() end,
+        plan=function() return {plan={kind='step',direction=4,
+            annotation={landing={kind='deterministic',x=3,y=2},visible=true,
+                known_passable=true,known_hazard='unknown'}}} end,
+        guard=function() return {action='permit',detail={measurement=40,threshold=50,
+            phase='instant',provenance={selffire='explicit'}}} end,
+        request=function() return {status='ok',energy_spent=1000} end,
+    }
+    local p={schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35},targeting={default='nearest_hostile'},
+        rules={{id='kite',priority=1,when={always={}},['then']={action='move',
+            target='nearest_hostile',destination={selector='away',anchor='bound_target',
+                accept=accept}}}}}
+    local svc=Service.new{host_factory=function() return host end}
+    local set=Service.handle(svc,'set_draft',{policy=p})
+    check(set.ok,'the move policy is accepted')
+    Service.handle(svc,'approve',{})
+    Service.handle(svc,'activate',{})
+    Service.handle(svc,'start',{})
+    local step=Service.step(svc)
+    check(step.ok and step.step and step.step.action=='acted','the production controller acts')
+    local log=Service.handle(svc,'log',{limit=8})
+    local movement,risk
+    for _,event in ipairs(log.events or {}) do
+        if event.kind=='acted' then movement=event.movement;risk=event.risk end
+    end
+    check(movement and movement.landing and movement.landing.kind=='deterministic',
+        'tome.policy_log carries the movement annotation (MFT-REV-07)')
+    check(risk and risk.measurement==40 and risk.threshold==50,
+        'tome.policy_log carries the permitted-risk detail (MFT-REV-07)')
+    local replay=Service.handle(svc,'replay',{limit=8})
+    local replayRisk
+    for _,event in ipairs(replay.entries or {}) do
+        if event.kind=='acted' then replayRisk=event.risk end
+    end
+    check(replayRisk and replayRisk.measurement==40,
+        'tome.policy replay carries the permitted-risk detail (MFT-REV-07)')
+end
+
+do
     -- A native-activity rule is previewed without executing it.
     local camp={schema='tome-auto-combat/v1',id='p1',name='p1',limits={max_actions_per_tick=1},
         safety={min_hp_pct=35},targeting={default='nearest_hostile'},

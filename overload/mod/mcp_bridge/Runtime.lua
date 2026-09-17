@@ -25,6 +25,7 @@ local AdapterCatalog=require 'mod.auto_combat.AutoCombatCatalog'
 local Guard=require 'mod.auto_combat.AutoCombatGuard'
 local EffectManifest=require 'mod.auto_combat.EffectManifest'
 local ManifestDrift=require 'mod.auto_combat.EffectManifestDrift'
+local MovementPlanner=require 'mod.auto_combat.MovementPlanner'
 local buildAutoCombatHost
 local function sortedKeys(t)
     local out={}
@@ -34,6 +35,9 @@ local function sortedKeys(t)
 end
 local AUTO_PREDICATES=sortedKeys(PolicySchema.PREDICATES)
 local AUTO_SELECTORS=sortedKeys(PolicySchema.SELECTORS)
+local AUTO_DESTINATION_SELECTORS=sortedKeys(PolicySchema.DESTINATION_SELECTORS)
+local AUTO_NO_ENEMY_MODES=sortedKeys(PolicySchema.NO_ENEMY_MODES)
+local AUTO_LOW_HP_MODES=sortedKeys(PolicySchema.LOW_HP_MODES)
 local AUTO_COMPUTED_FIELDS=sortedKeys(PolicySchema.COMPUTED_FIELDS)
 local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304,MAX_RECENT_SNAPSHOTS=16,SNAPSHOT_BYTE_BUDGET=4194304}
 local state, serial
@@ -986,6 +990,94 @@ local function autoCombatReads(s,policy)
             end
             return out
         end,
+        -- Movement/reposition planner provider (MOV-1/MOV-3). Every fact is
+        -- player-known: current FOV for `visible`, the native `remembers`/`seens`
+        -- map knowledge for `remembered`, and the audited `Details.terrain`
+        -- block status for `known_passable`. Hidden occupancy is never inspected;
+        -- native collision is final authority and unknown stays unknown.
+        plan=function(attempt)
+            local entry=attempt.talent and EffectManifest.entry(attempt.talent) or nil
+            local movement=entry and entry.movement or nil
+            local map=g.level and g.level.map
+            local player=g.player
+            -- Effective talent level for a movement-adapter variant check. A
+            -- missing/overridden getter stays 'unknown' so no variant is
+            -- assumed; native `getTalentLevel` is an audited dynamic getter.
+            local function plannerTalentLevel(talent)
+                if type(player)~='table' or type(player.getTalentLevel)~='function' then return 'unknown' end
+                local def=type(player.talents_def)=='table' and player.talents_def[talent] or nil
+                if type(def)~='table' then return 'unknown' end
+                local ok,value=pcall(player.getTalentLevel,player,def)
+                if not ok or type(value)~='number' or value~=value then return 'unknown' end
+                return value
+            end
+            local provider={
+                origin=function()
+                    if player and Details.finite(player.x) and Details.finite(player.y) then
+                        return {x=player.x,y=player.y}
+                    end
+                end,
+                anchor=function(name,bound_id)
+                    if name=='self' then
+                        if player and Details.finite(player.x) and Details.finite(player.y) then
+                            return {x=player.x,y=player.y}
+                        end
+                        return nil
+                    end
+                    if name=='bound_target' then
+                        if not bound_id then return nil end
+                        local target=Observer.resolve(g,meta(s),bound_id)
+                        if target and Details.finite(target.x) and Details.finite(target.y) then
+                            return {x=target.x,y=target.y}
+                        end
+                    end
+                    return nil
+                end,
+                talentLevel=plannerTalentLevel,
+                knowledge=function(x,y)
+                    if not map or not Details.finite(x) or not Details.finite(y)
+                        or not Details.finite(map.w) or not Details.finite(map.h) then
+                        return {in_bounds=false}
+                    end
+                    if x<0 or y<0 or x>=map.w or y>=map.h then return {in_bounds=false} end
+                    local index=x+y*map.w
+                    local remembered=(map.remembers and map.remembers[index]) and true or false
+                    local seen=(map.seens and map.seens[index]) and true or false
+                    local visible=Observer.terrainVisible(g,player,map,x,y)
+                    local known=remembered or seen or visible
+                    local hazard='unknown'
+                    local passable='unknown'
+                    if known and type(map.map)=='table' then
+                        local cell=map.map[index]
+                        if type(cell)=='table' then
+                            local terrain=cell[map.TERRAIN or 1]
+                            local state=type(terrain)=='table' and Details.terrain(terrain,player) or nil
+                            if state then
+                                if state.blocked==true then passable=false
+                                elseif state.blocked==false then passable=true end
+                            end
+                            local trap=cell[map.TRAP or 4]
+                            if type(trap)=='table' then
+                                -- Native Trap:knownBy: `all_know or known_by[actor]`.
+                                local knownTrap=trap.all_know==true
+                                if not knownTrap and type(trap.known_by)=='table' then
+                                    knownTrap=trap.known_by[player] and true or false
+                                end
+                                if knownTrap then hazard=true end
+                            end
+                        end
+                    end
+                    return {in_bounds=true,visible=visible,remembered=(remembered or seen),
+                        passable=passable,hazard=hazard}
+                end,
+            }
+            local planned,err=MovementPlanner.plan({action=attempt.action,talent=attempt.talent,
+                destination=attempt.destination,target_plan=attempt.target_plan,
+                direction=attempt.direction,target=attempt.target,
+                bound_target=attempt.bound_target},provider,movement)
+            if not planned then return nil,err end
+            return {plan=planned}
+        end,
         notify=function() end,
         resources=function()
             local p=g.player
@@ -1014,9 +1106,25 @@ end
 function M.mapAutoCombatOutcome(result,action,noEnergy)
     if type(result)~='table' then return {status='error',code='no_result',energy_spent=false} end
     local spent=(Details.finite(result.energy_spent) and result.energy_spent>0) or false
-    if result.uncertain then return {status='uncertain',code=result.code,energy_spent=spent} end
+    -- MFT-REV-06: scene-change evidence is independent of the success status.
+    -- An uncertain exception may still have started/completed a level change;
+    -- carry `level_changed` so the controller resets and requires a restart.
+    local function scene(mapped)
+        if result.level_changed then mapped.level_changed=true end
+        if result.pending then mapped.pending=true end
+        return mapped
+    end
+    if result.uncertain then
+        return scene({status='uncertain',code=result.code,energy_spent=spent})
+    end
     if result.code=='native_pending' then
-        return {status='native_pending',code='native_pending',energy_spent=spent}
+        return scene({status='native_pending',code='native_pending',energy_spent=spent})
+    end
+    -- A pending scene confirmation (`change_level_pending`) opened a native
+    -- dialog; it is not a completed transition and must hand the interaction
+    -- back rather than be reported as a successful action.
+    if result.code=='change_level_pending' then
+        return scene({status='rejected',code='change_level_pending',energy_spent=spent})
     end
     if result.ok then
         local instant=false
@@ -1025,9 +1133,9 @@ function M.mapAutoCombatOutcome(result,action,noEnergy)
             if type(noEnergy)=='boolean' then instant=zero and noEnergy==true else instant=zero end
             if result.code=='already_in_desired_state' then instant=false end
         end
-        return {status='ok',code=result.code,energy_spent=spent,instant=instant}
+        return scene({status='ok',code=result.code,energy_spent=spent,instant=instant})
     end
-    return {status='rejected',code=result.code,energy_spent=spent}
+    return scene({status='rejected',code=result.code,energy_spent=spent})
 end
 
 -- Live controller host. The executor reuses Actions.execute under a synthetic
@@ -1036,13 +1144,14 @@ end
 buildAutoCombatHost=function(s,policy,opts)
     local g=s.game
     local reads=autoCombatReads(s,policy)
-    -- AC-03/D1/D2 + v2: the guard consumes the version-pinned component
-    -- manifest. `max_selffire_risk==0` rejects (hard gate), `>0` pauses;
-    -- self-target talents are safe. Design §8.3 (v1.4) allows reading the
-    -- audited native target builder for the instant geometry while the
-    -- canonical components drive variants, ground and composition. A source
-    -- drift disables the adapter (`adapter_source_drift`). Returns nil /
-    -- {action='reject'|'pause',reason,detail}.
+    -- Q4 + v2: the guard consumes the version-pinned component manifest,
+    -- measures the known self/friendly risk and compares it with the policy's
+    -- `max_selffire_risk` (a permit carries the measurement); above tolerance or
+    -- an incalculable footprint it disables that action. Design §8.3 (v1.4)
+    -- allows reading the audited native target builder for the instant geometry
+    -- while the canonical components drive variants, ground and composition. A
+    -- source drift disables the adapter (`adapter_source_drift`). Returns nil /
+    -- {action='permit'|'reject'|'pause',reason,detail}.
     local function manifestDrift()
         local override=opts and opts.drift
         if type(override)=='function' then return override() end
@@ -1162,13 +1271,46 @@ buildAutoCombatHost=function(s,policy,opts)
         end
         local target
         if attempt.bound_target then target=Observer.resolve(g,meta(s),attempt.bound_target) end
+        local plan=attempt.plan
         local action
         if attempt.action=='attack' or attempt.talent=='T_ATTACK' then
             if not target then return {status='rejected',code='target_lost',energy_spent=false} end
             action={type='attack',target_id=attempt.bound_target}
+        elseif attempt.action=='move' then
+            -- The deterministic planner chose the adjacent delta (MOV-2); an
+            -- explicit policy direction is the fallback. Native `moveDir` is
+            -- still the final authority on collision/relocation.
+            local direction=(plan and plan.kind=='step' and plan.direction) or attempt.direction
+            if not (Details.finite(direction) and direction%1==0 and direction>=1 and direction<=9
+                and direction~=5) then
+                return {status='rejected',code='invalid_direction',energy_spent=false}
+            end
+            action={type='move',direction=direction}
+        elseif attempt.action=='change_level' then
+            -- Ordinary explicit policy action (v1.6). The audited native key
+            -- handler decides terrain/wilderness/confirmation; a real scene
+            -- transition is reported back so the controller pauses/resets.
+            action={type='change_level'}
         elseif attempt.action=='use_talent' then
             action={type='use_talent',talent_id=attempt.talent}
-            if target then action.target_id=attempt.bound_target end
+            if plan and plan.kind=='grid' then
+                action.x,action.y=plan.x,plan.y
+                -- Grid lowering: answer every native target request with the
+                -- requested coordinate (no entity).
+                action.force_grid=true
+            elseif plan and (plan.kind=='none' or plan.kind=='self' or plan.kind=='native_random') then
+                -- A no-target request (self/none/random) must not prefill an
+                -- actor the policy did not ask for.
+            elseif plan and (plan.kind=='actor' or plan.kind=='native_landing') then
+                if not target then return {status='rejected',code='target_lost',energy_spent=false} end
+                action.target_id=attempt.bound_target
+                -- Single actor-target lowering: answer every native target
+                -- request with the bound actor (the engine force_target path),
+                -- not only the first pre-filled prompt.
+                action.force_actor=true
+            elseif target then
+                action.target_id=attempt.bound_target
+            end
         elseif attempt.action=='set_sustain' then
             action={type='set_sustain',talent_id=attempt.talent,enabled=true}
         elseif attempt.action=='wait' then
@@ -1419,8 +1561,16 @@ local function dispatch(s,request)
                     execution=(config and config.settings and config.settings.tome_mcp_bridge
                         and config.settings.tome_mcp_bridge.allow_auto_combat_execution==true) or false,
                     source='auto_combat',baseline='p1b',
-                    actions=Json.array{'use_talent','attack','wait','rest','auto_explore'},
+                    actions=Json.array{'use_talent','attack','move','wait','rest','auto_explore','change_level'},
                     native_activities=Json.array{'rest','auto_explore'},
+                    destination_selectors=Json.array(AUTO_DESTINATION_SELECTORS),
+                    destination_accept={visibility={'visible','known','any'},
+                        passability={'known_passable','native'},
+                        hazard={'known_safe','avoid_known','any'},
+                        landing={'deterministic','allow_random'}},
+                    modes={on_no_enemy=Json.array(AUTO_NO_ENEMY_MODES),
+                        on_low_hp=Json.array(AUTO_LOW_HP_MODES)},
+                    unsupported=EffectManifest.UNSUPPORTED,
                     adapter_version=AdapterCatalog.VERSION,
                     predicates=Json.array(AUTO_PREDICATES),
                     selectors=Json.array(AUTO_SELECTORS),

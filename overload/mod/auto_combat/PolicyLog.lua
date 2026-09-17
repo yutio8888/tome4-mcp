@@ -18,10 +18,32 @@ local function bounded(value,limit)
     return out
 end
 
+-- MFT-REV-07: bounded, redaction-friendly projection for the movement
+-- annotation and the guard risk detail. Scalars and small nested tables only;
+-- depth and key counts are capped so a hostile policy cannot grow the ring.
+local function boundedObject(value,depth)
+    if type(value)~='table' then return nil end
+    if depth>3 then return nil end
+    local out={}
+    local count=0
+    for key,item in pairs(value) do
+        count=count+1
+        if count>24 then break end
+        if type(item)=='table' then
+            local nested=boundedObject(item,depth+1)
+            if nested~=nil then out[key]=nested end
+        elseif type(item)=='string' or type(item)=='number' or type(item)=='boolean' then
+            out[key]=item
+        end
+    end
+    return out
+end
+
 function M.add(log,event)
     if type(event)~='table' then return nil end
     local entry={seq=log.next_seq,kind=event.kind or 'event',reason=event.reason,
         rule=event.rule,talent=event.talent,target=event.target,native_result=event.native_result,
+        movement=boundedObject(event.movement,0),risk=boundedObject(event.risk,0),
         tick=event.tick,revision=event.revision,level_instance_id=event.level_instance_id,
         rule_results=bounded(event.rule_results,32),rejections=bounded(event.rejections,8),
         resources_before=event.resources_before,resources_after=event.resources_after,

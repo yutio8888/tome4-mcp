@@ -630,9 +630,15 @@ do
     local soft=Runtime.buildAutoCombatHostFor(g,{schema='tome-auto-combat/v1',id='p2',name='unit',
         limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=50},
         targeting={default='nearest_hostile'},rules=pl.rules},{drift=function() return true end})
-    local pausable=soft.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
-    check(pausable and pausable.action=='pause' and pausable.reason=='selffire_risk',
-        'max_selffire_risk>0 pauses on the same risk')
+    local above=soft.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
+    check(above and above.action=='reject' and above.detail and above.detail.measurement==100,
+        'a known risk above max_selffire_risk is rejected with its measurement')
+    local within=Runtime.buildAutoCombatHostFor(g,{schema='tome-auto-combat/v1',id='p3',name='unit',
+        limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=100},
+        targeting={default='nearest_hostile'},rules=pl.rules},{drift=function() return true end})
+    local permitted=within.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
+    check(permitted and permitted.action=='permit' and permitted.detail.threshold==100,
+        'a known risk within policy tolerance is permitted')
     check(live.guard({action='use_talent',talent='T_SEARING_LIGHT',bound_target=target})==nil,
         'a single-target adapter passes the ally guard')
     p.talents_def=saved_defs
@@ -648,6 +654,61 @@ do
         'the standalone auto-combat lease is part of hasControl')
     Runtime.autoCombatHandle(g,'deactivate',{})
     check(not Runtime.hasControl(p),'releasing the lease removes hasControl')
+end
+-- MOV-1..MOV-3 production path: the real host plans and executes a plain step,
+-- annotates an off-vision grid request and annotates a random teleport landing.
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=true
+    Runtime.reset(g);g:display()
+    local pl={schema='tome-auto-combat/v1',id='mov',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='nearest_hostile'},
+        rules={{id='kite',priority=1,when={always={}},
+            ['then']={action='move',target='nearest_hostile',
+                destination={selector='away',anchor='bound_target',
+                    accept={visibility='any',passability='native',hazard='any',landing='allow_random'}}}}}}
+    p.x,p.y=2,2;enemy.x,enemy.y=3,2
+    g.level.map.map[12][3]=p;g.level.map.map[13][3]=enemy
+    -- Phase Door is level-scoped; a known effective level lets the planner's
+    -- variant check pass (an unknown level now fails closed).
+    p.getTalentLevel=function(self,def) return def and def.probe_level or 1 end
+    p.talents_def=p.talents_def or {}
+    p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',probe_level=1}
+    local live2=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
+    local bound=live2.snapshot('nearest_hostile').bound_target
+    local planned=live2.plan({action='move',destination=pl.rules[1]['then'].destination,bound_target=bound})
+    check(planned and planned.plan and planned.plan.kind=='step','the live host plans a plain step')
+    local before_x=p.x
+    local outcome=live2.request({action='move',plan=planned.plan,rule='kite'})
+    check(outcome.status=='ok','the live host executes the planned step through Actions.execute')
+    check(p.x~=before_x,'the native moveDir actually moved the player')
+    -- An in-bounds but unseen grid request is annotated, not refused.
+    g.level.map.seens[24]=nil;g.level.map.infovs[24]=nil;g.level.map.lites[24]=nil
+    local grid=live2.plan({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
+        destination={selector='position',x=4,y=4,
+            accept={visibility='any',passability='native',hazard='any',landing='allow_random'}}})
+    check(grid and grid.plan.kind=='grid' and grid.plan.annotation.visible==false
+        and grid.plan.annotation.known_passable=='unknown',
+        'an off-vision grid request is annotated, not refused')
+    -- MFT-REV-04: a known trap is `hazard=true` (known hazard), and avoid_known
+    -- rejects it; the provider never labels an unknown cell safe.
+    g.level.map.seens[24]=true;g.level.map.infovs[24]=true;g.level.map.lites[24]=true
+    g.level.map.map[24][4]={all_know=true}
+    local trapped=live2.plan({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
+        destination={selector='position',x=4,y=4,
+            accept={visibility='any',passability='native',hazard='avoid_known',landing='allow_random'}}})
+    check(trapped==nil,'a known trap is reported as a known hazard and rejected by avoid_known')
+    g.level.map.map[24][4]=nil
+    local random=live2.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',
+            accept={visibility='any',passability='native',hazard='any',landing='allow_random'}}})
+    check(random and random.plan.kind=='native_random'
+        and random.plan.annotation.landing.kind=='random',
+        'the live host annotates a random teleport landing')
+    local strict=live2.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',
+            accept={visibility='any',passability='native',hazard='any',landing='deterministic'}}})
+    check(strict==nil,'a deterministic-landing policy rejects the random teleport as policy, not a plugin veto')
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
 end
 -- Round-5 correction: the guard reads the real target spec from the audited
 -- native builder and applies the engine filter defaults, not a catalog shorthand.

@@ -102,6 +102,17 @@ function M.validate(action)
     elseif a.type == 'use_talent' then
         if not stringId(action.talent_id) then return nil,'invalid_talent_id' end
         a.talent_id,allowed.talent_id=action.talent_id,true
+        -- Internal auto-combat field: drive an actor-target talent through the
+        -- native `force_target` path so every native target request resolves to
+        -- the same bound actor (single actor-target lowering).
+        if action.force_actor~=nil then
+            if type(action.force_actor)~='boolean' then return nil,'invalid_force_actor' end
+            a.force_actor,allowed.force_actor=action.force_actor,true
+        end
+        if action.force_grid~=nil then
+            if type(action.force_grid)~='boolean' then return nil,'invalid_force_grid' end
+            a.force_grid,allowed.force_grid=action.force_grid,true
+        end
         local has_actor,has_position=action.target_id~=nil,action.x~=nil or action.y~=nil
         if has_actor and has_position then return nil,'conflicting_target' end
         if has_actor then
@@ -203,7 +214,10 @@ function M.execute(g, action, target, meta, command)
     if not finite(before) then return {ok=false,code='invalid_native_energy',uncertain=true} end
     local ok, ret = pcall(function()
         if interactive then
-            local function run() return p:useTalent(action.talent_id,nil,nil,nil,nil,nil,true) end
+            local forceTarget=action.force_actor and target
+                or (action.force_grid and action.x~=nil and action.y~=nil
+                    and {x=action.x,y=action.y,__no_self=true}) or nil
+            local function run() return p:useTalent(action.talent_id,nil,nil,nil,forceTarget,nil,true) end
             local resolve
             if prefilling then
                 resolve=function()

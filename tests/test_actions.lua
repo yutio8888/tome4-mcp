@@ -25,6 +25,15 @@ check(not Actions.validate({type='attack'}),'attack requires target')
 check(Actions.validate({type='use_talent',talent_id='T_A'}).talent_id=='T_A','use_talent id only')
 check(Actions.validate({type='use_talent',talent_id='T_A',target_id='a'}).target_id=='a','use_talent actor prefill')
 check(Actions.validate({type='use_talent',talent_id='T_A',x=1,y=2}).x==1,'use_talent position prefill')
+-- Internal auto-combat lowering flags: actor/grid force_target paths.
+check(Actions.validate({type='use_talent',talent_id='T_A',target_id='a',force_actor=true}).force_actor==true,
+    'use_talent actor force path')
+check(Actions.validate({type='use_talent',talent_id='T_A',x=1,y=2,force_grid=true}).force_grid==true,
+    'use_talent grid force path')
+check(not Actions.validate({type='use_talent',talent_id='T_A',force_actor='yes'}),
+    'force_actor must be boolean')
+check(not Actions.validate({type='use_talent',talent_id='T_A',force_grid=1}),
+    'force_grid must be boolean')
 for _,bad in ipairs{
     {type='use_talent',talent_id='T_A',target_id='a',x=1,y=2},
     {type='use_talent',talent_id='T_A',x=1},

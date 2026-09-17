@@ -205,26 +205,140 @@ do
     check(not Schema.validate(bad3),'rest max_turns is bounded')
 end
 do
-    -- Wave 1 (AC-10): change_level was removed from the auto-combat policy
-    -- schema/claims; the general MCP tome.act action is unaffected.
+    -- v1.6 (D5 supersession, MOV-5): `change_level` is re-admitted as an
+    -- ordinary capability-backed policy action. The `permissions` top-level
+    -- field remains gone (it was never a capability grant).
     local p=basePolicy()
     p.rules={{id='descend',priority=10,when={enemy_count={eq=0}},['then']={action='change_level'}}}
-    check(not Schema.validate(p),'change_level is no longer an auto-combat action')
+    check(Schema.validate(p),'change_level is re-admitted as an auto-combat action')
+    local bound=basePolicy()
+    bound.rules={{id='descend',priority=10,when={always={}},
+        ['then']={action='change_level',target='self'}}}
+    check(not Schema.validate(bound),'change_level binds no target')
     local permissions=basePolicy()
     permissions.permissions={change_level=true}
     check(not Schema.validate(permissions),'the permissions field is no longer accepted')
 end
+-- MOV-1: move + destination selector + explicit acceptance conditions --------
 do
-    -- The critical layer is only for self-preservation actions (shape); the
-    -- catalogue certifies the specific talent (semantic).
+    local function moveRule(destination)
+        local p=basePolicy()
+        p.rules={{id='kite',priority=50,when={nearest_enemy_distance={lt=3}},
+            ['then']={action='move',target='nearest_hostile',destination=destination}}}
+        return p
+    end
+    local accept={visibility='any',passability='native',hazard='avoid_known',landing='allow_random'}
+    check(Schema.validate(moveRule({selector='away',anchor='bound_target',accept=accept})),
+        'a plain step with an `away` destination validates (ordinary kiting)')
+    check(Schema.validate(moveRule({selector='toward',anchor='bound_target',accept=accept})),
+        'a `toward` destination validates')
+    check(Schema.validate(moveRule({selector='preferred_distance',anchor='self',distance=4,accept=accept})),
+        'a `preferred_distance` destination validates')
+    check(Schema.validate(moveRule({selector='position',x=17,y=9,accept=accept})),
+        'an explicit out-of-vision position validates')
+    check(Schema.validate(moveRule({selector='relative',dx=-1,dy=0,accept=accept})),
+        'a relative destination validates')
+    -- Every acceptance field is explicit: there is no hidden plugin default.
+    check(not Schema.validate(moveRule({selector='away',anchor='bound_target',
+        accept={visibility='any',passability='native',hazard='any'}})),
+        'a destination missing an accept field is rejected')
+    check(not Schema.validate(moveRule({selector='away',anchor='bound_target',
+        accept={visibility='any',passability='native',hazard='any',landing='sometimes'}})),
+        'an unknown accept value is rejected')
+    check(not Schema.validate(moveRule({selector='native_random',anchor='self',accept=accept})),
+        'a plain step rejects the talent-only native_random selector')
+    check(not Schema.validate(moveRule({selector='position',x=1,accept=accept})),
+        'position requires both coordinates')
+    local noDest=basePolicy()
+    noDest.rules={{id='step',priority=10,when={always={}},['then']={action='move'}}}
+    check(not Schema.validate(noDest),'move requires a destination or an explicit direction')
+    local dir=basePolicy()
+    dir.rules={{id='step',priority=10,when={always={}},['then']={action='move',direction=4}}}
+    check(Schema.validate(dir),'move accepts a fixed keypad direction')
+    local badDir=basePolicy()
+    badDir.rules={{id='step',priority=10,when={always={}},['then']={action='move',direction=5}}}
+    check(not Schema.validate(badDir),'direction 5 (wait) is not a movement direction')
+    local restDest=basePolicy()
+    restDest.rules={{id='camp',priority=10,when={always={}},
+        ['then']={action='rest',destination={selector='position',x=1,y=1,accept=accept}}}}
+    check(not Schema.validate(restDest),'rest rejects a destination binding')
+end
+-- MOV-1: ordered target_plan validation -------------------------------------
+do
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local p=basePolicy()
+    p.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={ {request='self'},
+                {request='grid',destination={selector='away',anchor='bound_target',accept=accept}} }}}}
+    check(Schema.validate(p),'an ordered actor-then-grid target_plan validates')
+    local bad=basePolicy()
+    bad.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={ {request='teleport'} }}}}
+    check(not Schema.validate(bad),'an unknown target request is rejected')
+    local noPlan=basePolicy()
+    noPlan.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',target_plan={}}}}
+    check(not Schema.validate(noPlan),'an empty target_plan is rejected')
+end
+do
+    -- v1.6: `emergency` is a scheduling label only. It is not an action
+    -- allowlist, so any declared action may carry it; the executor guard is the
+    -- safety gate for the bound `use_talent`/`attack`.
     local p=basePolicy()
     p.rules={{id='panic-rest',priority=100,emergency=true,when={always={}},
         ['then']={action='rest',max_turns=5}}}
-    check(not Schema.validate(p),'an emergency rest rule is rejected as non-self-preservation')
+    check(Schema.validate(p),'an emergency rest rule is shape-valid; emergency is a scheduling label')
+    local move=basePolicy()
+    move.rules={{id='panic-kite',priority=100,emergency=true,when={always={}},
+        ['then']={action='move',target='nearest_hostile',
+            destination={selector='away',anchor='bound_target',
+                accept={visibility='any',passability='native',hazard='any',landing='allow_random'}}}}}
+    check(Schema.validate(move),'an emergency move/kite rule is shape-valid (no action allowlist)')
     local attack=basePolicy()
     attack.rules={{id='panic-attack',priority=100,emergency=true,when={always={}},
         ['then']={action='attack',target='nearest_hostile'}}}
     check(Schema.validate(attack),'an emergency attack is shape-valid; the executor guard is the safety gate')
+end
+-- v1.6 scheduling mode (MFT-REV-01) ------------------------------------------
+do
+    local p=basePolicy()
+    p.mode={on_no_enemy='evaluate_rules',on_low_hp='evaluate_rules'}
+    check(Schema.validate(p),'an explicit scheduling mode validates')
+    local bad=basePolicy();bad.mode={on_low_hp='assist'}
+    check(not Schema.validate(bad),'an unknown low-HP mode is rejected')
+    bad=basePolicy();bad.mode={on_no_enemy='wander'}
+    check(not Schema.validate(bad),'an unknown no-enemy mode is rejected')
+    -- A policy-authored kite executes at low HP under evaluate_rules; the
+    -- conservative default keeps the emergency-only layer.
+    local kite={id='kite',priority=10,when={always={}},['then']={action='move',
+        target='nearest_hostile',destination={selector='away',anchor='bound_target',
+            accept={visibility='any',passability='native',hazard='any',landing='allow_random'}}}}
+    local explicit=basePolicy()
+    explicit.mode={on_low_hp='evaluate_rules'}
+    explicit.rules={kite}
+    local d=Evaluator.evaluate(explicit,ctx({hp_pct=10,enemy_count=1}))
+    check(d.decision=='act' and d.rule=='kite' and d.action=='move',
+        'evaluate_rules executes a declared movement rule below min_hp_pct')
+    local conservative=basePolicy()
+    conservative.safety.flee_below_hp_pct=nil
+    conservative.rules={kite}
+    local c=Evaluator.evaluate(conservative,ctx({hp_pct=10,enemy_count=1}))
+    check(c.decision=='pause' and c.reason=='no_emergency_action',
+        'the conservative default stays emergency-only below min_hp_pct')
+    local emergency=basePolicy()
+    emergency.mode={on_low_hp='emergency_only'}
+    emergency.rules={kite,{id='panic-kite',priority=100,emergency=true,when={always={}},
+        ['then']=kite['then']}}
+    local e=Evaluator.evaluate(emergency,ctx({hp_pct=10,enemy_count=1}))
+    check(e.decision=='act' and e.rule=='panic-kite','emergency_only schedules only emergency-labelled rules')
+    local paused=basePolicy()
+    paused.mode={on_low_hp='pause'}
+    paused.safety.flee_below_hp_pct=nil
+    paused.rules={kite}
+    local pa=Evaluator.evaluate(paused,ctx({hp_pct=10,enemy_count=1}))
+    check(pa.decision=='pause' and pa.reason=='below_min_hp_pct','low_hp=pause pauses below min_hp_pct')
 end
 do
     -- The evaluator carries max_turns into the act decision for the executor.

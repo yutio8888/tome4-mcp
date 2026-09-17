@@ -86,11 +86,22 @@ end
 for talent,entry in pairs(Manifest.ENTRIES) do
     local compat=Manifest.compat(entry)
     check(compat~=nil,'compat view for '..talent)
-    if entry.target=='hostile' and not entry.melee then
+    if entry.kind~='movement' and entry.target=='hostile' and not entry.melee then
         check(compat.delivery~=nil,'compat delivery for '..talent)
         check(compat.shape~=nil,'compat shape for '..talent)
     end
 end
+-- Movement entries declare their exact native request/landing classification
+-- and carry no damage components (the guard skips them by source-pinned kind).
+for _,talent in ipairs{'T_RUSH','T_SKIRMISHER_CUNNING_ROLL','T_PHASE_DOOR'} do
+    local entry=Manifest.entry(talent)
+    check(entry~=nil and entry.kind=='movement','movement entry for '..talent)
+    check(type(entry.movement)=='table' and type(entry.movement.target_requests)=='table',
+        'movement adapter declares its target requests for '..talent)
+end
+check(Manifest.entry('T_PHASE_DOOR').movement.landing=='random','Phase Door is a random teleport')
+check(Manifest.entry('T_SKIRMISHER_CUNNING_ROLL').movement.landing=='exact','Tumble is an exact grid move')
+check(Manifest.entry('T_RUSH').movement.landing=='bounded_alternatives','Rush is an actor-anchored line move')
 check(Manifest.compat(Manifest.entry('T_FLAME')).shape=='widebeam','Flame compat reports the widest union member')
 check(Manifest.compat(Manifest.entry('T_SOUL_ROT')).delivery=='projectile','Soul Rot compat keeps the projectile delivery')
 check(Manifest.compat(Manifest.entry('T_BLOOD_GRASP')).friendlyfire_risk=='none','a safe bolt has no derived line risk')
@@ -107,13 +118,39 @@ do
         'Flame variants cover the level and attribute branches')
 end
 
--- The four dynamic talents are re-admitted with source-verified components.
-check(next(Manifest.UNSUPPORTED)==nil,'the dynamic talents are no longer unsupported')
+-- The four dynamic talents are re-admitted with source-verified components; the
+-- structured unsupported list is about movement gaps only (MFT-REV-08).
+local function unsupportedFor(talent)
+    for _,entry in ipairs(Manifest.UNSUPPORTED) do if entry.talent==talent then return entry end end
+    return nil
+end
+check(unsupportedFor('T_FLAMESHOCK')==nil and unsupportedFor('T_FIREFLASH')==nil
+    and unsupportedFor('T_SHADOW_BLAST')==nil and unsupportedFor('T_STARFALL')==nil,
+    'the dynamic talents are no longer unsupported')
+-- MFT-REV-08: every documented movement/effect gap has a structured unsupported
+-- entry (talent, scope, missing capability, reason).
+do
+    local function unsupportedEntry(talent)
+        for _,entry in ipairs(Manifest.UNSUPPORTED) do
+            if entry.talent==talent then return entry end
+        end
+        return nil
+    end
+    for _,talent in ipairs({'T_PHASE_DOOR','T_BLINK_RUNE','T_SKIRMISHER_VAULT',
+        'T_DIMENSIONAL_STEP','T_SHADOWSTEP','T_GIANT_LEAP','T_DISPLACEMENT_SHIELD'}) do
+        local entry=unsupportedEntry(talent)
+        check(entry~=nil and entry.missing and entry.reason and entry.scope,
+            talent..' has a structured unsupported entry')
+    end
+    local shield=unsupportedEntry('T_DISPLACEMENT_SHIELD')
+    check(shield~=nil and shield.missing=='source_reviewed_effect_adapter',
+        'Displacement Shield is listed as an unreviewed effect adapter')
+end
 for _,talent in ipairs({'T_FLAMESHOCK','T_FIREFLASH','T_SHADOW_BLAST','T_STARFALL'}) do
     local entry=Manifest.entry(talent)
     check(entry~=nil,talent..' is re-admitted')
     check(entry.conformance and entry.conformance.builder==true,talent..' declares a native builder')
-    check(Manifest.UNSUPPORTED[talent]==nil,talent..' is no longer unsupported')
+    check(unsupportedFor(talent)==nil,talent..' is no longer unsupported')
     check(Manifest.SOURCES.talents[talent].builder~=nil,talent..' pins its builder line')
     local instant
     for _,component in ipairs(entry.components) do

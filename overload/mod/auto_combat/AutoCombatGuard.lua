@@ -7,11 +7,13 @@
 --      conservative union);
 --   3. expands the exact footprint of every active component (native backend
 --      when the engine geometry is present, pure model otherwise);
---   4. composes self/friendly risk per delivery path and applies the frozen
---      `max_selffire_risk` policy (0 rejects, >0 pauses; never authorises a
---      percentage).
+--   4. composes self/friendly risk per delivery path, measures the aggregate
+--      and compares it with the policy's `max_selffire_risk`: a known value at
+--      or below tolerance is permitted, above it is rejected, and only an
+--      incalculable footprint fails closed.
 --
--- It returns nil to permit the native executor, or a verdict table
+-- It returns nil (no measurable risk) or `{action='permit',detail=...}` to
+-- permit the native executor, or a verdict table
 -- `{action='reject'|'pause',reason=...,detail=...}`. It never commits an action
 -- and never calls a talent action entrypoint.
 local Manifest=require 'mod.auto_combat.EffectManifest'
@@ -160,8 +162,10 @@ end
 function M.build(ctx)
     local p=ctx.source
 
-    local function verdict(hard,reason,detail)
-        return {action=hard and 'reject' or 'pause',reason=reason,detail=detail}
+    -- Any integrity/uncertainty fault disables this action (the design's §8.1
+    -- "disable that action" rule), leaving other complete actions eligible.
+    local function disable(reason,detail)
+        return {action='reject',reason=reason,detail=detail}
     end
 
     local function guard(attempt)
@@ -172,21 +176,26 @@ function M.build(ctx)
         local entry=Manifest.entry(talent)
         if not entry then return {action='reject',reason='unsupported_adapter'} end
         local policy=ctx.policy
-        local maxRisk=policy and policy.safety and policy.safety.max_selffire_risk
-        local hard=(maxRisk==nil or maxRisk<=0)
+        local threshold=policy and policy.safety and policy.safety.max_selffire_risk
+        if type(threshold)~='number' then threshold=0 end
         -- Source drift disables the adapter; stale metadata is never used. It is
         -- checked before the hostile/self branch so a self-target talent is not
         -- silently exempt from the disable.
         local driftOk,driftReason,driftDetail=ctx.drift()
         if driftOk~=true then
-            return verdict(hard,'adapter_source_drift',{reason=driftReason,detail=driftDetail})
+            return disable('adapter_source_drift',{reason=driftReason,detail=driftDetail})
         end
+        -- Movement adapters carry no damage footprint; their landing/uncertainty
+        -- safety is the MovementPlanner's explicit policy acceptance. The guard
+        -- still checked the source pin above, so a drifted movement adapter is
+        -- disabled rather than silently trusted.
+        if entry.kind=='movement' then return nil end
         if entry.target~='hostile' then return nil end
         local target
         if attempt.bound_target then target=ctx.resolve(attempt.bound_target) end
-        if not target then return verdict(hard,'target_lost') end
+        if not target then return disable('target_lost') end
         if not (finite(target.x) and finite(target.y) and finite(p.x) and finite(p.y)) then
-            return verdict(hard,'target_geometry_unknown')
+            return disable('target_geometry_unknown')
         end
         -- Melee delivery never consults ActorProject filters.
         if entry.melee then return nil end
@@ -204,14 +213,14 @@ function M.build(ctx)
                 -- a reason to fall back to stale manifest geometry.
                 local ok,value=pcall(builder,p,def)
                 if not ok or type(value)~='table' then
-                    return verdict(hard,'adapter_builder_failed',{talent=talent,error=ok and 'non_table' or 'error'})
+                    return disable('adapter_builder_failed',{talent=talent,error=ok and 'non_table' or 'error'})
                 end
                 typ=value;builderSource='builder'
             else
-                return verdict(hard,'adapter_builder_failed',{talent=talent,error='non_callable'})
+                return disable('adapter_builder_failed',{talent=talent,error='non_callable'})
             end
         elseif expectsBuilder==true then
-            return verdict(hard,'adapter_builder_missing',{talent=talent})
+            return disable('adapter_builder_missing',{talent=talent})
         end
         local range=entry.range
         if typ and finite(typ.range) then range=typ.range end
@@ -222,7 +231,7 @@ function M.build(ctx)
         -- footprint (checked after expansion).
         local range0=finite(range) and range==0
         if finite(range) and range>0 and Distance.grid(p.x,p.y,target.x,target.y)>range then
-            return verdict(hard,'target_out_of_range',{range=range,source=builderSource})
+            return disable('target_out_of_range',{range=range,source=builderSource})
         end
         local probe_typ=typ or {type=entry.cursor and entry.cursor.shape,range=range,
             radius=entry.radius,talent=talent}
@@ -231,10 +240,10 @@ function M.build(ctx)
         -- would report the origin as the only hit and falsely deny it.
         if type(p.canProject)=='function' and not range0 then
             local ok,can=pcall(p.canProject,p,probe_typ,target.x,target.y)
-            if not ok or can==nil then return verdict(hard,'canproject_unknown',{source=builderSource}) end
-            if can==false then return verdict(hard,'no_line_of_sight',{source=builderSource}) end
+            if not ok or can==nil then return disable('canproject_unknown',{source=builderSource}) end
+            if can==false then return disable('no_line_of_sight',{source=builderSource}) end
         elseif type(p.canProject)~='function' and not range0 then
-            return verdict(hard,'canproject_unavailable')
+            return disable('canproject_unavailable')
         end
         -- Resolve every canonical component. Variants come only from audited
         -- scalar reads; an unresolved branch stays in the conservative union.
@@ -298,26 +307,42 @@ function M.build(ctx)
         -- A range-0 self-centred effect must still affect the bound target; the
         -- exact native instant footprint is the reachability predicate.
         if range0 and instant_miss then
-            return verdict(hard,'target_out_of_range',{range=range,talent=talent,
+            return disable('target_out_of_range',{range=range,talent=talent,
                 reason='outside_instant_footprint',source=builderSource})
         end
         -- Melee already returned; a hostile entry with no effect component is a
         -- manifest fault, not a safe pass.
         if #components==0 then
-            return verdict(hard,'adapter_no_components',{talent=talent})
+            return disable('adapter_no_components',{talent=talent})
         end
-        local safe,detail=Risk.evaluate(components,membershipsBy)
-        if safe then return nil end
-        local resolvedComponent
-        for _,component in ipairs(components) do
-            if component.id==detail.component or component.phase==detail.phase then resolvedComponent=component end
+        local measure=Risk.measure(components,membershipsBy)
+        if measure.risk==0 then return nil end
+        -- Q4: compare the measured known risk with the policy threshold. A
+        -- known risk at or under the threshold is permitted (the detail is
+        -- surfaced for the decision/log); above it, or an incalculable
+        -- footprint, rejects this action. Built-in presets stay at 0.
+        local worst=measure.detail
+        local detail={risk=worst and worst.risk or nil,
+            measurement=measure.risk,threshold=threshold,
+            unknown=measure.risk=='unknown',talent=talent,source=builderSource}
+        if worst then
+            local resolvedComponent
+            for _,component in ipairs(components) do
+                if component.id==worst.component or component.phase==worst.phase then resolvedComponent=component end
+            end
+            detail.phase=worst.phase
+            detail.component=worst.component
+            detail.selffire=worst.selffire
+            detail.friendlyfire=worst.friendlyfire
+            detail.friendlies=worst.friendlies
+            detail.explicit_override=resolvedComponent and resolvedComponent.builder_source=='builder' or false
+            detail.provenance=worst.provenance or (resolvedComponent and resolvedComponent.provenance) or nil
+            detail.footprint_backend=resolvedComponent and resolvedComponent.footprint_backend or nil
         end
-        detail.talent=talent
-        detail.source=builderSource
-        detail.explicit_override=resolvedComponent and resolvedComponent.builder_source=='builder' or false
-        detail.provenance=resolvedComponent and resolvedComponent.provenance or nil
-        detail.footprint_backend=resolvedComponent and resolvedComponent.footprint_backend or nil
-        return verdict(hard,'selffire_risk',detail)
+        if measure.risk~='unknown' and type(measure.risk)=='number' and measure.risk<=threshold then
+            return {action='permit',detail=detail}
+        end
+        return disable('selffire_risk',detail)
     end
 
     return guard

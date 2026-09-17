@@ -35,6 +35,19 @@ local function positive(value)
     return value~=0
 end
 
+-- Numeric aggregation of the affected-probability for a resolved filter pair.
+-- `unknown` dominates (fail closed).
+local function combine(a,b)
+    if a=='unknown' or b=='unknown' then return 'unknown' end
+    if type(a)~='number' or type(b)~='number' then return 'unknown' end
+    return math.min(a,b)
+end
+local function single(a)
+    if a=='unknown' then return 'unknown' end
+    if type(a)~='number' then return 'unknown' end
+    return a
+end
+
 local function isMelee(component)
     return component.phase=='melee' or component.delivery=='attackTarget'
 end
@@ -56,11 +69,13 @@ function M.component(component,membership)
         -- whenever a required filter is positive/unknown.
         if positive(sf) and positive(ff) then
             return {phase='ground',component=component.id or 'ground',risk='self',
-                selffire=sf,friendlyfire=ff,provenance=component.provenance}
+                selffire=sf,friendlyfire=ff,provenance=component.provenance,
+                risk_value=combine(sf,ff)}
         end
         if positive(ff) then
             return {phase='ground',component=component.id or 'ground',risk='friendly',
-                selffire=sf,friendlyfire=ff,provenance=component.provenance}
+                selffire=sf,friendlyfire=ff,provenance=component.provenance,
+                risk_value=single(ff)}
         end
         return nil
     end
@@ -71,18 +86,52 @@ function M.component(component,membership)
             local suppressed=(component.delivery=='projectile') and (m.player_override~=true)
             if not suppressed then
                 return {phase=component.phase or 'instant',component=component.id,risk='self',
-                    selffire=sf,friendlyfire=ff,provenance=component.provenance}
+                    selffire=sf,friendlyfire=ff,provenance=component.provenance,
+                    risk_value=combine(sf,ff)}
             end
         end
     end
     -- Friendly risk: the friendly-fire filter alone, against known occupants.
     if m.friendlies=='unknown' or (type(m.friendlies)=='number' and m.friendlies>0) then
         if positive(ff) then
+            -- Unknown occupancy with a positive FF filter is an incalculable
+            -- friendly footprint (fail closed); a known occupant uses FF.
+            local value=single(ff)
+            if m.friendlies=='unknown' and positive(ff) then value='unknown' end
             return {phase=component.phase or 'instant',component=component.id,risk='friendly',
-                selffire=sf,friendlyfire=ff,friendlies=m.friendlies,provenance=component.provenance}
+                selffire=sf,friendlyfire=ff,friendlies=m.friendlies,provenance=component.provenance,
+                risk_value=value}
         end
     end
     return nil
+end
+
+-- Measure the whole component list: the maximum known affected-probability
+-- across every active component, with `unknown` dominating. Returns
+-- `{risk=number|'unknown', detail=worst_detail|nil, details=all}`. `risk=0`
+-- means no measurable self/friendly risk.
+function M.measure(components,memberships)
+    memberships=memberships or {}
+    local maxRisk=0
+    local unknown=false
+    local worst
+    local details={}
+    for _,component in ipairs(components or {}) do
+        local detail=M.component(component,memberships[component.id or component.phase])
+        if detail then
+            details[#details+1]=detail
+            local value=detail.risk_value
+            if value=='unknown' then
+                unknown=true
+                if not worst or worst.risk_value~='unknown' then worst=detail end
+            elseif type(value)=='number' and value>maxRisk then
+                maxRisk=value
+                worst=detail
+            end
+        end
+    end
+    if unknown then return {risk='unknown',detail=worst,details=details} end
+    return {risk=maxRisk,detail=worst,details=details}
 end
 
 -- Evaluate a whole component list. Returns `true` (safe) or `nil, detail` with
