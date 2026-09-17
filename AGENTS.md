@@ -92,3 +92,47 @@ python3 tools/package.py
   - `[Dev]`：改仓库代码/文档 + 单测 + 打包；交付分支/PR。
   - `[Test]`：只游玩/实测与反馈，不改文件、不 kill 进程。
   - `[Review]`：只读，只出问题清单（P0–P3 + 证据）；不改代码。
+
+## 简报契约（派发必须遵守）
+
+派发任何代理前，按 `docs/tome-mcp-agent-brief-contract.md`（完整规范）把简报渲染成
+"**共享核心 + 恰好一个角色模块**"，逐次自包含，不依赖上一段对话。
+
+**共享核心（每份必含；不留空字段，用 `N/A: <reason>`）**
+1. **Dispatch contract**：简报 id/版本/时间；角色（唯一）；**回报地址（精确 Paseo agent id）**；收件人；
+   独立性（fresh 或限定"复核上轮 review 的 finding id"）；实现/测试/审核者 id；绝对 roots（repo/support/evidence）；
+   基线（分支+完整 commit+dirty overlay）；目标产物路径+sha256；权限（read/write/git/processes；merge=no；
+   共享游戏生命周期=no）；单写者与依赖；停止/回报条件。
+2. **Task and boundary**：一句祈使+可观测结果；必需 ID/交付物；**显式 out of scope**（含下一阶段与不改的默认值）；
+   允许的实现自由度；契约变更只能由派发方修订简报。
+3. **Binding contract (read first)**：内联绑定决策（决策号@版本 + 取代哪些旧文本）；关键不变量/默认值的**可观测含义**；
+   必读文档（绝对路径+钉定版本/hash+章节+为何读）；历史材料标注"非规范"。
+4. **Current state and relevant files**：区分 verified fact（带来源+版本）/ reported hypothesis / 已试错（附证据）；
+   只列开始所需文件。
+5. **Work and acceptance table**：每需求一行 → 生产入口 + 期望可观测 + 方法/允许替身 + 层/产物 pin + 独立验收人；
+   结果词汇 `PASS/FAIL/BLOCKED/NOT_OBSERVED/N/A(reason+authority)`；禁止"works correctly"式空行。
+6. **Feedback ledger and exit condition**：全量反馈台账（必需?/处置/commit 或 TODO+原因+owner/证据 id/独立裁决/是否阻塞）；
+   角色专属完成态；下一阶段 owner。
+7. **Report via Paseo**：写报告到绝对路径，再向回报地址发送固定字段信封；原始输出留 evidence root，不提交大文件。
+
+**角色模块（恰好一个）**
+- **`[Dev]`**：唯一改代码者；**只报告 "ready for review"，绝不自称 accepted/merged**；交付分支+PR。
+  证据须覆盖**生产路径**；运行时改动需 source **与** dist probe + `dist` sha + 不变量行；docs/server-only 可
+  `N/A: <reason>`；命名单写者与可写路径。
+- **`[Test]`**：只游玩/实测与反馈；不改仓库、不 kill 进程；用会话包装器；原始证据留 tmp；交付报告+sha；
+  不承担改码/PR/重启（那属于协调者/Dev）。
+- **`[Review]`**：**全新代理**（仅复核"上一轮 review 的 finding"时可复用上一轮 Review 代理）；只读 + 允许写报告到指定
+  tmp；输出 P0–P3 问题清单（id/类别/文件:行/为何重要/证据/建议方向）+ 已核查正确项 + 不确定项；不提纯风格问题。
+- **`[Investigation]`**：只调研不改产品代码；交付方案文档；结论须带 file:line 证据。
+
+**派发前检查清单**
+- [ ] 唯一角色；Dev/Test/Review 身份互不相同；Review 全新或明确限定"复核上轮"。
+- [ ] 精确回报 agent id；绝对 repo/support/report 路径；被引用文档可获取。
+- [ ] 完整基线 + dirty overlay；正确的 package/hash 与加载方式（避免"隐式重建当前 main"漂移）。
+- [ ] AGENTS/规范/简报一致；绑定决策内联；指令冲突先解决再派发。
+- [ ] 必需 ID、out-of-scope、默认值、允许决策、精确写/进程权限明确。
+- [ ] 单写者/依赖具名；probe/游戏生命周期归属明确；Test 不承担改码/PR/重启。
+- [ ] 每个验收行含输入、可观测结果、证据层/命令、独立 owner；**不得用伪造 outcome 充当证明**。
+- [ ] 证据适用性已指派；需要时给出 source/dist 来源与原始检索/hash 计划。
+- [ ] 指标口径在评分事件前冻结（分子/分母/窗口/停止条件/缺失处理）。
+- [ ] 反馈台账覆盖所有给定 finding；延期不得静默通过；退出态与下一阶段 owner 具名。

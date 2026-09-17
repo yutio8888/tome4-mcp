@@ -1,6 +1,8 @@
 # Proposal: agent briefs as bounded, verifiable work contracts
 
-Date: 2026-09-17. Status: proposal only; no policy or implementation changed.
+Date: 2026-09-17. Status: **accepted / normative** (adopted into `AGENTS.md` section
+"简报契约（派发必须遵守）"). Produced by an independent `[Review]` agent; the dispatcher
+fixed the AGENTS.md/design-8.3 read-policy conflict it flagged and archived this contract.
 Repository inspected: `/workspace/t-engine4/game/addons/tome-mcp-bridge`, HEAD `c4777ebfac517c7ee5f8b772e64543c65bc61939`. The checkout already contained product/test/dist modifications belonging to other work; this analysis did not alter them. Historical results below are documentary evidence, not tests independently rerun by this analyst.
 
 ## Recommendation
