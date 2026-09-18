@@ -380,7 +380,7 @@ disposition — not the talent name:
 | Talent | Source | Prompts | Disposition |
 | --- | --- | --- | --- |
 | **Phase Door** (effective TL≥5) | `spells/conveyance.lua:78-114` | 2: `hit`+`default_target=self`, then `ball`+`nolock` | **supported** (two-entry sequence) |
-| **Vault** (`T_VAULT`) | `techniques/agility.lua:83-121` | 2: `hit` (no `nolock`), then `hit`+`nolock=true` | **supported** (two-entry sequence; distinguishable only under presence-explicit signatures, §4.4). **Note the id:** this is the *Agility*-tree `Vault` (T2, no `short_name`, so `T_VAULT`); it was previously **not modelled at all**. The *Acrobatics*-tree `T_SKIRMISHER_VAULT` (`techniques/acrobatics.lua:28-50`) is a **different, single-prompt beam** talent and stays a single-prompt descriptor. |
+| **Vault** (`T_VAULT`) | `techniques/agility.lua:83-150` | 2: `hit` (no `nolock`), then `hit`+`nolock=true` | **unsupported until S3** — `movement_effect_composition_required`. The sequence is *distinguishable* (it is the worked example for presence-explicit signatures in §4.4), but the talent is a **mixed** movement/effect skill: its **first (actor) prompt's target is attacked** (`agility.lua:137-138`) and may be **dazed** (`:140-145`) before the move (`:149-150`). Admitting it as component-free grid movement would let a policy bind that actor prompt to `self` and direct an offensive native action at the player, with the damage/daze hidden from the guard — the exact composition gap §5 requires (§2 finding 2, §13 S3). It must not be executable until its component is represented and guarded. **Note the id:** this is the *Agility*-tree `Vault` (T2, no `short_name`, so `T_VAULT`; previously not modelled at all). The *Acrobatics*-tree `T_SKIRMISHER_VAULT` (`techniques/acrobatics.lua:28-50`) is a **different, single-prompt** pure-movement `beam` talent, stays a single-prompt descriptor, and is unaffected. |
 | **Merge** | `cursed/advanced-shadowmancy.lua:43-46` | 2: both `hit` | **unsupported** — `signature_not_distinguishable` (separated only by `first_target`/`start_x`/`source_actor`, outside the curated allowlist) |
 | **Stone** | `cursed/advanced-shadowmancy.lua:80-83` | 2: both `hit` | **unsupported** — `signature_not_distinguishable` |
 | **Cursed Bolt** | `cursed/advanced-shadowmancy.lua:245` | **N dynamic** — a `getTarget` inside a per-shadow `for` loop | **unsupported** — `dynamic_prompt_count` |
@@ -390,9 +390,11 @@ disposition — not the talent name:
 
 Consequences that shape §4.4 and §6.1:
 
-1. **The real support surface is two talents**, and both are the same shape (an actor/self prompt followed by
-   a grid prompt). The ordered queue therefore does **not** need a general N-prompt engine; it needs a
-   correct two-entry sequence, which is why §4.4 stays a closed, ordered list with a per-entry signature.
+1. **The real support surface is one talent** (Phase Door: an actor/self prompt followed by a grid prompt).
+   Vault is *distinguishable* but **mixed** (it attacks/dazes the first target), so it joins the
+   composition slice instead of the movement slice (see its row and §13 S3). The ordered queue therefore
+   does **not** need a general N-prompt engine; it needs a correct two-entry sequence, which is why §4.4
+   stays a closed, ordered list with a per-entry signature.
 2. **The prompt *order* is fixed in every official action body** (each `getTarget` is a plain sequential
    statement; only the *count* varies, via an `if getTalentLevel(t) >= 5` tail or an early `return nil`).
    The variable-count cases are exactly what `optional=true` (trailing) already covers — for Phase Door and
