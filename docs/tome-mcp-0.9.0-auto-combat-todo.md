@@ -464,3 +464,15 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
     - **#63-P3-b ✅**：**42 个**测试文件改为从自身路径推导根，裸相对调用**响亮失败**（不再静默测 canonical 树）。
     - 本批**仅触及 `tests/` 与 `docs/`**（零生产改动，`dist` 保持 `536d5e14…`），Sol 终审 **MERGE，0 findings**。
 
+66. **S2 契约修订的应用事故（已修复，`main@ed894fb`）。** 我上一轮用脚本把修订稿
+    `tmp/mcp-play-support/s2-contract-revision.md`（sha256 `cd41df23…`）的 Part C 应用到设计文档时，
+    脚本在 **C.6 的锚点断言处抛出异常，且在写盘之前**，因此**只有单独跑的 C.6 落入 `813892a`**，
+    **C.4（§4.4 执行模型 bullet）、C.5（§6.1 两行）、C.7（措辞一致性）全部缺失**：
+    §4.4 前言**前向引用了一条并不存在的 §6.1 签名规则**（悬空引用），`unexpected_target_request`
+    那行仍写 "wrong-kind"，`none` 仍被列为 `request_sequence` 可声明值（rev2 已定的排除决议未合并）。
+    由 Dev（model A）在 rev3 开工前**独立发现并拒绝实施**（避免了"代码与自身规范文档相矛盾"），
+    判定正确。修复：`ed894fb` 逐字补上 C.4/C.5（含 `observed_shape`、安全暂停释放租约、
+    `movement_request_kind_unknown` 触发条件收窄）并明确 `none` 不可声明（仅保留 N=1 的
+    `target_requests` 叶子）。**教训（我的流程改进）**：应用规范文本必须**逐块写盘 + 逐块校验**，
+    或先 `git stash`/写临时文件再一次性提交；不得把一个可能中途失败的脚本当作原子操作。
+

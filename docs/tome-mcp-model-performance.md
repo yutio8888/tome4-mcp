@@ -81,14 +81,22 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 27 | P3 门禁清尾（#60-N2/#63-P3-b/-c/#64） | A→**B**（Dev）/ **Sol**（Review，复用复核自身） | 首轮全新 Sol；修正轮复用 | **PASS**（终审 **MERGE**，0 findings） | 0 | 0 | 0 | 2 | 2 |
 | 28 | S2 有序 prompt-响应队列（实现） | A（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | FAIL（**do_not_merge**） | 0 | 2 | 4 | 1 | 7 |
 | 29 | S2 rev2 修 REV-01..07 | **B**（Dev）/ **Sol**（Review，复用复核自身） | 同 #28（复核自身发现） | FAIL（**do_not_merge**） | 0 | 2 | 0 | 0 | 2 |
+| 30 | S2 契约修订（Investigation B）+ 应用事故修复 | B（Investigation）/ — | — | BLOCKED→已修复（Dev A 正确拒绝实施） | 0 | 0 | 0 | 0 | 0 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**29**（全部已判定）。
-- **PASS 10**、**FAIL 19**、PARTIAL 0 → **通过率 10/29 = 34.5%**。
-- Issue 合计：**78**（P0 1 / P1 31 / P2 25 / P3 21）；平均每 loop 2.69。
+- Loop 总数：**30**（含 1 个未进入评审的 BLOCKED 轮）。
+- **PASS 10**、**FAIL 19**、BLOCKED 1、PARTIAL 0 → **通过率 10/30 = 33.3%**。
+- Issue 合计：**78**（P0 1 / P1 31 / P2 25 / P3 21）；平均每 loop 2.60。
+- **#30（契约修订，Investigation=B）**：交付 `s2-contract-revision.md`（sha256 `cd41df23…`）——
+  经引擎证据裁决**几何不是 actor/grid 的可靠判别器**（`hit`=单格、`setSpot` 全几何填 `target.entity`、
+  Dimensional Step 用 `hit` 表达网格、Phase Door actor 提示用 `hit`），改采**逐条目策展观测签名** +
+  **N≥2 签名两两不同**（构建期 `request_signature_ambiguous`）+ **异步交还**全链路契约。
+  该轮暴露我的**应用事故**（脚本中途抛异常且未写盘，导致 C.4/C.5/C.7 静默缺失、§4.4 悬空引用），
+  由 **Dev A 在开工前独立发现并拒绝实施**（正确判定，避免代码与规范自相矛盾），已由 `ed894fb`
+  逐字补全并记录改进（逐块写盘 + 逐块校验）。
 - **#29（S2 rev2，Dev B / Sol 复用复核）do_not_merge**：Sol 判定 **REV-02/03/04/06/07 PASS、S1 移动
   回归 PASS**，但 **REV-01 与 REV-05 仍 FAIL**，且两项都是**契约层面**而非单纯实现 bug：
   **S2-R2-01**：**光标几何不是 actor/grid 的可靠判别器**（引擎把 `hit` 定义为"命中单个格"，
