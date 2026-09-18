@@ -1,8 +1,8 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "f8de5ab926e616bb9aaf9829e22146bdd4bfbbd5f24eb549992f297bf368f095",
+  "sha256": "3f04884cb42feb3c5a597eb4e16f8b35be8a060af53130c87e03e7f065c3f436",
   "files": {
-    "README.md": "1ab197370c1ff623c5c03a489510e4eecb033d13dbbf0ddb43d11149ca954095",
+    "README.md": "62b71bd51c4b32f202909cf1529211e0d4f70ad5d65fffaf0072b06250f43912",
     "hooks/load.lua": "8c11d088a300e6ce1a4778c7388ef42a9c868fe60b41fa1e4fde37f667a061f6",
     "init.lua": "86313065d2d6090f12003c1cdcfb8cbe0fa370f82df2db6e04093126bafeca08",
     "overload/mod/auto_combat/AssistantAdapter.lua": "a2cb10f2d749d780ce493bcc01eb64f3e1a07916bf87fc42c901aec876db79b5",
@@ -40,7 +40,7 @@
     "overload/mod/mcp_bridge/Journal.lua": "212c08df58089e69618853e83ce38f67eaba85bf129cef0e19ef733467d83c50",
     "overload/mod/mcp_bridge/Json.lua": "86bea4ebd745e52d9ce8446a9d98309deed32e59ebee97ab958858c156dbcb52",
     "overload/mod/mcp_bridge/LevelMap.lua": "f03b8bb18d1f1bff615e9326e92f8ca134bd4daca65d45120f9996aff15b84ce",
-    "overload/mod/mcp_bridge/NativeActivity.lua": "363517091b022cef2c5897376f9cf398bcff66bcfd98094b61a2e9dae630dc1c",
+    "overload/mod/mcp_bridge/NativeActivity.lua": "c11f3b4d80b2cb625aa891ae4c5ff06c14aa0c58885a3ecdf30638d5f553e00f",
     "overload/mod/mcp_bridge/NativeChatSeams.lua": "eb7d7809ee6dd35943b88ef3dddd395bc8f6040ab5a5ac554696cb407d6cbd09",
     "overload/mod/mcp_bridge/NativeCompatibility.lua": "3bdb950e3e0cb80a5de2b67eab3b6e304afcdc13fc62e9c93dcb47cedf9d7fc6",
     "overload/mod/mcp_bridge/NativeDialogSeams.lua": "e1a3a9e477818e0701fd701870b0a78c6098c14446cb294a7f10de793e79a500",
@@ -49,7 +49,7 @@
     "overload/mod/mcp_bridge/NativeManifest.lua": "b9e6483ae3a53920a1edabfd97e22d29bda1d230d6d2c10fe4af9651c95b5419",
     "overload/mod/mcp_bridge/NativeTasks.lua": "0fae96eda18c9141f8ef22087cd3b8716debfbc6c4908ff1fa5db38f614802fc",
     "overload/mod/mcp_bridge/ObservationCollections.lua": "aef0e759916c45467f8f25ae7a03af1efc466fcc5ee4c784c41adf02199e0996",
-    "overload/mod/mcp_bridge/ObservationDetails.lua": "baec64eab45ceb2896e5ae42062d66a35c627a0a2362c44e2205c0783acb5b5f",
+    "overload/mod/mcp_bridge/ObservationDetails.lua": "a7a8220e5f98cff2f89e9f36b9b2c1a3fc9120e93154e9489d8a5f5da6338903",
     "overload/mod/mcp_bridge/ObservationViews.lua": "07f856552f06bdd758ccf7a5eebf29ed11ed0dc42c3ecb338756354c0aff0fb6",
     "overload/mod/mcp_bridge/Observer.lua": "f41eb25a642d6b120598c451f425be353768a9f206798bbaaf4508868c0d6554",
     "overload/mod/mcp_bridge/Progression.lua": "823faab02267d23a5fa704ba60b09236f323440c21a77b5f1b2aca14112a4eaa",
