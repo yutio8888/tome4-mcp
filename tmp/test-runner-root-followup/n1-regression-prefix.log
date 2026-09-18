@@ -1,9 +1,0 @@
-=== pre-fix (production reverted, N1 regression tests kept) ===
-	...ome-mcp-bridge-runner/tests/test_auto_combat_catalog.lua:8: in function 'check'
-	...ome-mcp-bridge-runner/tests/test_auto_combat_catalog.lua:97: in main chunk
-	[C]: at 0x56116acea2c0
-catalog exit=1
-	...ome-mcp-bridge-runner/tests/test_auto_combat_service.lua:6: in function 'check'
-	...ome-mcp-bridge-runner/tests/test_auto_combat_service.lua:690: in main chunk
-	[C]: at 0x561a82f9a2c0
-service exit=1
