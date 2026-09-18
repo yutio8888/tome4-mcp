@@ -77,15 +77,24 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 23 | 星月术士回归实机测试（Test） | **B** | 无（测试任务） | FAIL（无 P0 回归；新 P1 1 / P2 1 / P3 2） | 0 | 1 | 1 | 2 | 4 |
 | 24 | anor-reg-01 修复 D-1..D-4 | A（Dev）/ **Sol**（Review） | 全新 Sol（新任务） | FAIL（**do_not_merge**） | 0 | 1 | 0 | 1 | 2 |
 | 25 | anor-reg-01 fix2（R-1/R-2） | **B**（Dev）/ **Sol**（Review，复用复核自身） | 同 #24（复核自身发现） | **PASS**（merge with follow-ups） | 0 | 0 | 0 | 1 | 1 |
+| 26 | anor fix2 定向回归（Test，协调者提前终止） | **A** | 无（测试任务） | **PASS**（D-1/R-1 核心通过；未覆盖项已声明） | 0 | 0 | 0 | 0 | 0 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**25**（全部已判定）。
-- **PASS 8**（#4、#14、#17、#19、#20、#21、#22、#25）、**FAIL 17**、PARTIAL 0 →
-  **通过率 8/25 = 32.0%**。
-- Issue 合计：**67**（P0 1 / P1 27 / P2 21 / P3 18）；平均每 loop 2.68。
+- Loop 总数：**26**（全部已判定）。
+- **PASS 9**（#4、#14、#17、#19、#20、#21、#22、#25、#26）、**FAIL 17**、PARTIAL 0 →
+  **通过率 9/26 = 34.6%**。
+- Issue 合计：**67**（P0 1 / P1 27 / P2 21 / P3 18）；平均每 loop 2.58。
+- **#26（Test，模型 A，协调者指示提前终止）PASS**：**D-1/R-1 核心通过**——limit=2 全流程
+  （deny → 同一 tick 内 fall-through → CD 3→2→1→0 → heal 再次成功施放；tick/revision 持续增长；
+  无 `budget_exhausted`/`no_emergency_action` 冻结）；**limit=1 边界也通过**（deny 与被拒后扣动作的
+  melee 落在同 tick 4823/4833/4843，CD 7→6→5 正常衰减，无冻结）；D-2 结构化
+  `missing={kind='cooldown',...}` 两档均逐条出现；D-4/R-2 的 `log` 与 `replay` 窗口
+  `first_seq<=last_seq` 全 PASS；红线全 0、无 unexpected pause/stop。
+  **未覆盖（提前终止，非缺陷，已声明）**：limit=1 下 CD 归零后再施放（角色在 CD=5 时死亡；同机制在
+  limit=2 已观察）、limit=3 对照、D-3 的定向新敌 instrumentation（本轮群战 `new_enemy`=0 且持续行动）。
 - **#25 闭环（轮换生效：Dev=B）**：Sol 的 R-1（limit=1 活锁）与 R-2（replay 窗口顺序）由**模型 B** 修复，
   Sol 复用复核 → **PASS（merge with follow-ups）**：limit=1 下被拒即 fall-through、CD 前进、仅拒绝型终局
   停/释放租约、对抗性拒绝上限 8、replay 2,3,4 报 window 2..4；仅 1 项 P3（缺 oldest-first 的已提交断言）。
