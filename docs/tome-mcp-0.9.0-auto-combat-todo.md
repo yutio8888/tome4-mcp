@@ -438,3 +438,17 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
       回归断言——本次只对 newest-first（status）有断言，oldest-first 仅经人工/临时验证（实测 replay 2,3,4
       报告 window 2..4）。建议补一条提交进仓库的断言，覆盖两种顺序的 `first_seq<=last_seq` 与 extent。
 
+65. **P3 follow-ups 清尾（本条，分支 `fix/p3-followups`）：四个非阻塞 P3 已全部关闭。**
+    详见 [docs/tome-mcp-0.9.0-p3-followups.md](tome-mcp-0.9.0-p3-followups.md)。
+    - **#60-N2（文档卫生）**：已同步 `docs/tome-mcp-api-fields.md`——新增 §4.9 `auto_combat` 摘要
+      （`last_native_abort`、条件键 `pending_interaction`）与 §6.1.1 policy 事件表
+      （`action`/`elapsed_ticks`/`elapsed_frames`/`native_result`/`landing`/`missing`/`hint`/`native_message`），
+      并声明请求侧 schema 未变（`protocol/v4/requests.schema.json` 与 `server/` 严格模型无新字段）。
+    - **#63-P3-b（工具链）**：42 个可执行测试文件的根推导改为从**本测试自身路径**推导，裸相对调用
+      不再静默回退到规范树；无法解析时 fail loudly。绝对路径与 `tests/run.sh` 不变；`bash tests/run.sh`
+      仍 41 套全绿。
+    - **#63-P3-c（加固）**：确认 `PolicyLog.add` 已用 `boundedString(event.landing,64)` 守卫（`PolicyLog.lua:77`），
+      并新增已提交回归：非字符串丢弃、超长截断至 64、合法短串保留。
+    - **#64/RR-1（测试覆盖）**：`tests/test_auto_combat_service.lua` 新增 oldest-first `replay` 窗口断言
+      （extent == 返回切片、`first_seq<=last_seq`，且与 newest-first `log` 的 extent 语义一致）。
+

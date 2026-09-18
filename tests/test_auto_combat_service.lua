@@ -1,5 +1,15 @@
 -- AutoCombatService: the MCP-facing orchestration (store/arbiter/controller).
-local root=(arg[0]:match('^(.*)/tests/[^/]+$') or 'game/addons/tome-mcp-bridge')
+-- P3-b (TODO #63): derive the addon root from this test's own path so a bare
+-- relative invocation fails loudly instead of silently testing the canonical
+-- `game/addons/tome-mcp-bridge` tree from another checkout.
+local root=(arg[0] or ''):match('^(.*)[/\\]tests[/\\][^/\\]+$')
+if root==nil and (arg[0] or ''):match('^tests[/\\][^/\\]+$') then root='.' end
+local root_name=(arg[0] or ''):match('([^/\\]+)$') or 'this test'
+local root_probe=root and io.open(root..'/tests/'..root_name,'r')
+assert(root_probe,'cannot resolve the addon root from '..tostring(arg[0])..'; invoke this test as '
+    ..'<addon>/tests/'..root_name..' or ./tests/'..root_name..' (bare paths are rejected so a '
+    ..'mis-invocation never silently tests another checkout)')
+root_probe:close()
 package.path=root..'/overload/?.lua;'..package.path
 local Service=require 'mod.auto_combat.AutoCombatService'
 local checks=0
@@ -869,11 +879,21 @@ do
         'the policy log carries the native message (D-2)')
     check(denied.hint=='talent on cooldown; wait for the listed turns before retrying',
         'the policy log carries the hint (D-2)')
-    -- A hostile/non-string landing cannot grow the ring (P3-c).
+    -- P3-c: `landing` is guarded by `boundedString(event.landing,64)` in
+    -- `PolicyLog.add`, so a hostile policy cannot grow the ring with a table or
+    -- any other non-string value, and an over-long string is truncated rather
+    -- than stored whole.
     local Log=require 'mod.auto_combat.PolicyLog'
     local ring=Log.new(4)
     Log.add(ring,{kind='movement_retry',landing={huge='table'}})
     check(Log.tail(ring,1)[1].landing==nil,'a non-string landing is dropped by PolicyLog (P3-c)')
+    Log.add(ring,{kind='movement_retry',landing=42})
+    check(Log.tail(ring,1)[1].landing==nil,'a non-string (number) landing is dropped by PolicyLog (P3-c)')
+    Log.add(ring,{kind='movement_retry',landing=('x'):rep(200)})
+    check(Log.tail(ring,1)[1].landing==('x'):rep(64),
+        'an over-long landing is truncated to 64 characters by PolicyLog (P3-c)')
+    Log.add(ring,{kind='movement_retry',landing='4,2'})
+    check(Log.tail(ring,1)[1].landing=='4,2','a bounded string landing is kept intact (P3-c)')
     Log.add(ring,{kind='denied',missing='not-a-table'})
     check(Log.tail(ring,1)[1].missing==nil,'a non-table missing is dropped by PolicyLog (D-2)')
 end
@@ -899,5 +919,25 @@ do
         'log returns the newest-first bounded tail')
     check(log.status.window and log.status.window.first_seq==90 and log.status.window.last_seq==94,
         'the log status window describes the returned events (D-4)')
+    -- RR-1 / R-2: the OLDEST-FIRST `replay` path must report the same coherent
+    -- window as the newest-first `log`/`status` paths (`first_seq<=last_seq`),
+    -- and the window extent must be exactly the returned slice, not the ring.
+    local replay=Service.handle(svc,'replay',{after_seq=60,limit=5})
+    check(replay.ok and #replay.entries==5 and replay.entries[1].seq==61
+        and replay.entries[#replay.entries].seq==65,
+        'replay returns the oldest-first bounded slice (RR-1)')
+    check(replay.status.window and replay.status.window.count==5,
+        'replay reports a window for the returned slice (RR-1)')
+    check(replay.status.window.first_seq==61 and replay.status.window.last_seq==65,
+        'the replay window extent is the returned slice, not the ring (RR-1)')
+    check(replay.status.window.first_seq<=replay.status.window.last_seq,
+        'the oldest-first replay window keeps first_seq<=last_seq (RR-1)')
+    -- The same bounded page read newest-first must agree on the extent, so the
+    -- order never changes what the window means (R-2).
+    local newest=Service.handle(svc,'log',{limit=5})
+    check(newest.events[1].seq==94 and newest.events[#newest.events].seq==90,
+        'log still returns the newest-first bounded tail (RR-1)')
+    check(newest.status.window.first_seq==90 and newest.status.window.last_seq==94,
+        'the newest-first window agrees with the oldest-first window extent semantics (RR-1)')
 end
 print('Auto-combat service: '..checks..' checks passed')

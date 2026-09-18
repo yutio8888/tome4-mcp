@@ -1,6 +1,16 @@
 -- AssistantAdapter: generation-only, version-pinned translation of a legacy
 -- auto-talent-assistant export into a policy draft.
-local root=(arg[0]:match('^(.*)/tests/[^/]+$') or 'game/addons/tome-mcp-bridge')
+-- P3-b (TODO #63): derive the addon root from this test's own path so a bare
+-- relative invocation fails loudly instead of silently testing the canonical
+-- `game/addons/tome-mcp-bridge` tree from another checkout.
+local root=(arg[0] or ''):match('^(.*)[/\\]tests[/\\][^/\\]+$')
+if root==nil and (arg[0] or ''):match('^tests[/\\][^/\\]+$') then root='.' end
+local root_name=(arg[0] or ''):match('([^/\\]+)$') or 'this test'
+local root_probe=root and io.open(root..'/tests/'..root_name,'r')
+assert(root_probe,'cannot resolve the addon root from '..tostring(arg[0])..'; invoke this test as '
+    ..'<addon>/tests/'..root_name..' or ./tests/'..root_name..' (bare paths are rejected so a '
+    ..'mis-invocation never silently tests another checkout)')
+root_probe:close()
 package.path=root..'/overload/?.lua;'..package.path
 local Adapter=require 'mod.auto_combat.AssistantAdapter'
 local Schema=require 'mod.auto_combat.PolicySchema'

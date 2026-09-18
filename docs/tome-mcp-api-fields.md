@@ -1,8 +1,8 @@
 # ToME MCP 接口返回字段清单
 
-日期：2026-09-15。基线：Bridge / Python server **0.8.0**、协议 **3**（v1/v2 已在测试阶段移除）。本文由当前源码提取，用于审阅命名与冗余；不是新契约，字段语义以 [v3 契约](tome-mcp-v3-talent-query.md) 为准。
+日期：2026-09-18。基线：Bridge / Python server **0.9.0**、协议 **v4**（v1/v2/v3 已在测试阶段移除，见 `protocol/v4/requests.schema.json`）。本文由当前源码提取，用于审阅命名与冗余；不是新契约。
 
-标记：`?` 条件出现。所有字段均属于协议 3。
+标记：`?` 条件出现。所有字段均属于协议 v4。
 
 ## 1. 统一信封
 
@@ -69,6 +69,7 @@
 | `phase` | `ready`\|`settling`\|`needs_input`\|`terminal`\|`unavailable` | 运行阶段 |
 | `control_source` | `remote`\|`battle_companion`\|`manual` | 当前控制来源 |
 | `battle_companion` | object? | 安装了 Battle Companion 时的只读摘要 |
+| `auto_combat` | object | 自动战斗摘要（§4.9），稳定存在（激活前/停止后/死亡后都不为 null） |
 | `world_tick` | int | `game.turn` |
 | `player` | object | §4.1 |
 | `map` | object\|null | §4.2；`include_map=false` 时为 null |
@@ -141,6 +142,29 @@
 附：`activation{present,runtime_checked,power?,max_power?,recharge_per_turn?,talent_cooldown?,use_no_wear}`。
 库存/装备内额外：`inventory_id`、`slot`、`container`、`equipped`、`transmogrification_pending`。
 
+### 4.9 `auto_combat`（自动战斗摘要）
+
+始终出现的固定键（值为 `null` 而不是缺键，客户端可直接依赖）：
+`enabled`、`active`、`policy_id`、`policy_hash`、`state`（`stopped`/`awaiting_ready`/`running`/
+`paused`/`waiting_native`）、`actions`、`paused_reason`、`generation`、`last_decisions`、
+`last_native_abort`。
+
+条件出现的键：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `last_native_abort` | object\|null | 执行器最近一次**有界原生中止**（`native_timeout`）的已声明记录；在任何中止前为 null。仅由执行器写入，不作状态推测，见下 |
+| `pending_interaction` | object? | **仅在**自动战斗的 native invocation 仍存活且向引擎提出了一个执行器无法回答的请求时出现；形状与 `interaction`（§6）相同，用于透明预览中止前会发生的交互 |
+
+`last_native_abort`：`code='native_timeout'`、`reason`、`cancelled`、`action?`、`talent?`、`target?`、
+`elapsed_ticks?`、`elapsed_frames?`。`reason` 例如 `authoritative_target_cancelled`（executor 已用
+权威目标回答了原生请求）或 dialog 关闭原因。
+
+`last_decisions[]`：控制器最近决策事件的有界 ring（最多 8 条，最新优先），非 `PolicyLog` 的
+投影：条目带 `kind`、`rule`、`reason`、`talent`、`target`、`generation` 及按类型附加的原始详情
+（如 `acted` 的 `destination`/`detail`），**无 `seq`**；客户端可见的稳定、有界投影请用
+`tome.policy_log` / `tome.policy replay`（§6.1.1）。
+
 ## 5. `tome.inspect`
 
 ### 5.1 `kind="actor"`
@@ -200,7 +224,7 @@
 | `hint?` | 人类可读提示（code 仍为权威）；冷却拒绝附带 `talent on cooldown; wait for the listed turns before retrying` |
 | `level_changed?` | change_level 成功 |
 | `points_spent?`、`points_returned?`、`point_pool?`、`previous_value?`、`new_value?` | 成长/洗点 |
-| （协议 3） | `revision`、`input_owner`、`execution_released`、`energy_spent_complete`、`interaction?`、`native_task?`、`response_receipt?` |
+| （协议 v4） | `revision`、`input_owner`、`execution_released`、`energy_spent_complete`、`interaction?`、`native_task?`、`response_receipt?` |
 | Python 轮询 | `wait_expired?`（等待窗口到期） |
 
 `response_receipt`：`{response_id, interaction_id, state(queued/applied/rejected), code?}`。
@@ -222,9 +246,32 @@
 `status`：`mode` 含已校验的调度值 `on_no_enemy`、`on_low_hp`、`on_new_enemy='pause'|'continue'`
 （`on_new_enemy` 由 preset/mode 选择，非插件级门禁）。
 
-policy 决策事件的 `denied` 条目可携带原生拒绝的结构化详情：`missing`（如
-`[{kind='cooldown',talent,remaining,required=0}]`）、`hint`、`native_message`，与 `tome.act` 命令路径
-一致（有界且类型守卫）。
+### 6.1.1 policy 事件（`log.events[]` / `replay.entries[]` / `status.last_decisions[]`）
+
+公共键：`seq`（仅 `log`/`replay` 条目；`last_decisions` 无）、`kind`、`reason`、`rule`、`talent`、
+`target`、`generation`、`policy_hash`（在可能时）。客户可见的自动战斗事件（`kind`）包括
+`acted`、`denied`、`paused`、`stopped`、`movement_retry`、`native_aborted`、`scene_changed`。
+
+下列字段按事件类型出现，均为**有界且类型守卫**（敌意策略无法撑大 ring）：
+
+| 字段 | 类型 | 出现于 | 说明 |
+| --- | --- | --- | --- |
+| `action` | string? | `native_aborted`、`movement_retry` | 被中止/重试的动作类型（如 `move`、`use_talent`） |
+| `elapsed_ticks`、`elapsed_frames` | int? | `native_aborted` | 有界中止前已过去的**世界 tick 数 / 引擎帧数**（与 `observe.auto_combat.last_native_abort` 同源） |
+| `native_result` | string? | `acted`、`movement_retry` | 原生结算状态/拒绝码（如 `ok`、`blocked`） |
+| `landing` | string?（≤ 64 字节） | `movement_retry` | 被原生拒绝的确定性落点（`x,y`）；非字符串被丢弃，超长截断 |
+| `missing` | object[]?（≤ 8） | `denied` | 结构化未满足条目，如 `{kind='cooldown',talent,remaining,required=0}`；字段白名单投影（`kind`/`talent`/`remaining`/`required`/`stat`/`special`/`level`） |
+| `hint` | string?（≤ 256） | `denied` | 人类可读提示（`reason` 仍为权威）；冷却拒绝附带 `talent on cooldown; wait for the listed turns before retrying` |
+| `native_message` | string?（≤ 512） | `denied` | 引擎拒绝原文（如 `Healing Light is still on cooldown for 7 turns.`） |
+
+`denied` 的 `missing`/`hint`/`native_message` 与 `tome.act` 命令路径（§6）**同一证据**：先经生产的
+`Runtime.mapAutoCombatOutcome` 透传，再由 `AutoCombat:deny` 放入 notify 事件，最后由 `PolicyLog.add`
+做有界投影。其它有界键（`movement`、`risk`、`rule_results`、`rejections`、`resources_before`/
+`resources_after`、`tick`/`revision`/`level_instance_id`）含义与原字段一致。
+
+> **请求侧 schema 未变。** 上述只是**客户端可见的返回字段**：`protocol/v4/requests.schema.json` 与
+> `server/` 的严格请求模型（`PolicyArgs` 等）**没有新增字段**，`tome.policy`/`tome.policy_log` 的入参
+> 仍是已列出的那些。`observe.auto_combat` 对客户端是自由形状（free-form），因此该同步不构成契约破坏。
 
 ## 7. `tome.stop`
 
