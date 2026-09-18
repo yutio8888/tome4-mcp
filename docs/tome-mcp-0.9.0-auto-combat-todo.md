@@ -365,3 +365,24 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
 59. **Remaining follow-up (not this fix).** F2 (no-enemy `enemy_distance` vs
     safety-predicate authoring semantics) is a documented authoring pattern, not
     a plugin defect; no code change. `allow_auto_combat_execution` stays `false`.
+
+60. **P0 fix review follow-ups (all P3, non-blocking; review sha256
+    `57b430e766dd935c7f94f5b3463599b691298fd730018004aa7be1921725af40`).**
+    - **N1 — fixed**: round-doc §2.1 wrongly described `force_actor`/`force_grid`+`force_target`;
+      corrected to state that the auto host uses only `authoritative_target` and the bridge's own
+      per-request guard wrapper (force_target bypasses the guard, so it must not be "restored").
+    - **N2 — protocol-doc hygiene**: sync `docs/tome-mcp-api-fields.md` with the new client-visible
+      fields (`observe.auto_combat.last_native_abort`, `observe.auto_combat.pending_interaction`, and
+      the policy-log `action`/`elapsed_ticks`/`elapsed_frames`). No breakage (observe `auto_combat`
+      is free-form for clients; the strict `forbid` models govern requests only).
+    - **N3 — accepted residual**: if a native flow raised a further UI after receiving the
+      authoritative cancel, the `command.target_cancelled` branch skips cancel/dismiss and the UI
+      would stay open (recovery only via session adoption). Standard flows treat nil coordinates as a
+      terminal cancel (verified for `getTargetLimited`); keep as a documented residual.
+    - **N4 — hardening**: in the non-target fallback `Interactions.dismissTop(s.game)` closes the
+      game's top dialog regardless of owner; scope it to root-owned handles.
+    - **N5 — accepted by design**: authoritative lowering answers every `getTarget` of the invocation
+      with the same decided coordinates, including a hypothetical multi-geometry talent; keep it on
+      the preset/adapter authoring radar (author policies against talents whose requests share the
+      decided target).
+

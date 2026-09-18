@@ -46,10 +46,14 @@ For each request the wrapper still:
 - records `command.target_cancelled` so the executor maps the typed reason.
 
 The auto host sets `authoritative_target=true` whenever it lowers an actor or grid
-plan (`Runtime.lua` `reads.execute`): `force_actor`+`authoritative_target` for an
-actor request, `force_grid`+`authoritative_target` for a grid request, and for a
-plain auto actor-target talent with no movement plan. Remote commands keep the
-legacy one-shot prefill (their later prompts are answerable interactions).
+plan (`Runtime.lua` `reads.execute`), for an actor request, a grid request, and a
+plain auto actor-target talent with no movement plan alike. It does **not** use the
+engine `force_target` field (`force_actor`/`force_grid` were removed from the auto
+host): force_target is installed inside native `prepareUse` and bypasses the native
+target request, whereas the bridge's own wrapper evaluates the native range /
+self-warning guard **for each request** of the invocation and only then answers —
+strictly safer, and the reason later requests are answered too. Remote commands keep
+the legacy one-shot prefill (their later prompts are answerable interactions).
 
 This is a structural fix at the executor boundary; it is talent-independent and
 also covers the message-then-action pattern any such talent may have.

@@ -47,15 +47,19 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 16 | movement-adapter-factory rev9 | A | 同 #5（复核自身） | FAIL | 0 | 1 | 2 | 0 | 3 |
 | 17 | movement-adapter-factory rev10 | A | 同 #5（复核自身） | **PASS** | 0 | 0 | 0 | 0 | 0 |
 | 18 | S1 Rush 实机测试（Test） | **B** | 无（测试任务） | FAIL（主指标 NOT_OBSERVED） | 1 | 0 | 2 | 1 | 4 |
+| 19 | auto-combat 移动原生死锁 P0 修复 | A（Dev）/ **B**（Review） | 全新 Review（新任务） | **PASS**（merge with follow-ups） | 0 | 0 | 0 | 5 | 5 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前，模型 A / A′；B 尚未用于任何 loop）
-- Loop 总数：**18**（全部已判定）。
-- **PASS 3**（#4 movement-first-tranche rev4、#14 docs rev3、#17 S1 rev10）、**FAIL 15**、
-  PARTIAL 0 → **通过率 3/18 = 16.7%**。
-- Issue 合计：**46**（P0 1 / P1 25 / P2 19 / P3 1）；平均每 loop 2.56。
+- Loop 总数：**19**（全部已判定）。
+- **PASS 4**（#4 movement-first-tranche rev4、#14 docs rev3、#17 S1 rev10、#19 P0 修复）、
+  **FAIL 15**、PARTIAL 0 → **通过率 4/19 = 21.1%**。
+- Issue 合计：**51**（P0 1 / P1 25 / P2 19 / P3 6）；平均每 loop 2.68。
+- **#19 闭环**：模型 A 修 P0（#18 由模型 B 实测发现），模型 B 做**跨模型独立复核** →
+  verdict `merge with follow-ups`（5/5 断言 PASS，5 项新问题全为 P3，已登记 TODO #60）；
+  PR #18 合并 `eb706b7b`，main 重建 dist `2f7c15e4`。
 - **模型 B 首次用于 loop #18**（S1 实机测试）：发现确定性 **P0**——auto_combat 槽执行 `T_RUSH`
   原生死锁（waiting_native/settling 永冻、~500% CPU、prompt 不浮出），手动槽同技能可完整结算；
   另 F3/F4 (P2) 与 F5 (P3)。
