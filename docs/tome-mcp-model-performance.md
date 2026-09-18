@@ -51,15 +51,23 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 20 | P0 修复后 Rush 复测（Test） | **B** | 无（测试任务） | **PASS**（P0 关闭；新 P2 1 / P3 2） | 0 | 0 | 1 | 2 | 3 |
 | 21 | P2-1 备选落点 + P3-2 冷却详情 | A（Dev）/ **B**（Review） | 全新 Review（新任务） | **PASS**（merge with follow-ups） | 0 | 0 | 0 | 3 | 3 |
 | 22 | N2 测试运行器根 + N1 日志 landing | A（Dev）/ **B**（Review） | 全新 Review（新任务） | **PASS**（**merge**，无阻塞项） | 0 | 0 | 0 | 3 | 3 |
+| 23 | 星月术士回归实机测试（Test） | **B** | 无（测试任务） | FAIL（无 P0 回归；新 P1 1 / P2 1 / P3 2） | 0 | 1 | 1 | 2 | 4 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前，模型 A / A′；B 尚未用于任何 loop）
-- Loop 总数：**22**（全部已判定）。
-- **PASS 7**（#4、#14、#17、#19、#20、#21、#22 N1/N2）、**FAIL 15**、PARTIAL 0 →
-  **通过率 7/22 = 31.8%**。
-- Issue 合计：**60**（P0 1 / P1 25 / P2 20 / P3 14）；平均每 loop 2.73。
+- Loop 总数：**23**（全部已判定）。
+- **PASS 7**（#4、#14、#17、#19、#20、#21、#22）、**FAIL 16**、PARTIAL 0 →
+  **通过率 7/23 = 30.4%**。
+- Issue 合计：**64**（P0 1 / P1 26 / P2 21 / P3 16）；平均每 loop 2.78。
+- **#23（模型 B 实机回归）**：**无 P0 回归**（68/68 原生 ok、0 `native_timeout`/`native_aborted`、
+  Moonlight Ray 原生目标请求正常结算）——PR #18 在射线类技能上得到正向验证。新发现：
+  **D-1 P1**（emergency 治疗被原生拒绝 → `no_emergency_action` 暂停 + 暂停期世界不推进 ⇒ CD 永不衰减
+  的活锁，需人工解围并间接致死）、**D-2 P2**（auto `denied` 事件丢掉了命令路径已有的
+  `missing={kind='cooldown',...}` 结构化详情）、**D-3 P2**（`new_enemy` 暂停风暴：单场群战 12 次暂停，
+  罚站挨打；应做成 preset/mode 可配默认而非插件门禁）、**D-4 P3**（status 日志尾部/`first_seq` 不一致）。
+  已派模型 A 修复（D-1 必修，D-2/D-3/D-4 一并）。
 - **#22 闭环**：模型 A 修 **N2**（`tests/run.sh` 从脚本自身位置推导 addon 根 + 支持
   `TOME_MCP_ADDON_DIR` + 坏覆盖 fail-fast；旧实现上溯 4 层会**静默跑主检出测试**）与 **N1**
   （`movement_retry` 客户端可见日志携带 `landing`，允许集有界），模型 B 独立复核 → **verdict MERGE**
