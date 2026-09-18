@@ -122,6 +122,17 @@ python3 tools/package.py
   - `[Dev]`：改仓库代码/文档 + 单测 + 打包；交付分支/PR。
   - `[Test]`：只游玩/实测与反馈，不改文件、不 kill 进程。
   - `[Review]`：只读，只出问题清单（P0–P3 + 证据）；不改代码。
+- **模型角色与轮换（协调者定稿，2026-09-18）**：
+  - `[Review]` **固定由 GPT-5.6 Sol（Codex）担任**：`pi` / `openai-codex/gpt-5.6-sol`，
+    `--thinking high`；**不使用 A/B 做评审**。
+  - `[Dev]` 与 `[Test]` **各自独立轮换**两个执行模型，互不牵连、各自计数：
+    - **Dev**：本轮 A → 下轮 B → 再下轮 A …
+    - **Test**：本轮 A → 下轮 B → 再下轮 A …
+    - A=`commandcode/deepseek/deepseek-v4.1-flash`，B=`opencode-go/glm-5.3-flash`（均 `pi`，thinking high）。
+  - 派发简报里必须写明“本轮 Dev/Test 使用模型 X（该序列上次为 Y）”，并在
+    `docs/tome-mcp-model-performance.md` 记录每轮 Dev/Test/Review 的**实际**模型。
+  - 上下文：执行模型在 **600K** 触发自动压缩（`models-store.json` `contextWindow=616384` +
+    默认 `reserveTokens=16384`）；Review 模型（Sol）保持其真实 **272K** 窗口。
 
 ## 简报契约（派发必须遵守）
 

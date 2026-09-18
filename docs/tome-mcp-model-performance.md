@@ -23,8 +23,17 @@
 | **Dev / Test（执行）** | **A ↔ B 逐 loop 交替** | A=`commandcode/deepseek/deepseek-v4.1-flash`，B=`opencode-go/glm-5.3-flash` |
 | **Review（复核）** | **固定 GPT-5.6 Sol（Codex）** | `pi` / **`openai-codex/gpt-5.6-sol`**，thinking high；**不再**用 A/B 做评审 |
 
-轮换规则：**执行**侧按 loop 交替 A → B → A → B …；**评审侧恒为 Sol**，且每个新任务用**全新** Review
-agent（仅"复核上一轮自身发现"时可复用同一 Review agent）。
+轮换规则（**两条独立的交替序列，各自计数，互不牵连**）：
+- **Dev 序列**：本轮 A → 下轮 B → 再下轮 A …
+- **Test 序列**：本轮 A → 下轮 B → 再下轮 A …
+- **Review 恒为 Sol**；每个新任务用**全新** Review agent（仅"复核上一轮自身发现"时可复用同一
+  Review agent）。
+
+**当前指针（2026-09-18）**：
+- Dev 序列历史全部为 **A**（#1–#11、#15–#17、#19、#21、#22，以及进行中的 D-1 活锁修复）
+  → **下一个 Dev loop 用 B**。
+- Test 序列历史全部为 **B**（#18 Rush 实测、#20 Rush 复测、#23 星月术士回归）
+  → **下一个 Test 用 A**。
 
 ## 上下文窗口与自动压缩（2026-09-18 定稿，已实测）
 - 全局：`~/.pi/agent/settings.json` → `compaction={enabled:true,keepRecentTokens:20000}`（`reserveTokens`
