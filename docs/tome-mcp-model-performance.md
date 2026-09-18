@@ -78,15 +78,20 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 24 | anor-reg-01 修复 D-1..D-4 | A（Dev）/ **Sol**（Review） | 全新 Sol（新任务） | FAIL（**do_not_merge**） | 0 | 1 | 0 | 1 | 2 |
 | 25 | anor-reg-01 fix2（R-1/R-2） | **B**（Dev）/ **Sol**（Review，复用复核自身） | 同 #24（复核自身发现） | **PASS**（merge with follow-ups） | 0 | 0 | 0 | 1 | 1 |
 | 26 | anor fix2 定向回归（Test，协调者提前终止） | **A** | 无（测试任务） | **PASS**（D-1/R-1 核心通过；未覆盖项已声明） | 0 | 0 | 0 | 0 | 0 |
+| 27 | P3 门禁清尾（#60-N2/#63-P3-b/-c/#64） | A→**B**（Dev）/ **Sol**（Review，复用复核自身） | 首轮全新 Sol；修正轮复用 | **PASS**（终审 **MERGE**，0 findings） | 0 | 0 | 0 | 2 | 2 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**26**（全部已判定）。
-- **PASS 9**（#4、#14、#17、#19、#20、#21、#22、#25、#26）、**FAIL 17**、PARTIAL 0 →
-  **通过率 9/26 = 34.6%**。
-- Issue 合计：**67**（P0 1 / P1 27 / P2 21 / P3 18）；平均每 loop 2.58。
+- Loop 总数：**27**（全部已判定）。
+- **PASS 10**（#4、#14、#17、#19、#20、#21、#22、#25、#26、#27）、**FAIL 17**、PARTIAL 0 →
+  **通过率 10/27 = 37.0%**。
+- Issue 合计：**69**（P0 1 / P1 27 / P2 21 / P3 20）；平均每 loop 2.56。
+- **#27 闭环（Dev 先 A 后 B，Sol 首审 + 复用复核）**：四项 P3 门禁（#60-N2 文档同步、#63-P3-b 测试根、
+  #63-P3-c landing 守卫回归、#64/RR-1 oldest-first replay 断言）全部关闭。Sol 首审**只放行 3 项**并按
+  "文档不准确"**拦下 #60-N2**（DOC-V4-01 五个子点 + DOC-PROVENANCE-01），Dev B 逐条修正后 Sol **终审
+  MERGE、0 findings**。PR #22 合并 `55d9ab33`；`dist` 保持字节一致 `536d5e14`（本批零生产改动）。
 - **#26（Test，模型 A，协调者指示提前终止）PASS**：**D-1/R-1 核心通过**——limit=2 全流程
   （deny → 同一 tick 内 fall-through → CD 3→2→1→0 → heal 再次成功施放；tick/revision 持续增长；
   无 `budget_exhausted`/`no_emergency_action` 冻结）；**limit=1 边界也通过**（deny 与被拒后扣动作的

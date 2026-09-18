@@ -452,3 +452,15 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
     - **#64/RR-1（测试覆盖）**：`tests/test_auto_combat_service.lua` 新增 oldest-first `replay` 窗口断言
       （extent == 返回切片、`first_seq<=last_seq`，且与 newest-first `log` 的 extent 语义一致）。
 
+65. **P3 门禁清尾完成（PR #22，merge `55d9ab3365f04359db9abf7124d668a3b5735987`）——以下门禁全部闭环。**
+    - **#60-N2 ✅**：`docs/tome-mcp-api-fields.md` 与发射点对齐（§2/§3 协议 4；补齐 `history`/
+      `max_retained_commands`/`action_support`/`capabilities.auto_combat`，删除不存在的 `max_commands`；
+      `actions`/`native_tasks`/`inspect_kinds` 补全；`last_native_abort` 归为稳定键，`pending_interaction`
+      为唯一条件键并如实描述其谓词；§6 补 `shape`/`selffire`；收窄有界/类型守卫声明）。Sol 复核后
+      又抓出 DOC-V4-01.1-.5（协议自相矛盾、字段缺失/过期、条件过度声称、交互形状不全、守卫过度声称）
+      与 DOC-PROVENANCE-01（基线出处写错），**已由 Dev model B 逐条修正并经同一 Sol 复核 PASS**。
+    - **#63-P3-c ✅**：`PolicyLog` 的 `landing` 由 `boundedString(...,64)` 守卫 + **已提交回归**。
+    - **#64/RR-1 ✅**：补上 **oldest-first `replay` 窗口断言**（`first_seq<=last_seq`），与 newest-first 共存。
+    - **#63-P3-b ✅**：**42 个**测试文件改为从自身路径推导根，裸相对调用**响亮失败**（不再静默测 canonical 树）。
+    - 本批**仅触及 `tests/` 与 `docs/`**（零生产改动，`dist` 保持 `536d5e14…`），Sol 终审 **MERGE，0 findings**。
+
