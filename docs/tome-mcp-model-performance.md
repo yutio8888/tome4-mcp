@@ -46,15 +46,20 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 15 | movement-adapter-factory rev8 | A | 同 #5（复核自身） | FAIL | 0 | 1 | 1 | 0 | 2 |
 | 16 | movement-adapter-factory rev9 | A | 同 #5（复核自身） | FAIL | 0 | 1 | 2 | 0 | 3 |
 | 17 | movement-adapter-factory rev10 | A | 同 #5（复核自身） | **PASS** | 0 | 0 | 0 | 0 | 0 |
+| 18 | S1 Rush 实机测试（Test） | **B** | 无（测试任务） | FAIL（主指标 NOT_OBSERVED） | 1 | 0 | 2 | 1 | 4 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前，模型 A / A′；B 尚未用于任何 loop）
-- Loop 总数：**17**（全部已判定）。
-- **PASS 3**（#4 movement-first-tranche rev4、#14 docs rev3、#17 S1 rev10）、**FAIL 14**、
-  PARTIAL 0 → **通过率 3/17 = 17.6%**。
-- Issue 合计：**42**（P0 0 / P1 25 / P2 17 / P3 0）；平均每 loop 2.47。
+- Loop 总数：**18**（全部已判定）。
+- **PASS 3**（#4 movement-first-tranche rev4、#14 docs rev3、#17 S1 rev10）、**FAIL 15**、
+  PARTIAL 0 → **通过率 3/18 = 16.7%**。
+- Issue 合计：**46**（P0 1 / P1 25 / P2 19 / P3 1）；平均每 loop 2.56。
+- **模型 B 首次用于 loop #18**（S1 实机测试）：发现确定性 **P0**——auto_combat 槽执行 `T_RUSH`
+  原生死锁（waiting_native/settling 永冻、~500% CPU、prompt 不浮出），手动槽同技能可完整结算；
+  另 F3/F4 (P2) 与 F5 (P3)。
+- 会话计数：模型 A 用于 loop #1–#11、#15–#17（另 #12–#14 为 A′ 偏离）；模型 B 用于 #18。
 - 两个任务（docs-antipattern、movement-adapter-factory S1）均已在**第 3 个复审轮**收敛为全 PASS
   并合并（PR #17 `2b5a4cd`、PR #16 `bc3eea0`），无遗留 P0/P1/P2。
 - 说明：loop #12–#14（docs 任务）的执行模型为 **A′**（`commandcode/deepseek/deepseek-v4-flash`，
