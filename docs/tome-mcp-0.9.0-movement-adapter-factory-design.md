@@ -168,13 +168,94 @@ advisory metadata, not a gate).
 | `grid_move_bounded` | `delivery`; finite `radius` or audited radius getter; alternate-selection helper; explicit `traverses` | `target_requests={'grid'}`; `landing='bounded_alternatives'`; `center='requested_grid'`; `relocates_other=false` | Direct mapping. Use for `teleportRandom(...,0)` and occupied-cell leap fallback; annotate native random tie-break separately. |
 | `self_random_teleport` | finite radius getter/value and its helper proof; optional minimum | `target_requests={'none'}`; `delivery='teleport'`; `landing='random'`; `center='self'`; `min_radius=0` only when the reviewed native call omits it; `traverses=false`; `relocates_other=false` | Direct mapping after dynamic values resolve. Phase Door's radius comes from `t.getRange`, not from the cursor range (`game/modules/tome/data/talents/spells/conveyance.lua:74-76,104-107,146-148`). |
 | `actor_anchor_teleport` | finite radius/getter; post-landing relation; effect components | `target_requests={'actor'}`; `delivery='teleport'`; `landing='bounded_alternatives'`; `center='actor'`; `traverses=false`; `relocates_other=false` | Direct mapping for self movement around an actor. Shadowstep is the reference class (`game/modules/tome/data/talents/cunning/shadow-magic.lua:127-149`). |
-| `request_then_landing` | complete ordered request list per variant; subject request; every landing branch/envelope; explicit `relocates_other`; prompt-response validation | No request order, center, bounds, or subject defaults | Each resolved variant becomes the current leaf. Execution remains unavailable until an ordered prompt-response queue exists. Phase Door TL5 is the reference class (`game/modules/tome/data/talents/spells/conveyance.lua:82-147`). |
+| `request_then_landing` | complete ordered request list per variant (`request_sequence`, §4.4); subject binding; every landing branch/envelope; explicit `relocates_other`; prompt-response validation | No request order, center, bounds, or subject defaults | Each resolved variant becomes the current leaf, plus the closed `request_sequence` the ordered prompt-response queue consumes (§4.4). A variant without a `request_sequence` is still executable only for N=1; N≥2 without one is `unsupported_target_plan`, `missing='ordered_request_sequence'`. Phase Door TL4/TL5 is the reference class (`game/modules/tome/data/talents/spells/conveyance.lua:82-147`). |
 | `swap` | request kind; both actor identities; hit/resist/fizzle branches; two-actor destination relation; postconditions | `delivery='teleport'`; `relocates_other=true`; no landing or request defaults | **Cannot map losslessly to today's single-subject descriptor.** Keep typed unsupported until the descriptor and executor model two subjects. Dimensional Step TL5 is the reference class (`game/modules/tome/data/talents/chronomancy/spacetime-weaving.lua:48-79`). |
 
 `grid_move_bounded` deliberately covers both leap and teleport delivery; a new
 template is justified only when it adds a reusable invariant, not merely a new
 talent name. Conversely, `request_then_landing` is not a generic escape hatch:
 it requires the entire prompt program and all branches to be curated.
+
+### 4.4 Ordered request sequences (S2)
+
+A `request_then_landing` descriptor declares its prompts as a closed, ordered list. The
+list is curated data, never inferred: the native cursor `type` is semantically ambiguous
+(§3.2), so the *expected* kind at each position comes from the source review while the
+observed cursor spec is used only to apply the native per-request range/self-warning
+guard.
+
+```lua
+request_sequence = {
+  { index=1, request='actor', subject='self' },
+  { index=2, request='grid', subject='self', value_source='target_plan',
+    landing_from='envelope', optional=true },
+}
+```
+
+- `index` is explicit and must equal the array position; a hole, gap or reorder is
+  `movement_adapter_invalid`. `request_sequence` and `target_requests` must agree in
+  length and kind (a mismatch is `movement_adapter_invalid`), so every existing consumer
+  of `target_requests` — `EffectManifest.requestSequences`, the static policy validator
+  and the capability summary — keeps working unchanged
+  (`overload/mod/auto_combat/EffectManifest.lua:363-384,485-566`).
+- `request` is one of the existing `TARGET_REQUESTS` (`none`/`actor`/`grid`/`self`,
+  `overload/mod/auto_combat/MovementAdapterFactory.lua:49`).
+- `subject` is the binding of the answer: `'self'` always answers with the caster cell,
+  `'actor'` with the policy's decided actor. Phase Door's Phase-1 default is the caster
+  (`game/modules/tome/data/talents/spells/conveyance.lua:79`), and its Phase-1 result may
+  replace the subject with the requested cell's occupant (`:90`).
+- `value_source='subject'` (default) repeats the subject; `value_source='target_plan'`
+  takes the value from that step's own policy `target_plan[i]`
+  (`selector`/`destination`), i.e. a **distinct** decided value. This is the only reason
+  the queue is needed: the merged authoritative prefill answers *every* native request
+  with one value (`overload/mod/mcp_bridge/Actions.lua:230-233,267-304`), which cannot
+  express “actor prompt ⇒ the caster, landing prompt ⇒ this coordinate”.
+- `landing_from='envelope'` annotates the landing from the declared envelope
+  (`radius`/`min_radius`/`fallback_center`/`fallback_radius`) instead of an exact cell.
+- `optional=true` marks a **trailing** entry the native flow may legitimately not raise.
+  A missing `optional` trailing prompt is a settled native outcome (reported with
+  `reduced=true`), **not** an error; a non-trailing `optional` entry is
+  `movement_adapter_invalid`. A missing non-optional prompt is
+  `unexpected_target_request` (see §6.1).
+
+A variant that can raise 1, 2 or N prompts is expressed by the existing variant matrix —
+one branch per reviewed state — not by a partial sequence (§4.1). Phase Door's Phase-2
+gate is `getTalentLevel(t) >= 5 or attr("phase_door_force_precise")`
+(`game/modules/tome/data/talents/spells/conveyance.lua:108`); at effective TL5 the first
+disjunct is statically true from the same effective-level read the variant resolved, so
+the TL5 branch declares `{'actor','grid'}` unconditionally, while the TL4 cell may declare
+the second entry `optional=true` or be split into two explicit attribute branches. Either
+form is admitted; exactly one descriptor must resolve and the trailing-optional rule is
+the bound that keeps a genuinely missing prompt from passing silently.
+
+**Execution model (normative).** The queue lives *inside one action opportunity and one
+native submission*; it never resubmits the talent while pending. The executor arms the
+queue on the single `useTalent` call and answers the k-th observed `getTarget` with the
+k-th declared entry's decided value, keeping every existing per-request guard:
+
+- the native range guard and the self-warning check are evaluated **for that request's
+  own spec** — Phase Door's actor prompt carries `range=getTalentRange` (10 at TL≥4,
+  `:75,84`) while its landing prompt carries `range=getRange` and `radius=getRadius`
+  (`:106-107,114`), so a value legal for the second prompt but not the first stays
+  refused;
+- a value that fails the guard is answered as a native target cancel carrying the typed
+  reason (existing `command.target_cancelled`, `overload/mod/mcp_bridge/Actions.lua:297`
+  surfaced at `:330-334`);
+- an undeclared, reordered or wrong-kind request is `unexpected_target_request` with the
+  expected/observed index: the executor pauses, never resubmits, and hands the live
+  interaction back if safely possible (§6.2);
+- a native flow that never raises the next prompt and never returns is bounded by the
+  existing `native_timeout` abort
+  (`overload/mod/mcp_bridge/Runtime.lua:50-52,2044-2078,2081-2104`).
+
+The observed request sequence is recorded for evidence on the command
+(`target_sequence`, one bounded entry per observed request) while `target_geometry`
+keeps its current meaning (the first observed native request). Planning, dry run and the
+committed decision reuse the existing movement report: `requests` (the declared kinds),
+`landing` (`kind='random'|'bounded'`, center, radius, and the LOS-fallback envelope) and
+the same player-known fields. A random or out-of-vision landing remains an
+**annotation**; whether it is acceptable is the policy's `destination.accept` result, as
+in §6.1.
 
 ### 4.3 Manual fields that do not belong in templates
 
@@ -246,7 +327,23 @@ it is not a global tactical veto
 | No variant, multiple variants, or a level/attribute read that errors or returns `nil` | `movement_variant_unknown` with the unresolved condition | Disable this action before commit. |
 | Policy target plan differs in length/order/kind | existing `target_plan_mismatch` / `target_plan_selector_mismatch` | Policy validation error or action denial. Existing exact comparison is at `overload/mod/auto_combat/EffectManifest.lua:427-456`. |
 | Adapter declares a valid multi-prompt plan but executor lacks the queue | existing `unsupported_target_plan`, `scope='multi_prompt'` | Capability pause/denial before commit (`overload/mod/auto_combat/MovementPlanner.lua:396-400`). |
-| Native asks for an extra, missing, reordered, or wrong-kind prompt after commit starts | `unexpected_target_request` with expected/observed index | Pause the executor, do not resubmit, and hand the live interaction back if safely possible. |
+| Native asks for an extra, missing, reordered, or wrong-kind prompt after commit starts | `unexpected_target_request` with `expected={index,request}`, `observed={index,request|nil}`, and `skippable` for a missing entry | Pause the executor, do not resubmit, and hand the live interaction back if safely possible. A missing **skippable trailing** entry (`optional=true`, §4.4) is a settled native outcome reported with `reduced=true`, not this code. |
+| A declared entry's decided value cannot be evaluated at answer time (unresolvable subject actor, or a `value_source='target_plan'` step with no planned destination) | `movement_request_value_unknown` with `{index, request, dependency}` | Pause the executor before answering with a wrong value; this is the plugin's own uncomputability boundary, never a strategy refusal. |
+| A multi-prompt plan resolves against a descriptor that has no `request_sequence` (not yet upgraded, including every S1 talent) | existing `unsupported_target_plan`, `missing='ordered_request_sequence'`, `scope='multi_prompt'` | Capability pause/denial before commit; unchanged from the current behaviour. |
+```
+
+**ANCHOR (find, line 248, unchanged — listed for sequence only):**
+
+```
+| Adapter declares a valid multi-prompt plan but executor lacks the queue | existing `unsupported_target_plan`, `scope='multi_prompt'` | Capability pause/denial before commit (`overload/mod/auto_combat/MovementPlanner.lua:396-400`). |
+```
+
+*Optional factual correction (the baseline citation has drifted):* the cited
+`MovementPlanner.lua:396-400` now precedes the check; the live multi-prompt rejection is
+at `overload/mod/auto_combat/MovementPlanner.lua:514-519` and the variant-branch typed
+reason at `:395-401 [baseline citation]`. If the dispatcher prefers minimal normative
+churn, leave the row as is; the correction is not load-bearing.
+
 | Landing kind/center/bounds cannot be proved | `movement_landing_envelope_unknown` | Disable this action before commit. |
 | Actual mover or endpoint falls outside the resolved descriptor after commit | `movement_postcondition_mismatch`, `uncertain=true` | Pause the executor; this is a real postcondition failure, not normal randomness. |
 | Template needs to move/swap another actor but the typed capability is absent | `moving_or_swapping_another_actor` | Publish as unsupported capability. |
@@ -492,9 +589,14 @@ source makes the grid prompt depend on either TL5 or that attribute
 
 ## 12. Top uncertainties for implementation
 
-1. Whether the first implementation should add the ordered prompt-response queue
-   immediately or ship only single-prompt templates first. This changes Phase
-   Door TL5 scope, but not the factory model.
+1. **Decided for S2 (see §4.4).** The ordered prompt-response queue ships in S2 as a
+   single-submission, in-opportunity queue, so single-prompt templates keep their exact
+   current lowering and Phase Door TL4/TL5 becomes executable. Two implementation
+   choices remain open and are settled by the S2 tests, not by this section: (a) whether
+   the TL4 cell declares its grid entry `optional=true` or is split into two explicit
+   attribute branches (§4.4), and (b) the exact internal key the executor uses to carry
+   the resolved per-entry values (the analysis proposes `action.sequence`, validated as a
+   closed internal field; it is not a policy field and not a protocol field).
 2. The exact typed representation for mover/subject and `actual_landing` effect
    centers. The current descriptor is adequate for self-only movement but cannot
    losslessly represent swaps.
@@ -515,7 +617,7 @@ starts only after the previous one is accepted.
 | Slice | Scope | Reference |
 | --- | --- | --- |
 | **S1 (first slice)** | Closed `MovementAdapterFactory` + **single-prompt** templates (`actor_charge`, `grid_move_exact`, `grid_move_bounded`, `self_random_teleport`, `actor_anchor_teleport`) expanding into the current `movement` descriptor; the **Phase Door effective-level x `phase_door_force_precise` variant matrix** (fixes the level-only gating gap); semantic source coverage and advisory drift telemetry (no runtime gate). Candidates admissible after source review: Rush, Tumble, Phase Door no-prompt/precise-attribute, Blink Rune, Vault, Dimensional Step **non-swap**. | §4.1, §4.2, §8 |
-| **S2** | `request_then_landing`: the **ordered prompt-response queue** for multi-prompt talents (Phase Door TL4/TL5 actor-then-grid, and other actor+grid skills). | §4.2, §12.1 |
+| **S2** | `request_then_landing`: the **ordered prompt-response queue** for multi-prompt talents (Phase Door TL4/TL5 actor-then-grid, and other actor+grid skills). One action opportunity, one native submission, one decided value per declared request; per-request native range/self-warning guards preserved; typed `unexpected_target_request` / `movement_request_value_unknown` deviations pause and hand the interaction back. | §4.2, §4.4, §6.1, §12.1 |
 | **S3** | **Movement/effect composition**: movement talents whose landing also carries a harmful/beneficial effect (Shadowstep, Giant Leap): compose the movement report with the effect/selffire guard, union the `actual_landing` footprint, and stop skipping movement entries in the guard. | §2 (finding 2), §5 |
 | **S4** | **`swap` / moving or swapping another actor**: typed two-subject descriptor, executor and verification (Dimensional Step TL5, the `moving_or_swapping_another_actor` gap). | §4.2, §12.2 |
 
@@ -534,10 +636,18 @@ evidence stays under `tmp/`.
   combat**; clear Trollmire levels 1 and 2, then stop. (See
   `tmp/mcp-play-support/movement-playtest-handoff.md`.)
 - **S2 — Archmage / Phase Door to effective TL5.** Archmage (`archmage_arcane_p2`),
-  learn and level `T_PHASE_DOOR` up to **effective talent level 5**, then exercise
-  the ordered prompt-response queue in play (actor prompt then grid/landing prompt)
-  and report the observed request sequence + landing annotation and postcondition;
-  then stop. Verifies multi-prompt execution, not strategy.
+  Halfling, Insane/Roguelike, `cheat=false`; force-learn `T_PHASE_DOOR` at **raw level
+  4**, which with the Archmage `spell/conveyance` mastery 1.3
+  (`game/modules/tome/data/birth/classes/mage.lua:202`) is effective talent level 5.2 —
+  enough for both prompts while the landing radius stays 1. Then exercise the ordered
+  prompt-response queue in play (actor prompt then grid/landing prompt) and report:
+  the observed request sequence (two requests, in order, with **distinct** recorded
+  values), the landing annotation (`requests`, `landing.kind='random'`, `radius`,
+  `fallback`), and the postcondition — the landed cell within the declared radius 1 of
+  the effective center, or the LOS-fizzle fallback branch with its player-visible log
+  line; then stop. A refusal because the landing is random is a **bug**, not a pass
+  (the reference policy uses `landing='allow_random'`). Verifies multi-prompt execution,
+  not strategy.
 - **S3 — debug Shadowblade / Shadowstep vs a training dummy.** Debug character
   `Shadowblade`, learn `T_SHADOWSTEP`, attack a **training dummy** (傀儡) to exercise
   the movement-talent path with its attack/damage component; report the movement +
