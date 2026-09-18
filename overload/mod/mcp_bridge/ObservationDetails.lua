@@ -210,34 +210,42 @@ function M.actor(actor,result)
 end
 function M.expNext(p)
     if not M.finite(p.level) or p.level%1~=0 or p.level<0 or p.level>=1000
-        or not M.finite(p.exp_mod) or not M.native(p.getExpChart,'/engine/interface/ActorLevel.lua') then return 'unknown' end
+        or not M.finite(p.exp_mod) then return 'unknown' end
     local level=p.level+1
     local exp
-    if type(p.exp_chart)=='table' then exp=rawget(p.exp_chart,level)
-    elseif M.native(p.exp_chart,'/mod/load.lua') or M.native(p.exp_chart,'/modules/tome/load.lua') then
-        exp=10
-        local mult=8.5
-        for i=2,level do exp=exp+level*mult;mult=math.max(3,mult-(level<30 and 0.2 or 0.1)) end
-        exp=math.ceil(exp)
-    elseif M.native(p.exp_chart,'/engine/interface/ActorLevel.lua') then
-        exp=10
-        local mult=10
-        for i=2,level do exp=exp+level*mult;mult=mult+1 end
+    if type(p.exp_chart)=='table' then
+        -- A table chart: the native getter (when present) applies exp_mod; else
+        -- apply it here so the reported threshold matches the native value.
+        if type(p.getExpChart)=='function' then
+            local ok,value=pcall(p.getExpChart,p,level)
+            if ok and M.finite(value) then exp=value end
+        else
+            local raw=rawget(p.exp_chart,level)
+            if M.finite(raw) then exp=raw*p.exp_mod end
+        end
+    elseif type(p.getExpChart)=='function' or type(p.exp_chart)=='function' then
+        -- NO-AUDIT: call the live experience getter as a normal entry; a usable
+        -- value is used, an erroring/invalid one is `unknown`.
+        local getter=type(p.getExpChart)=='function' and p.getExpChart or p.exp_chart
+        local ok,value=pcall(getter,p,level)
+        if ok and M.finite(value) then exp=value end
     end
-    return M.finite(exp) and M.number(exp*p.exp_mod) or 'unknown'
+    return M.finite(exp) and M.number(exp) or 'unknown'
 end
 local function isIdentified(g,obj)
-    -- Match the native truth test without its writes to obj.identified. An
-    -- overridden resolver cannot grant additional knowledge through this path.
+    -- Match the native truth test WITHOUT its writes to `obj.identified` (the
+    -- read policy forbids mutating native state during observation). This is an
+    -- intentional no-callback structural projection, not a provenance gate: it
+    -- reads only the same stored inputs the native resolver reads (known types /
+    -- auto_id). It never sources `isIdentified` from a particular file, so a
+    -- replaced resolver cannot change the reported knowledge either way. (NO-AUDIT)
     local identified=obj.identified
-    if M.native(obj.isIdentified,'/engine/interface/ObjectIdentify.lua') then
-        local known=g.object_known_types
-        known=type(known)=='table' and known[obj.type]
-        known=type(known)=='table' and known[obj.subtype]
-        known=type(known)=='table' and known[obj.name]
-        if known then identified=known end
-        if obj.auto_id then identified=obj.auto_id end
-    end
+    local known=g.object_known_types
+    known=type(known)=='table' and known[obj.type]
+    known=type(known)=='table' and known[obj.subtype]
+    known=type(known)=='table' and known[obj.name]
+    if known then identified=known end
+    if obj.auto_id then identified=obj.auto_id end
     return identified and true or false
 end
 function M.objectId(meta,obj)
@@ -473,34 +481,33 @@ function M.terrain(terrain,p)
     local result={name=M.text(terrain.name,48) or 'unknown',
         char=type(terrain.display)=='string' and #terrain.display==1 and terrain.display:match('[ -~]') and terrain.display or '.',
         block_status='unknown'}
+    -- NO-AUDIT: call the live `block_move` as a normal entry with `act=false`
+    -- (the side-effect-free branch), for doors and open terrain alike. A usable
+    -- boolean is used; a `nil` return means "does not block"; an erroring or
+    -- otherwise-invalid result stays `unknown`. Door/exit labels are stored
+    -- scalars attached independently after the call, never forced on the result.
     if type(terrain.block_move)=='boolean' then
         result.blocked=terrain.block_move
-    elseif M.native(terrain.block_move,'/mod/class/Grid.lua') then
+    elseif type(terrain.block_move)=='function' then
+        local px=p and M.finite(p.x) and p.x or 0
+        local py=p and M.finite(p.y) and p.y or 0
+        local ok,blocked=pcall(terrain.block_move,terrain,px,py,p,false,false)
+        -- Native returns `self.does_block_move`: a boolean, or nil for
+        -- "does not block". Any other value is not a usable obstruction
+        -- answer and stays `unknown`.
+        if ok then
+            if type(blocked)=='boolean' then result.blocked=blocked
+            elseif blocked==nil then result.blocked=false end
+        end
         if terrain.door_opened then
-            result.blocked=true;result.door=true
+            result.door=true
             if p.open_door==nil or p.open_door==false then result.can_open=false
             elseif type(p.open_door)=='boolean' or type(p.open_door)=='string' or M.finite(p.open_door) then result.can_open=true end
             if terrain.door_player_check then result.confirmation_required=true end
             if terrain.door_player_stop then result.opening_blocked=true end
-        else
-            local unknown=false
-            if terrain.can_pass and p.can_pass then
-                if type(terrain.can_pass)~='table' or type(p.can_pass)~='table' then unknown=true
-                else
-                    for what,check in pairs(p.can_pass) do
-                        local need=terrain.can_pass[what]
-                        if need then
-                            if not M.finite(need) or not M.finite(check) then unknown=true
-                            elseif need<=check then result.blocked=false;break end
-                        end
-                    end
-                end
-            end
-            if result.blocked==nil and not unknown then
-                if terrain.does_block_move==nil or terrain.does_block_move==false then result.blocked=false
-                elseif terrain.does_block_move==true then result.blocked=true end
-            end
         end
+    elseif type(terrain.does_block_move)=='boolean' then
+        result.blocked=terrain.does_block_move
     end
     if result.blocked~=nil then result.block_status=result.blocked and 'blocked' or 'passable' end
     -- These are already visible terrain labels, never hidden destination data.

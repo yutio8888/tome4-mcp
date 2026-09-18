@@ -13,6 +13,7 @@ local Presets=require 'mod.auto_combat.PolicyPresets'
 local Schema=require 'mod.auto_combat.PolicySchema'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
 local EffectFootprint=require 'mod.auto_combat.EffectFootprint'
+local Distance=require 'mod.mcp_bridge.Distance'
 local EffectManifest=require 'mod.auto_combat.EffectManifest'
 local ManifestDrift=require 'mod.auto_combat.EffectManifestDrift'
 local M={pending=false,checks={},failures=0,solo_frames=0}
@@ -55,12 +56,13 @@ M.EXPECTED={
     ['computed-predicate']={'act','false_holds','enum_rejected'},
     ['production-reads']={'has_control','scalar_resource','guard_wired'},
     ['pilot-presets']={'ok','ok','ok','cast'},
-    ['guard-real-spec']={'pristine_ok','mutation_drift','restored_ok','grasp_safe'},
+    ['guard-real-spec']={'pristine_ok','mutation_used','restored_ok','grasp_safe'},
     ['effect-footprint-parity']={'parity_ok'},
-    ['manifest-drift']={'verified','hash_rejected','identity_ok'},
+    ['manifest-drift']={'verified','hash_reported','identity_ok','advisory_ok'},
     ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
+    ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
     ['solo-pump']={},
@@ -595,12 +597,16 @@ local function guardRealSpec()
     local pristine_ok=pristine==nil or pristine.reason~='adapter_source_drift'
     check('guard-real-spec:pristine',pristine_ok,pristine)
     signals[#signals+1]=pristine_ok and 'pristine_ok' or 'pristine_drift'
+    -- NO-AUDIT (v1.6): a replaced builder is USED, not gated. The replacement is
+    -- a huge self/friendly-hitting ball, so the guard rejects it on its measured
+    -- value (selffire_risk), never on identity.
     local original=def.target
     def.target=function() return {type='ball',range=100,radius=10,selffire=true,friendlyfire=true,player_selffire=true} end
     local mutated=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
-    local mutation_drift=mutated and mutated.reason=='adapter_source_drift'
-    check('guard-real-spec:mutated',mutation_drift,mutated)
-    signals[#signals+1]=mutation_drift and 'mutation_drift' or 'mutation_accepted'
+    local mutation_used=(mutated==nil) or (mutated.reason~='adapter_source_drift'
+        and mutated.reason~='unsupported_adapter')
+    check('guard-real-spec:mutated',mutation_used,mutated)
+    signals[#signals+1]=mutation_used and 'mutation_used' or 'mutation_gated'
     def.target=original
     local restored=host.guard({action='use_talent',talent='T_FLAME',bound_target=bound})
     local restored_ok=restored==nil or restored.reason~='adapter_source_drift'
@@ -721,15 +727,15 @@ function M.effectFootprintParity()
     return compare('effect-footprint-parity',{all and 'parity_ok' or 'parity_failed'})
 end
 
--- V2-5: the live source hashes verify, a tampered hash is rejected, and the
--- builder identity/closure check passes for the real talents_def.
+-- NO-AUDIT (v1.6): the live source hashes and builder identities are ADVISORY
+-- telemetry only. They must report drift and never gate a decision.
 function M.manifestDrift()
     local md5=require('md5')
     local signals={}
-    local ok,reason=ManifestDrift.verify(EffectManifest.SOURCES,fs.readAll,md5.sumhexa,
+    local review=ManifestDrift.review(EffectManifest.SOURCES,fs.readAll,md5.sumhexa,
         {game_version=EffectManifest.GAME_VERSION})
-    check('manifest-drift:verified',ok==true,{reason=reason})
-    signals[#signals+1]=ok==true and 'verified' or 'verify_failed'
+    check('manifest-drift:verified',review.drift==false,{findings=review.findings})
+    signals[#signals+1]=review.drift==false and 'verified' or 'verify_failed'
     local tampered={schema=EffectManifest.SOURCES.schema,game_version=EffectManifest.SOURCES.game_version,
         engine=EffectManifest.SOURCES.engine,talents={}}
     for talent,pin in pairs(EffectManifest.SOURCES.talents) do
@@ -739,15 +745,22 @@ function M.manifestDrift()
         end
         tampered.talents[talent]={files=files,line=pin.line}
     end
-    local rejected,why=ManifestDrift.verify(tampered,fs.readAll,md5.sumhexa,
+    local tamperedReview=ManifestDrift.review(tampered,fs.readAll,md5.sumhexa,
         {game_version=EffectManifest.GAME_VERSION})
-    check('manifest-drift:rejected',rejected==nil and why==ManifestDrift.REASON,{reason=why})
-    signals[#signals+1]=rejected==nil and 'hash_rejected' or 'hash_accepted'
-    local identity_ok=ManifestDrift.identity(EffectManifest,function(talent)
+    check('manifest-drift:reported',tamperedReview.drift==true,{})
+    signals[#signals+1]=tamperedReview.drift==true and 'hash_reported' or 'hash_ignored'
+    local identityReview=ManifestDrift.identity(EffectManifest,function(talent)
         return game.player.talents_def and game.player.talents_def[talent] or nil
     end)
-    check('manifest-drift:identity',identity_ok==true,{})
-    signals[#signals+1]=identity_ok==true and 'identity_ok' or 'identity_failed'
+    check('manifest-drift:identity',identityReview.drift==false,{findings=identityReview.findings})
+    signals[#signals+1]=identityReview.drift==false and 'identity_ok' or 'identity_drift'
+    -- Advisory telemetry always returns a record and never gates.
+    local record=ManifestDrift.telemetry({sources=EffectManifest.SOURCES,read=fs.readAll,
+        digest=md5.sumhexa,expected={game_version=EffectManifest.GAME_VERSION},
+        manifest=EffectManifest,identity=function(talent)
+            return game.player.talents_def and game.player.talents_def[talent] or nil end})
+    check('manifest-drift:advisory',type(record)=='table' and record.advisory==true,{})
+    signals[#signals+1]=type(record)=='table' and 'advisory_ok' or 'advisory_missing'
     return compare('manifest-drift',signals)
 end
 
@@ -916,10 +929,15 @@ local function movementPlan()
     else
         signals[#signals+1]='step_rejected'
     end
+    local p=game.player
+    if type(p.talents)~='table' then p.talents={} end
+    local saved_tumble=p.talents.T_SKIRMISHER_CUNNING_ROLL
+    p.talents.T_SKIRMISHER_CUNNING_ROLL=5
     local grid=host.plan({action='use_talent',talent='T_SKIRMISHER_CUNNING_ROLL',
         destination={selector='position',x=game.player.x+3,y=game.player.y,accept=accept}})
     local grid_ok=grid and grid.plan and grid.plan.kind=='grid'
         and grid.plan.annotation and grid.plan.annotation.known_passable~=nil
+    p.talents.T_SKIRMISHER_CUNNING_ROLL=saved_tumble
     signals[#signals+1]=grid_ok and 'grid_annotated' or 'grid_missing'
     check('movement:grid-annotation',grid_ok,{kind=grid and grid.plan and grid.plan.kind,
         visible=grid and grid.plan and grid.plan.annotation and grid.plan.annotation.visible,
@@ -938,6 +956,160 @@ local function movementPlan()
     Runtime.autoCombatHandle(game,'deactivate',{})
     Runtime.setAutoCombatExecution(game,false)
     return compare('movement',signals)
+end
+
+-- S1 factory: the Phase Door effective-level x `phase_door_force_precise` matrix
+-- and the newly admitted grid adapters, exercised through the production host
+-- (plan only; execution is covered by `movement-talents`).
+local function movementFactoryChecks()
+    forceReady()
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local p=game.player
+    local map=game.level.map
+    local base_attr=p.attr
+    local host=Runtime.buildAutoCombatHostFor(game,policy({WAIT}),{drift=function() return true end})
+    local signals={}
+    local function cellState(x,y)
+        if x<0 or y<0 or x>=map.w or y>=map.h then return nil end
+        local idx=x+y*map.w
+        return {idx=idx,seens=map.seens[idx],infovs=map.infovs[idx],lites=map.lites[idx],
+            actor=map.map[idx] and map.map[idx][map.ACTOR or 3]}
+    end
+    local function findVisibleEmpty()
+        for r=1,6 do
+            for _,d in ipairs({{r,0},{-r,0},{0,r},{0,-r},{r,r},{-r,-r},{r,-r},{-r,r}}) do
+                local c=cellState(p.x+d[1],p.y+d[2])
+                if c and c.seens and c.infovs and c.actor==nil then return p.x+d[1],p.y+d[2] end
+            end
+        end
+    end
+    -- `phase_door_force_precise` below TL4 forces the grid prompt. Set the
+    -- attribute value so the real `attr` method stays audited (the helper
+    -- closure now identity-checks `attr`).
+    p.phase_door_force_precise=1
+    local precise,preciseErr=host.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='position',x=p.x+2,y=p.y,accept=accept}})
+    local preciseOk=precise and precise.plan and precise.plan.kind=='grid'
+        and precise.plan.annotation.landing.kind=='bounded'
+    p.phase_door_force_precise=nil
+    signals[#signals+1]=preciseOk and 'precise_grid' or 'precise_missing'
+    check('movement-factory:precise-grid',preciseOk,{reason=preciseErr and preciseErr.reason,
+        detail=preciseErr and (preciseErr.detail or preciseErr.dependency),
+        kind=precise and precise.plan and precise.plan.kind})
+    -- An unknown precise attribute fails closed instead of submitting no-prompt.
+    p.attr=function() error('probe: unknown precise attribute') end
+    local unknown,unknownErr=host.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',accept=accept}})
+    local unknownOk=unknown==nil and unknownErr and unknownErr.reason=='movement_variant_unknown'
+    signals[#signals+1]=unknownOk and 'variant_unknown' or 'variant_unknown_missing'
+    check('movement-factory:variant-unknown',unknownOk,{reason=unknownErr and unknownErr.reason})
+    p.attr=base_attr
+    -- Dimensional Step effective TL5: occupancy-dependent (known empty admits
+    -- the non-swap branch; a known actor is the S4 gap; unknown fails closed).
+    if type(p.talents)~='table' then p.talents={} end
+    local saved_step=p.talents.T_DIMENSIONAL_STEP
+    p.talents.T_DIMENSIONAL_STEP=5
+    local ex,ey=findVisibleEmpty()
+    local empty
+    if ex then
+        empty=host.plan({action='use_talent',talent='T_DIMENSIONAL_STEP',
+            destination={selector='position',x=ex,y=ey,accept=accept}})
+    end
+    local emptyOk=empty and empty.plan and empty.plan.kind=='grid'
+    signals[#signals+1]=emptyOk and 'dimensional_empty' or 'dimensional_empty_missing'
+    check('movement-factory:dimensional-empty',emptyOk,{x=ex,y=ey})
+    local dummy
+    for _,actor in pairs(game.level.entities or {}) do
+        if actor~=p and actor.name and tostring(actor.name):find('MCP target dummy') then dummy=actor end
+    end
+    local actorPlan,actorErr
+    if dummy then
+        actorPlan,actorErr=host.plan({action='use_talent',talent='T_DIMENSIONAL_STEP',
+            destination={selector='position',x=dummy.x,y=dummy.y,accept=accept}})
+    end
+    local actorOk=actorPlan==nil and actorErr and actorErr.reason=='unsupported_movement_variant'
+        and actorErr.missing=='moving_or_swapping_another_actor'
+    signals[#signals+1]=actorOk and 'dimensional_actor_gap' or 'dimensional_actor_missing'
+    check('movement-factory:dimensional-actor',actorOk,{reason=actorErr and actorErr.reason})
+    local hiddenOk=false
+    if ex then
+        local c=cellState(ex,ey)
+        map.seens[c.idx]=nil;map.infovs[c.idx]=nil;map.lites[c.idx]=nil
+        local hidden,hiddenErr=host.plan({action='use_talent',talent='T_DIMENSIONAL_STEP',
+            destination={selector='position',x=ex,y=ey,accept=accept}})
+        map.seens[c.idx]=c.seens;map.infovs[c.idx]=c.infovs;map.lites[c.idx]=c.lites
+        hiddenOk=hidden==nil and hiddenErr and hiddenErr.reason=='movement_variant_unknown'
+    end
+    signals[#signals+1]=hiddenOk and 'dimensional_unknown' or 'dimensional_unknown_missing'
+    check('movement-factory:dimensional-unknown',hiddenOk,{})
+    p.talents.T_DIMENSIONAL_STEP=saved_step
+    -- MAF-REV-03: a `toward` selector uses the live pinned builder range, not a
+    -- hard-coded scan radius.
+    local saved_vault=p.talents.T_SKIRMISHER_VAULT
+    p.talents.T_SKIRMISHER_VAULT=5
+    local liveRange
+    do
+        local def=p.talents_def and p.talents_def.T_SKIRMISHER_VAULT
+        local ok,typ=pcall(def.target,p,def)
+        if ok and type(typ)=='table' then liveRange=typ.range end
+    end
+    local towardOk=false
+    local bound=host.snapshot('nearest_hostile')
+    local toward,towardErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
+        bound_target=bound and bound.bound_target,
+        destination={selector='toward',anchor='bound_target',accept=accept}})
+    if toward and toward.plan and toward.plan.kind=='grid'
+        and type(liveRange)=='number' and liveRange<12 then
+        local dist=Distance.grid(p.x,p.y,toward.plan.x,toward.plan.y)
+        towardOk=dist<=liveRange
+    end
+    signals[#signals+1]=towardOk and 'vault_toward_range' or 'vault_toward_missing'
+    check('movement-factory:vault-toward-range',towardOk,{range=liveRange,
+        reason=towardErr and towardErr.reason})
+    -- MAF-REV-03: an explicit coordinate outside the live range is rejected.
+    local farOk=false
+    if type(liveRange)=='number' then
+        local far,farErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
+            destination={selector='position',x=p.x+liveRange+5,y=p.y,accept=accept}})
+        farOk=far==nil and farErr and farErr.reason=='destination_out_of_range'
+        check('movement-factory:vault-out-of-range',farOk,{range=liveRange,
+            reason=farErr and farErr.reason})
+    end
+    signals[#signals+1]=farOk and 'vault_out_of_range' or 'vault_out_of_range_missing'
+    -- Vault is an exact grid move (deterministic landing annotation). Keep the
+    -- level-5 range so the in-range request is valid.
+    local vault,vaultErr=host.plan({action='use_talent',talent='T_SKIRMISHER_VAULT',
+        destination={selector='position',x=p.x+2,y=p.y,accept=accept}})
+    local vaultOk=vault and vault.plan and vault.plan.kind=='grid'
+        and vault.plan.annotation.landing.kind=='deterministic'
+    signals[#signals+1]=vaultOk and 'vault_exact' or 'vault_missing'
+    check('movement-factory:vault-exact',vaultOk,{reason=vaultErr and vaultErr.reason})
+    p.talents.T_SKIRMISHER_VAULT=saved_vault
+    -- MAF-REV-06 (no-strict-audit): a replaced getter with a usable value is used
+    -- directly; an erroring getter is movement_derivation_unknown.
+    local live_value_used=false
+    local getter_error_ok=false
+    do
+        local def=p.talents_def and p.talents_def.T_PHASE_DOOR
+        local saved_range=def and def.getRange
+        if def then
+            def.getRange=function() return 9 end
+            local plan=host.plan({action='use_talent',talent='T_PHASE_DOOR',
+                destination={selector='native_random',accept=accept}})
+            live_value_used=plan and plan.plan and plan.plan.annotation
+                and plan.plan.annotation.landing and plan.plan.annotation.landing.radius==9
+            check('movement-factory:live-getter-value',live_value_used,{})
+            def.getRange=function() error('probe: getter error') end
+            local bad,err=host.plan({action='use_talent',talent='T_PHASE_DOOR',
+                destination={selector='native_random',accept=accept}})
+            getter_error_ok=bad==nil and err and err.reason=='movement_derivation_unknown'
+            check('movement-factory:getter-error',getter_error_ok,{reason=err and err.reason})
+            def.getRange=saved_range
+        end
+    end
+    signals[#signals+1]=live_value_used and 'live_getter_value' or 'live_getter_value_missing'
+    signals[#signals+1]=getter_error_ok and 'getter_error_unknown' or 'getter_error_missing'
+    return compare('movement-factory',signals)
 end
 
 -- MFT-REV-09: drive the three movement talents end to end through the real
@@ -1195,6 +1367,7 @@ local function runAll()
         M.manifestDrift()
         M.dynamicTalents()
         movementPlan()
+        movementFactoryChecks()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok

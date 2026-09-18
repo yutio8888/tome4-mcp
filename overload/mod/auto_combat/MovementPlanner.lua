@@ -24,6 +24,7 @@
 -- acceptance reason (`visibility`/`passability`/`hazard`/`landing`) -- never a
 -- strategic refusal.
 local Distance=require 'mod.mcp_bridge.Distance'
+local Factory=require 'mod.auto_combat.MovementAdapterFactory'
 local M={}
 
 M.SELECTORS={toward=true,away=true,preferred_distance=true,position=true,relative=true,
@@ -169,6 +170,15 @@ function M.planStep(request,provider,bound,origin)
         annotation=best.annotation,score=best.score}
 end
 
+-- Resolve an occupancy-dependent adapter at one requested grid from
+-- player-known information only. `provider.occupancy(x,y)` returns
+-- 'empty'|'actor'|'unknown'; a hidden cell is 'unknown' and never probed.
+local function resolveOccupancyAt(movement,provider,x,y)
+    if type(movement)~='table' or movement.occupancy_dependent~=true then return movement end
+    local occupancy=provider.occupancy and provider.occupancy(x,y) or nil
+    return Factory.resolveOccupancy(movement,occupancy)
+end
+
 -- Plan a talent destination. `movement` is the manifest's movement adapter (or
 -- nil, which is a capability gap for the native-landing selectors).
 function M.planTalent(request,provider,bound,movement,origin)
@@ -177,6 +187,15 @@ function M.planTalent(request,provider,bound,movement,origin)
     movement=movement or {}
     if request.selector and not M.TALENT_SELECTORS[request.selector] then
         return nil,{reason='unsupported_selector_for_talent',selector=request.selector}
+    end
+    -- An occupancy-dependent adapter (Dimensional Step TL5) can only be resolved
+    -- for an explicit or scanned grid, never for a landing the native code picks
+    -- without exposing its coordinate.
+    if movement.occupancy_dependent and request.selector~='position' and request.selector~='relative'
+        and request.selector~='toward' and request.selector~='away'
+        and request.selector~='preferred_distance' then
+        return nil,{reason='movement_variant_unknown',detail='occupancy_requires_grid',
+            selector=request.selector}
     end
     if request.selector=='native_random' then
         -- No fictitious endpoint: the native code chooses the landing.
@@ -213,13 +232,48 @@ function M.planTalent(request,provider,bound,movement,origin)
         local x,y
         if request.selector=='position' then x,y=request.x,request.y
         else x,y=origin.x+request.dx,origin.y+request.dy end
+        -- MAF-REV-03: the live native range bounds the request domain. A forced
+        -- coordinate outside it would be rejected by `Actions` and fall back to
+        -- the interactive prompt, so the planner rejects it here.
+        if finite(movement.range) and Distance.grid(origin.x,origin.y,x,y)>movement.range then
+            return nil,{reason='destination_out_of_range',x=x,y=y,range=movement.range,
+                distance=Distance.grid(origin.x,origin.y,x,y)}
+        end
+        -- An occupancy-dependent adapter (Dimensional Step TL5) must resolve the
+        -- mover from player-known information at the requested grid before any
+        -- native request is built. A known actor is the typed S4 gap; unknown
+        -- occupancy fails closed; no hidden actor is inspected.
+        local occMovement,occErr=resolveOccupancyAt(movement,provider,x,y)
+        if not occMovement then return nil,occErr end
+        movement=occMovement
         local annotation=M.annotate(x,y,provider)
         if annotation.in_bounds==false then
             return nil,{reason='destination_out_of_bounds',x=x,y=y,annotation=annotation}
         end
+        -- S1 factory: a grid request is not automatically a deterministic
+        -- landing. A `bounded_alternatives`/`random` adapter (Blink, Dimensional
+        -- Step, Phase Door precise-grid) chooses the actual endpoint natively, so
+        -- the annotation must report the declared envelope before policy
+        -- acceptance. `exact` stays deterministic.
+        annotation.selector=request.selector
+        if movement and movement.landing~='exact' then
+            local landing={kind=movement.landing=='random' and 'random' or 'bounded',
+                center={x=x,y=y}}
+            if finite(movement.radius) then landing.radius=movement.radius end
+            if finite(movement.min_radius) then landing.min_radius=movement.min_radius end
+            if movement.fallback_center then
+                local fcenter=movement.fallback_center=='self' and {x=origin.x,y=origin.y} or {x=x,y=y}
+                landing.fallback={kind='random',center=fcenter}
+                if finite(movement.fallback_radius) then landing.fallback.radius=movement.fallback_radius end
+                annotation.reasons[#annotation.reasons+1]='los_fallback_envelope'
+            end
+            annotation.landing=landing
+            annotation.confidence='source_'..tostring(movement.landing)
+            annotation.reasons[#annotation.reasons+1]='native_random_landing'
+            annotation.reasons[#annotation.reasons+1]='hidden_occupancy_not_inspected'
+        end
         local ok,reason=M.accepts(request.accept,annotation)
         if not ok then return nil,{reason=reason,annotation=annotation} end
-        annotation.selector=request.selector
         annotation.reasons[#annotation.reasons+1]='native_builder_validates_request'
         return {kind='grid',x=x,y=y,annotation=annotation}
     end
@@ -227,16 +281,36 @@ function M.planTalent(request,provider,bound,movement,origin)
     -- order, annotated from player-known info and filtered only by `accept`.
     local anchor=anchorFor(request,provider,bound,origin)
     if not anchor then return nil,{reason='anchor_unavailable',selector=request.selector} end
-    local radius=finite(movement.range) and math.floor(movement.range) or M.SCAN_RADIUS
-    if radius<1 then radius=1 end
+    -- The live cursor range bounds the candidate enumeration. Without a resolved
+    -- finite range the planner must not invent one: scanning a hard-coded radius
+    -- can select a coordinate the native talent cannot target. A plain `move`
+    -- step does not reach here (it uses the adjacent keypad set).
+    if not finite(movement.range) then
+        return nil,{reason='movement_range_unknown',selector=request.selector}
+    end
+    local radius=math.floor(movement.range)
+    -- MAF-REV-03: range 0 is an empty non-self target domain, not a forced radius
+    -- of one. Candidate enumeration also filters by the single audited native
+    -- distance metric, not the square [-r,+r] bounding box.
+    if radius<0 then radius=0 end
     if radius>M.SCAN_RADIUS then radius=M.SCAN_RADIUS end
     local best
+    local occupancy_uncertain=false
+    local occupancy_actor=false
     for dy=-radius,radius do
         for dx=-radius,radius do
             if not (dx==0 and dy==0) then
                 local x,y=origin.x+dx,origin.y+dy
+                local candidate_ok=Distance.grid(origin.x,origin.y,x,y)<=radius
+                if movement.occupancy_dependent then
+                    local occ=provider.occupancy and provider.occupancy(x,y) or nil
+                    if occ=='empty' then
+                        -- Keep the range filter already applied above.
+                    elseif occ=='actor' then candidate_ok=false; occupancy_actor=true
+                    else candidate_ok=false; occupancy_uncertain=true end
+                end
                 local annotation=M.annotate(x,y,provider)
-                if annotation.in_bounds then
+                if candidate_ok and annotation.in_bounds then
                     local ok=M.accepts(request.accept,annotation)
                     if ok then
                         local candidate={x=x,y=y,annotation=annotation,
@@ -248,7 +322,20 @@ function M.planTalent(request,provider,bound,movement,origin)
             end
         end
     end
-    if not best then return nil,{reason='no_acceptable_destination',selector=request.selector} end
+    if not best then
+        if movement.occupancy_dependent then
+            if occupancy_uncertain then
+                return nil,{reason='movement_variant_unknown',detail='occupancy_unknown',
+                    selector=request.selector}
+            end
+            if occupancy_actor then
+                return nil,{reason='unsupported_movement_variant',scope='effective_talent_level>=5',
+                    missing='moving_or_swapping_another_actor',
+                    reason_text='every in-range requested grid is known occupied; typed two-subject swap is not implemented'}
+            end
+        end
+        return nil,{reason='no_acceptable_destination',selector=request.selector}
+    end
     best.annotation.selector=request.selector
     best.annotation.reasons[#best.annotation.reasons+1]='native_builder_validates_request'
     return {kind='grid',x=best.x,y=best.y,annotation=best.annotation,score=best.score}
@@ -279,25 +366,29 @@ local function nativeLandingAnnotation(movement,anchor)
         reasons={'actor_anchored_landing','landing_derived_by_native'}}
 end
 
--- A source-pinned adapter may declare level/variant forms it cannot drive (for
--- example Phase Door TL4+ actor-then-grid). The runtime rejects those with the
--- same typed reason the catalog publishes (MFT-REV-08).
-local function unsupportedVariant(movement,provider,talent)
-    if type(movement)~='table' or type(movement.unsupported_variants)~='table' then return nil end
-    local level=provider.talentLevel and provider.talentLevel(talent) or nil
-    if type(level)~='number' then
-        -- MFT-REV-08: an unknown/overridden effective-level getter must fail
-        -- closed. The plugin cannot tell whether the unsupported prompt variant
-        -- applies, so it must not submit the no-prompt adapter.
-        local first=movement.unsupported_variants[1]
-        return {unknown=true,at_least=first and first.at_least,
-            scope=first and first.scope,missing=first and first.missing}
-    end
-    for _,variant in ipairs(movement.unsupported_variants) do
-        if variant.at_least and level>=variant.at_least then return variant end
-    end
-    return nil
+-- A source-pinned adapter may declare state variants (for example Phase Door's
+-- effective-level x `phase_door_force_precise` matrix). Resolve exactly one
+-- descriptor through the closed factory; an unknown/ambiguous condition is a
+-- typed `movement_variant_unknown` and never falls back to a leaf. A known but
+-- unimplemented branch (TL4+ actor-then-grid before the ordered prompt queue) is
+-- published as the typed capability reason the factory supplied (for Phase Door
+-- that is `unsupported_target_plan`, which both controllers pause on).
+local function resolveMovement(movement,provider,talent)
+    if movement==nil then return nil end
+    local reads={talentLevel=provider.talentLevel,attr=provider.attr,
+        talentGetter=provider.talentGetter,builder=provider.builder}
+    local resolved,err=Factory.resolveVariant(movement,talent,reads)
+    if not resolved then return nil,err end
+    local bounds,boundErr=Factory.resolveBounds(resolved,talent,reads)
+    if not bounds then return nil,boundErr end
+    -- Live target geometry: the actual builder (called directly, no identity
+    -- gate) supplies only an allowlisted shape/range/radius. It never changes
+    -- the curated request kind, centre, landing or prompt order.
+    local built,buildErr=Factory.resolveBuilder(bounds,talent,reads)
+    if not built then return nil,buildErr end
+    return built
 end
+
 
 -- Consume an ordered target plan: the executor pre-fills one native prompt, so
 -- only a single-request plan is driven; a longer sequence is a typed capability
@@ -387,11 +478,21 @@ function M.plan(attempt,provider,movement)
         end
         return M.planStep(attempt.destination,provider,attempt.bound_target,origin)
     end
-    local variant=unsupportedVariant(movement,provider,attempt.talent)
-    if variant then
-        return nil,{reason='unsupported_movement_variant',talent=attempt.talent,
-            scope=variant.scope,missing=variant.missing,at_least=variant.at_least,
-            unknown=variant.unknown or nil}
+    local variantErr
+    if movement~=nil then
+        -- MAF-REV-06 (no-strict-audit): planning calls the live adapter directly;
+        -- there is no identity/digest/closure preflight gate. An unobtainable
+        -- value simply fails the derivation (movement_derivation_unknown) or the
+        -- variant (movement_variant_unknown) below.
+        movement,variantErr=resolveMovement(movement,provider,attempt.talent)
+        if variantErr then
+            -- Propagate the typed reason unchanged; the caller publishes the same
+            -- typed capability/variant reason. An unknown condition stays fail
+            -- closed (`movement_variant_unknown`); a known unimplemented branch
+            -- is its declared typed reason (`unsupported_target_plan` for the
+            -- Phase Door actor+grid branch, which both controllers pause on).
+            return nil,variantErr
+        end
     end
     if type(attempt.target_plan)=='table' then
         if #attempt.target_plan~=1 then

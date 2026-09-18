@@ -855,7 +855,7 @@ local function settle(s)
 end
 -- Audited read-only reads shared by the live host and the planning dry-run
 -- host. Nothing here runs a dynamic getter, RNG or talent callback.
-local function autoCombatReads(s,policy)
+local function autoCombatReads(s,policy,opts)
     local g=s.game
     local computed_memo
     local function lifePct(actor)
@@ -888,8 +888,106 @@ local function autoCombatReads(s,policy)
         if pct<0 then pct=0 elseif pct>100 then pct=100 end
         return pct
     end
+    -- NO-AUDIT (v1.6): advisory source/identity telemetry only. It is computed
+    -- for logging and never gates a decision (the guard calls the live builders
+    -- directly). `opts.drift` lets a headless caller inject a record.
+    local function manifestDrift()
+        local override=opts and opts.drift
+        if type(override)=='function' then return override() end
+        local has_md5,md5=pcall(require,'md5')
+        local reader=type(fs)=='table' and type(fs.readAll)=='function' and fs.readAll or nil
+        local digest=has_md5 and type(md5.sumhexa)=='function' and md5.sumhexa or nil
+        return ManifestDrift.telemetry({sources=EffectManifest.SOURCES,read=reader,
+            digest=digest,expected={game_version=EffectManifest.GAME_VERSION},
+            manifest=EffectManifest,identity=function(talent)
+                local def=g.player and g.player.talents_def
+                return type(def)=='table' and def[talent] or nil
+            end})
+    end
+    -- Audited effective talent level (`self:getTalentLevel(t)`). Called directly
+    -- as a normal entrypoint (no identity gate); an unavailable/erroring getter
+    -- returns 'unknown' so the variant stays conservative.
+    local function effectiveTalentLevel(talent,def)
+        local p=g.player
+        if type(p)~='table' or type(p.getTalentLevel)~='function' then return 'unknown' end
+        if type(def)~='table' then return 'unknown' end
+        local ok,value=pcall(p.getTalentLevel,p,def)
+        if not ok or type(value)~='number' or value~=value then return 'unknown' end
+        return value
+    end
+    -- `self:attr(id)` called directly. A successful read is definite; a missing
+    -- or erroring method means the value is not obtainable (`known=false`).
+    local function auditedAttr(id)
+        local p=g.player
+        if type(p)~='table' or type(p.attr)~='function' then return nil,false end
+        local ok,value=pcall(p.attr,p,id)
+        if not ok then return nil,false end
+        return value,true
+    end
+    -- MAF-REV-06 (no-strict-audit): planning uses the game's actual getters and
+    -- builders as normal entrypoints. There is no identity/digest/closure gate —
+    -- Lua is dynamic and another addon may replace any function. A getter that
+    -- errors, is missing or returns nil means the value is not obtainable, which
+    -- the factory maps to `movement_derivation_unknown` / an unknown variant axis.
+    -- Source digests remain advisory metadata only and never block a decision.
+    local function auditedTalentGetter(talent,name)
+        local p=g.player
+        local def=type(p)=='table' and type(p.talents_def)=='table' and p.talents_def[talent] or nil
+        if type(def)~='table' then return nil,'definition_missing' end
+        local getter=def[name]
+        if type(getter)~='function' then return nil,'getter_missing' end
+        local called,value=pcall(getter,p,def)
+        if not called or type(value)~='number' or value~=value then return nil,'getter_failed' end
+        return value
+    end
+    -- Live target builder geometry. Only an allowlisted subset is copied; the
+    -- builder never supplies actor/grid semantics or prompt order (those stay
+    -- curated). A missing/erroring/non-table builder is a derivation unknown.
+    local function auditedTargetGeometry(talent)
+        local p=g.player
+        local def=type(p)=='table' and type(p.talents_def)=='table' and p.talents_def[talent] or nil
+        if type(def)~='table' then return nil,'definition_missing' end
+        local builder=def.target
+        local typ
+        if type(builder)=='table' then typ=builder
+        elseif type(builder)=='function' then
+            local called,value=pcall(builder,p,def)
+            if not called or type(value)~='table' then return nil,'builder_failed' end
+            typ=value
+        else
+            return nil,'builder_missing'
+        end
+        local function num(v) return type(v)=='number' and v==v and v or nil end
+        return {shape=type(typ.type)=='string' and typ.type or nil,
+            range=num(typ.range),radius=num(typ.radius),
+            pass_terrain=typ.pass_terrain==true or nil,
+            requires_knowledge=typ.requires_knowledge==true or nil,
+            nolock=typ.nolock==true or typ.no_lock==true or nil,
+            selffire=num(typ.selffire),friendlyfire=num(typ.friendlyfire)}
+    end
+    -- Player-known occupancy of one grid: 'empty'|'actor'|'unknown'. A cell that
+    -- is not currently visible is 'unknown' and its ACTOR slot is never read, so
+    -- no hidden actor is probed.
+    local function knownOccupancy(x,y)
+        local map=g.level and g.level.map
+        local p=g.player
+        if not map or type(map.map)~='table' or not Details.finite(x) or not Details.finite(y)
+            or not Details.finite(map.w) or not Details.finite(map.h) then return 'unknown' end
+        if x<0 or y<0 or x>=map.w or y>=map.h then return 'unknown' end
+        if not Observer.terrainVisible(g,p,map,x,y) then return 'unknown' end
+        local cell=map.map[x+y*map.w]
+        if type(cell)~='table' then return 'unknown' end
+        local actor=cell[map.ACTOR or 3]
+        if actor==nil or actor==p then return 'empty' end
+        if Observer.visible(g,actor) then return 'actor' end
+        return 'unknown'
+    end
     local reads={
         policy=policy,
+        -- Advisory source/identity telemetry (NO-AUDIT): available for logging,
+        -- never a gate. The guard and planner call live builders directly.
+        manifestDrift=manifestDrift,
+        effectiveTalentLevel=effectiveTalentLevel,
         phase=function()
             local p=g.player
             if not p or p.dead then return 'waiting_player' end
@@ -1000,16 +1098,10 @@ local function autoCombatReads(s,policy)
             local movement=entry and entry.movement or nil
             local map=g.level and g.level.map
             local player=g.player
-            -- Effective talent level for a movement-adapter variant check. A
-            -- missing/overridden getter stays 'unknown' so no variant is
-            -- assumed; native `getTalentLevel` is an audited dynamic getter.
             local function plannerTalentLevel(talent)
-                if type(player)~='table' or type(player.getTalentLevel)~='function' then return 'unknown' end
-                local def=type(player.talents_def)=='table' and player.talents_def[talent] or nil
-                if type(def)~='table' then return 'unknown' end
-                local ok,value=pcall(player.getTalentLevel,player,def)
-                if not ok or type(value)~='number' or value~=value then return 'unknown' end
-                return value
+                local def=type(player)=='table' and type(player.talents_def)=='table'
+                    and player.talents_def[talent] or nil
+                return effectiveTalentLevel(talent,def)
             end
             local provider={
                 origin=function()
@@ -1034,6 +1126,12 @@ local function autoCombatReads(s,policy)
                     return nil
                 end,
                 talentLevel=plannerTalentLevel,
+                -- Called directly (no identity gate); a missing/erroring reader
+                -- means the value is not obtainable.
+                attr=auditedAttr,
+                talentGetter=auditedTalentGetter,
+                builder=auditedTargetGeometry,
+                occupancy=knownOccupancy,
                 knowledge=function(x,y)
                     if not map or not Details.finite(x) or not Details.finite(y)
                         or not Details.finite(map.w) or not Details.finite(map.h) then
@@ -1143,67 +1241,16 @@ end
 -- slot.
 buildAutoCombatHost=function(s,policy,opts)
     local g=s.game
-    local reads=autoCombatReads(s,policy)
-    -- Q4 + v2: the guard consumes the version-pinned component manifest,
-    -- measures the known self/friendly risk and compares it with the policy's
-    -- `max_selffire_risk` (a permit carries the measurement); above tolerance or
-    -- an incalculable footprint it disables that action. Design §8.3 (v1.4)
-    -- allows reading the audited native target builder for the instant geometry
-    -- while the canonical components drive variants, ground and composition. A
-    -- source drift disables the adapter (`adapter_source_drift`). Returns nil /
-    -- {action='permit'|'reject'|'pause',reason,detail}.
-    local function manifestDrift()
-        local override=opts and opts.drift
-        if type(override)=='function' then return override() end
-        -- Missing live hash services is a failed check, not a pass: the adapter
-        -- must not run on unverified metadata. Headless callers inject
-        -- `opts.drift` explicitly.
-        local has_md5,md5=pcall(require,'md5')
-        local reader=type(fs)=='table' and type(fs.readAll)=='function' and fs.readAll or nil
-        local digest=has_md5 and type(md5.sumhexa)=='function' and md5.sumhexa or nil
-        return ManifestDrift.ensure(s,{sources=EffectManifest.SOURCES,read=reader,
-            digest=digest,expected={game_version=EffectManifest.GAME_VERSION},
-            manifest=EffectManifest,identity=function(talent)
-                local def=g.player and g.player.talents_def
-                return type(def)=='table' and def[talent] or nil
-            end})
-    end
-    -- Audited effective talent level (`self:getTalentLevel(t)`). Raw invested
-    -- points ignore mastery/alterations; an unavailable, overridden or erroring
-    -- getter returns 'unknown' so the variant stays conservative.
-    local function effectiveTalentLevel(talent,def)
-        local p=g.player
-        if type(p)~='table' or type(p.getTalentLevel)~='function' then return 'unknown' end
-        if not Compat.hasDependency('guard.talentLevel') then
-            Compat.registerDependency('guard.talentLevel','talent_query',p.getTalentLevel,
-                '/engine/interface/ActorTalents.lua','effective talent level',
-                EffectManifest.SOURCES.engine and EffectManifest.SOURCES.engine.actor_talents
-                    and EffectManifest.SOURCES.engine.actor_talents.md5,
-                'function _M:getTalentLevel',{})
-        end
-        local fn=Compat.dependency('guard.talentLevel',p.getTalentLevel)
-        if type(fn)~='function' or type(def)~='table' then return 'unknown' end
-        local ok,value=pcall(fn,p,def)
-        if not ok or type(value)~='number' or value~=value then return 'unknown' end
-        return value
-    end
-    -- Audited `self:spellFriendlyFire()` (the dynamic SF/FF input used by the
-    -- re-admitted talents). Registered through NativeCompatibility so the
-    -- source digest, exact identity and declaration are required; an unavailable,
-    -- overridden or erroring getter is `unknown` and fails closed.
+    local reads=autoCombatReads(s,policy,opts)
+    local effectiveTalentLevel=reads.effectiveTalentLevel
+    -- NO-AUDIT (v1.6): call the live `self:spellFriendlyFire()` directly as a
+    -- normal entrypoint. No digest/identity requirement: a replacement returning
+    -- a usable number is used; an unavailable/erroring/non-finite value is
+    -- `unknown` (the component then fails closed on its own value).
     local function dynamicSpellFriendlyFire()
         local p=g.player
         if type(p)~='table' or type(p.spellFriendlyFire)~='function' then return 'unknown' end
-        if not Compat.hasDependency('guard.spellFriendlyFire') then
-            Compat.registerDependency('guard.spellFriendlyFire','talent_query',p.spellFriendlyFire,
-                '/mod/class/interface/Combat.lua','spell friendly-fire chance',
-                EffectManifest.SOURCES.engine and EffectManifest.SOURCES.engine.combat
-                    and EffectManifest.SOURCES.engine.combat.md5,
-                'function _M:spellFriendlyFire',{})
-        end
-        local fn=Compat.dependency('guard.spellFriendlyFire',p.spellFriendlyFire)
-        if type(fn)~='function' then return 'unknown' end
-        local ok,value=pcall(fn,p)
+        local ok,value=pcall(p.spellFriendlyFire,p)
         if not ok or type(value)~='number' or value~=value then return 'unknown' end
         return value
     end
@@ -1243,7 +1290,6 @@ buildAutoCombatHost=function(s,policy,opts)
         native=(type(core)=='table' and type(core.fov)=='table') and {game=g,source=g.player} or nil,
         talentLevel=effectiveTalentLevel,
         dynamicScalar=dynamicScalar,
-        drift=manifestDrift,
     }
     local function safetyGuard(attempt)
         local ok,result=pcall(guard,attempt)
@@ -1355,8 +1401,8 @@ end
 
 -- Planning-only host: the same audited reads without the executor, so dry_run is
 -- available regardless of `allow_auto_combat_execution`.
-buildAutoCombatReadHost=function(s,policy)
-    return AutoCombatHost.new(autoCombatReads(s,policy))
+buildAutoCombatReadHost=function(s,policy,opts)
+    return AutoCombatHost.new(autoCombatReads(s,policy,opts))
 end
 
 local function execute(s,command)
@@ -2033,10 +2079,10 @@ function M.buildAutoCombatHostFor(g,policy,opts)
     return buildAutoCombatHost(s,policy,opts)
 end
 -- Test/production seam: the read-only planning host for the current session.
-function M.buildAutoCombatReadHostFor(g,policy)
+function M.buildAutoCombatReadHostFor(g,policy,opts)
     local s=state
     if not s or s.game~=g then return nil end
-    return buildAutoCombatReadHost(s,policy)
+    return buildAutoCombatReadHost(s,policy,opts)
 end
 function M.autoCombatService(g)
     local s=state

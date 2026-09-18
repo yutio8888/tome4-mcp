@@ -58,6 +58,9 @@ TALENTS = {
     "T_RUSH": ("data/talents/techniques/combat-techniques.lua", "Rush"),
     "T_SKIRMISHER_CUNNING_ROLL": ("data/talents/techniques/acrobatics.lua", "Tumble"),
     "T_PHASE_DOOR": ("data/talents/spells/conveyance.lua", "Phase Door"),
+    # S1 movement-adapter factory admissions.
+    "T_SKIRMISHER_VAULT": ("data/talents/techniques/acrobatics.lua", "Vault"),
+    "T_DIMENSIONAL_STEP": ("data/talents/chronomancy/spacetime-weaving.lua", "Dimensional Step"),
 }
 
 # Talents whose `t.target` builder the guard reads. The generator pins the exact
@@ -68,7 +71,32 @@ BUILDER_TALENTS = {
     "T_SHATTERING_BLOW", "T_ATTACK",
     "T_FLAMESHOCK", "T_FIREFLASH", "T_SHADOW_BLAST", "T_STARFALL",
     "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL",
+    # S1 movement adapters expose a native target builder.
+    "T_SKIRMISHER_VAULT", "T_DIMENSIONAL_STEP",
 }
+
+# Movement talents whose `action` body the adapter semantics depend on. The
+# runtime drift checker verifies the live `def.action` object (source line +
+# `rawequal`) so a replaced action disables the adapter before commit.
+ACTION_TALENTS = {
+    "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL", "T_PHASE_DOOR",
+    "T_SKIRMISHER_VAULT", "T_DIMENSIONAL_STEP",
+}
+
+# Per-talent dynamic getters used by the movement factory's envelope
+# parameters. Pinned with source line so `EffectManifestDrift` can reject a
+# replaced getter before any plan uses its value.
+TALENT_GETTERS = {
+    "T_PHASE_DOOR": ["getRange", "getRadius"],
+}
+
+# Movement talents whose `range` function the pinned target builder dispatches
+# through (`self:getTalentRange(t)` -> `t.range(self,t)`). Pinning the line lets
+# `EffectManifestDrift` reject a replaced `def.range` before the builder runs.
+TALENT_RANGES = [
+    "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL", "T_SKIRMISHER_VAULT",
+    "T_DIMENSIONAL_STEP",
+]
 
 # Engine / module semantics files the filter and footprint model is pinned to.
 # These are the exact Lua files whose bodies the guard's semantics depend on;
@@ -107,6 +135,16 @@ def _builder_line(text: str, definition_line: int) -> int:
     raise SystemExit("target builder line not found after the definition line")
 
 
+def _field_line(text: str, definition_line: int, field: str) -> int:
+    """First `field = function` line at/after the talent definition line."""
+    lines = text.splitlines()
+    pattern = re.compile(r'^\s*' + re.escape(field) + r'\s*=\s*function')
+    for index in range(definition_line - 1, len(lines)):
+        if pattern.search(lines[index]):
+            return index + 1
+    raise SystemExit(f"{field!r} line not found after the definition line")
+
+
 def generate(game_root: Path | None = None) -> str:
     workspace = Path(game_root).resolve() if game_root else ROOT.parents[2]
     module = workspace / GAME_MODULE
@@ -137,9 +175,24 @@ def generate(game_root: Path | None = None) -> str:
         if talent in BUILDER_TALENTS:
             builder_line = _builder_line(text, line)
             builder = f",builder={{path='/{relative}',line={builder_line}}}"
+        action = ''
+        if talent in ACTION_TALENTS:
+            action_line = _field_line(text, line, 'action')
+            action = f",action={{path='/{relative}',line={action_line}}}"
+        getters = ''
+        if talent in TALENT_GETTERS:
+            parts = []
+            for getter in TALENT_GETTERS[talent]:
+                getter_line = _field_line(text, line, getter)
+                parts.append(f"{getter}={{path='/{relative}',line={getter_line}}}")
+            getters = ",getters={" + ",".join(parts) + "}"
+        ranges = ''
+        if talent in TALENT_RANGES:
+            range_line = _field_line(text, line, 'range')
+            ranges = f",ranges={{range={{path='/{relative}',line={range_line}}}}}"
         lines.append(
             f"        {talent}={{files={{{{path='/{relative}',md5='{_md5(data)}'}}}},"
-            f"line={line}{builder}}},")
+            f"line={line}{builder}{action}{getters}{ranges}}},")
     lines.append("    },")
     lines.append("}")
     return "\n".join(lines) + "\n"

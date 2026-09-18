@@ -15,6 +15,11 @@ core={game={getTime=function() return 123 end}}
 local Runtime=require 'mod.mcp_bridge.Runtime'
 local forbidden=assert(loadstring('return function() error("observer invoked native callback") end','@/mod/class/Actor.lua'))()
 local attr=assert(loadstring('return function() error("observer invoked attr") end','@/engine/Entity.lua'))()
+-- Build a fixture method at an audited engine source path so the movement helper
+-- identity check accepts it via the headless hash-unavailable fallback.
+local function engineFn(source,src)
+    return assert(loadstring(src,'@'..source))()
+end
 local base={
     display=function() end,
     tick=function(g)
@@ -89,7 +94,8 @@ check(#observe().actors==0,'negative cache takes priority')
 p.can_see_cache=nil;enemy.invisible=10
 check(#observe().actors==0,'uncached invisibility hidden')
 enemy.invisible=nil;p.attr=function() return nil end
-check(#observe().actors==0,'modified perception disables fallback')
+-- NO-AUDIT: a replaced perception helper is not a gate; the visible actor stays visible.
+check(#observe().actors==1,'a replaced perception helper does not hide the actor')
 p.attr=attr
 local rev=observe().revision
 check(act('move',{type='move',direction=4},rev).result.status=='queued','single action queued')
@@ -669,10 +675,23 @@ do
     p.x,p.y=2,2;enemy.x,enemy.y=3,2
     g.level.map.map[12][3]=p;g.level.map.map[13][3]=enemy
     -- Phase Door is level-scoped; a known effective level lets the planner's
-    -- variant check pass (an unknown level now fails closed).
-    p.getTalentLevel=function(self,def) return def and def.probe_level or 1 end
+    -- variant check pass (an unknown level now fails closed). The `attr` reader
+    -- returns a definite absent attribute, and the def pins the audited dynamic
+    -- getters the factory resolves.
+    local saved_attr=p.attr
+    -- Keep the audited Entity.lua source so `Observer.visible` still trusts the
+    -- read, but make the absent `phase_door_force_precise` attribute a definite
+    -- false (a successful read) rather than an error.
+    p.attr=assert(loadstring('return function(self,name) return nil end','@/engine/Entity.lua'))()
+    p.getTalentLevel=engineFn('/engine/interface/ActorTalents.lua',
+        'return function(self,def) return def and def.probe_level or 1 end')
     p.talents_def=p.talents_def or {}
-    p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',probe_level=1}
+    p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',probe_level=1,
+        getRange=function() return 6 end,getRadius=function() return 1 end}
+    -- The movement adapter for a grid talent now calls the pinned builder for
+    -- live geometry after the drift preflight; supply the audited-shaped fixture.
+    p.talents_def.T_SKIRMISHER_CUNNING_ROLL={id='T_SKIRMISHER_CUNNING_ROLL',mode='activated',
+        target=function() return {type='beam',range=4} end}
     local live2=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
     local bound=live2.snapshot('nearest_hostile').bound_target
     local planned=live2.plan({action='move',destination=pl.rules[1]['then'].destination,bound_target=bound})
@@ -708,7 +727,163 @@ do
         destination={selector='native_random',
             accept={visibility='any',passability='native',hazard='any',landing='deterministic'}}})
     check(strict==nil,'a deterministic-landing policy rejects the random teleport as policy, not a plugin veto')
+    p.attr=saved_attr
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+end
+-- MAF-REV-06 (no-strict-audit): planning calls the live getter directly. A
+-- replaced getter that returns a usable value is used; one that errors, is
+-- missing or returns nil yields movement_derivation_unknown.
+do
+    Runtime.reset(g);g:display()
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local pl={schema='tome-auto-combat/v1',id='nogate',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='nearest_hostile'},
+        rules={{id='door',priority=1,when={always={}},
+            ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+                destination={selector='native_random',accept=accept}}}}}
+    local plan={action='use_talent',talent='T_PHASE_DOOR',target='self',
+        destination={selector='native_random',accept=accept}}
+    p.attr=engineFn('/engine/Entity.lua','return function(self,id) return self[id] end')
+    p.getTalentLevel=engineFn('/engine/interface/ActorTalents.lua',
+        'return function(self,def) return 1 end')
+    p.talents_def=p.talents_def or {}
+    local saved_door=p.talents_def.T_PHASE_DOOR
+    local host=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
+    -- A replaced getter returning a usable value is used (no identity gate).
+    p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',
+        getRange=function() return 7 end,getRadius=function() return 2 end}
+    local used,usedErr=host.plan(plan)
+    check(used and used.plan and used.plan.kind=='native_random' and usedErr==nil,
+        'a replaced live getter returning a usable value is used, not gated')
+    -- An erroring getter is movement_derivation_unknown (value not obtainable).
+    p.talents_def.T_PHASE_DOOR.getRange=function() error('boom') end
+    local bad,err=host.plan(plan)
+    check(bad==nil and err and err.reason=='movement_derivation_unknown',
+        'an erroring live getter is movement_derivation_unknown')
+    -- A missing getter is movement_derivation_unknown.
+    p.talents_def.T_PHASE_DOOR.getRange=nil
+    bad,err=host.plan(plan)
+    check(bad==nil and err and err.reason=='movement_derivation_unknown',
+        'a missing live getter is movement_derivation_unknown')
+    -- A nil-returning getter is movement_derivation_unknown.
+    p.talents_def.T_PHASE_DOOR.getRange=function() return nil end
+    bad,err=host.plan(plan)
+    check(bad==nil and err and err.reason=='movement_derivation_unknown',
+        'a nil-returning live getter is movement_derivation_unknown')
+    p.talents_def.T_PHASE_DOOR=saved_door
+end
+-- MAF-REV-06 real-dispatch: the fixtures implement the actual call graph
+-- (getTalentLevel -> alterTalentLevelRaw/getTalentMastery -> getTalentTypeMastery
+-- -> getTalentTypeFrom, and Phase Door getRange -> combatTalentSpellDamage ->
+-- combatSpellpower -> combatSpellpowerRaw -> knowTalent/callTalent/getCun/...).
+-- The live chain plans and is used directly; an erroring leaf only fails the
+-- value.
+do
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local saved_defs,saved_talents=p.talents_def,p.talents
+    local A='/engine/interface/ActorTalents.lua'
+    local ACT='/mod/class/Actor.lua'
+    local C='/mod/class/interface/Combat.lua'
+    local S='/engine/interface/ActorStats.lua'
+    local E='/engine/interface/ActorTemporaryEffects.lua'
+    local ENT='/engine/Entity.lua'
+    local function installRealChain(actor)
+        actor.getTalentLevelRaw=engineFn(A,'return function(self,id) if type(id)=="table" then id=id.id end return self.talents[id] or 0 end')
+        actor.alterTalentLevelRaw=engineFn(ACT,'return function(self,t,lvl) if self:attr("all_talents_bonus_level") then lvl=lvl+self:attr("all_talents_bonus_level") end return lvl end')
+        actor.getTalentTypeFrom=engineFn(A,'return function(self,id) local t=self.talents_def[id] return t and t.type and t.type[1] end')
+        actor.getTalentTypeMastery=engineFn(ACT,'return function(self,tt,only_base) local def=self:getTalentTypeFrom(tt) if only_base then return 1 end return 1 end')
+        actor.getTalentMastery=engineFn(A,'return function(self,t) return self:getTalentTypeMastery(t.type[1]) end')
+        actor.getTalentLevel=engineFn(A,'return function(self,id) local t if type(id)=="table" then t,id=id,id.id else t=self.talents_def[id] end if not t then return 0 end local lvl=self:getTalentLevelRaw(id) if lvl>0 then lvl=self:alterTalentLevelRaw(t,lvl) end return lvl*(self:getTalentMastery(t) or 0) end')
+        actor.getTalentRange=engineFn(A,'return function(self,t) if type(t.range)=="function" then return t.range(self,t) end return t.range end')
+        actor.knowTalent=engineFn(A,'return function(self,id) return self.talents and self.talents[id]~=nil end')
+        actor.getTalentFromId=engineFn(A,'return function(self,id) return self.talents_def and self.talents_def[id] end')
+        actor.callTalent=engineFn(A,'return function(self,tid,name) local t=self:getTalentFromId(tid) if t and t[name] then return t[name](self,t) end end')
+        actor.attr=engineFn(ENT,'return function(self,prop) return self.attrs and self.attrs[prop] end')
+        actor.getCun=engineFn(S,'return function(self) return self.cun or 10 end')
+        actor.getWil=engineFn(S,'return function(self) return self.wil or 10 end')
+        actor.getMag=engineFn(S,'return function(self) return self.mag or 10 end')
+        actor.hasEffect=engineFn(E,'return function(self,id) return self.tmp and self.tmp[id] end')
+        actor.combatTalentScale=engineFn(C,'return function(self,t,low,high) local tl=type(t)=="table" and self:getTalentLevel(t) or t if tl<=0 then tl=0.1 end return low+(high-low)*tl/5 end')
+        actor.combatLimit=engineFn(C,'return function(self,x,limit,ylow,xlow,yhigh,xhigh) return limit end')
+        actor.combatTalentLimit=engineFn(C,'return function(self,t,limit,low,high,raw,mastery) local tl=type(t)=="table" and self:getTalentLevel(t) or t if tl<=0 then tl=0.5 end return limit end')
+        actor.rescaleCombatStats=engineFn(C,'return function(self,v) return v end')
+        actor.rescaleDamage=engineFn(C,'return function(self,dam) return dam end')
+        actor.combatSpellpowerRaw=engineFn(C,'return function(self,add) add=add or 0 if self:knowTalent("T_ARCANE_CUNNING") then add=add+self:callTalent("T_ARCANE_CUNNING","getSpellpower")*self:getCun()/100 end if self:hasEffect("EFF_BLOODLUST") then add=add+self:hasEffect("EFF_BLOODLUST").spellpower end if self:attr("spellpower_reduction") then end return math.max(0,(self.combat_spellpower or 0)+add+self:getMag()),1 end')
+        actor.combatSpellpower=engineFn(C,'return function(self,mod,add) mod=mod or 1 local d,am=self:combatSpellpowerRaw(add) return self:rescaleCombatStats(d)*mod*am end')
+        actor.combatTalentSpellDamage=engineFn(C,'return function(self,t,base,max) local mod=max/((base+100)*((math.sqrt(5)-1)*0.8+1)) return self:rescaleDamage((base+self:combatSpellpower())*((math.sqrt(self:getTalentLevel(t))-1)*0.8+1)*mod) end')
+    end
+    local vaultPolicy={schema='tome-auto-combat/v1',id='chain',name='unit',
+        limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=0},
+        targeting={default='nearest_hostile'},rules={{id='vault',priority=1,when={always={}},
+            ['then']={action='use_talent',talent='T_SKIRMISHER_VAULT',destination={
+                selector='position',x=3,y=2,accept=accept}}}}}
+    local vaultPlan={action='use_talent',talent='T_SKIRMISHER_VAULT',
+        destination={selector='position',x=3,y=2,accept=accept}}
+    local function setupVault()
+        p.x,p.y=2,2
+        p.talents={T_SKIRMISHER_VAULT=5}
+        installRealChain(p)
+        p.talents_def=p.talents_def or {}
+        p.talents_def.T_SKIRMISHER_VAULT={id='T_SKIRMISHER_VAULT',mode='activated',type={'technique/acrobatics',1},
+            range=engineFn('/data/talents/techniques/acrobatics.lua','return function(self,t) return math.floor(self:combatTalentScale(t,3,8)) end'),
+            target=function(self,t) return {type='beam',range=self:getTalentRange(t)} end}
+        return Runtime.buildAutoCombatHostFor(g,vaultPolicy,{drift=function() return true end})
+    end
+    Runtime.reset(g);g:display()
+    local ok,okErr=setupVault().plan(vaultPlan)
+    check(ok and ok.plan and okErr==nil,'the live Vault chain plans')
+    -- A replaced leaf returning a usable value is used directly.
+    Runtime.reset(g);g:display()
+    local liveHost=setupVault()
+    p.combatTalentScale=function() return 3 end
+    local livePlan,liveErr=liveHost.plan(vaultPlan)
+    check(livePlan and livePlan.plan and liveErr==nil,
+        'a replaced scaling helper returning a usable value is used, not gated')
+    -- An erroring leaf is movement_derivation_unknown (value not obtainable).
+    Runtime.reset(g);g:display()
+    local errHost=setupVault()
+    p.combatTalentScale=function() error('boom') end
+    local bad,badErr=errHost.plan(vaultPlan)
+    check(bad==nil and badErr and badErr.reason=='movement_derivation_unknown',
+        'an erroring live helper is movement_derivation_unknown')
+    -- Phase Door getRange reaches the spell-power chain.
+    local doorPolicy={schema='tome-auto-combat/v1',id='door',name='unit',
+        limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=0},
+        targeting={default='nearest_hostile'},rules={{id='door',priority=1,when={always={}},
+            ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',destination={
+                selector='native_random',accept=accept}}}}}
+    local doorPlan={action='use_talent',talent='T_PHASE_DOOR',target='self',
+        destination={selector='native_random',accept=accept}}
+    local function setupDoor()
+        p.x,p.y=2,2
+        p.talents={T_PHASE_DOOR=1,T_ARCANE_CUNNING=1}
+        installRealChain(p)
+        p.talents_def=p.talents_def or {}
+        p.talents_def.T_PHASE_DOOR={id='T_PHASE_DOOR',mode='activated',type={'spell/conveyance',1},
+            getRange=engineFn('/data/talents/spells/conveyance.lua','return function(self,t) return self:combatLimit(self:combatTalentSpellDamage(t,10,15),40,4,0,13.4,9.4) end'),
+            getRadius=engineFn('/data/talents/spells/conveyance.lua','return function(self,t) return math.floor(self:combatTalentLimit(t,0,6,1)) end')}
+        p.talents_def.T_ARCANE_CUNNING={id='T_ARCANE_CUNNING',mode='passive',type={'cunning/ambush',1},
+            getSpellpower=engineFn('/data/talents/techniques/magical-combat.lua','return function(self,t) return 20 end')}
+        return Runtime.buildAutoCombatHostFor(g,doorPolicy,{drift=function() return true end})
+    end
+    Runtime.reset(g);g:display()
+    local dok,dokErr=setupDoor().plan(doorPlan)
+    check(dok and dok.plan and dok.plan.kind=='native_random','the live Phase Door getRange chain plans')
+    -- An erroring spell-power leaf is movement_derivation_unknown.
+    Runtime.reset(g);g:display()
+    local dHost=setupDoor()
+    p.getCun=function() error('boom') end
+    local dbad,dbadErr=dHost.plan(doorPlan)
+    check(dbad==nil and dbadErr and dbadErr.reason=='movement_derivation_unknown',
+        'an erroring spell-power leaf is movement_derivation_unknown')
+    -- A missing spell-power method is movement_derivation_unknown too.
+    Runtime.reset(g);g:display()
+    local mHost=setupDoor()
+    p.getMag=nil
+    local mbad,mbadErr=mHost.plan(doorPlan)
+    check(mbad==nil and mbadErr and mbadErr.reason=='movement_derivation_unknown',
+        'a missing spell-power method is movement_derivation_unknown')
+    p.talents_def,p.talents=saved_defs,saved_talents
 end
 -- Round-5 correction: the guard reads the real target spec from the audited
 -- native builder and applies the engine filter defaults, not a catalog shorthand.
@@ -728,12 +903,12 @@ do
     p.talents={T_FLAME=1}
     local live=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
     local target=live.snapshot('nearest_hostile').bound_target
-    -- V2-REV-02: without live hash services the adapter is disabled, not
-    -- silently trusted. This host uses the real (absent) fs/md5 path.
+    -- NO-AUDIT (v1.6): the absent fs/md5 hash service is advisory telemetry; it
+    -- does not disable the action. The live builder is used directly.
     local undrifted=Runtime.buildAutoCombatHostFor(g,pl)
-    local disabled=undrifted.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
-    check(disabled and disabled.reason=='adapter_source_drift',
-        'missing live hash services reject with adapter_source_drift')
+    local advisory=undrifted.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=target})
+    check(advisory==nil or advisory.reason~='adapter_source_drift',
+        'missing live hash services are advisory, not a runtime gate')
     -- The builder spec wins over the catalog: a friendly-safe ball over a beam
     -- catalog entry passes even though the catalog would warn about the ally line.
     p.talents_def={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',
@@ -761,9 +936,9 @@ do
         'an active Burning Wake ground zone rejects')
     p.talents_def,p.talents,p.attr=saved_def,saved_talents,saved_attr
 end
--- DYN-REV-01 (Runtime path): an overridden/unverifiable spellFriendlyFire makes
--- the audited dynamic input unknown; a raw builder selffire=0 must not turn that
--- into a permissive verdict.
+-- NO-AUDIT (v1.6): `spellFriendlyFire` is called directly as a normal
+-- entrypoint. A replacement returning a usable number IS used; an erroring or
+-- non-finite one is `unknown` and the component then fails closed on its value.
 do
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
     Runtime.reset(g);g:display()
@@ -779,12 +954,17 @@ do
     local saved_sff=p.spellFriendlyFire
     p.talents_def={T_FIREFLASH={id='T_FIREFLASH',target=function()
         return {type='ball',range=7,radius=5,selffire=0} end}}
+    -- A replacement returning a usable value (0) is used: nothing to reject.
     p.spellFriendlyFire=function() return 0 end
     local live=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
     local target=live.snapshot('nearest_hostile').bound_target
-    local verdict=live.guard({action='use_talent',talent='T_FIREFLASH',bound_target=target})
-    check(verdict and verdict.reason=='selffire_risk',
-        'an overridden spellFriendlyFire fails closed even when the builder returns 0')
+    local used=live.guard({action='use_talent',talent='T_FIREFLASH',bound_target=target})
+    check(used==nil,'a replaced spellFriendlyFire returning a usable value is used, not gated')
+    -- An erroring replacement is unknown; the dynamic component fails closed.
+    p.spellFriendlyFire=function() error('boom') end
+    local broken=live.guard({action='use_talent',talent='T_FIREFLASH',bound_target=target})
+    check(broken and broken.reason=='selffire_risk',
+        'an erroring spellFriendlyFire is unknown and the component fails closed')
     p.talents_def,p.spellFriendlyFire=saved_defs,saved_sff
 end
 -- Wave 2: capability alignment (INT-05) and the full error envelope (INT-02).

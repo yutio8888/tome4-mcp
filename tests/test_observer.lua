@@ -25,6 +25,9 @@ setfenv(exp_chunk,setmetatable({util={bound=function(value,lo,hi) return math.ma
 local tome_exp=exp_chunk()
 local forbidden_calls=0
 local function forbidden() forbidden_calls=forbidden_calls+1;error('observation invoked callback') end
+-- A throwing reader used to prove "unusable value => typed unknown" without
+-- counting against the callback-discipline counter.
+local function throws() error('unusable reader invoked') end
 local p={uid=1,name='Hero',__is_actor=true,player=true,x=2,y=2,level=1,exp=7,exp_mod=1.2,
     life=60,max_life=100,life_regen=0.25,stamina=80,max_stamina=100,stamina_regen=1,
     unused_stats=3,unused_talents=1,unused_generics=2,unused_talents_types=1,unused_prodigies=1,
@@ -32,16 +35,26 @@ local p={uid=1,name='Hero',__is_actor=true,player=true,x=2,y=2,level=1,exp=7,exp
     energy={value=1000},getExpChart=actorlevel.getExpChart,exp_chart=tome_exp,
     stats_def={},stats={},inc_stats={},talents={},talents_def={},tmp={},tempeffect_def={},
     inven={},inven_def={},can_see_cache={},open_door=true,
-    getStat=forbidden,combatAttack=forbidden,combatPhysicalpower=forbidden,getName=forbidden}
+    -- The wilderness FOV path calls these live entries (no-strict-audit).
+    playerFOV=function() end,computeFOV=function() end,
+    -- The character-sheet computed view calls these live getters directly.
+    -- Usable stubs are consumed (no-strict-audit); genuinely off-limits
+    -- callbacks remain forbidden.
+    getStat=function(self,s) return 10 end,combatArmor=function() return 5 end,
+    getName=forbidden}
 for i,name in ipairs{'str','dex','mag','wil','cun','con','lck'} do
     p.stats_def[name]={id=i};p.stats[i]=10+i;p.inc_stats[i]=i
 end
 local enemy={uid=2,name='Visible enemy',type='giant',subtype='troll',__is_actor=true,x=3,y=2,level=9,rank=3,life=20,max_life=40,
     global_speed=1.1,movement_speed=0.8,combat_atk=14,combat_def=12,combat_dam=30,resists={FIRE=25,all=5},
+    -- The computed character-sheet view calls these live getters directly
+    -- (no-strict-audit); give usable values so the read is exercised.
+    combatAttack=function() return 14 end,combatPhysicalpower=function() return 20 end,
     tmp={SLOW={dur=4}},tempeffect_def={SLOW={desc='Slowed',status='detrimental',type='physical'}},
-    tooltip=forbidden,combatAttack=forbidden,combatPhysicalpower=forbidden}
+    tooltip=forbidden}
 local hidden={uid=3,name='Hidden secret enemy',__is_actor=true,x=4,y=2,level=99,life=100,max_life=100}
-local map={w=5,h=5,ACTOR=3,TERRAIN=1,map={},seens={},infovs={},lites={}}
+local map={w=5,h=5,ACTOR=3,TERRAIN=1,map={},seens={},infovs={},lites={},
+    applyLite=function() end,cleanFOV=function() end}
 for y=0,4 do for x=0,4 do
     local index=x+y*5
     map.map[index]={[1]={name='grass',display='.',block_move=gridclass.block_move}}
@@ -100,7 +113,9 @@ enemy.hide_level_tooltip=true
 check(Observer.inspect(g,meta,'actor',Observer.actorId(meta,enemy)).level=='unknown','hidden enemy level remains hidden')
 check(select(2,Observer.inspect(g,meta,'actor',Observer.actorId(meta,hidden)))=='actor_not_visible','hidden enemy inspection denied')
 
--- Reconstruct identification only from native rules and never change the item.
+-- Reconstruct identification from the player-known rules without mutating the
+-- item. NO-AUDIT: a replaced `isIdentified` is not a gate; the write-free
+-- projection still discloses the player-known identification.
 g.object_known_types={weapon={greatsword={['SECRET ARTIFACT']=true}}}
 snapshot=Observer.capture(g,meta,2,{include_map=false,detail='full'})
 check(snapshot.map==Json.null and snapshot.scene.zone_id=='trollmire'
@@ -111,7 +126,8 @@ g.object_known_types=nil;unknown.auto_id=true
 check(Observer.capture(g,meta,2,{detail='full'}).player.inventory[1].identified and unknown.identified==false,'native auto-id is read-only')
 unknown.auto_id=nil;unknown.isIdentified=forbidden
 g.object_known_types={weapon={greatsword={['SECRET ARTIFACT']=true}}}
-check(not Observer.capture(g,meta,2,{detail='full'}).player.inventory[1].identified,'overridden identification cannot disclose additional knowledge')
+check(Observer.capture(g,meta,2,{detail='full'}).player.inventory[1].identified,
+    'a replaced identification resolver is not a gate; the player-known identity is still reported')
 g.object_known_types=nil
 
 -- Compare the pure projection to the actual native act=false terrain branch.
@@ -127,11 +143,39 @@ for _,terrain in ipairs{
     check(summary.blocked==native_block,'native terrain result '..terrain.name)
     if terrain.door_opened then check(summary.door and summary.can_open,'door metadata without opening') end
 end
-local dynamic=Details.terrain({name='dynamic',block_move=forbidden,does_block_move=false},p)
-check(dynamic.blocked==nil and dynamic.block_status=='unknown','dynamic movement override remains unknown')
-check(Details.terrain({name='dynamic field',block_move=gridclass.block_move,does_block_move=forbidden},p).block_status=='unknown','dynamic obstruction remains unknown')
-check(Details.terrain({name='dynamic pass',block_move=gridclass.block_move,does_block_move=true,can_pass={pass_wall=forbidden}},p).block_status=='unknown','dynamic pass condition remains unknown')
+-- NO-AUDIT: a live `block_move` is called (act=false); an erroring one is a
+-- typed unknown, and a usable replacement value is used.
+local dynamic=Details.terrain({name='dynamic',block_move=throws,does_block_move=false},p)
+check(dynamic.blocked==nil and dynamic.block_status=='unknown','an erroring live block_move yields unknown')
+local replaced=Details.terrain({name='dynamic replacement',block_move=function() return true end},p)
+check(replaced.blocked==true,'a replaced-but-usable block_move value is used')
+local dynamicFalse=Details.terrain({name='dynamic pass',block_move=function() return false end},p)
+check(dynamicFalse.blocked==false,'a replaced block_move returning false is used')
 check(Details.terrain({name='door',block_move=gridclass.block_move,door_opened='OPEN',door_player_check='Confirm'},p).confirmation_required,'door confirmation is described only')
+-- NO-AUDIT door branch: the live callable block_move is invoked and validated,
+-- then the stored door metadata is attached independently.
+do
+    local called=0
+    local doorFalse=Details.terrain({name='door open',door_opened='OPEN',
+        block_move=function() called=called+1;return false end},p)
+    check(called==1 and doorFalse.blocked==false and doorFalse.block_status=='passable'
+        and doorFalse.door==true,'a door invokes the live block_move and uses a usable false')
+    check(doorFalse.can_open==true,'door open metadata is attached after the live call')
+    local doorTrue=Details.terrain({name='door blocked',door_opened='OPEN',
+        block_move=function() return true end},p)
+    check(doorTrue.blocked==true,'a door uses a usable true from the live block_move')
+    local doorNil=Details.terrain({name='door nil',door_opened='OPEN',
+        block_move=function() return nil end},p)
+    check(doorNil.blocked==false,'a door uses the native nil-means-passable return')
+    local doorThrow=Details.terrain({name='door throw',door_opened='OPEN',
+        block_move=function() error('boom') end},p)
+    check(doorThrow.blocked==nil and doorThrow.block_status=='unknown' and doorThrow.door==true,
+        'a throwing door block_move yields unknown but keeps door metadata')
+    local doorInvalid=Details.terrain({name='door invalid',door_opened='OPEN',
+        block_move=function() return 'yes' end},p)
+    check(doorInvalid.blocked==nil and doorInvalid.block_status=='unknown',
+        'an invalid door block_move return yields unknown')
+end
 
 -- Seeing an actor with ESP does not reveal terrain beneath it.
 Observer.reset();map.infovs[enemy.x+enemy.y*5]=false
@@ -146,19 +190,18 @@ Observer.reset()
 check(not Observer.capture(g,meta,2).map.cells[1].known,'session reset drops old map memory')
 map.seens[0]=true
 
--- A wilderness observation must use the reviewed no-store FOV path. The
--- checksum/identity registration itself is also exercised in native acceptance.
+-- A wilderness observation uses the reviewed no-store FOV path. Under the
+-- no-strict-audit principle the live FOV/cache getters are called directly; a
+-- replaced (but usable) entry does not make the terrain invisible.
 local Compat=require 'mod.mcp_bridge.NativeCompatibility'
 local original_matches=Compat.matches
-local admitted={playerFOV=true,computeFOV=true,['map.applyLite']=true,['map.cleanFOV']=true}
-Compat.matches=function(name) return admitted[name]==true end
 g.zone.wilderness=true;Observer.reset()
 map.infovs={};map.seens={[0]=0.6,[12]=1};map.has_seens={[1]=true};map.remembers={[1]=true};map.lites[1]=true
 map.map[0][1]={name='Visible world entrance',display='>',change_zone='private-destination',block_move=gridclass.block_move}
 map.map[1][1]={name='UNDISCOVERED WORLD ENTRANCE',display='>',change_zone='private-destination',block_move=gridclass.block_move}
 snapshot=Observer.capture(g,meta,2)
 check(snapshot.map.cells[1].visible and snapshot.map.cells[1].is_exit and snapshot.map.cells[1].blocked==false,
-    'audited world applyLite terrain and entrance visible without infovs')
+    'world applyLite terrain and entrance visible without infovs')
 check(snapshot.map.cells[13].visible and snapshot.map.cells[13].known,'world terrain beneath player is known')
 check(not snapshot.map.cells[2].known and not Json.encode(snapshot):find('UNDISCOVERED WORLD ENTRANCE',1,true)
     and not Json.encode(snapshot):find('private-destination',1,true),'remembered and lit world cells do not disclose unseen entrance or destination')
@@ -169,11 +212,12 @@ check(snapshot.map.cells[1].known and not snapshot.map.cells[1].visible and snap
 Observer.reset();map.seens[0]=0
 check(not Observer.capture(g,meta,2).map.cells[1].known,'zero visibility and session reset cannot reveal world terrain')
 map.seens[0]=1
-for name in pairs(admitted) do
-    admitted[name]=false;Observer.reset()
-    check(not Observer.capture(g,meta,2).map.cells[1].known,'modified wilderness entrypoint fails closed: '..name)
-    admitted[name]=true
-end
+-- A replaced FOV/cache entrypoint is used as a normal entry, not gated.
+local savedFOV=p.playerFOV
+p.playerFOV=function() end;Observer.reset()
+check(Observer.capture(g,meta,2).map.cells[1].known,
+    'a replaced wilderness entrypoint is used, not gated (no-strict-audit)')
+p.playerFOV=savedFOV
 p.blind=1;Observer.reset()
 check(not Observer.capture(g,meta,2).map.cells[1].known,'blind world observer cannot learn terrain')
 p.blind=nil;g.zone.wilderness=nil;Observer.reset()
@@ -208,10 +252,14 @@ for _,chart in ipairs{actorlevel.exp_chart,tome_exp,{[2]=99,[11]=999,[50]=9999}}
         check(Details.expNext(p)==p:getExpChart(level+1),'native exp parity at level '..level)
     end
 end
-p.exp_chart=forbidden
-check(Details.expNext(p)=='unknown','dynamic experience chart is not called')
-p.exp_chart=tome_exp;p.getExpChart=forbidden
-check(Details.expNext(p)=='unknown','dynamic experience getter is not called')
+-- NO-AUDIT: the live experience getter is called directly; a usable value is
+-- used, an erroring one is a typed unknown.
+p.exp_chart=throws
+check(Details.expNext(p)=='unknown','an erroring live experience chart yields unknown')
+p.exp_chart=tome_exp;p.getExpChart=function(self,level) return 4242 end
+check(Details.expNext(p)==4242,'a replaced-but-usable getExpChart value is used')
+p.getExpChart=throws
+check(Details.expNext(p)=='unknown','an erroring getExpChart yields unknown')
 p.getExpChart=actorlevel.getExpChart;p.level=1
 local chinese='战斗观察'
 for limit=3,14 do
@@ -275,4 +323,64 @@ g.level.map.effects=nil
 local ego=Details.item(g,{uid=77,identified=true,name='iron longsword ()',type='weapon',subtype='longsword',
     ego={{name='flaming'}}},meta)
 check(ego.name=='iron longsword flaming','ego name drops placeholders and keeps the stored ego name')
+-- NO-AUDIT regressions: perception/reaction provenance never changes a decision.
+local NativeActivity=require 'mod.mcp_bridge.NativeActivity'
+do
+    -- A small, fully-controlled map for the visibility/reaction checks.
+    local mw,mh=5,5
+    local map2={w=mw,h=mh,ACTOR=3,TERRAIN=1,map={},seens={},infovs={},lites={}}
+    for i=0,mw*mh-1 do map2.map[i]={[1]={name='floor',display='.',block_move=gridclass.block_move}}
+        map2.seens[i]=true;map2.infovs[i]=true;map2.lites[i]=true end
+    local pl={uid=1,x=1,y=1,can_see_cache={}}
+    local act={uid=2,x=2,y=1,__is_actor=true,faction='enemy'}
+    map2.map[pl.x+pl.y*mw][3]=pl;map2.map[act.x+act.y*mw][3]=act
+    local g2={player=pl,level={map=map2,entities={pl,act}}}
+    check(Observer.visible(g2,act)~=false,'a plain visible actor is reported visible')
+    -- A replaced perception helper must not hide a visible actor (no gate).
+    pl.canSee=function() return true end
+    check(Observer.visible(g2,act)==true,'a replaced canSee returning true is used, not gated')
+    -- A replaced-but-usable reactionToward<0 admits the hostile classification.
+    pl.reactionToward=function() return -5 end
+    check(NativeActivity.hostileVisible(g2,pl,act)==true,'a replaced reactionToward<0 marks the actor hostile')
+    pl.reactionToward=function() return 5 end
+    check(NativeActivity.hostileVisible(g2,pl,act)==false,'a replaced reactionToward>=0 marks the actor non-hostile')
+    -- An erroring reactionToward falls back to the stored scalar classification.
+    pl.reactionToward=function() error('boom') end
+    act.reaction=-1
+    check(NativeActivity.hostileVisible(g2,pl,act)==true,'an erroring reactionToward falls back to stored reaction')
+    act.reaction=1
+    check(NativeActivity.hostileVisible(g2,pl,act)==false,'a stored friendly reaction is non-hostile')
+    act.reaction=nil
+    check(NativeActivity.hostileVisible(g2,pl,act)==true,'a differing faction is hostile')
+    -- A non-finite reactionToward result is not usable: fall back to the stored
+    -- scalar/faction classification rather than treating NaN/±inf as a verdict.
+    act.reaction=-1
+    pl.reactionToward=function() return 0/0 end
+    check(NativeActivity.hostileVisible(g2,pl,act)==true,
+        'a NaN reactionToward falls back to the stored hostile reaction')
+    act.reaction=1
+    check(NativeActivity.hostileVisible(g2,pl,act)==false,
+        'a NaN reactionToward falls back to the stored friendly reaction')
+    act.reaction=-1
+    pl.reactionToward=function() return math.huge end
+    check(NativeActivity.hostileVisible(g2,pl,act)==true,
+        '+inf reactionToward falls back to the stored hostile reaction')
+    act.reaction=1
+    pl.reactionToward=function() return -math.huge end
+    check(NativeActivity.hostileVisible(g2,pl,act)==false,
+        '-inf reactionToward falls back to the stored friendly reaction')
+    -- The non-finite fallback must not admit auto_explore over a stored hostile.
+    act.reaction=-1
+    pl.reactionToward=function() return 0/0 end
+    pl.autoExplore=function() return true end
+    pl.runStep=function() return false end
+    pl.enoughEnergy=function() return true end
+    pl.runStop=function() end
+    local s2={game=g2,native_activity=nil,control_token='tok',revision=1,
+        auto_combat={arbiter={owner='auto_combat'}}}
+    local refusal=NativeActivity.start(s2,{owner='command',command={input_owner='remote'}},'auto_explore')
+    check(refusal.ok==false and refusal.code=='enemies_in_sight',
+        'a non-finite reactionToward does not admit auto_explore over a stored hostile')
+end
+
 print('Observer: '..checks..' checks passed; stress snapshot '..bytes..' bytes')

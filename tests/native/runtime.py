@@ -15,7 +15,7 @@ import time
 import zipfile
 
 WORKSPACE = next(p for p in Path(__file__).resolve().parents if (p / "t-engine").is_file())
-ADDON = WORKSPACE / "game/addons/tome-mcp-bridge"
+ADDON = Path(os.environ["TOME_MCP_ADDON_DIR"]) if os.environ.get("TOME_MCP_ADDON_DIR") else WORKSPACE / "game/addons/tome-mcp-bridge"
 DEFAULT_SOURCE = WORKSPACE / "tmp/battle-companion-validation-20260914/runtime"
 DEFAULT_DEPS = WORKSPACE / "tmp/worktrees/yron-profile-20260912/tmp/profile/deps/root/usr"
 

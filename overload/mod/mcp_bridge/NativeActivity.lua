@@ -22,9 +22,10 @@
 --
 -- The session holds at most one: `s.native_activity`.
 local Details=require 'mod.mcp_bridge.ObservationDetails'
-local Compat=require 'mod.mcp_bridge.NativeCompatibility'
 local Observer=require 'mod.mcp_bridge.Observer'
 local M={}
+
+local function finite(v) return type(v)=='number' and v==v and v>-math.huge and v<math.huge end
 
 M.KINDS={rest=true,auto_explore=true}
 
@@ -62,24 +63,18 @@ end
 
 -- The native RUN_AUTO guard is reactionToward(actor) < 0. A visible escort or
 -- summon is not hostile, so it must not refuse auto-explore.
+-- NO-AUDIT: the live `reactionToward` is called as a normal entry when present;
+-- only a **finite** numeric result is usable. A missing/erroring/non-numeric or
+-- non-finite (NaN/±inf) result falls back to the stored scalar/faction
+-- classification. Source identity never changes the decision.
 function M.hostileVisible(g,p,actor)
     if actor==p or type(actor)~='table' or not actor.__is_actor or not Observer.visible(g,actor) then return false end
     if type(p.reactionToward)=='function' then
-        local info=debug.getinfo(p.reactionToward,'S')
-        if info~=nil and type(info.source)=='string' and info.source:sub(-#'/mod/class/Actor.lua')=='/mod/class/Actor.lua' then
-            local ok,r=pcall(p.reactionToward,p,actor)
-            if ok and type(r)=='number' then return r<0 end
-        end
+        local ok,r=pcall(p.reactionToward,p,actor)
+        if ok and finite(r) then return r<0 end
     end
-    if type(actor.reaction)=='number' then return actor.reaction<0 end
+    if finite(actor.reaction) then return actor.reaction<0 end
     return actor.faction~=nil and actor.faction~=p.faction
-end
-
-local function nativeAt(fn,suffix)
-    if type(fn)~='function' then return false end
-    local info=debug.getinfo(fn,'S')
-    return info~=nil and type(info.source)=='string' and info.source:sub(1,1)=='@'
-        and info.source:sub(-#suffix)==suffix
 end
 
 -- A failed native activity cleanup leaves native state the bridge cannot
@@ -102,11 +97,6 @@ local rest={
     guards=function(env)
         local p=env.player
         if type(p.restInit)~='function' then return {ok=false,code='rest_unavailable',energy_spent=0} end
-        local info=debug.getinfo(p.restInit,'S')
-        if not Compat.matches('restInit',p.restInit)
-            and (not info or type(info.source)~='string' or not info.source:match('[/]engine/interface/PlayerRest%.lua$')) then
-            return {ok=false,code='rest_modified',energy_spent=0}
-        end
     end,
     start=function(env,activity,options)
         local s,p=env.session,env.player
@@ -141,9 +131,8 @@ local auto_explore={
     kind='auto_explore',label='task.auto_explore',
     guards=function(env)
         local p,g=env.player,env.game
-        if not nativeAt(p.autoExplore,'/mod/class/interface/PlayerExplore.lua')
-            or not nativeAt(p.runStep,'/engine/interface/PlayerRun.lua')
-            or not nativeAt(p.enoughEnergy,'/engine/Actor.lua') then
+        if type(p.autoExplore)~='function' or type(p.runStep)~='function'
+            or type(p.enoughEnergy)~='function' then
             return {ok=false,code='auto_explore_unavailable',energy_spent=0}
         end
         if (g.zone and g.zone.no_autoexplore) or (g.level and g.level.no_autoexplore) then

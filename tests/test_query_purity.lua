@@ -1,6 +1,8 @@
--- Query purity and dependency-audit tests (spec QRY-01/02/06/07/09/11, F1/F4).
--- Pure Lua fixtures: no engine, no game source. Dependencies are registered
--- through the real audit path (source path + file digest) with a stubbed fs.
+-- Query purity tests (spec QRY-01/02/06/07/09/11), no-strict-audit (v1.6).
+-- Pure Lua fixtures: no engine, no game source. Under the no-strict-audit
+-- principle the live attr/alterTalentCost/cost_factor getters are called
+-- directly; a replaced-but-usable helper IS used, and only an unusable helper
+-- (missing/erroring/non-finite) makes the field unknown.
 local root=(arg[0]:match('^(.*)/tests/[^/]+$') or 'game/addons/tome-mcp-bridge')
 package.path=root..'/overload/?.lua;'..package.path
 local Actions=require 'mod.mcp_bridge.Actions'
@@ -9,7 +11,7 @@ local Distance=require 'mod.mcp_bridge.Distance'
 local checks=0
 local function check(value,message) checks=checks+1;assert(value,message) end
 
--- A controllable, per-function digest store so audited registration succeeds.
+-- A controllable, per-function digest store (diagnostic provenance only).
 local files={}
 fs={readAll=function(path) return files[path] end}
 package.loaded.md5={sumhexa=function(bytes) return bytes end}
@@ -40,51 +42,53 @@ end
 check(Distance.grid(0,0,3,5)==5,'fallback grid distance is the documented Chebyshev rule')
 check(Distance.grid(2,2,2,2)==0,'zero distance is stable')
 
--- T-QRY-06: an attr helper replaced after the baseline is never called.
+-- T-QRY-06 (NO-AUDIT): a replaced-but-usable attr helper IS used.
 local p1=fixture()
 trustAll(p1)
 local dangerAttr=0
-p1.attr=function(self,name) dangerAttr=dangerAttr+1; return 0 end
+p1.attr=function(self,name) dangerAttr=dangerAttr+1; return nil end
 local q1=assert(Actions.query(p1,'T_COST'))
-check(dangerAttr==0,'a replaced attr helper is never called')
-check(q1.current_costs.mana=='unknown' and q1.costs_complete==false and q1.affordable=='unknown',
-    'an untrusted suppression helper makes every cost unknown instead of a false certainty')
-check(q1.resource_checks.mana.reason=='dependency_replaced',
-    'resource_checks names the replaced dependency')
+check(dangerAttr>0,'a replaced-but-usable attr helper is used, not gated')
+check(q1.current_costs.mana==15 and q1.affordable==true,
+    'a usable replaced attr helper (no suppression) resolves the cost exactly')
 
--- T-QRY-07: a same-source-tag replacement of the cost helper is rejected.
+-- T-QRY-06 (NO-AUDIT): an erroring attr helper is not "no suppression" (F4).
+local p1e=fixture()
+trustAll(p1e)
+p1e.attr=function() error('boom') end
+local q1e=assert(Actions.query(p1e,'T_COST'))
+check(q1e.current_costs.mana=='unknown' and q1e.costs_complete==false and q1e.affordable=='unknown',
+    'an unusable suppression helper makes every cost unknown instead of a false certainty')
+check(q1e.resource_checks.mana.reason=='suppression_unverified',
+    'resource_checks names the unusable suppression helper')
+
+-- T-QRY-07 (NO-AUDIT): a replaced cost helper with a usable value is used.
 local p2=fixture()
 trustAll(p2)
-local dangerAlter=0
-local replaced=p2.alterTalentCost
-p2.alterTalentCost=function(self,t,r,c) dangerAlter=dangerAlter+1; return 99 end
+local usedAlter=0
+p2.alterTalentCost=function(self,t,r,c) usedAlter=usedAlter+1; return 99 end
 local q2=assert(Actions.query(p2,'T_COST'))
-check(replaced~=p2.alterTalentCost and dangerAlter==0,'a disguised replacement is not executed')
-check(q2.current_costs.mana=='unknown' and q2.affordable=='unknown','a rejected helper yields unknown cost')
+check(usedAlter>0,'a replaced-but-usable cost helper is used, not gated')
+check(q2.current_costs.mana==148.5,'the replaced helper value is consumed (99 * 1.5 factor)')
 
--- F1: a dependency replaced before its audited registration is not trusted.
-local p4=fixture()
-Compat.resetDependencies()
-files['/engine/Entity.lua']='bytes-that-do-not-match'
-Compat.registerDependency('actor.attr','talent_query',p4.attr,'/engine/Entity.lua','test','another-digest')
-trust('actor.alterTalentCost','/mod/class/Actor.lua',p4.alterTalentCost)
-trust('resource.cost_factor:mana','data/resources.lua',p4.resources_def.mana.cost_factor)
-local q4=assert(Actions.query(p4,'T_COST'))
-check(q4.current_costs.mana=='unknown' and q4.resource_checks.mana.reason=='dependency_source_modified',
-    'F1: a dependency whose audited digest does not match is not trusted')
-
--- F1 (transitive): a replaced fatigue getter used by a function cost factor
--- must degrade the field to unknown instead of running the replacement.
+-- F1 (NO-AUDIT): a replaced-but-usable fatigue getter does not degrade, because
+-- the function cost factor is called directly.
 local p5=fixture()
 p5.combatFatigue=mk('/mod/class/interface/Combat.lua','return function(self) return 0 end')
 trustAll(p5)
-trust('actor.combatFatigue','/mod/class/interface/Combat.lua',p5.combatFatigue)
-p5.combatFatigue=function(self) return 0 end
 local q5=assert(Actions.query(p5,'T_COST'))
-check(q5.current_costs.mana=='unknown' and q5.resource_checks.mana.reason=='dependency_replaced',
-    'F1: a replaced transitive fatigue getter makes the function cost factor unknown')
+check(q5.current_costs.mana==15 and q5.affordable==true,
+    'a usable function cost factor (and its live fatigue getter) resolves exactly')
 
--- T-QRY-09 control: a fully audited static cost still resolves exactly.
+-- F1 (NO-AUDIT): an erroring function cost factor makes the field unknown.
+local p6=fixture()
+p6.resources_def.mana.cost_factor=function() error('boom') end
+trustAll(p6)
+local q6=assert(Actions.query(p6,'T_COST'))
+check(q6.current_costs.mana=='unknown' and q6.resource_checks.mana.reason=='cost_factor_unverified',
+    'an erroring function cost factor yields unknown cost')
+
+-- T-QRY-09 control: a fully admitted static cost still resolves exactly.
 local p3=fixture()
 trustAll(p3)
 local q3=assert(Actions.query(p3,'T_COST'))

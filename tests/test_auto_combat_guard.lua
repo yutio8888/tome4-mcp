@@ -43,7 +43,6 @@ local function build(opts)
         details=Details,native=opts.native,
         talentLevel=opts.talentLevel,
         dynamicScalar=opts.dynamicScalar,
-        drift=opts.drift or function() return true end,
     }
     return Guard.build(ctx),p,target
 end
@@ -61,15 +60,15 @@ do
     check(guard({action='wait'})==nil,'a non-action attempt is ignored')
 end
 do
-    local guard=build{drift=function() return nil,'adapter_source_drift','hash' end}
-    local result=guard(attempt('T_MOONLIGHT_RAY'))
-    check(result and result.reason=='adapter_source_drift' and result.action=='reject',
-        'a source drift rejects under max_selffire_risk=0')
-    local soft=build{drift=function() return nil,'adapter_source_drift','hash' end,
+    -- NO-AUDIT (v1.6): there is no source-drift gate. A drifted/injected record
+    -- is advisory telemetry; the guard calls the live builder instead.
+    local guard=build{drift=function() return {drift=true,findings={}} end}
+    check(guard(attempt('T_MOONLIGHT_RAY'))==nil,
+        'an advisory drift record does not deny an otherwise-usable action')
+    local soft=build{drift=function() return {drift=true,findings={}} end,
         policy={safety={max_selffire_risk=50}}}
-    local disabled=soft(attempt('T_MOONLIGHT_RAY'))
-    check(disabled and disabled.action=='reject',
-        'a source drift disables the action regardless of the risk threshold')
+    check(soft(attempt('T_MOONLIGHT_RAY'))==nil,
+        'a drift record never gates regardless of the risk threshold')
 end
 
 -- Beam: an ally in the line rejects; a clear line passes.
@@ -127,9 +126,8 @@ do
         'an unavailable effective level retains the conservative secondary')
 end
 
--- V2-REV-02: builder invocation failure is a compatibility fault, not a reason
--- to fall back to stale manifest geometry; self-target actions are not exempt
--- from drift.
+-- V2-REV-02: builder invocation failure is a value-not-obtainable fault, not a
+-- reason to fall back to stale manifest geometry; there is no source-drift gate.
 do
     local throwing=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=function() error('boom') end}}}
     local first=throwing(attempt('T_MOONLIGHT_RAY'))
@@ -137,9 +135,9 @@ do
     local nonTable=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=function() return 'nope' end}}}
     local second=nonTable(attempt('T_MOONLIGHT_RAY'))
     check(second and second.reason=='adapter_builder_failed','a non-table builder fails closed')
-    local drifted=build{drift=function() return nil,'adapter_source_drift','hash' end}
-    local third=drifted(attempt('T_HEAL'))
-    check(third and third.reason=='adapter_source_drift','a self-target action is not exempt from drift')
+    -- A drift record is advisory and does not gate even a self-target action.
+    local drifted=build{drift=function() return {drift=true,findings={}} end}
+    check(drifted(attempt('T_HEAL'))==nil,'a self-target action is not gated by advisory drift')
 end
 
 -- V2-REV-03: a native expansion failure is unknown, not an approximate model.
@@ -284,11 +282,10 @@ do
     local blocked=unknown(attempt('T_MOONLIGHT_RAY'))
     check(blocked and blocked.action=='reject' and blocked.detail.unknown==true,
         'an incalculable footprint fails closed even at full tolerance')
-    -- The movement guard still source-pins movement adapters (a drifted one is
-    -- disabled rather than silently trusted).
-    local drift=build{drift=function() return nil,'adapter_source_drift','hash' end}
-    local moved=drift{action='use_talent',talent='T_RUSH',bound_target=2}
-    check(moved and moved.reason=='adapter_source_drift','a movement adapter is source-pinned too')
+    -- A movement action is never blocked by a drift record (no runtime gate).
+    local drift=build{drift=function() return {drift=true,findings={}} end}
+    check(drift{action='use_talent',talent='T_RUSH',bound_target=2}==nil,
+        'a movement adapter is not gated by advisory drift')
 end
 
 print('Auto-combat guard: '..checks..' checks passed')

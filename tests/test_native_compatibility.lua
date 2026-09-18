@@ -1,5 +1,8 @@
--- Full source fingerprint and captured-native chain validation, independently
--- of engine MD5 availability. Real package hashes run in native acceptance.
+-- NativeCompatibility is DIAGNOSTIC ONLY (NO-AUDIT v1.6).
+--
+-- The game's actual entrypoints are used as normal entrypoints: a replaced-but-
+-- usable function is used, and source/digest/identity/closure are reported as
+-- advisory telemetry that must never gate a decision.
 local root=(arg[0]:match('^(.*)/tests/[^/]+$') or 'game/addons/tome-mcp-bridge')
 package.path=root..'/overload/?.lua;'..package.path
 local Compat=require 'mod.mcp_bridge.NativeCompatibility'
@@ -12,49 +15,64 @@ local native=assert(loadstring('return function() return true end','@/native.lua
 local wrapper=assert(loadstring('return function(change) return function() return change() end end','@/wrapper.lua'))()(native)
 local exposed=function() end
 local spec={path='/wrapper.lua',digest='wrapper bytes',upvalue='change'}
+
+-- Structural availability: a function is available; a nil is not. No identity.
 Compat.register('method',exposed,wrapper,'/native.lua','native bytes',spec)
-check(Compat.matches('method',exposed),'audited wrapper delegates to audited native captured function')
-check(not Compat.matches('method',wrapper),'runtime entrypoint identity must still match registered bridge wrapper')
+check(Compat.matches('method',exposed),'a registered function is structurally available')
+check(Compat.matches('method',wrapper),'a different live function is still structurally usable (no identity gate)')
+check(Compat.available('method'),'available reflects function presence, not identity')
+
+-- Advisory provenance is REPORTED and never gates: a modified source/digest or a
+-- replacement still leaves the function available for use.
 files['/wrapper.lua']='modified wrapper'
 Compat.register('method',exposed,wrapper,'/native.lua','native bytes',spec)
-check(not Compat.available('method'),'modified wrapper fingerprint rejected')
-files['/wrapper.lua']='wrapper bytes';files['/native.lua']='modified native'
+check(Compat.available('method'),'a modified wrapper fingerprint is advisory, not unavailable')
+local id=Compat.identity('method',exposed)
+check(id.advisory==true and id.digest_ok==false,'the modified fingerprint is reported as advisory drift')
+files['/native.lua']='modified native'
 Compat.register('method',exposed,wrapper,'/native.lua','native bytes',spec)
-check(not Compat.available('method'),'modified underlying native fingerprint rejected')
+check(Compat.available('method'),'a modified native fingerprint is advisory, not unavailable')
 files['/native.lua']='native bytes'
 local other=assert(loadstring('return function() return true end','@/unknown.lua'))()
 local bad=assert(loadstring('return function(change) return function() return change() end end','@/wrapper.lua'))()(other)
 Compat.register('method',exposed,bad,'/native.lua','native bytes',spec)
-check(not Compat.available('method'),'known wrapper cannot hide unrecognized captured native entrypoint')
-Compat.register('method',exposed,native,'/native.lua','native bytes',spec)
-check(Compat.matches('method',exposed),'direct native entrypoint works without companion installed')
--- Indirect dependency closure (CMP-01/03).
+check(Compat.available('method'),'an unrecognized captured native is advisory, not unavailable')
+-- A non-function entrypoint is the only structural unavailability.
+Compat.register('missing',nil,nil,'/native.lua','native bytes',spec)
+check(not Compat.available('missing'),'a missing entrypoint is structurally unavailable')
+
+-- dependency registry is diagnostic-only: the live function is always returned.
 Compat.resetDependencies()
 files['/dep.lua']='return function() return 2 end'
 local dep_digest=files['/dep.lua']
 local child=assert(loadstring('return function() return 2 end','@/dep.lua'))()
 local parent=assert(loadstring('return function() return 3 end','@/dep.lua'))()
-check(Compat.registerDependency('dep.child','test',child,'/dep.lua','child',dep_digest,'function'),'audited dependency registered')
-check(Compat.registerDependency('dep.parent','test',parent,'/dep.lua','parent',dep_digest,'function',{'dep.child'})~=nil,'parent dependency registered')
-check(Compat.dependency('dep.parent',parent)~=nil,'an intact indirect closure resolves')
-check(Compat.registerDependency('dep.orphan','test',parent,'/dep.lua','orphan',dep_digest,'function',{'dep.missing'})~=nil,'orphan dependency registered')
-check(select(2,Compat.dependency('dep.orphan',parent))=='dependency_closure_broken','a missing transitive dependency makes the field unknown')
-local summary=Compat.closureSummary()
-check(summary['dep.parent'] and #summary['dep.parent'].depends_on==1 and summary['dep.orphan'].depends_on[1].ok==false,
-    'closure summary exposes the edges and their status')
--- SAFE-01: the finite computed-getter pattern uses the same registry.
+check(Compat.registerDependency('dep.child','test',child,'/dep.lua','child',dep_digest,'function')==child,
+    'a registered dependency is returned for use (not a boolean gate)')
+check(Compat.registerDependency('dep.parent','test',parent,'/dep.lua','parent',dep_digest,'function',{'dep.child'})==parent,
+    'a parent dependency is returned for use')
+check(Compat.dependency('dep.parent',parent)==parent,'the live function resolves for use')
+-- A replaced-but-usable function is returned for use (no identity gate).
+local replaced=assert(loadstring('return function() return 3 end','@/dep.lua'))()
+check(Compat.dependency('dep.parent',replaced)==replaced,
+    'a replaced-but-usable dependency is returned for use, not refused')
+-- A digest mismatch is advisory telemetry, not a gate.
 Compat.resetDependencies()
-files['/combat.lua']='function _M:combatCrit(self) return 22 end'
-local combat_digest=files['/combat.lua']
-local real_getter=assert(loadstring('return function(self) return 22 end','@/combat.lua'))()
-check(Compat.registerDependency('computed.combatCrit','computed',real_getter,'/combat.lua','getter',
-    combat_digest,'function _M:combatCrit',{}),'a computed getter registers with digest, identity and declaration')
-check(Compat.dependency('computed.combatCrit',real_getter)==real_getter,'the exact registered computed getter resolves')
-local spoof=assert(loadstring('return function(self) return 999 end','@/combat.lua'))()
-check(select(2,Compat.dependency('computed.combatCrit',spoof))=='dependency_replaced',
-    'a same-label / different-identity computed getter is rejected')
+local spoof=assert(loadstring('return function() return 999 end','@/combat.lua'))()
+check(Compat.registerDependency('computed.combatCrit','computed',spoof,'/combat.lua','getter',
+    'digest-that-does-not-match','function _M:combatCrit',{})==spoof,
+    'a digest mismatch does not make the dependency unavailable')
+check(Compat.dependency('computed.combatCrit',spoof)==spoof,'the mismatched dependency is still usable')
+local summary=Compat.dependencySummary()
+check(summary['computed.combatCrit'] and summary['computed.combatCrit'].advisory==true,
+    'the digest mismatch is reported as advisory')
+-- The closure summary is informational.
 Compat.resetDependencies()
-files['/combat.lua']='function _M:combatCrit(self) return 23 end'
-check(not Compat.registerDependency('computed.combatCrit','computed',real_getter,'/combat.lua','getter',
-    combat_digest,'function _M:combatCrit',{}),'a modified computed-getter file fails the digest')
+Compat.registerDependency('dep.child','test',child,'/dep.lua','child',dep_digest,'function')
+Compat.registerDependency('dep.parent','test',parent,'/dep.lua','parent',dep_digest,'function',{'dep.child'})
+local closures=Compat.closureSummary()
+check(closures['dep.parent'] and #closures['dep.parent'].depends_on==1,
+    'closure summary exposes the informational edges')
+-- Only a non-function is unavailable.
+check(Compat.dependency('dep.parent','not-a-function')==nil,'a non-function dependency is unavailable')
 print('Native compatibility: '..count..' checks passed')

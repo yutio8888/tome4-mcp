@@ -10,6 +10,7 @@ local Planner=require 'mod.auto_combat.MovementPlanner'
 local Evaluator=require 'mod.auto_combat.PolicyEvaluator'
 local Schema=require 'mod.auto_combat.PolicySchema'
 local AutoCombat=require 'mod.auto_combat.AutoCombat'
+local Manifest=require 'mod.auto_combat.EffectManifest'
 local checks=0
 local function check(value,message) checks=checks+1;assert(value,message) end
 
@@ -194,25 +195,36 @@ do
     check(multi==nil and multiErr and multiErr.reason=='unsupported_target_plan',
         'a multi-prompt target plan is a typed capability gap, not silently ignored')
     -- A level-limited adapter variant is rejected with the published reason.
+    local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+    local doorMatrix=Factory.matrix({
+        {when={kind='all',conditions={{kind='talent_level',below=4},
+            {kind='attr',id='phase_door_force_precise',truthy=false}}},
+            template='self_random_teleport',params={radius={getter='getRange'},min_radius=0,
+                landing_proof='test'}},
+        {when={kind='talent_level',at_least=4},unsupported={scope='effective_talent_level>=4',
+            missing='actor_then_grid_target_plan',reason='test'}},
+    })
     local variant,variantErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
         destination={selector='native_random',accept=accept()}},
-        {origin=function() return {x=2,y=2} end,talentLevel=function() return 4 end},
-        {target_requests={'none'},landing='random',
-            unsupported_variants={{at_least=4,scope='effective_talent_level>=4',
-                missing='actor_then_grid_target_plan'}}})
+        {origin=function() return {x=2,y=2} end,talentLevel=function() return 4 end,
+            attr=function() return nil,true end},doorMatrix)
     check(variant==nil and variantErr and variantErr.reason=='unsupported_movement_variant'
         and variantErr.missing=='actor_then_grid_target_plan',
         'a level-limited adapter variant is rejected with its typed reason')
-    -- MFT-REV-08: an unknown/overridden effective level fails closed too.
+    -- An unknown/overridden effective level or attribute fails closed instead of
+    -- submitting the no-prompt leaf.
     local unknownLevel,unknownErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
         destination={selector='native_random',accept=accept()}},
-        {origin=function() return {x=2,y=2} end,talentLevel=function() return 'unknown' end},
-        {target_requests={'none'},landing='random',
-            unsupported_variants={{at_least=4,scope='effective_talent_level>=4',
-                missing='actor_then_grid_target_plan'}}})
-    check(unknownLevel==nil and unknownErr and unknownErr.reason=='unsupported_movement_variant'
-        and unknownErr.unknown==true,
-        'an unknown effective level fails closed for a level-scoped variant (MFT-REV-08)')
+        {origin=function() return {x=2,y=2} end,talentLevel=function() return 'unknown' end,
+            attr=function() return nil,true end},doorMatrix)
+    check(unknownLevel==nil and unknownErr and unknownErr.reason=='movement_variant_unknown',
+        'an unknown effective level fails closed (movement_variant_unknown)')
+    local unknownAttr,unknownAttrErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
+        destination={selector='native_random',accept=accept()}},
+        {origin=function() return {x=2,y=2} end,talentLevel=function() return 1 end,
+            attr=function() return nil,false end},doorMatrix)
+    check(unknownAttr==nil and unknownAttrErr and unknownAttrErr.reason=='movement_variant_unknown',
+        'an unknown phase_door_force_precise read fails closed (movement_variant_unknown)')
 end
 
 -- 4. Production controller wiring: a plain step reaches the executor ----------
@@ -428,6 +440,43 @@ do
     local step=c:step()
     check(step.action=='paused' and step.reason=='unsupported_target_plan',
         'a multi-prompt target plan pauses with a typed capability reason')
+end
+
+-- 5g. MAF-REV-01: a known Phase Door actor+grid rule is classified by the real
+-- planner as the typed `unsupported_target_plan` and the controller pauses on
+-- it (not a denial/fall-through).
+do
+    local p=policy()
+    p.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={{request='actor',selector='self'},{request='grid',
+                destination={selector='relative',dx=1,dy=0,accept=accept()}}}}}}
+    local h=host()
+    h.plan=function(attempt)
+        local provider={preflight=function() return true end,
+            origin=function() return {x=2,y=2} end,
+            anchor=function() return {x=2,y=2} end,
+            talentLevel=function() return 4 end,
+            attr=function() return nil,true end,
+            talentGetter=function() return 6 end,
+            builder=function() return {shape='hit',range=8} end,
+            occupancy=function() return 'empty' end,
+            knowledge=function() return {in_bounds=true} end}
+        local planned,err=Planner.plan({action=attempt.action,talent=attempt.talent,
+            destination=attempt.destination,target_plan=attempt.target_plan,
+            direction=attempt.direction,target=attempt.target,
+            bound_target=attempt.bound_target},provider,Manifest.entry('T_PHASE_DOOR').movement)
+        if not planned then return nil,err end
+        return {plan=planned}
+    end
+    h.request=function(attempt) h.requests[#h.requests+1]=attempt
+        return {status='ok',energy_spent=1000} end
+    local c=AutoCombat.new(p,h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='paused' and step.reason=='unsupported_target_plan',
+        'a known Phase Door actor+grid rule pauses with the typed capability reason')
+    check(#h.requests==0,'no native request is submitted for the multi-prompt gap')
 end
 
 -- 6. Schema/decision carry the destination through to the planner -------------

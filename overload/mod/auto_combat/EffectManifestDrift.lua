@@ -1,151 +1,140 @@
--- GPL-3.0-or-later. Source-drift detection for the v2 effect manifest.
+-- GPL-3.0-or-later. Source pins: advisory re-review metadata (NO-AUDIT, v1.6).
 --
--- The manifest is only trustworthy while the audited source files still match
--- the hashes and definition lines it was generated from, and while the live
--- talent definitions still expose the pinned target builders. The immutable
--- file hashes are verified once per session; the live identity check is re-run
--- before every guarded action. Any mismatch fails closed with
--- `adapter_source_drift` and the caller must never fall back to stale metadata.
+-- The version-pinned manifest records the source files/hashes and definition
+-- lines it was curated from. Under the no-strict-audit principle (AGENTS.md,
+-- design §8.3, factory design §1/§3.1) Lua is dynamic: any runtime function may
+-- be replaced by another addon, so the project neither guarantees nor needs to
+-- guarantee that a runtime entry is the pristine native implementation, and is
+-- not responsible for other plugins' broken implementations.
 --
+-- Consequently the source hashes and builder/getter identities are **advisory
+-- telemetry**, never a runtime gate. The guard and the planner call the game's
+-- actual builders/getters as normal entrypoints; a missing/erroring/unusable
+-- value is a typed derivation-unknown, not a source-drift rejection.
+--
+-- This module therefore exposes:
+--   * `M.review(sources,...)` / `M.identity(...)` — pure advisory diagnostics
+--     that report source/builder drift for the maintainers. They never block.
+--   * `M.telemetry(...)` — the same information as a structured record.
 -- It is pure apart from the injected readers: unit tests supply a spoofed
 -- `read`/`digest` pair, the runtime supplies `fs.readAll` and the engine `md5`.
 local M={}
-M.REASON='adapter_source_drift'
+-- Kept only as a descriptive label for the advisory review; it is never used as
+-- a runtime gate reason.
+M.ADVISORY_DRIFT='adapter_source_drift'
 
 -- Diagnose one pinned entry. `read(path)` returns the file text or nil;
--- `digest(text)` returns a lowercase hex hash. Returns true or nil,reason,path.
+-- `digest(text)` returns a lowercase hex hash. Advisory only.
 local function checkFile(pin,read,digest)
     if type(pin)~='table' or type(pin.path)~='string' or type(pin.md5)~='string' then
-        return nil,'adapter_source_drift','malformed pin'
+        return nil,'malformed_pin','malformed pin'
     end
     local ok,text=pcall(read,pin.path)
     if not ok or type(text)~='string' then
-        return nil,'adapter_source_drift',pin.path..':unreadable'
+        return nil,'source_unreadable',pin.path..':unreadable'
     end
     local hashed,actual=pcall(digest,text)
     if not hashed or actual~=pin.md5 then
-        return nil,'adapter_source_drift',pin.path..':hash'
+        return nil,'source_changed',pin.path..':hash'
     end
     return true
 end
 
--- Verify every pinned engine-semantics and talent source file, plus the
--- schema/version identity that ties the generated table to the curated model.
-function M.verify(sources,read,digest,expected)
+-- Advisory source review: returns a list of findings (never raises, never
+-- blocks). `drift` is true when at least one pin no longer matches. Callers may
+-- log this; they must not use it to deny an action.
+function M.review(sources,read,digest,expected)
+    local findings={}
+    local function note(kind,detail)
+        findings[#findings+1]={kind=kind,detail=detail}
+    end
     if type(sources)~='table' or type(sources.engine)~='table' or type(sources.talents)~='table' then
-        return nil,M.REASON,'source_table'
-    end
-    if sources.schema~='tome-effect-manifest-sources/v1' then
-        return nil,M.REASON,'source_schema'
-    end
-    local expected_version=expected and expected.game_version
-    if expected_version and sources.game_version~=expected_version then
-        return nil,M.REASON,'game_version'
-    end
-    local keys={}
-    for key in pairs(sources.engine) do keys[#keys+1]='engine:'..key end
-    for key in pairs(sources.talents) do keys[#keys+1]='talent:'..key end
-    table.sort(keys)
-    for _,key in ipairs(keys) do
-        local kind,name=key:match('^(%a+):(.+)$')
-        local entry=kind=='engine' and sources.engine[name] or sources.talents[name]
-        local pins=entry.files or {entry}
-        for _,pin in ipairs(pins) do
-            local ok,reason,path=checkFile(pin,read,digest)
-            if not ok then return nil,reason,kind..':'..name..':'..tostring(path) end
+        note('advisory_source_table','missing engine/talents table')
+    elseif sources.schema~='tome-effect-manifest-sources/v1' then
+        note('advisory_source_schema',tostring(sources.schema))
+    else
+        local expected_version=expected and expected.game_version
+        if expected_version and sources.game_version~=expected_version then
+            note('advisory_game_version',tostring(sources.game_version))
+        end
+        if type(read)~='function' or type(digest)~='function' then
+            note('advisory_hash_service_unavailable','no read/digest')
+        else
+            local keys={}
+            for key in pairs(sources.engine) do keys[#keys+1]='engine:'..key end
+            for key in pairs(sources.talents) do keys[#keys+1]='talent:'..key end
+            table.sort(keys)
+            for _,key in ipairs(keys) do
+                local kind,name=key:match('^(%a+):(.+)$')
+                local entry=kind=='engine' and sources.engine[name] or sources.talents[name]
+                local pins=entry.files or {entry}
+                for _,pin in ipairs(pins) do
+                    local ok,code,path=checkFile(pin,read,digest)
+                    if not ok then note(code,kind..':'..name..':'..tostring(path)) end
+                end
+            end
         end
     end
-    return true
+    return {drift=#findings>0,findings=findings}
 end
 
--- Trusted builder objects, captured on the first verified sight per session.
--- Object identity (`rawequal`) is the only accepted proof: Lua bytecode does not
--- include captured upvalue values, so a byte-identical dump cannot be trusted.
--- A distinct object is rejected; a legitimate reload resets the baseline only at
--- an explicit session boundary (`ensure` with a new key).
-local baselines={}
-local active_key=nil
-
--- Identity/closure: every manifest entry must expose its declared target
--- expectation. `conformance.builder` is `true` (a pinned native builder),
--- `false` (an action-local target, so no builder) or `'none'` (a self/no-target
--- entry). Every entry requires a live definition; a missing definition, a
--- missing/undeclared/unpinned builder, an unexpected builder, or any distinct
--- (even byte-identical) replacement closure all fail closed. The live check runs
--- on every guarded action so a mutation after a cached hash success is caught.
+-- Advisory builder/definition review: a missing definition or a builder whose
+-- source/line no longer matches its pin is reported, never rejected. `getDef`
+-- returns the live talent definition table.
 function M.identity(manifest,getDef)
+    local findings={}
     if type(manifest)~='table' or type(manifest.ENTRIES)~='table' or type(getDef)~='function' then
-        return nil,M.REASON,'identity_unavailable'
+        return {drift=true,findings={{kind='identity_unavailable',detail='bad arguments'}},baselines={}}
     end
     local names={}
     for talent in pairs(manifest.ENTRIES) do names[#names+1]=talent end
     table.sort(names)
+    local baselines={}
     for _,talent in ipairs(names) do
         local entry=manifest.ENTRIES[talent]
         local expects=entry.conformance and entry.conformance.builder
-        if expects==nil then return nil,M.REASON,talent..':builder_undeclared' end
         local def=getDef(talent)
-        if type(def)~='table' then return nil,M.REASON,talent..':definition_missing' end
-        local builder=def.target
-        if expects==true then
-            if type(builder)~='function' then return nil,M.REASON,talent..':builder_missing' end
-            local pin=entry.source and entry.source.builder
-            if type(pin)~='table' or type(pin.path)~='string' or type(pin.line)~='number' then
-                return nil,M.REASON,talent..':builder_unpinned'
-            end
-            local info=debug.getinfo(builder,'S')
-            if type(info)~='table' or info.what~='Lua'
-                or info.source~='@'..pin.path or info.linedefined~=pin.line then
-                return nil,M.REASON,talent..':builder_replaced'
-            end
-            local baseline=baselines[talent]
-            if baseline==nil then
+        if type(def)~='table' then
+            findings[#findings+1]={talent=talent,kind='definition_missing'}
+        elseif expects==nil then
+            findings[#findings+1]={talent=talent,kind='builder_undeclared'}
+        elseif expects==true then
+            local builder=def.target
+            if type(builder)~='function' then
+                findings[#findings+1]={talent=talent,kind='builder_missing'}
+            else
+                local pin=entry.source and entry.source.builder
+                if type(pin)=='table' and type(pin.path)=='string' and type(pin.line)=='number' then
+                    local info=debug.getinfo(builder,'S')
+                    if type(info)~='table' or info.what~='Lua'
+                        or info.source~='@'..pin.path or info.linedefined~=pin.line then
+                        findings[#findings+1]={talent=talent,kind='builder_moved'}
+                    end
+                end
                 baselines[talent]=builder
-            elseif not rawequal(baseline,builder) then
-                -- A distinct object (same source/line, possibly identical
-                -- bytecode) is a replacement; never overwrite the baseline.
-                return nil,M.REASON,talent..':builder_replaced'
             end
-        else
-            -- `false` and `'none'` both require the absence of a target builder.
-            if builder~=nil then return nil,M.REASON,talent..':builder_unexpected' end
+        elseif def.target~=nil then
+            findings[#findings+1]={talent=talent,kind='builder_unexpected'}
         end
     end
-    return true
+    return {drift=#findings>0,findings=findings,baselines=baselines}
 end
 
--- Only immutable file hashes are cached per session; the live identity check is
--- re-run before every guarded action so a later definition mutation fails closed.
-local hash_cache={}
-
-function M.reset()
-    baselines={}
-    active_key=nil
-    hash_cache={}
+-- Advisory runtime telemetry hook. Returns a structured record; the caller may
+-- log it. It always returns true so it can never gate a decision, and it never
+-- throws. `opts` = {sources=,read=,digest=,expected=,identity=,manifest=}.
+function M.telemetry(opts)
+    opts=opts or {}
+    local record={advisory=true}
+    local ok_source,source=pcall(M.review,opts.sources,opts.read,opts.digest,opts.expected)
+    record.source=ok_source and source or {drift=true,findings={{kind='review_error'}}}
+    if opts.identity and opts.manifest then
+        local ok_id,identity=pcall(M.identity,opts.manifest,opts.identity)
+        record.identity=ok_id and identity or {drift=true,findings={{kind='identity_error'}}}
+    end
+    return record
 end
 
--- Runtime check. `key` distinguishes contexts (for example the session id); a
--- new key is an explicit lifecycle boundary and resets the trusted builder
--- baseline. `opts` = {sources=,read=,digest=,identity=,manifest=}.
-function M.ensure(key,opts)
-    if key~=active_key then
-        active_key=key
-        baselines={}
-    end
-    local cached=hash_cache[key]
-    local ok,reason,detail
-    if cached then
-        ok,reason,detail=cached.ok,cached.reason,cached.detail
-    else
-        ok,reason,detail=M.verify(opts.sources,opts.read,opts.digest,opts.expected)
-        hash_cache[key]={ok=ok==true,reason=reason,detail=detail}
-    end
-    if not ok then return false,reason,detail end
-    if opts.identity then
-        local id_ok,id_reason,id_detail=M.identity(opts.manifest,opts.identity)
-        if not id_ok then return false,id_reason,id_detail end
-    end
-    return true,nil,nil
-end
+function M.reset() end
 
 return M

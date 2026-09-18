@@ -114,11 +114,17 @@ local qd=assert(Actions.query(costP,'T_COST'))
 check(qd.current_costs.mana=='unknown' and qd.costs_complete==false and qd.affordable=='unknown',
     'dynamic base cost stays unknown and does not fabricate affordability')
 costP.talents_def.T_COST.mana=10
-costP.alterTalentCost=function() return 10 end
+-- NO-AUDIT: a replaced-but-usable alterTalentCost IS used, not gated.
+costP.alterTalentCost=function(self,t,r,c) return c+5 end
 local qi=assert(Actions.query(costP,'T_COST'))
-check(qi.current_costs.mana=='unknown' and qi.affordable=='unknown',
-    'a modified alterTalentCost is not executed and affordability stays unknown')
--- F1: a dependency that cannot be audited at registration is never used.
+check(qi.current_costs.mana==22.5 and qi.affordable==true,
+    'a replaced-but-usable alterTalentCost is consumed (15 * 1.5 factor)')
+-- NO-AUDIT: an erroring alterTalentCost yields unknown, not a fabricated cost.
+costP.alterTalentCost=function() error('boom') end
+local qie=assert(Actions.query(costP,'T_COST'))
+check(qie.current_costs.mana=='unknown' and qie.affordable=='unknown',
+    'an erroring alterTalentCost yields unknown affordability')
+-- NO-AUDIT: a digest mismatch at registration is advisory, not a gate.
 local forgedP={x=1,y=1,level=10,talents={T_COST=1},talents_cd={},mana=100,
     talents_def={T_COST={id='T_COST',mode='activated',range=1,target='self',mana=10}},
     resources_def={{short_name='mana',min=0,cost_factor=mk('data/resources.lua','return function() return 1 end')}},
@@ -133,8 +139,8 @@ Compat.registerDependency('actor.alterTalentCost','talent_query',forgedP.alterTa
 files['data/resources.lua']='token-cf'
 Compat.registerDependency('resource.cost_factor:mana','talent_query',forgedP.resources_def.mana.cost_factor,'data/resources.lua','test','token-cf')
 local forged=assert(Actions.query(forgedP,'T_COST'))
-check(forged.current_costs.mana=='unknown' and forged.resource_checks.mana.reason=='dependency_source_unreadable',
-    'F1: an unauditable dependency is never used')
+check(forged.current_costs.mana==10 and forged.affordable==true,
+    'F1 (NO-AUDIT): a digest mismatch is advisory and the usable helper is still used')
 -- F4: a suppression getter that is missing or raises must not become "not suppressed".
 local attrP={x=1,y=1,level=10,talents={T_COST=1},talents_cd={},mana=5,
     talents_def={T_COST={id='T_COST',mode='activated',range=1,target='self',mana=10}},

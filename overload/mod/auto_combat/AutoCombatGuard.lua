@@ -1,7 +1,7 @@
 -- GPL-3.0-or-later. Manifest-driven pre-execution safety guard (v2).
 --
 -- For a selected hostile action this module:
---   1. requires the version-pinned manifest entry and a source-drift pass;
+--   1. requires the version-pinned manifest entry;
 --   2. resolves each canonical component's declarative condition from audited
 --      scalar reads (a branch that cannot be resolved is kept, producing the
 --      conservative union);
@@ -178,17 +178,12 @@ function M.build(ctx)
         local policy=ctx.policy
         local threshold=policy and policy.safety and policy.safety.max_selffire_risk
         if type(threshold)~='number' then threshold=0 end
-        -- Source drift disables the adapter; stale metadata is never used. It is
-        -- checked before the hostile/self branch so a self-target talent is not
-        -- silently exempt from the disable.
-        local driftOk,driftReason,driftDetail=ctx.drift()
-        if driftOk~=true then
-            return disable('adapter_source_drift',{reason=driftReason,detail=driftDetail})
-        end
+        -- NO-AUDIT (v1.6): there is no source-identity/digest gate. Lua is dynamic
+        -- and any addon may replace a getter/builder; the guard uses the game's
+        -- actual live functions as normal entrypoints. A missing/erroring/non-table
+        -- builder below is a derivation unknown, not an identity rejection.
         -- Movement adapters carry no damage footprint; their landing/uncertainty
-        -- safety is the MovementPlanner's explicit policy acceptance. The guard
-        -- still checked the source pin above, so a drifted movement adapter is
-        -- disabled rather than silently trusted.
+        -- safety is the MovementPlanner's explicit policy acceptance.
         if entry.kind=='movement' then return nil end
         if entry.target~='hostile' then return nil end
         local target
