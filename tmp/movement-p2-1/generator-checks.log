@@ -1,0 +1,35 @@
+overload/mod/mcp_bridge/NativeManifest.lua
+overload/mod/mcp_bridge/NativeItemSeams.lua
+superload/mod/class/Object.lua
+superload/engine/interface/ActorTalents.lua
+superload/engine/interface/GameTargeting.lua
+superload/engine/Target.lua
+superload/engine/GameTurnBased.lua
+overload/mod/mcp_bridge/NativeGameSeams.lua
+overload/mod/mcp_bridge/NativeChatSeams.lua
+superload/mod/dialogs/Chat.lua
+overload/mod/mcp_bridge/NativeDialogSeams.lua
+superload/mod/dialogs/QuestPopup.lua
+superload/mod/dialogs/LorePopup.lua
+superload/mod/dialogs/ShowLore.lua
+superload/engine/interface/PlayerRest.lua
+superload/mod/dialogs/ShowInventory.lua
+superload/mod/dialogs/ShowEquipInven.lua
+seams exit=0
+overload/mod/auto_combat/EffectManifestSources.lua
+effect exit=0
+protocol check: requests: 14 live ops, 13 args unions, v=4
+protocol check: limits: 28 budgets consistent
+protocol check: errors: 75 codes valid
+protocol check: errors: 64 emitted codes all registered
+protocol check: errors: 75 envelopes match the schema
+protocol check: errors: generated Lua/Python registries up to date (75 codes)
+protocol check: identifiers: 4 valid, 12 invalid ids
+protocol check: integer normalization: 11 vectors
+protocol check: ledger: 10 design cases
+protocol check: result examples: 5+8+14 required fields
+protocol check: results: 14 ops documented, 0 declared gaps
+protocol check: commandview: 39 fields match the schema
+protocol check: code alignment: v4 + shared limits match
+protocol check: OK
+protocol exit=0

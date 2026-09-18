@@ -91,7 +91,11 @@ recorded in `docs/tome-mcp-0.9.0-wave1-execution-safety.md`.
 One native action per opportunity; per-opportunity attempt and instant budgets;
 `native_pending` never resubmitted; manual input revokes the lease; owner
 arbitration; read-only `dry_run`; deterministic tie-breaks (no RNG); native
-resolution final; scene change pauses/resets and needs an explicit restart.
+resolution final; scene change pauses/resets and needs an explicit restart. A
+settled `native_rejected` of a **deterministic** landing is fallback-selected
+(the refused coordinate is excluded and the same selector/anchor is re-planned
+within the per-tick budget, never resubmitting it); non-deterministic landings
+(`bounded`/`random`, Rush/teleport) keep the deny/stop behavior.
 
 ## 4. Evidence
 

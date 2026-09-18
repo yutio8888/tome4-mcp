@@ -67,6 +67,35 @@ do
     local b=Planner.planStep({selector='toward',anchor='bound_target',accept=accept()},p,1)
     check(a.direction==b.direction and a.x==b.x and a.y==b.y,'planner output is deterministic and RNG-free')
     math.random=math_random
+    -- P2-1: excluding the best landing re-runs the same deterministic tie-break
+    -- and picks the next acceptable adjacent cell, never the excluded one.
+    local alt=Planner.planStep({selector='toward',anchor='bound_target',accept=accept()},p,1,nil,
+        {[a.x..','..a.y]=true})
+    check(alt and not (alt.x==a.x and alt.y==a.y),'an excluded best landing is not selected again')
+    check(alt and alt.direction~=a.direction,'the next-best adjacent step is chosen')
+end
+
+-- 1b. P2-1: when every acceptable landing is excluded the planner reports the
+-- honest no-acceptable-destination reason (the controller then stops without
+-- resubmitting anything).
+
+do
+    local cells={
+        ['3,2']={in_bounds=true,visible=true,passable=true,hazard='unknown'},
+        ['1,2']={in_bounds=true,visible=true,passable=true,hazard='unknown'},
+        ['2,1']={in_bounds=true,passable=false},
+    }
+    local p=provider({x=2,y=2},cells,{bound_target={x=6,y=2}})
+    local exclude={['3,2']=true,['2,1']=true,['1,2']=true,
+        ['3,1']=true,['3,3']=true,['1,3']=true,['1,1']=true,['2,3']=true}
+    local none,err=Planner.planStep({selector='toward',anchor='bound_target',accept=accept()},p,1,nil,exclude)
+    check(none==nil and err and err.reason=='no_acceptable_destination',
+        'all-excluded adjacent landings produce the honest no_acceptable_destination')
+    -- A deterministic grid request excluded returns the same honest reason.
+    local gridNone,gridErr=Planner.planTalent({selector='position',x=5,y=5,accept=accept()},p,nil,
+        {target_requests={'grid'},landing='exact'},nil,{['5,5']=true})
+    check(gridNone==nil and gridErr and gridErr.reason=='no_acceptable_destination',
+        'an excluded exact grid request is not resubmitted')
 end
 
 -- 2. Acceptance filters are policy-owned, never plugin strategy gates ---------
@@ -291,6 +320,162 @@ do
     local denied
     for _,r in ipairs(step.rejections or {}) do if r.rule=='kite' then denied=r.reason end end
     check(denied=='no_acceptable_destination','the movement rejection is recorded with its reason')
+end
+
+-- 4a. P2-1: a settled native_rejected for a deterministic landing re-plans the
+-- same selector/anchor with the refused coordinate excluded, so the character
+-- still moves (postcondition asserted), within the per-tick budget, never
+-- resubmitting the refused coordinate. Rush/teleport (non-deterministic
+-- landings) keep the old deny behavior.
+do
+    local function deterministicHost()
+        local h=host()
+        h.requests={}
+        h.excludes={}
+        h.plan=function(attempt)
+            h.planned=attempt
+            local snapshot={}
+            for key in pairs(attempt.exclude or {}) do snapshot[key]=true end
+            h.excludes[#h.excludes+1]=snapshot
+            local exclude=attempt.exclude or {}
+            -- (57,6) approaching (58,4): the straight landing (57,5) is a tree.
+            local landing
+            if not exclude['57,5'] then landing={x=57,y=5}
+            elseif not exclude['58,6'] then landing={x=58,y=6}
+            elseif not exclude['56,6'] then landing={x=56,y=6}
+            else return nil,{reason='no_acceptable_destination'} end
+            return {plan={kind='step',direction=8,x=landing.x,y=landing.y,
+                annotation={landing={kind='deterministic',x=landing.x,y=landing.y}}}}
+        end
+        h.request=function(attempt)
+            h.requests[#h.requests+1]=attempt
+            local landing=attempt.plan and (attempt.plan.x..','..attempt.plan.y)
+            -- The first (straight) landing is natively refused; alternatives move.
+            if landing=='57,5' then return {status='rejected',code='blocked',energy_spent=0} end
+            h.moved=landing
+            return {status='ok',energy_spent=1000}
+        end
+        return h
+    end
+    local h=deterministicHost()
+    local c=AutoCombat.new(policy({limits={max_actions_per_tick=2}}),h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='acted' and step.rule=='kite',
+        'a native-rejected deterministic landing is retried with an alternative and acts (P2-1)')
+    check(h.moved=='58,6','the character moves to a feasible alternative landing, not the refused tree cell')
+    check(#h.requests==2 and c.attempts==2,'the fallback stays within the per-tick budget')
+    check(h.excludes[1] and next(h.excludes[1])==nil,'the first plan gets no excluded coordinates')
+    check(h.excludes[2] and h.excludes[2]['57,5']==true,'the refused coordinate is excluded on retry')
+    local sawRetry=false
+    for _,entry in ipairs(c.recent) do
+        if entry.kind=='movement_retry' and entry.landing=='57,5' and entry.reason=='blocked' then sawRetry=true end
+    end
+    check(sawRetry,'the refusal and retry are recorded with the underlying native code')
+end
+
+do
+    -- P2-1 honest stop: the first deterministic landing is natively refused and
+    -- every alternative is then infeasible -> the honest no_available_action
+    -- stop is kept (no resubmission of the refused coordinate).
+    local h=host()
+    h.requests={}
+    h.plan=function(attempt)
+        local exclude=attempt.exclude or {}
+        if not exclude['3,2'] then
+            return {plan={kind='step',direction=8,x=3,y=2,
+                annotation={landing={kind='deterministic',x=3,y=2}}}}
+        end
+        return nil,{reason='no_acceptable_destination'}
+    end
+    h.request=function(attempt) h.requests[#h.requests+1]=attempt
+        return {status='rejected',code='blocked',energy_spent=0} end
+    local c=AutoCombat.new(policy({limits={max_actions_per_tick=2}}),h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='stopped' and step.reason=='no_available_action',
+        'a refused landing with only infeasible alternatives keeps the honest no_available_action')
+    check(#h.requests==1,'the refused coordinate is not resubmitted')
+end
+
+do
+    -- P2-1 budget bound: a provider that keeps offering feasible-but-refused
+    -- landings can never exceed max_actions_per_tick native attempts.
+    local h=host()
+    h.requests={}
+    h.seen={}
+    h.plan=function(attempt)
+        local exclude=attempt.exclude or {}
+        for key in pairs(exclude) do h.seen[key]=true end
+        local idx=#h.requests+1
+        return {plan={kind='step',direction=8,x=10+idx,y=2,
+            annotation={landing={kind='deterministic',x=10+idx,y=2}}}}
+    end
+    h.request=function(attempt) h.requests[#h.requests+1]=attempt
+        return {status='rejected',code='blocked',energy_spent=0} end
+    local c=AutoCombat.new(policy({limits={max_actions_per_tick=1}}),h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='paused' and step.reason=='budget_exhausted',
+        'a repeatedly refused deterministic landing is bounded by the per-tick budget')
+    check(#h.requests==1,'the attempt budget is never exceeded by fallback selection')
+end
+
+do
+    -- P2-1 integrity: a provider that ignores `exclude` and re-offers the
+    -- refused coordinate cannot cause a resubmission or a loop; the rule is
+    -- denied and the run stops honestly.
+    local h=host()
+    h.requests={}
+    h.plan=function()
+        return {plan={kind='step',direction=8,x=3,y=2,
+            annotation={landing={kind='deterministic',x=3,y=2}}}}
+    end
+    h.request=function(attempt) h.requests[#h.requests+1]=attempt
+        return {status='rejected',code='blocked',energy_spent=0} end
+    local c=AutoCombat.new(policy({limits={max_actions_per_tick=4}}),h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='stopped' and step.reason=='no_available_action',
+        'a provider ignoring exclude cannot resubmit the refused landing')
+    check(#h.requests==1,'the refused deterministic coordinate is submitted exactly once')
+end
+
+do
+    -- All alternatives infeasible from the start: the planner returns no plan,
+    -- the rule is denied, and the run honestly stops with no_available_action.
+    local h=host()
+    h.plan=function() return nil,{reason='no_acceptable_destination'} end
+    h.request=function(attempt) h.requests[#h.requests+1]=attempt
+        return {status='ok',energy_spent=1000} end
+    local c=AutoCombat.new(policy({limits={max_actions_per_tick=2}}),h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='stopped' and step.reason=='no_available_action',
+        'all-infeasible alternatives keep the honest no_available_action stop')
+    check(#h.requests==0,'no native attempt is made when no alternative is feasible')
+end
+
+do
+    -- P2-1 scope: a non-deterministic (bounded/random) native landing is never
+    -- converted into a different coordinate attempt (Rush/teleport untouched).
+    local h=host()
+    h.requests={}
+    h.plan=function()
+        return {plan={kind='actor',annotation={landing={kind='bounded',center={x=6,y=4}}}}}
+    end
+    h.request=function(attempt) h.requests[#h.requests+1]=attempt
+        return {status='rejected',code='native_rejected',energy_spent=0} end
+    local p=policy({limits={max_actions_per_tick=2},rules={
+        {id='rush',priority=50,when={enemy_count={ge=1}},
+            ['then']={action='use_talent',talent='T_RUSH',target='nearest_hostile',
+                destination={selector='native_landing',anchor='bound_target',accept=accept()}}}}})
+    local c=AutoCombat.new(p,h,{strict=false})
+    c:start()
+    local step=c:step()
+    check(step.action=='stopped' and step.reason=='no_available_action',
+        'a rejected non-deterministic landing is not retried (Rush behavior unchanged)')
+    check(#h.requests==1,'a bounded native landing is submitted exactly once')
 end
 
 -- 4b. MFT-REV-03 (Option A): an actor step selector is the controller binding

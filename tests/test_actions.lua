@@ -149,4 +149,40 @@ g,p=stairs{change_level=1};g.changeLevel=function() error('native generation err
 result=Actions.execute(g,{type='change_level'})
 check(not result.ok and result.code=='execution_error' and result.uncertain
     and result.native_message:find('native generation error',1,true),'native stair exception reports uncertain partial changes without replay')
+
+-- P3-2: a native rejection of an activated talent whose own cooldown is still
+-- running carries structured cooldown info through the already-declared
+-- `missing` array, so an agent does not have to read the player log.
+do
+    local matches,check_compat=Compat.matches,Compat.check
+    Compat.matches=function(name,fn) if name=='useTalent' then return true end return matches(name,fn) end
+    Compat.check=function() return true end
+    local Tracker=require 'mod.mcp_bridge.InvocationTracker'
+    Tracker.reset(function() end)
+    local tp={__is_actor=true,uid=9,name='p',x=2,y=2,energy={value=1000},tmp={},tempeffect_def={},
+        talents={T_CD=1},talents_cd={T_CD=3},talents_def={
+            T_CD={id='T_CD',name='Cooling',mode='activated',cooldown=3,action=function() end}}}
+    function tp:useTalent()
+        return Tracker.call(tp,'T_CD',function()
+            local body=Tracker.createBody(function() return false end)
+            assert(coroutine.resume(body))
+            return false
+        end)
+    end
+    local cg={player=tp,level={},dialogs={}}
+    local res=Actions.execute(cg,{type='use_talent',talent_id='T_CD'},nil,{},{command_id='cd1'})
+    check(not res.ok and res.code=='native_rejected','a cooling talent is natively rejected')
+    local cd=res.missing and res.missing[1]
+    check(cd and cd.kind=='cooldown' and cd.talent=='T_CD' and cd.remaining==3,
+        'the denied detail carries the structured cooldown remaining')
+    check(type(res.hint)=='string' and res.hint:find('cooldown',1,true)~=nil,
+        'the denied detail carries a cooldown hint')
+    -- An off-cooldown rejection must not invent cooldown detail.
+    Tracker.reset(function() end)
+    tp.talents_cd={}
+    local off=Actions.execute(cg,{type='use_talent',talent_id='T_CD'},nil,{},{command_id='cd2'})
+    check(not off.ok and off.code=='native_rejected' and off.missing==nil,
+        'an off-cooldown native rejection carries no cooldown detail')
+    Compat.matches,Compat.check=matches,check_compat
+end
 print('Actions: '..checks..' checks passed')
