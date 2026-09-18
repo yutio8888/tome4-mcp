@@ -196,6 +196,8 @@
 | `uncertain?` | 原生错误后结果不确定 |
 | `turns_executed?`、`max_turns?` | rest/任务进度 |
 | `stop_reason?`、`native_message?` | |
+| `missing?` | 结构化未满足条目：progression 的 `{kind='stat'|'level'|'talent'|'special'}`，或 `use_talent` 被自身冷却原生拒绝时的 `{kind='cooldown',talent,remaining,required=0}`（P3-2；不扩宽 schema） |
+| `hint?` | 人类可读提示（code 仍为权威）；冷却拒绝附带 `talent on cooldown; wait for the listed turns before retrying` |
 | `level_changed?` | change_level 成功 |
 | `points_spent?`、`points_returned?`、`point_pool?`、`previous_value?`、`new_value?` | 成长/洗点 |
 | （协议 3） | `revision`、`input_owner`、`execution_released`、`energy_spent_complete`、`interaction?`、`native_task?`、`response_receipt?` |

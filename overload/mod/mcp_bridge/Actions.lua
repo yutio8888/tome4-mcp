@@ -332,6 +332,18 @@ function M.execute(g, action, target, meta, command)
     if command and command.target_cancelled and not success then
         result.code=command.target_cancelled
     end
+    -- P3-2: a native rejection of an activated talent whose own cooldown is
+    -- still running carries structured, client-visible cooldown info through the
+    -- already-declared `missing` array (no protocol/schema widening). The
+    -- remaining turns are read from the live `talents_cd` scalar.
+    if not success and interactive and action.type=='use_talent' then
+        local remaining=p.talents_cd and p.talents_cd[action.talent_id]
+        if finite(remaining) and remaining>0 then
+            result.missing={{kind='cooldown',talent=action.talent_id,
+                remaining=remaining,required=0}}
+            result.hint='talent on cooldown; wait for the listed turns before retrying'
+        end
+    end
     -- A move that neither changed position nor spent energy was blocked by
     -- terrain; report it distinctly instead of a silent success.
     if success and action.type=='move' and spent==0 and p.x==before_x and p.y==before_y then

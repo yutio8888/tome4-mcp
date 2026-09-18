@@ -236,6 +236,16 @@ class Acceptance:
         self.check(rejected["status"] == "failed" and rejected["energy_spent"] == 0
                    and cooldown_after["world_tick"] == cooldown_before["world_tick"],
                    "native_cooldown_rejection_does_not_consume_turn")
+        # P3-2: the denied rejection carries structured cooldown info so the agent
+        # does not have to scan the player log for "still on cooldown".
+        cd_missing = [m for m in (rejected.get("missing") or [])
+                      if isinstance(m, dict) and m.get("kind") == "cooldown"]
+        self.check(rejected.get("code") == "native_rejected" and cd_missing
+                   and cd_missing[0].get("talent") == "T_LIGHTNING"
+                   and isinstance(cd_missing[0].get("remaining"), (int, float))
+                   and cd_missing[0]["remaining"] > 0,
+                   "native_cooldown_rejection_reports_structured_cooldown",
+                   missing=rejected.get("missing"), hint=rejected.get("hint"))
         unknown = self.finish(self.wire.call("act", self.action_args({"type": "use_talent", "talent_id": "T_NO_SUCH_TALENT"})))
         self.check(unknown["status"] == "failed" and unknown.get("code") in {"talent_not_learned", "invalid_talent"},
                    "unknown_talent_rejected_before_execution")

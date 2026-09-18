@@ -348,6 +348,9 @@ function M.start(svc)
         Log.add(svc.log,withContext(svc,{kind=event.kind,reason=event.reason,rule=event.rule,talent=event.talent,
             target=event.target,action=event.action,elapsed_ticks=event.elapsed_ticks,
             elapsed_frames=event.elapsed_frames,generation=event.generation,
+            -- P2-1: a deterministic-landing retry carries the underlying native
+            -- result (for example `blocked`) so the refusal stays auditable.
+            native_result=event.code,
             policy_hash=Schema.hash(svc.store.running)}))
     end})
     local started=svc.controller:start()

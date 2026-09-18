@@ -28,6 +28,7 @@ function M.new(policy,host,options)
         attempts=0,instant_attempts=0,opportunity=0,opportunity_id=nil,actions=0,
         strict=options.strict~=false,denied={},known_enemies=nil,
         rejections={},recent={},sustain_failures={},sustain_disabled={},
+        rejected_landings={},
         max_attempts=(policy.limits and policy.limits.max_actions_per_tick) or 1,
         notify=options.notify or (host and host.notify),
     },{__index=M})
@@ -37,7 +38,33 @@ function M:isStale(generation) return generation~=self.generation end
 
 function M:newOpportunity()
     self.attempts=0; self.instant_attempts=0; self.denied={}; self.rejections={}
+    -- P2-1: the deterministic landing(s) a native call refused in this
+    -- opportunity. Cleared per opportunity (the native collision result is
+    -- geometry-bound to it); never carried across runs.
+    self.rejected_landings={}
     self.opportunity=self.opportunity+1
+end
+
+-- The single landed coordinate of a deterministic movement plan, or nil when
+-- the plan's landing is not a single coordinate (a bounded/random native choice
+-- such as Rush or a teleport). Fallback selection never applies to those: they
+-- must not be resubmitted as a different coordinate, so their behavior is
+-- unchanged.
+function M.landingKey(plan)
+    if type(plan)~='table' then return nil end
+    if plan.kind=='step' then
+        if type(plan.x)=='number' and type(plan.y)=='number' then return plan.x..','..plan.y end
+        return nil
+    end
+    if plan.kind=='grid' then
+        local landing=plan.annotation and plan.annotation.landing
+        if type(landing)=='table' and landing.kind=='deterministic'
+            and type(plan.x)=='number' and type(plan.y)=='number' then
+            return plan.x..','..plan.y
+        end
+        return nil
+    end
+    return nil
 end
 
 function M:record(entry)
@@ -194,6 +221,22 @@ function M:deny(id,reason,detail)
     if self.notify then
         self.notify({kind='denied',reason=reason,rule=id,detail=entry.detail,generation=self.generation})
     end
+end
+
+-- P2-1: a settled `native_rejected` for a deterministic movement landing is
+-- not a dead end. The coordinate is recorded as excluded and the same
+-- selector/anchor is re-planned so the already-declared deterministic
+-- tie-break can choose the next acceptable alternative. The event is recorded
+-- (and logged through notify) so the refusal stays visible; the rule is NOT
+-- denied, so the controller keeps evaluating it within the per-tick budget.
+function M:movementRetry(info)
+    info=info or {}
+    local entry={kind='movement_retry',reason=info.code or 'native_rejected',
+        rule=info.rule,talent=info.talent,action=info.action,landing=info.landing,
+        code=info.code,generation=info.generation or self.generation}
+    self:record(entry)
+    if self.notify then self.notify(entry) end
+    return entry
 end
 
 -- F4/P0: an auto-slot native invocation the executor had to abort (it did not
@@ -394,7 +437,8 @@ function M:step()
                         rule=decision.rule,action=decision.action,talent=decision.talent,
                         destination=decision.destination,target_plan=decision.target_plan,
                         direction=decision.direction,
-                        target=decision.target,bound_target=bound.bound_target})
+                        target=decision.target,bound_target=bound.bound_target,
+                        exclude=self.rejected_landings})
                     if planned and planned.plan then
                         plan=planned.plan
                     else
@@ -415,6 +459,15 @@ function M:step()
                     end
                 else
                     self:deny(decision.rule,'movement_provider_unavailable')
+                end
+            end
+            -- P2-1 integrity: a plan whose deterministic landing was already
+            -- refused this opportunity must never be resubmitted (a provider
+            -- that ignored `exclude` would otherwise loop within the budget).
+            if plan then
+                local key=self.landingKey(plan)
+                if key and self.rejected_landings[key] then
+                    self:deny(decision.rule,'native_rejected')
                 end
             end
             if not self.denied[decision.rule] then
@@ -480,9 +533,23 @@ function M:step()
                 return self:pause('player_interaction')
             end
             if outcome.status=='rejected' and outcome.energy_spent~=true then
-                -- Explicitly rejected and no energy spent: do not retry as-is in
-                -- this opportunity, but another rule may still be valid.
-                self:deny(decision.rule,'native_rejected')
+                -- Explicitly rejected and no energy spent. For a deterministic
+                -- movement landing this is a native collision/refusal of one
+                -- coordinate: exclude it and re-plan the same selector/anchor
+                -- so an acceptable alternative is tried (P2-1). The attempt was
+                -- already counted, so the per-tick budget still bounds the
+                -- fallback. Every other action keeps the frozen behavior: do
+                -- not retry as-is in this opportunity, but another rule may
+                -- still be valid.
+                local key=self.landingKey(plan)
+                if key and not self.rejected_landings[key] then
+                    self.rejected_landings[key]=true
+                    self:movementRetry({rule=decision.rule,talent=decision.talent,
+                        action=decision.action,landing=key,code=outcome.code,
+                        generation=generation})
+                else
+                    self:deny(decision.rule,'native_rejected')
+                end
             else
                 return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
             end

@@ -19,6 +19,30 @@
 > `docs/tome-mcp-auto-combat-plugin-design.md` §8.3（及 §0.1/§1.2/§5.3/§5.4）。下方各节在相关处已加
 > **局部 supersession 注解**；未加注解的普通功能/协议验收仍有效。
 
+## 0.9.0：P2-1 移动备选落点（`fix/approach-alternative-landing`，off `main@c4b40bc`，dev 待评审）
+
+日期：2026-09-18。来源：S1 Rush 复测报告 `tmp/mcp-play-support/agent-ham-s1rush2-report.md`
+（sha256 `298c1cbf66bd4975cfde36213d3c24ce64ef2ff1395a43ac1881196900ecdd1c`）的 P2-1 与 P3-2。
+实现说明见 [docs/tome-mcp-0.9.0-p2-1-alternative-landing.md](docs/tome-mcp-0.9.0-p2-1-alternative-landing.md)。
+
+| finding | 结果 | 修复与回归证据 |
+| --- | --- | --- |
+| P2-1（确定性落点被原生拒绝后无备选） | **PASS** | 控制器按同一 selector/anchor + 确定性 tie-break + 接受条件重规划并排除已拒坐标；排除集每机会清空、受 `max_actions_per_tick` 约束、绝不重提交（provider 重提同坐标则拒规则）。非确定性落点（Rush/传送）行为不变。单测 `test_auto_combat_movement.lua`（备选/预算/诚实停止/`exclude` 忽略/非确定性不变）、`test_auto_combat_service.lua`（`movement_retry` 进日志）；原生探针 `movement-fallback`（blocked→alternative→moved） |
+| P3-2（denied 无结构化冷却） | **PASS** | `Actions.execute` 对自身冷却中的 `use_talent` 原生拒绝附 `missing={kind='cooldown',...}` + `hint`（复用已声明 `missing`/`hint`，不扩宽 schema）。单测 `test_actions.lua`；原生验收 `native_cooldown_rejection_reports_structured_cooldown` |
+
+**证据**（`tmp/movement-p2-1/`）：Lua 41 套全绿（`lua-suite.log`
+`9287d740b54804bc06a900eabd7d88c44748656e9ceb5bc3203e21bd48a13ad8`）、Python 39 OK
+（`python-tests.log` `c1fc4e9076becae677e9058290df37f5a050b5a3f40dbd577771c55836d56f73`）、
+三个 `--check` 绿（`generator-checks.log` `f1f5cf7e9e89c0ee781fa44fe63285fc9117dc7451329a589b6c4d04f964c6ac`）、
+auto-combat 探针 source `p21-src-05` 与 dist `p21-dist-03` 各 **123/123**、原生验收 source
+`p21-accept-src-03` 与 dist `p21-accept-dist-02` 各 **101/101**。
+**修复前**基线复现（新探针 + 旧产线代码，产物 `tmp/p21-prefix-addon/`）：`probe-prefix-02.log`
+`17ec7d406fc26562cc1679fd7bf42f3d8bf3dae4fb2bf8b1d601ecf8f17490bf` 观测到
+`movement-fallback:moves` FAIL `action=stopped reason=no_available_action`、
+`alternative_missing`。最终 `dist` sha256
+`6d68fdfd559f89a34bb8e006a9e7be06cb2666d91e07937e036917e1b9088819`（68 成员 = manifest =
+source，0 处不符）；`allow_auto_combat_execution` 保持 `false`，未改游戏核心。
+
 ## 0.9.0：S1 Rush 原生结算 P0（F1/F3/F4，dev 待评审）
 
 日期：2026-09-18。分支 `fix/auto-movement-native-settlement`（off `main@3d78590`）。来源：

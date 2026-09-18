@@ -68,7 +68,7 @@
         "previous_value": { "type": ["integer", "boolean", "null"] },
         "new_value": { "type": ["integer", "null"] },
         "action_ok": { "type": ["boolean", "null"], "description": "Authoritative outcome: true only when the native action took effect. Distinct from accepted (the command was admitted); see also status/code." },
-        "missing": { "anyOf": [{ "type": "array" }, { "type": "null" }], "description": "Static unmet requirements for a rejected progression action (level/stat/talent/special)." },
+        "missing": { "anyOf": [{ "type": "array" }, { "type": "null" }], "description": "Structured unmet requirements for a rejected action: progression level/stat/talent/special, or cooldown {kind,talent,remaining,required} when an activated talent's own cooldown refused the use." },
         "hint": { "type": ["string", "null"], "description": "Human hint for the terminal code; the code stays authoritative." },
         "parent_action": { "type": ["string", "null"], "description": "For a respond result, the parent command action type whose code this result carries." },
         "interaction": { "anyOf": [{ "type": "object" }, { "type": "null" }] },

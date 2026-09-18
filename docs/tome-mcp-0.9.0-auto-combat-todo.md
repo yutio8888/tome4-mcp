@@ -388,11 +388,14 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
 
 61. **S1 Rush 复测新发现（报告 sha256
     `298c1cbf66bd4975cfde36213d3c24ce64ef2ff1395a43ac1881196900ecdd1c`；P0 已验证关闭）。**
-    - **P2-1（移动健壮性，已派修复）**：`approach`/`toward` 的确定落点被**原生拒绝**后，插件不尝试
-      次优可行相邻格，直接 `stopped reason=no_available_action`——即使存在可行相邻步
-      （实测 seq 38/57：玩家 (57,6) 朝 troll (58,4)，直线落点 (57,5) 为树被拒，而 (58,6)/(56,6)/(57,7)
-      可行）。对照：`rush` 被拒后会正确恢复（seq 34/93）。修法：approach 落点被原生拒绝时，按已声明的
-      接受条件尝试备选相邻格（复用 bounded 备选枚举），全部不可行才 `no_available_action`。
-    - **P3-2（denied 详情）**：手动 `use_talent` 处于冷却时返回 `native_rejected`，但结构化信息里
-      没有"还需 N 回合"之类的冷却字段（只在玩家日志里）。建议在 denied 详情带 cooldown 字段。
+    - **P2-1（移动健壮性）— 已修复**（`fix/approach-alternative-landing`）：`approach`/`toward` 的确定落点被
+      **原生拒绝**后，不再直接 `stopped reason=no_available_action`。控制器按“同一 selector/anchor + 已声明
+      确定性 tie-break + 接受条件”重规划，排除被拒坐标选下一个可行相邻格；排除集按行动机会清空，仍受
+      `max_actions_per_tick` 约束，且绝不重复提交同一落点（provider 若重提同一坐标则拒绝该规则）。仅当所有
+      备选都不可行/被拒时才保留诚实的 `no_available_action` 停止。非确定性落点（`bounded`/`random`，即 Rush/
+      传送）无单坐标键，行为**不变**。见
+      [docs/tome-mcp-0.9.0-p2-1-alternative-landing.md](tome-mcp-0.9.0-p2-1-alternative-landing.md)。
+    - **P3-2（denied 详情）— 已修复**：原生拒绝的 `use_talent` 若自身冷却仍在计时，`missing` 数组
+      会带 `{kind='cooldown',talent,remaining,required=0}` 并附 `hint`。复用已声明的 `missing`/`hint`，
+      **不扩宽协议/schema**。
 

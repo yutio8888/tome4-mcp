@@ -297,6 +297,8 @@ local function commandView(command,include_map,response_id,options_offset)
                 if m.kind=='stat' then parts[#parts+1]='stat '..tostring(m.stat)..'>='..tostring(m.required)
                 elseif m.kind=='level' then parts[#parts+1]='level>='..tostring(m.required)
                 elseif m.kind=='talent' then parts[#parts+1]='talent '..tostring(m.talent)..'>='..tostring(m.required)
+                elseif m.kind=='cooldown' then
+                    parts[#parts+1]='cooldown '..tostring(m.talent)..': '..tostring(m.remaining)..' turn(s) remaining'
                 elseif m.kind=='special' then parts[#parts+1]='native special requirement' end
             end
         end
@@ -1195,7 +1197,7 @@ local function autoCombatReads(s,policy,opts)
             local planned,err=MovementPlanner.plan({action=attempt.action,talent=attempt.talent,
                 destination=attempt.destination,target_plan=attempt.target_plan,
                 direction=attempt.direction,target=attempt.target,
-                bound_target=attempt.bound_target},provider,movement)
+                bound_target=attempt.bound_target,exclude=attempt.exclude},provider,movement)
             if not planned then return nil,err end
             return {plan=planned}
         end,

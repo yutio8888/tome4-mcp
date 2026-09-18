@@ -62,6 +62,7 @@ M.EXPECTED={
     ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
     ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
+    ['movement-fallback']={'blocked_landing','alternative_planned','fallback_moved'},
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
@@ -958,6 +959,119 @@ local function movementPlan()
     return compare('movement',signals)
 end
 
+-- P2-1 native check: a deterministic adjacent landing whose cell is really
+-- blocked (native collision) is refused by the engine; the controller must
+-- exclude it and re-plan the same `toward` selector so the character still
+-- moves to a feasible adjacent cell. Uses the production host/executor and the
+-- arena's real terrain, not a fake planner.
+local function movementNativeFallback()
+    forceReady()
+    Runtime.setAutoCombatExecution(game,true)
+    local p=game.player
+    local map=game.level.map
+    local bound_actor
+    for _,actor in pairs(game.level.entities or {}) do
+        if actor~=p and actor.name and tostring(actor.name):find('MCP target dummy') then bound_actor=actor end
+    end
+    local signals={}
+    if not bound_actor then
+        check('movement-fallback:setup',false,{note='no bound dummy'})
+        Runtime.setAutoCombatExecution(game,false)
+        return compare('movement-fallback',{'no_setup'})
+    end
+    -- Move the dummy so the straight `toward` landing is the cell we then block
+    -- with real terrain. Keep the dummy visible and non-adjacent (2 tiles north).
+    local saved_dummy={x=bound_actor.x,y=bound_actor.y}
+    local dx,dy=(p.x<map.w-4) and 2 or -2,0
+    local target_x,target_y=p.x+dx+2,p.y+dy
+    if not map:isBound(target_x,target_y) then target_x,target_y=p.x-4,p.y end
+    bound_actor.x,bound_actor.y=target_x,target_y
+    bound_actor:resolve()
+    map(bound_actor.x,bound_actor.y,engine.Map.ACTOR,bound_actor)
+    -- Determine the deterministic `toward` landing from the production planner,
+    -- then block exactly that cell with real cloneable terrain.
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local pol=policy({{id='approach',priority=10,when={always={}},
+        ['then']={action='move',target='nearest_hostile',
+            destination={selector='toward',anchor='bound_target',accept=accept}}}},{max_actions_per_tick=2})
+    Runtime.autoCombatHandle(game,'set_draft',{policy=pol})
+    local approved=Runtime.autoCombatHandle(game,'approve',{})
+    Runtime.autoCombatHandle(game,'activate',{expected_hash=approved.approved_hash})
+    local host=Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end})
+    -- This is a synchronous scenario boundary (no native pump), so present a
+    -- ready action opportunity exactly as the other production-path scenarios
+    -- do (`start-when-ready`); reads and execution stay the production host.
+    host.phase=function() return 'ready' end
+    local bound=host and host.snapshot('nearest_hostile').bound_target or nil
+    local first=host.plan({action='move',destination=pol.rules[1]['then'].destination,
+        bound_target=bound})
+    local landing=first and first.plan and first.plan.x and {x=first.plan.x,y=first.plan.y} or nil
+    if not landing then
+        check('movement-fallback:plan',false,{reason=first and first.reason})
+        Runtime.autoCombatHandle(game,'deactivate',{})
+        Runtime.setAutoCombatExecution(game,false)
+        return compare('movement-fallback',{'no_plan'})
+    end
+    -- Block the straight landing with a cloneable real terrain tile.
+    local idx=landing.x+landing.y*map.w
+    local saved=map.map[idx] and map.map[idx][engine.Map.TERRAIN]
+    local wall=saved and saved:clone() or nil
+    local blocked_ok=false
+    if wall then
+        wall.block_move=true
+        map.map[idx][engine.Map.TERRAIN]=wall
+        blocked_ok=map:checkEntity(landing.x,landing.y,engine.Map.TERRAIN,'block_move',p) and true or false
+    end
+    signals[#signals+1]=blocked_ok and 'blocked_landing' or 'block_missing'
+    check('movement-fallback:block',blocked_ok,{x=landing.x,y=landing.y})
+    -- The fallback must actually select a *different* adjacent step. Assert the
+    -- planner's own second choice differs from the blocked straight landing.
+    local second=host.plan({action='move',destination=pol.rules[1]['then'].destination,
+        bound_target=bound,exclude={[landing.x..','..landing.y]=true}})
+    local alt=second and second.plan
+    local alt_ok=alt and not (alt.x==landing.x and alt.y==landing.y)
+    signals[#signals+1]=alt_ok and 'alternative_planned' or 'alternative_missing'
+    check('movement-fallback:alternative',alt_ok,{x=alt and alt.x,y=alt and alt.y,
+        blocked=landing.x..','..landing.y,reason=second and second.reason})
+    -- Drive the real controller state machine so the fallback path is exercised
+    -- end to end (not merely the pure planner).
+    local before={x=p.x,y=p.y}
+    local c=AutoCombat.new(pol,host,{strict=false})
+    c:start()
+    local step
+    -- Pump bounded action opportunities; the real executor may need the boundary
+    -- tick to settle between the refused landing and the alternative one.
+    for _=1,12 do
+        forceReady()
+        step=c:onOpportunity()
+        if step.action=='acted' or step.action=='stopped' or step.action=='paused' then break end
+        if step.action~='noop' and step.action~='wait' and step.action~='wait_for_ready' then break end
+    end
+    local moved=p.x~=before.x or p.y~=before.y
+    local refused=false
+    for _,entry in ipairs(c.recent) do
+        if entry.kind=='movement_retry' and entry.landing==(landing.x..','..landing.y) then refused=true end
+    end
+    check('movement-fallback:moves',step.action=='acted' and moved,
+        {action=step.action,reason=step.reason,before=before.x..','..before.y,
+            after=p.x..','..p.y,attempts=c.attempts,blocked=landing.x..','..landing.y})
+    signals[#signals+1]=(step.action=='acted' and moved) and 'fallback_moved' or 'fallback_stuck'
+    check('movement-fallback:retry-recorded',refused,
+        {entries=#c.recent,code=(function() for _,e in ipairs(c.recent) do if e.kind=='movement_retry' then return e.reason end end end)()})
+    if saved then map.map[idx][engine.Map.TERRAIN]=saved end
+    -- Restore the fixture dummy so later scenarios see the shared arena unchanged.
+    map(bound_actor.x,bound_actor.y,engine.Map.ACTOR,nil)
+    local dummy_idx=saved_dummy.x+saved_dummy.y*map.w
+    local occupied=map.map[dummy_idx] and map.map[dummy_idx][engine.Map.ACTOR]
+    if not occupied then
+        bound_actor.x,bound_actor.y=saved_dummy.x,saved_dummy.y
+        map(bound_actor.x,bound_actor.y,engine.Map.ACTOR,bound_actor)
+    end
+    Runtime.autoCombatHandle(game,'deactivate',{})
+    Runtime.setAutoCombatExecution(game,false)
+    return compare('movement-fallback',signals)
+end
+
 -- S1 factory: the Phase Door effective-level x `phase_door_force_precise` matrix
 -- and the newly admitted grid adapters, exercised through the production host
 -- (plan only; execution is covered by `movement-talents`).
@@ -1378,6 +1492,7 @@ local function runAll()
         M.effectFootprintParity()
         M.manifestDrift()
         M.dynamicTalents()
+        movementNativeFallback()
         movementPlan()
         movementFactoryChecks()
     end)

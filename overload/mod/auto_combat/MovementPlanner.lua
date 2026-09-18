@@ -54,6 +54,17 @@ M.SCAN_RADIUS=12
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 
+-- P2-1 fallback contract: when a deterministic landing was settled as a native
+-- rejection, the controller re-plans the same selector/anchor with that
+-- coordinate excluded, so the deterministic tie-break can pick the next
+-- acceptable alternative. `exclude` is a set keyed by "x,y"; it is a
+-- correctness (never-resubmit) filter, not a strategy restriction. A
+-- non-deterministic native landing has no single coordinate and is never
+-- excluded (Rush/teleport behavior is untouched).
+local function excluded(set,x,y)
+    return set~=nil and set[x..','..y]==true
+end
+
 -- Annotate one cell from player-known information only. `unknown` is a value,
 -- never a substitute for a hidden-state read.
 function M.annotate(x,y,provider)
@@ -134,7 +145,7 @@ local function anchorFor(request,provider,bound,origin)
 end
 
 -- Plan one adjacent step for a `move` action.
-function M.planStep(request,provider,bound,origin)
+function M.planStep(request,provider,bound,origin,exclude)
     origin=origin or (provider.origin and provider.origin())
     if not origin then return nil,{reason='origin_unavailable'} end
     if request.selector and not M.STEP_SELECTORS[request.selector] then
@@ -150,7 +161,7 @@ function M.planStep(request,provider,bound,origin)
         local delta=M.DELTAS[direction]
         local x,y=origin.x+delta[1],origin.y+delta[2]
         local annotation=M.annotate(x,y,provider)
-        if annotation.in_bounds then
+        if annotation.in_bounds and not excluded(exclude,x,y) then
             local ok,reason=M.accepts(request.accept,annotation)
             if ok then
                 local candidate={direction=direction,x=x,y=y,annotation=annotation,
@@ -181,7 +192,7 @@ end
 
 -- Plan a talent destination. `movement` is the manifest's movement adapter (or
 -- nil, which is a capability gap for the native-landing selectors).
-function M.planTalent(request,provider,bound,movement,origin)
+function M.planTalent(request,provider,bound,movement,origin,exclude)
     origin=origin or (provider.origin and provider.origin())
     if not origin then return nil,{reason='origin_unavailable'} end
     movement=movement or {}
@@ -274,6 +285,11 @@ function M.planTalent(request,provider,bound,movement,origin)
         end
         local ok,reason=M.accepts(request.accept,annotation)
         if not ok then return nil,{reason=reason,annotation=annotation} end
+        -- A previously natively-rejected exact grid request is never
+        -- resubmitted for this selector/anchor; the caller falls through honestly.
+        if excluded(exclude,x,y) then
+            return nil,{reason='no_acceptable_destination',selector=request.selector,x=x,y=y}
+        end
         annotation.reasons[#annotation.reasons+1]='native_builder_validates_request'
         return {kind='grid',x=x,y=y,annotation=annotation}
     end
@@ -310,7 +326,7 @@ function M.planTalent(request,provider,bound,movement,origin)
                     else candidate_ok=false; occupancy_uncertain=true end
                 end
                 local annotation=M.annotate(x,y,provider)
-                if candidate_ok and annotation.in_bounds then
+                if candidate_ok and annotation.in_bounds and not excluded(exclude,x,y) then
                     local ok=M.accepts(request.accept,annotation)
                     if ok then
                         local candidate={x=x,y=y,annotation=annotation,
@@ -403,7 +419,7 @@ local function planFromTargetPlan(attempt,provider,movement,origin)
         return annotation,nil
     end
     if request=='grid' then
-        return M.planTalent(step.destination,provider,attempt.bound_target,movement,origin)
+        return M.planTalent(step.destination,provider,attempt.bound_target,movement,origin,attempt.exclude)
     end
     if request=='none' then
         local annotation=nativeLandingAnnotation(movement,nil)
@@ -476,7 +492,7 @@ function M.plan(attempt,provider,movement)
             end
             return nil,{reason='destination_required'}
         end
-        return M.planStep(attempt.destination,provider,attempt.bound_target,origin)
+        return M.planStep(attempt.destination,provider,attempt.bound_target,origin,attempt.exclude)
     end
     local variantErr
     if movement~=nil then
@@ -513,7 +529,7 @@ function M.plan(attempt,provider,movement)
         return nil,{reason='unsupported_movement_adapter',talent=attempt.talent,
             selector=attempt.destination.selector}
     end
-    return M.planTalent(attempt.destination,provider,attempt.bound_target,movement,origin)
+    return M.planTalent(attempt.destination,provider,attempt.bound_target,movement,origin,attempt.exclude)
 end
 
 return M
