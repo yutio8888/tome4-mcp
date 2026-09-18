@@ -1,5 +1,10 @@
 # ToME MCP Bridge v3 契约：技能查询与目标预填
 
+> **Supersession banner (v1.6 / `AGENTS.md` + design §8.3).** 本文是 v3 时期的契约记录，
+> 当前协议已是 **v4**，且其中的“零 RNG/零副作用、动态函数不执行”读取纯度前提已被**取代**：
+> 读取只有两条红线——不提交动作、不泄露玩家未知信息；当前实时的动态 getter/builder **可以调用**，
+> 报错/缺失/`nil` 时标 `unknown`。本契约的其余接口形状与预填语义仍作历史参考。
+
 适用：本仓库 ToME 1.7.6、Bridge / Python server **0.8.0**。这是**唯一**的协议版本 3；已在测试阶段移除 v1/v2。完整配置见 [addon README](../README.md)；需求依据见 [功能扩展需求](tome-mcp-extension-requirements.md) 的 R5。
 
 ## 连接
@@ -36,9 +41,9 @@
 
 规则：
 
-- 只读取存储字段与已审核标量。动态的 `range`、`requires_target`、`target` 函数**不执行**，一律标 `unknown`；不调用 `preUseTalent`、`info`、`target`、投射或命中计算，不消耗 RNG。
+- 读取存储字段与当前实时 getter。动态的 `range`、`requires_target`、`target` 函数**可以实时调用求值**（允许消耗 RNG / 有读副作用）；报错/缺失/返回 `nil`/类型无效时标 `unknown`，不猜测。**不提交任何动作**，也不泄露玩家未知信息。
 - `current_costs` 是**当前实时消耗**：按原生 `postUseTalent` 扣费公式 `alterTalentCost(基础)` 后乘资源 `cost_factor`（例如法力/耐力按当前疲劳 `(100 + n*combatFatigue)/100`，耐力还会受 Adrenaline Surge 等效果影响）。`base_costs` 是存储的基础值，供对照。仅当基础消耗是静态数值、且原生 `alterTalentCost`/`cost_factor` 未被改写时计算；动态基础或改写时 `current_costs[key]='unknown'` 且 `costs_complete=false`。
-- 实时消耗会调用原生 `cost_factor`，存在相关被动时它会读取只读的疲劳 getter（如 `getFatigue`/`getFatigueBoost`）；这是只读计算，不产生副作用、不消耗 RNG，也不是技能动作或预检。
+- 实时消耗会调用原生 `cost_factor`（可能读取疲劳 getter 等实时值）；这属允许的读取，可能消耗 RNG/有读副作用，但不提交动作、不越信息边界。
 - `affordable` 基于 `current_costs`（不可得时回退 `base_costs`）与当前资源比较；不可知为 `unknown`。
 - `readiness` 是保守提示：只有存储标量能明确证明被阻止时才为 `blocked`（如冷却中、已知资源不足、未学习），否则 `unknown`。它**不是**原生最终预检。
 - `distance` 使用快照坐标的直线切比雪夫距离；`in_range` 仅在 `range` 为数值时给出。
@@ -78,8 +83,8 @@ v3 的 `use_talent` 可带 `target_id` 或 `x`/`y`：
 
 ## 兼容与验收
 
-- 原生方法插入点未修改核心游戏文件；打包前由 `tools/generate_native_seams.py` 校验一致性。
-- 观察纯度回归继续要求查询路径不调用 RNG、`preUseTalent`、动态 `info`、鉴定或命名函数。
-- 单元覆盖：v3 校验组合、动态字段标 `unknown`、可负担性与 readiness、一次性消费与后续原生目标、`target_lost` 边界。
+- 原生方法插入点修改仅限 addon 缝隙；打包前由 `tools/generate_native_seams.py` 生成/校验（源码摘要作重审遥测，不作运行期门槛）。
+- 读取边界回归验证查询路径不提交动作、不读隐藏信息；实时 getter 不可得时标 `unknown`（**不**要求零 RNG）。
+- 单元覆盖：v3 校验组合、动态字段不可得时标 `unknown`、可负担性与 readiness、一次性消费与后续原生目标、`target_lost` 边界。
 - Python 覆盖：`protocol_version=3` 接受、非法版本拒绝、预填互斥与成对校验、`inspect` 附加目标参数、v3 `respond`。
 - 真实游戏的原生施法与预填场景由隔离验收补充；未实际通过的组合不写成已支持。

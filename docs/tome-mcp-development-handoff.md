@@ -1,5 +1,11 @@
 # MCP 首版之后：自动战斗插件开发交接
 
+> **历史资料，非规范（Historical / non-normative）。** 本文是当时的交接记录。其中“只读观察不调用 RNG、
+> `canSee`、技能预检或动态说明函数；缓存缺失的普通视觉分支有严格来源检查”的前提已被 `AGENTS.md` 与
+> `docs/tome-mcp-auto-combat-plugin-design.md` §8.3 **取代**：当前只读边界仅为**不提交动作、不泄露玩家
+> 未知信息**，实时 getter/builder 可调用（允许 RNG/读副作用），“严格来源检查”仅是可选遥测，不是运行门禁。
+> 保留原文仅作历史证据。
+
 日期：2026-09-15。工作区：`/workspace/t-engine4`。首版验收已完成：Lua 120 项、Python 14 个测试通过；真实游戏源码与安装包分别通过 92/92 项（`native-06`、`package-01`）。
 
 验收完成后已通过 Paseo 向已有独立 agent `c5c1aed2-49b7-4d8c-92b2-143184e27c6c`（`gpt-6-astra`、xhigh，原自动战斗插件开发会话）发送本任务和完整背景；Paseo 返回发送成功。后续开发由该 agent 继续，本记录不代表后续改进已经完成。

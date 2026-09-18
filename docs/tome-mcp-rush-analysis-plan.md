@@ -1,5 +1,10 @@
 # Rush 释放流程与 MCP 架构改进方案
 
+> **历史资料，非规范（Historical / non-normative）。** 本文是当时的分析方案。其中“查询保持纯度……不能直接
+> 用于 observe；拒用 RNG/感知/技能预检”的前提已被 `AGENTS.md` 与 `docs/tome-mcp-auto-combat-plugin-design.md`
+> §8.3 **取代**：当前只读边界仅为**不提交动作、不泄露玩家未知信息**，实时 getter/builder 可调用（允许 RNG/
+> 读副作用）。保留原文仅作历史证据。
+
 日期：2026-09-15。分析基线为 ToME 1.7.6 与 MCP Bridge/Python **0.4.0**。本轮按用户要求委派两名子代理分别追踪原生技能流程和审阅桥接架构，再交叉核对结论；仅新增分析文档，未修改运行代码、版本或存档。
 
 配套分析：[原生完整流程](tome-mcp-rush-native-analysis.md)、[架构审阅与验收矩阵](tome-mcp-rush-architecture-analysis.md)。
@@ -104,7 +109,7 @@ MCP 之后仍需等待原生 tick 返回、待处理回调完成、玩家重新�
 
 这不是根据 `target.type` 自动信任所有技能。单次 actor、自身、方向、坐标分别需要可审查的执行策略；技能内部再选目标、开对话或改写自身状态的行为必须单独审核。
 
-查询保持纯度。`getTalentRange` 可调用动态函数，`getTalentTarget` 会计算动态定义并写 `talent_mode`，完整描述和 preUse 更可能触发状态或 RNG；不能直接用于 observe。对已审核、依赖可纯读的公式提供有来源的范围/费用说明，其余返回 unknown。当前是否可尝试也不作命中、路径或最终耗费的保证。
+查询保持纯度。`getTalentRange` 可调用动态函数，`getTalentTarget` 会计算动态定义并写 `talent_mode`，完整描述和 preUse 更可能触发状态或 RNG；不能直接用于 observe。对已审核、依赖可纯读的公式提供有来源的范围/费用说明，其余返回 unknown。当前是否可尝试也不作命中、路径或最终耗费的保证。（**历史注：** 此段“保持纯度/不能用于 observe”已被取代；当前只读接口可调用实时 getter，仅受两条红线约束。）
 
 ### P2/P3：扩展其他技能类型
 

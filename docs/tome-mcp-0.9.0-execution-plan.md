@@ -17,11 +17,11 @@
 | 包 | 内容 | 状态 |
 | --- | --- | --- |
 | M0 | 基线与契约（`protocol/v4`、跨语言向量、`--game-root` 入口） | **完成**：`protocol/v4/{limits,common.schema,errors.schema,requests.schema,results.schema}` + `vectors/`；`tools/generate_protocol.py --check` 通过；`generate_native_seams.py`/`package.py` 支持 `--game-root`。与双端校验器的生成接线留到 M2/M4 |
-| M1 | 纯查询修复（费用三态、纯度、`TalentQuery.lua`） | **完成**：QRY-04/05/07 三态与 `resource_checks`；QRY-08 统一 `Distance.lua`；QRY-02 只读依赖登记（身份基线）；QRY-09 纯度套件 `test_query_purity.lua`。文件摘要/加载链的完全统一留到 M4（CMP-01/03） |
+| M1 | 纯查询修复（费用三态、纯度、`TalentQuery.lua`） | **完成**：QRY-04/05/07 三态与 `resource_checks`；QRY-08 统一 `Distance.lua`；QRY-02 只读依赖登记（身份基线）；QRY-09 纯度套件 `test_query_purity.lua`。**Superseded (v1.6)：** 这里的身份基线/纯度套件是当时产物；当前读取直接调用实时 getter，摘要/身份仅作遥测。文件摘要/加载链的完全统一（CMP-01/03）**已作废**，不再作为 M4 工作。 |
 | M2 | `CommandLedger.lua` 与 v4（规范序号、回收、双端接线） | **完成**：账本 + `tests/test_ledger.lua`；`Runtime` act/status/connect/observe 接账本、`history.next_command_id`、`command_history_expired/gap/conflict`；返回信封与 Python `BridgeClient`/MCP 工具/`RULES` 升到 v4，v3 返回 `protocol_mismatch`；`generate_protocol.py --check` 额外校验双端常量。真实 >4096 条命令的原生验收留到 M5 |
 | M3 | `ObservationViews.lua` 冻结集合分页（`tome.list`） | **完成**：纯 `ObservationViews.lua` + 九个集合的 `ObservationCollections` 投影（actors/talents/effects/ground_items/inventory/equipment/progression_categories/progression_talents/compatibility）；`list_collection` op 与 `observe.collection_refs`；`ObservationDetails.inventoryAll`、`Observer.listActors/listTalents`、`Compat.providerSummary`；Python `tome.list` 工具 |
-| M4 | 能力诊断、状态转换断言、响应预算、认证期限 | **部分完成**：已做 `action_support` 矩阵（CMP-05）、`inspect(kind="compatibility")` + provider domain/effect（CMP-02/06）、未认证握手期限（NET-02，含可注入时钟测试）、集合错误 `acceptance_scope`。函数级/间接依赖审核（CMP-01/03）、MCP `isError` 映射（API-05）与断言框架（STA-03）仍缺，列入 M5 前补完 |
-| M5 | 原生回归、长序列、升级/回退、候选包验收 | **完成（部分门禁）**：原生回归 100/100（G-01）、真实 5000 命令长序列 + 重连/过期/冲突（G-02）、副本重载与旧会话拒绝（G-05）均通过；证据包 `validation/0.9.0/m5-2026-09-15/` + `tools/verify_validation_manifest.py`。**G-03（普通战役有限流程）与 G-04（内存/响应实测）未运行**，已在 `limitations.md` 明确标注；函数级/间接依赖审核与 MCP isError 仍待后续 |
+| M4 | 能力诊断、状态转换断言、响应预算、认证期限 | **部分完成**：已做 `action_support` 矩阵（CMP-05）、`inspect(kind="compatibility")` + provider domain/effect（CMP-02/06）、未认证握手期限（NET-02，含可注入时钟测试）、集合错误 `acceptance_scope`。**Superseded (v1.6)：** 函数级/间接依赖审核（CMP-01/03）**不再作为工作项**（运行期身份/摘要/闭包门槛已废弃）；仅 MCP `isError` 映射（API-05）与断言框架（STA-03）仍列入 M5 前补完 |
+| M5 | 原生回归、长序列、升级/回退、候选包验收 | **完成（部分门禁）**：原生回归 100/100（G-01）、真实 5000 命令长序列 + 重连/过期/冲突（G-02）、副本重载与旧会话拒绝（G-05）均通过；证据包 `validation/0.9.0/m5-2026-09-15/` + `tools/verify_validation_manifest.py`。**G-03（普通战役有限流程）与 G-04（内存/响应实测）未运行**，已在 `limitations.md` 明确标注；MCP isError 仍待后续。（**v1.6：** 函数级/间接依赖审核已作废，不再待后续。） |
 
 ## 反馈报告 → Spec 映射
 
@@ -51,6 +51,12 @@
 
 ## 审查修复（review F1–F5）
 
+> **Supersession (v1.6 / design §8.3, `AGENTS.md`):** F1/F4 的“完整文件摘要、无摘要即 fail-closed、
+> 首次被覆盖的函数不再可信、函数级摘要/间接依赖闭包”等是**已废弃的严格运行期审计要求**。
+> 当前规则：直接调用游戏内实时的 getter/builder，报错/缺失/返回 `nil` 时该值才为不可得
+> （`unknown`）；源摘要/身份只作**重审提示/遥测**，**不得作为运行期门槛**。本表保留为历史记录，
+> 其字面的 fail-closed/审计要求不再是当前验收标准。
+
 针对 `tome4-mcp-review-0.9.0.md` 的 5 条发现，已在 M3 之前修复：
 
 | 编号 | 修复 | 回归 |
@@ -61,9 +67,9 @@
 | F4（P2） | 抑制 getter 缺失/不可信/抛错 → 受影响费用 unknown，不再当作“未抑制” | `test_talent_query.lua`、`test_query_purity.lua` |
 | F5（P2） | `CommandView` schema 与实际输出逐字段对齐，`generate_protocol.py` 增加代码↔schema 校验 | `tools/generate_protocol.py` |
 
-残留（spec 已归入 M4）：函数级摘要/间接依赖闭包；集合分页（M3）与原生验收（M5）仍未开始。
+残留（spec 已归入 M4）：函数级摘要/间接依赖闭包（**已废弃，见上方 supersession**）；集合分页（M3）与原生验收（M5）仍未开始。
 
 ## 下一步
 
-1. M4：`NativeCompatibility` 文件摘要/加载链统一审核（CMP-01/03，含函数级摘要与间接依赖）、`action_support` 矩阵（CMP-05）、错误 `acceptance_scope`/MCP `isError` 映射、未认证握手期限（NET-02）。
+1. M4：`NativeCompatibility` 文件摘要/加载链统一审核（CMP-01/03，含函数级摘要与间接依赖）——**运行期审计门槛已废弃**，摘要仅作重审提示/遥测；`action_support` 矩阵（CMP-05）、错误 `acceptance_scope`/MCP `isError` 映射、未认证握手期限（NET-02）。
 2. M5：原生回归、真实 >4096 命令长序列、升级/回退、候选包证据。

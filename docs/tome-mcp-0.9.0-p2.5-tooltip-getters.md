@@ -1,13 +1,21 @@
 # P2.5 — tooltip-safe getters (player-panel / hover-visible predicates)
 
+> **Supersession banner (v1.6).** The "proven pure by an RNG/state tripwire" criterion in §1/§4 is
+> **superseded** by `AGENTS.md` and design §8.3. The current rule has only two read boundaries: a read
+> must not submit a game action and must not expose player-unknown information. Current live getters —
+> including dynamic tooltip/target getters — **may be evaluated**, and may consume RNG or have read-side
+> effects; a missing/throwing/`nil`/invalid return makes the value `unknown`. "Text is not a predicate"
+> stays as a **data-model** choice only, not a purity claim. The validation results and `dist` hash below
+> are kept as historical evidence.
+
 Date: 2026-09-17 · branch `feat/p2.5-tooltip-getters` · design
 [tome-mcp-auto-combat-plugin-design.md](tome-mcp-auto-combat-plugin-design.md) v1.3
 §5.2/§5.6/§8. Analysis: `tmp/mcp-play-support/getter-safety-analysis.md`.
 
 P2.5 un-excludes the `computed` / `has_effect` / `ally_count` predicates P2 had
-left unwired, using only **audited native getters / bounded visible reads**.
-Execution and `change_level` stay default off; no RNG and no target-specific
-resolution in reads.
+left unwired, using the live native getters / bounded visible reads — no identity
+or purity gate. Execution and `change_level` stay default off in the `strict`
+preset (a preset default, not a plugin-wide prohibition).
 
 ## 1. Normative criterion
 
@@ -15,24 +23,28 @@ A read is **safe** iff both hold:
 
 1. **the player can see the value** on the character sheet, or in a
    hover/tooltip panel; and
-2. it comes from an **audited native getter/scalar field**, and is
-   **fail-closed** (`unknown`) when that getter is overridden, missing or errors.
-   (`ActorCombat.computed` already reports such getters in `computed.unknown`.)
+2. it comes from the current live native getter/scalar field; a
+   missing/throwing/`nil`/invalid return makes the value `unknown`
+   (`ActorCombat.computed` reports such getters in `computed.unknown`).
+
+In addition — the two read red lines — a read must never submit a game action
+and never expose player-unknown information. There is **no** zero-RNG or
+no-side-effect requirement.
 
 Scalar panel data (stats, speeds, crit, powers, accuracy/APR/damage,
 defense/armor/fatigue, saves, resists/penetration/affinity, vision, hp/max,
 level/rank, the active-effect list, a talent's static cooldown/cost/range) is
 safe.
 
-**Dynamic tooltip text is nuanced and is not a predicate.** It may only be an
-*informational* read when the source is an audited native function, proven pure
-by an RNG/state **tripwire**, and the entity is already identified/known — never
-to decide a predicate and never to auto-identify. That infrastructure is not
-built in this slice, so no description source is enabled (recorded below).
+**Dynamic tooltip text may be read for information** (the two red lines still
+apply: no action submission, no player-unknown information). It is still not used
+as a predicate and never auto-identifies an entity: that is a **data-model**
+choice, not a purity claim. There is no RNG/state tripwire; dynamic description
+getters may be evaluated and may have read-side effects.
 
 ## 2. `computed` — finite enum + numeric comparison
 
-`PolicySchema.COMPUTED_FIELDS` is the explicit enum. It is exactly the audited
+`PolicySchema.COMPUTED_FIELDS` is the explicit enum. It is exactly the live
 `ActorCombat.computed` leaf paths:
 
 - `stats.{str,dex,con,mag,wil,cun,lck}`
@@ -51,7 +63,7 @@ built in this slice, so no description source is enabled (recorded below).
 The predicate is numeric: `{"computed":{"field":"resists.DARKNESS","ge":50}}`.
 `PolicySchema` rejects an unknown field (`unsupported_computed_field`), a
 missing/multiple comparator, and non-numeric comparators. `ActorCombat.field`
-resolves the path by pure traversal; a nil/unknown value makes the evaluator
+resolves the path by live traversal; a nil/unknown value makes the evaluator
 return `unknown` (never `true`).
 
 ## 3. `has_effect` and `ally_count`
@@ -70,13 +82,14 @@ The host reads live in `Runtime.autoCombatReads`; the `computed` getter set is
 memoized per session revision so a rule loop does not re-run ~60 getters on
 every predicate. `capabilities.auto_combat.computed_fields` exposes the enum.
 
-## 4. Still excluded (recorded, not silently dropped)
+## 4. Still excluded from predicates as data-model choices (recorded, not silently dropped)
 
-- **Informational pure-description reads**: the audited-source allowlist + RNG/
-  state tripwire + already-identified check are not built in this slice, so no
-  tooltip `desc`/`getDesc` source is called. Predicates never use text.
-- **`most_dangerous`-by-`computed`**: the audited rank→hp→distance heuristic
-  remains the default; nothing rolls RNG.
+- **Tooltip `desc`/`getDesc` as a predicate**: never used to decide a predicate
+  and never to auto-identify (a data-model choice; the reads themselves are
+  allowed under the two red lines).
+- **`most_dangerous`-by-`computed`**: the rank→hp→distance heuristic remains the
+  default; the deterministic planner tie-break does not sample RNG (live getters
+  may consume RNG internally, which is allowed).
 - **`cluster_center` / AoE selffire placement**: needs target geometry +
   `canProject` proof.
 - **`map_frontier` / `turn_parity`**: not panel data and not assembled in the
@@ -85,7 +98,8 @@ every predicate. `capabilities.auto_combat.computed_fields` exposes the enum.
 ## 5. Validation
 
 - `tests/test_actor_combat.lua` asserts every enum id resolves on an all-native
-  actor and that `ActorCombat.field` is pure traversal.
+  actor and that `ActorCombat.field` does live, side-effect-free-by-construction
+  path traversal (a missing/nil value → `unknown`).
 - `tests/test_auto_combat_policy.lua`: enum accept/reject, numeric comparison,
   unknown fail-closed, `has_effect` `who` validation, `ally_count`.
 - `tests/test_auto_combat_snapshot.lua`: `ally_count`, bound-target `has_effect`,

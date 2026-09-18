@@ -1,5 +1,11 @@
 # Round 9 feedback (0.9.0) — `observe.sections`, talent geometry, error ergonomics
 
+> **Historical feedback, non-normative.** This is a past round's processing record. Its remaining TODO
+> "**A3** function-level dependency closure" (and any pristine-identity/purity framing) is **superseded** by
+> `AGENTS.md` and `docs/tome-mcp-auto-combat-plugin-design.md` §8.3: the project does not gate runtime reads on
+> function identity/digest/dependency closure, and is not responsible for other addons' replacements. Only an
+> unobtainable value (missing/error/`nil`/invalid return) makes a field `unknown`. Historical results preserved.
+
 Round 9 played a Halfling / Celestial-Anorithil / Insane / Roguelike game
 (session `agent-ham-insane-09`) and exercised the round-8 additions
 (`inspect kind="character"`, compact `observe.player`, `observe.sections`,
@@ -29,7 +35,8 @@ green.
 
 ## Still open (unchanged)
 
-- **A3** function-level dependency closure for CMP-01/03.
+- ~~**A3** function-level dependency closure for CMP-01/03.~~ **Superseded (v1.6, see banner):** no runtime
+  identity/digest/closure gate; source records are advisory re-review telemetry only.
 - **A4** explicit isolated-state recovery (`abandon`/`reset invocation`).
 - **A5** command-staff chat coroutine compatibility (still blocklisted).
 - **B1** `native_progression_rejected` missing fields; **B6** actor id

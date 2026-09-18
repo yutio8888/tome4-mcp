@@ -1,10 +1,16 @@
 # 第八批修复：CharacterSheet（A+B）与一批待办
 
+> **历史资料，非规范（Historical / non-normative）。** 本文是当时一批修复的处理记录。其中 `:7` “只读存储值……不求值
+> （保持纯度）”与 `:32` “在不运行动态 `require` 的前提下给提示”体现的是已被 `AGENTS.md` 与
+> `docs/tome-mcp-auto-combat-plugin-design.md` §8.3 **取代**的读取纯度前提。当前读取仅受两条红线约束
+> （不提交动作、不泄露玩家未知信息）；当前实时的 getter/需求函数可调用（允许 RNG/读副作用），
+> 不可得时标 `unknown`。历史观测与哈希保留作证据。
+
 日期：2026-09-16。基线：0.9.0 / 内部协议 v4。
 
 ## A. 角色面板（CharacterSheet）读接口
 
-- **新增 `tome.inspect(kind="character", id="player")`（也接受 `"self"` 或玩家 actor id）**：聚合原生面板的**存储字段**——`descriptor`、`level/exp/exp_next`、`life/max_life/life_regen/die_at`、`energy`、`resources`、`stats{base,bonus}`、`effects`、`sustains`、`inventory/equipment`、`unused_*`、`type/subtype/rank/faction`，以及 `base_combat`/`base_weapon`/`base_resists`/`speed`。结果带 `character_scope` 说明：**只读存储值，装备/效果的计算值（有效命中/防御/伤害/护甲/豁免/见隐等）不求值**（保持纯度）。
+- **新增 `tome.inspect(kind="character", id="player")`（也接受 `"self"` 或玩家 actor id）**：聚合原生面板的**存储字段**——`descriptor`、`level/exp/exp_next`、`life/max_life/life_regen/die_at`、`energy`、`resources`、`stats{base,bonus}`、`effects`、`sustains`、`inventory/equipment`、`unused_*`、`type/subtype/rank/faction`，以及 `base_combat`/`base_weapon`/`base_resists`/`speed`。结果带 `character_scope` 说明：**只读存储值，装备/效果的计算值（有效命中/防御/伤害/护甲/豁免/见隐等）不求值**（保持纯度）。（**历史注：** “保持纯度”现已废弃；只读接口可调用实时 getter 求值，允许 RNG/读副作用，不可得时标 `unknown`。）
 - **`inspect(kind="actor", id="self"|"player")`** 现在支持自身别名（修复 `actor_not_visible`）。
 - `capabilities.inspect_kinds` 增加 `character`；`server/RULES` 同步。
 
@@ -26,10 +32,11 @@
 
 ## 仍待办（明确记录）
 
-- **A3 CMP-01/03**：函数级摘要与更深间接依赖闭包。
+- ~~**A3 CMP-01/03**：函数级摘要与更深间接依赖闭包。~~ **Superseded (v1.6, 见文首 banner)：**
+  运行期身份/摘要/闭包门槛已废弃；直接调用实时 getter，报错/缺失/`nil` 时才视为不可得。源摘要仅作重审遥测。
 - **A4 隔离态恢复通道**：`native_error` 后本会话只读，缺 `abandon`/`reset invocation`（需设计，避免伪造回滚）。
 - **A5 command-staff chat 协程兼容**：目前黑名单 `T_COMMAND_STAFF`；真修需 seam 容忍外部 `coroutine.resume`。
-- **B1** `native_progression_rejected` 缺失项（等级/属性/前置/点数）；需在不运行动态 `require` 的前提下给提示。
+- **B1** `native_progression_rejected` 缺失项（等级/属性/前置/点数）；需在不运行动态 `require` 的前提下给提示。（**历史注：** 该“不运行 `require`”前提已废弃；可调用实时 `require` 函数求值，不可得时标 `unknown`。）
 - **B5** 武器/装备命中信息：`wielder.combat_atk/combat_def` 已给穿戴者贡献；武器本体缺 `def`（文档说明）。
 - **B6** actor id 不稳定（文档：每次 observe 取新 id）。
 - **B7** `target_geometry.damage_scope`（beam selffire 保守 unknown；Searing 是 hit+光域）。

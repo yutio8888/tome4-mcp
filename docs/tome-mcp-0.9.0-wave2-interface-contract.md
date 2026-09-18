@@ -19,9 +19,11 @@ Date: 2026-09-17 · branch `feat/wave2-interface-contract` · review
   added. §11 wording is formally revised to bless the shipped names:
   `policy_log` (newest-first tail) + `replay` (paginated trace) and the
   `invalid_policy` error code — the merged MCP tools are not renamed.
-- **D11 (SAFE-01).** Full audit: the finite computed-getter set is registered
-  through `NativeCompatibility` (source digest + exact identity + declaration
-  match + dependency-closure machinery) and resolved only through that registry.
+- **D11 (SAFE-01).** **SUPERSEDED (v1.6).** The original decision registered the finite
+  computed-getter set through `NativeCompatibility` (source digest + exact identity + declaration match +
+  dependency-closure machinery) as a runtime gate. Per `AGENTS.md` and design §8.3 this gate is removed:
+  the game's live getters are called as normal entrypoints; digest/identity/closure is advisory re-review
+  telemetry only; missing/error/`nil`/invalid results are what make a value unavailable.
 - **D12.** Serial after Wave 1 (done).
 
 ## INT-01 — v4 schemas describe the live interface
@@ -71,14 +73,16 @@ on `wait`/`attack`/`use_talent`. Negative tests added.
 - **INT-06** `tome.policy` gains `get` and `clear` (draft only). `get` is a read
   (observe-allowed); `clear` persists the draft removal.
 
-## SAFE-01 — audited computed-getter registry
+## SAFE-01 — computed getters use the live entrypoints
 
-`ActorCombat.register(actor)` registers the finite getter set through
-`NativeCompatibility.registerDependency` using the generated `stats_md5` /
-`combat_md5`, the exact function identity and a `function _M:<name>` declaration
-match; `ActorCombat.computed` resolves only through `Compat.dependency`, so a
-same-label spoof or a modified native file fails closed to `unknown`. Tests cover
-same-label/different-identity and modified-file failures.
+`ActorCombat.register(actor)` records the finite computed-getter set with the
+generated `stats_md5` / `combat_md5` as **advisory telemetry**;
+`ActorCombat.computed` calls the game's **current live** getter directly, and a
+missing/throwing/`nil`/invalid return falls back to `unknown`. **No runtime
+digest/identity/closure gate applies**: a same-label replacement or a modified
+native file does not by itself fail the read. (Historical rev 1 registered these
+through `NativeCompatibility` and mapped a modified file to `unknown`; that gate
+is superseded per `AGENTS.md` / design §8.3.)
 
 ## Validation
 

@@ -24,13 +24,14 @@ The recommended implementation has four parts:
    known hazards as player-known **information**. A policy's explicit acceptance
    fields decide which reported states it permits.
 4. Keep execution-integrity checks outside policy discretion: resolvable inputs,
-   audited and source-pinned native entry, current control/revision/lease,
-   bounded attempts, one live native action, and native final authority.
+   the game's **live** native entrypoint (no identity/digest gate), current
+   control/revision/lease, bounded attempts, one live native action, and native
+   final authority.
 
 This reverses the previous proposal's strategy gates. In particular:
 
 - an out-of-vision coordinate is not rejected merely for being out of vision;
-- a source-audited random teleport is reported as random rather than refused;
+- a random teleport is reported as random rather than refused;
 - `away`/increased distance does not require `emergency:true` or a privileged
   `purpose` value;
 - `change_level` is supported when the policy selects it, followed by the
@@ -71,7 +72,7 @@ The general bridge already has the necessary native seams for several cases:
 - `use_talent` accepts either one actor `target_id` or one grid `x/y`, then
   invokes native `useTalent` while prefilling the first `getTarget`
   (`overload/mod/mcp_bridge/Actions.lua:102-114,204-269`);
-- `change_level` invokes the audited native key handler and distinguishes
+- `change_level` invokes the live native key handler and distinguishes
   `level_changed`, `change_level_pending`, native rejection, and uncertain error
   (`overload/mod/mcp_bridge/Actions.lua:128-161`).
 
@@ -92,7 +93,7 @@ changed by confusion or Probability Travel, player movement may slide after a
 failed step, and move callbacks run after relocation
 (`game/modules/tome/class/Actor.lua:1388-1423,1490-1523`;
 `game/modules/tome/class/Player.lua:312-332`). These facts must be described by
-source-pinned manifests and postconditions; they are not grounds for imposing a
+source-reviewed manifests and postconditions; they are not grounds for imposing a
 global tactical rule.
 
 ## 3. Policy data model
@@ -205,9 +206,11 @@ name:
 ```
 
 The manifest declares the exact request sequence. Runtime validates each response
-against the live audited target builder before supplying it. A mismatch, extra
-prompt, or source drift is execution non-determinability and pauses without
-guessing. Until `Actions` supports more than one prefill, such a rule returns
+against the game's **current live** target builder before supplying it; a builder
+that errors, is missing, or returns `nil`/an invalid value makes the request
+unresolvable. A mismatch or extra prompt is execution non-determinability and
+pauses without guessing (recorded source drift is telemetry only). Until
+`Actions` supports more than one prefill, such a rule returns
 `needs_input`/`unexpected_target_request`; it is not rejected because teleport is
 random or tactically undesirable.
 
@@ -247,7 +250,7 @@ The planner is deterministic even when the selected action is stochastic:
    origin, and any bound target.
 2. Generate only the bounded candidates required by the selector. For a plain
    step use fixed keypad order `[7,8,9,4,6,1,2,3]`; for a grid talent scan the
-   audited target domain in `y,x` order; `position` and `relative` yield one
+   live target domain in `y,x` order; `position` and `relative` yield one
    requested coordinate. `native_random` generates no fictitious landing cell.
 3. Attach player-known annotations to each request. A fact that cannot be known
    without hidden-state access is `unknown`, not queried indirectly.
@@ -255,8 +258,8 @@ The planner is deterministic even when the selected action is stochastic:
    hazard; `any` can retain it. No plugin-wide tactical filter is added.
 5. Rank survivors by selector score, distance from origin, `y`, `x`, then stable
    native id. Table iteration order and RNG never participate.
-6. Recheck control, revision, target identity, source pins, target-plan shape, and
-   native readiness immediately before commit.
+6. Recheck control, revision, target identity, target-plan shape, and native
+   readiness immediately before commit.
 
 For a native-random talent, step 5 chooses the **action and any requested center**
 deterministically. Native code may then consume RNG to choose the actual landing.
@@ -277,8 +280,9 @@ Native collision is final authority.
 
 Extend the canonical effect manifest rather than creating a second talent-name
 whitelist. The catalog is already derived from that manifest
-(`overload/mod/auto_combat/AutoCombatCatalog.lua:1-33`), and source drift is
-already a hard guard input (`overload/mod/auto_combat/AutoCombatGuard.lua:177-215`).
+(`overload/mod/auto_combat/AutoCombatCatalog.lua:1-33`), and recorded source/drift
+data is consumed as advisory re-review telemetry, not as a runtime gate
+(`overload/mod/auto_combat/AutoCombatGuard.lua:177-215`).
 
 ```lua
 movement = {
@@ -290,17 +294,18 @@ movement = {
   min_radius = integer_or_dynamic,
   traverses = true | false,
   relocates_other = true | false,
-  source = {path=..., definition_line=..., action_digest=..., target_digest=...},
+  source = {path=..., definition_line=..., action_digest=..., target_digest=...},  -- advisory metadata
 }
 ```
 
-An audited `landing="random"` is supported even when not all landings are
+A `landing="random"` native talent is supported even when not all landings are
 knowable. The manifest records known bounds; missing bounds appear as `unknown`.
-Fail closed only when the native entry/target sequence cannot be audited or its
-source pin drifts—not because a verified native entry intentionally uses RNG.
+Fail closed only when the native entry/target sequence cannot be resolved (a
+missing/erroring/`nil`/invalid return)—not because a live native entry
+intentionally uses RNG, and not because a recorded source digest changed.
 
-**随机端点 vs 未知包络（v1.6 澄清，来自 movement-adapter-factory 调研 §11）：** 当 source-pinned
-adapter 已证明 **mover、请求序列、落点类别与一个有限保守落点包络**时，随机端点**不是**执行完整性失败——
+**随机端点 vs 未知包络（v1.6 澄清，来自 movement-adapter-factory 调研 §11）：** 当策展的、经 source review 的
+adapter 已确立 **mover、请求序列、落点类别与一个有限保守落点包络**时，随机端点**不是**执行完整性失败——
 可见性/占用/通行性/危险/包络内具体落点可保持 `unknown` 并报告给策略。若 adapter **无法**确立 mover、
 请求顺序或任何"验证最终后置条件所需的有限保守包络"，则该动作以 **typed** movement 能力/推导原因标为
 不可用。这不是策略拒绝，也不影响其它完整动作。
@@ -323,7 +328,7 @@ Every dry-run and committed decision includes a movement report such as:
   "known_passable": "unknown",
   "known_hazard": "unknown",
   "native_reachability": "accepted_by_builder",
-  "confidence": "source_pinned_random",
+  "confidence": "source_reviewed_random",
   "reasons": ["native_random_landing", "hidden_occupancy_not_inspected"]
 }
 ```
@@ -345,14 +350,14 @@ The precise risk metric and default tolerance remain an open maintainer decision
 
 | Case | Lowering / native entry | Current general `Actions` support | Integrity check; policy information |
 | --- | --- | --- | --- |
-| Plain step | chosen adjacent delta → `{type="move",direction}` → `player:moveDir` | yes | audited move seam and postcondition; visibility/passability/hazard are reported and filtered only by `accept` |
+| Plain step | chosen adjacent delta → `{type="move",direction}` → `player:moveDir` | yes | live move seam and postcondition; visibility/passability/hazard are reported and filtered only by `accept` |
 | Actor-target movement (Rush) | `use_talent,target_id` → native `useTalent` | yes, first prompt | resolved actor, manifest/request match, effect + landing reports |
-| Grid-target movement (Tumble/Blink) | `use_talent,x,y` → native `useTalent` | yes, but auto-combat mapper lacks it | live target builder, source pin, reported exact/alternate/random landing |
-| No-target/random teleport | `use_talent` with no fabricated endpoint | yes when the native talent needs no prompt | audited no-prompt entry; `landing=random`, knowledge fields may be unknown |
+| Grid-target movement (Tumble/Blink) | `use_talent,x,y` → native `useTalent` | yes, but auto-combat mapper lacks it | live target builder, reported exact/alternate/random landing |
+| No-target/random teleport | `use_talent` with no fabricated endpoint | yes when the native talent needs no prompt | live no-prompt entry; `landing=random`, knowledge fields may be unknown |
 | Actor then grid | ordered `target_plan` responses | **no**, only first prompt today | pause/`needs_input` until target-plan support exists; never resubmit |
-| Change level | `{type="change_level"}` → audited native key handler | yes; auto-combat mapper lacks it | control/scene transition tracked; then pause/reset and explicit restart |
+| Change level | `{type="change_level"}` → live native key handler | yes; auto-combat mapper lacks it | control/scene transition tracked; then pause/reset and explicit restart |
 
-Auto-combat must call these audited `Actions` entries; it must not call
+Auto-combat must call these `Actions` entries (the live native entrypoints); it must not call
 `move`, `teleportRandom`, or scene APIs directly. Native range, projection,
 collision, talent pre-use, and rejection remain final authority.
 
@@ -364,9 +369,11 @@ These cannot be relaxed by a policy:
 
 - policy is data only; no arbitrary Lua, field path, callback, or function name;
 - every required actor/grid/input resolves to a typed value, and every native
-  prompt is represented by an audited target plan;
+  prompt is represented by a curated target plan;
 - native entry, target builder, movement/effect source, and relevant helper seams
-  are audited and source-pinned; drift disables that action;
+  are consumed as **live** calls; a missing/throwing/`nil`/invalid return makes
+  that value unavailable and disables that action (recorded identity/digest is
+  telemetry only);
 - player-known observation never exposes hidden entities or unidentified facts;
 - owner epoch, lease, revision, player/scene identity, and readiness still match
   at commit;
@@ -381,8 +388,8 @@ These cannot be relaxed by a policy:
   explicit restart.
 
 “Non-determinability” here means the plugin cannot map the chosen data action to
-one audited native command/target sequence or cannot determine whether that
-command finished. It does **not** mean that the audited game action has a random
+one live native command/target sequence or cannot determine whether that
+command finished. It does **not** mean that the selected game action has a random
 or partially unknown gameplay outcome.
 
 ### 6.2 Policy-owned strategy choices
@@ -407,8 +414,9 @@ same underlying player-known facts for both.
 For a mixed move+attack talent:
 
 1. build one movement information report and one effect information report;
-2. fail that action if either report itself cannot be computed because of an
-   unaudited getter/builder, source drift, or unresolved input;
+2. fail that action if either report itself cannot be computed because of a
+   missing/erroring/`nil`/invalid getter/builder return or unresolved input;
+   a replaced-but-working getter is not a failure;
 3. otherwise evaluate movement acceptance and effect-risk tolerance from the
    policy; and
 4. commit only when both policy evaluations accept.
@@ -447,7 +455,7 @@ clarification. The following replacement text is exact proposed wording.
      → 记录原生结果/不确定性 → 在完整性边界或策略指定的停止条件暂停 → 控制权交还玩家
 - `move`、撤退、拉开距离、传送、`rest`、`auto_explore` 与 `change_level` 均为普通策略动作；是否使用、何时使用以及接受何种可见度/危险/随机落点，由策略或命名 preset/mode 明示，插件不得另加战术门槛。
 - P1a `strict` preset 默认只处理当前可见战斗：无可见敌人即结束，不探索、不追击未知区域，不含自动撤退、随机传送或换层规则；这些是该 preset 的默认值，不是插件全局能力边界。
-- 插件仅在无法忠实执行时 fail closed：目标/目标请求无法解析，getter/builder/执行入口未经审计或发生 source drift，控制/lease/revision/场景边界失效，预算耗尽，原生拒绝，或无法判定原生动作是否完成。
+- 插件仅在无法忠实执行时 fail closed：目标/目标请求无法解析，必需值因 getter/builder/执行入口缺失、报错或返回 `nil`/类型无效而无法取得，控制/lease/revision/场景边界失效，预算耗尽，原生拒绝，或无法判定原生动作是否完成。（source drift 仅为重审提示/遥测，本身不构成失败。）
 - 随机落点、视野外坐标、未知通行性或未知危险属于策略信息，不等同于执行不可判定；dry-run/decision/log 必须如实标注，由策略的显式容忍度决定是否提交。不得为改善决策而读取玩家未知信息。
 - 没有匹配动作时按策略的 `on_unavailable`/mode 处理；不得从规则失败中隐式生成等待、巡逻、探索、撤退或换层动作。
 ```
@@ -473,7 +481,7 @@ clarification. The following replacement text is exact proposed wording.
 ```text
 动作白名单由已实现 schema 与生成 catalog 共同给出：`use_talent`、`attack`、`move`、`wait`、`use_item`、`rest`、`auto_explore`、`change_level`。未实现阶段必须按 capability 报告，不得把路线图动作伪报为可执行。
 
-`target` 绑定 actor；`destination` 以纯数据 selector 表达移动请求，并携带显式的 visibility/passability/hazard/landing 接受条件。多次原生选目标用与版本固定 manifest 一致的有序 `target_plan`。计划器的候选与 tie-break 必须确定；经审计原生动作自身的随机结果允许执行，并在 dry-run/decision/log 标注。
+`target` 绑定 actor；`destination` 以纯数据 selector 表达移动请求，并携带显式的 visibility/passability/hazard/landing 接受条件。多次原生选目标用与版本固定 manifest 一致的有序 `target_plan`。计划器的候选与 tie-break 必须确定；原生动作自身的随机结果允许执行，并在 dry-run/decision/log 标注。
 
 `change_level` 是普通显式动作。原生换层后执行器按场景边界暂停、清除旧 level/target/destination/lease 状态，并要求在新场景显式重新启动；此生命周期不等于禁止策略选择换层。
 
@@ -517,7 +525,7 @@ so each grid request is bound/rechecked in target-plan order.
 - `emergency:true` 只标记可被 `emergency_only` 调度的规则，不是动作能力或安全授权。普通规则可以撤退、拉开距离、传送或换层；策略对其后果负责。
 - 插件报告 player-known 的 reachability/visibility/passability/hazard/landing 信息。视野外、随机或安全性未知的落点按不确定性标注，并由策略接受条件决定；不得据此读取隐藏状态。
 - 移动与效果信息合取求值：两部分都必须可计算且都被策略接受。已知自伤/友伤风险由策略容忍度决定；风险 footprint 无法确定时仅禁用该动作。`max_selffire_risk` 的度量与内置 preset 默认必须单独冻结。
-- owner/场景/lease/revision、未经审计入口或 getter/builder、source drift、预算、原生拒绝或动作完成状态不明属于执行完整性边界，策略不得放宽。
+- owner/场景/lease/revision、必需值不可得（getter/builder 缺失/报错/`nil`/类型无效）、预算、原生拒绝或动作完成状态不明属于执行完整性边界，策略不得放宽。
 - `change_level` 成功或开始场景迁移后总是暂停并重置旧场景状态，要求显式重新启动。
 ```
 
@@ -527,7 +535,7 @@ Replace §2 principle 2 (`docs/tome-mcp-auto-combat-plugin-design.md:57-60`)
 with:
 
 ```text
-2. **三值信息 + 分层 fail-closed**。条件与信息结果为 `true/false/unknown`。执行完整性未知（控制、目标请求、审计/source pin、预算、原生完成状态）必须 fail closed；战术结果未知（视野、通行、危险、随机落点）必须如实报告并由策略显式接受条件求值；效果 footprint 无法计算时禁用该动作。
+2. **三值信息 + 分层 fail-closed**。条件与信息结果为 `true/false/unknown`。执行完整性未知（控制、目标请求、必需值不可得、预算、原生完成状态）必须 fail closed；战术结果未知（视野、通行、危险、随机落点）必须如实报告并由策略显式接受条件求值；效果 footprint 无法计算时禁用该动作。
 ```
 
 Replace the relevant §8.1 table rows
@@ -537,7 +545,7 @@ Replace the relevant §8.1 table rows
 | 未知/异常 | 规范行为 |
 | --- | --- |
 | 控制权、当前角色、场景边界、lease/revision、原生动作是否结束不明确 | 整个执行器暂停 |
-| 必需目标/目标请求无法解析，或原生入口/getter/builder 未审计、source drift | 禁用该动作；若已提交或影响当前唯一控制边界则暂停 |
+| 必需目标/目标请求无法解析，或原生入口/getter/builder 缺失/报错/返回 `nil`/类型无效 | 禁用该动作；若已提交或影响当前唯一控制边界则暂停 |
 | 某范围技能的友伤/效果 footprint 无法计算 | 禁用该动作，不否定其它报告完整的动作 |
 | 移动落点随机、视野外，或通行性/危险为 unknown | 保留 unknown 注解，按策略显式接受条件求值；不得读取隐藏状态来消除 unknown |
 | 仅用于目标优化的属性不明确 | 跳过依赖它的规则，或使用策略规定的简单 selector |
@@ -575,9 +583,9 @@ No amendment to `allow_auto_combat_execution=false` is proposed.
 | --- | --- |
 | policy acceptance removes all candidates | rule unavailable; follow explicit `on_unavailable`/mode, with no invented wait/retreat/explore action |
 | actor or required grid cannot be resolved | fail closed for that action; another independent rule may still be evaluated |
-| unknown visibility/passability/hazard with a policy that permits it | submit the audited native request with unknown annotations |
+| unknown visibility/passability/hazard with a policy that permits it | submit the live native request with unknown annotations |
 | random landing with `landing=allow_random` | submit once; log declared randomness and actual result; do not predict or retry for a better endpoint |
-| target-plan mismatch, unaudited entry/getter, or source drift | disable the action and pause when current control cannot safely continue |
+| target-plan mismatch or an unresolvable (missing/erroring/`nil`/invalid) entry/getter | disable the action and pause when current control cannot safely continue |
 | native rejection before energy spend | record rejection; do not retry the unchanged action in the same opportunity |
 | `native_pending` | enter waiting state and submit nothing until a tracked safe boundary |
 | manual input / lost owner epoch / lease or revision change | revoke/pause; no further commit |
@@ -594,7 +602,7 @@ instant-action semantics.
 
 | Talent | Native target / landing | Classification and proposed treatment |
 | --- | --- | --- |
-| Berserker `T_RUSH` | actor target; walks a terrain-blocked line, lands before the target, then attacks (`game/modules/tome/data/talents/techniques/combat-techniques.lua:23-85`) | actor-anchored line move + effect; support with a source-pinned landing/effect report |
+| Berserker `T_RUSH` | actor target; walks a terrain-blocked line, lands before the target, then attacks (`game/modules/tome/data/talents/techniques/combat-techniques.lua:23-85`) | actor-anchored line move + effect; support with a curated landing/effect report |
 | Archmage `T_PHASE_DOOR` | low-level random self teleport; TL4 can select a creature; TL5 adds a target-area prompt; final relocation uses `teleportRandom` (`game/modules/tome/data/talents/spells/conveyance.lua:65-168`) | ordinary random teleport; low-level no-prompt form is callable and must be annotated, while TL5 automated actor+grid needs target-plan support |
 | Archmage `T_TELEPORT` | TL4 actor and TL5 area selection; random teleport with minimum range (`game/modules/tome/data/talents/spells/conveyance.lua:170-284`) | ordinary long-range random teleport; support when its prompt plan/source adapter is present, not globally refused |
 | Archmage `T_DISPLACEMENT_SHIELD` | actor-target shield; does not relocate the player (`game/modules/tome/data/talents/spells/conveyance.lua:286-321`) | not movement; effect adapter work only |
@@ -638,8 +646,10 @@ evaluation—not a plugin refusal.
 8. Known self/friendly-fire risk below/above two policy tolerances yields different
    policy results over the same effect report. An uncomputable footprint fails
    that action closed; unrelated complete actions remain eligible.
-9. Source drift, an unresolved actor, target-plan prompt mismatch, lost lease,
-   stale revision, and budget exhaustion all prevent commit.
+9. A missing/throwing/`nil`/invalid getter return, an unresolved actor,
+   target-plan prompt mismatch, lost lease, stale revision, and budget exhaustion
+   all prevent commit. A replaced-but-working getter does not, and recorded source
+   drift is telemetry only.
 10. `native_pending` never resubmits; manual input revokes; dry-run never reaches
     `Actions.execute`.
 11. A successful `change_level` invalidates old level/target/destination state and
@@ -654,8 +664,8 @@ evaluation—not a plugin refusal.
   the blocker and native collision remained authoritative.
 - **Rush/Tumble:** compare manifest request/landing/effect reports to native open,
   blocked, range-edge, and modifier cases. Verify production lowering uses the
-  audited actor/grid entry.
-- **Random teleport:** run Phase Door/Blink from a source-pinned build. Assert the
+  live actor/grid entry.
+- **Random teleport:** run Phase Door/Blink from a live build. Assert the
   decision is made without RNG, the native call occurs once when policy permits,
   dry-run never commits, and the actual random landing is logged rather than
   treated as an adapter failure. Sampling outcomes is not a safety proof.
@@ -666,16 +676,17 @@ evaluation—not a plugin refusal.
 - **Effect composition:** verify a mixed movement/effect talent against multiple
   known risk tolerances and an indeterminable-footprint negative case.
 - Run probes against source and packaged `dist`, pin the package SHA-256, and
-  compare source/dist manifest digests under the repository's runtime evidence
+  compare source/dist manifest digests as **advisory build provenance** under the repository's runtime evidence
   rules.
 
 ### 10.3 Per-talent source-review checklist
 
-Record talent id, game version, definition/action/target/helper digests; exact
+Record talent id, game version, definition/action/target/helper paths and lines
+(advisory metadata; recorded digests are telemetry, not gates); exact
 prompt sequence; live range/shape/LOS/projection; every move/teleport/swap and
 alternate/random outcome; traversed cells; affected actors; effect footprints;
 active modifiers/hooks; which facts are player-known; current `Actions` lowering;
-native pending/rejection/energy behavior; postconditions; and a source-drift
+native pending/rejection/energy behavior; postconditions; and a missing/erroring
 negative test. Record unknown landing bounds as unknown—do not invent proof or
 silently turn uncertainty into refusal.
 
@@ -688,8 +699,9 @@ The following remain unsupported until their execution capability exists:
 - **Auto-combat lowering for plain move, grid talent, and change level:** general
   `Actions` supports their basic native seams, but the current production mapper
   does not emit them.
-- **Unaudited/modded movement or source drift:** the plugin cannot know that the
-  selected policy action maps to the reviewed native operation.
+- **Unaudited/modded movement:** unknown/unsupported talents stay unavailable
+  until a curated adapter exists; once curated, the adapter calls the actual live
+  entry, and a later replacement by another addon is that addon's concern.
 - **Policy conditions requiring hidden actors, traps, or unknown terrain facts:**
   player-known-only observation makes those facts unavailable. They stay
   `unknown`; no omniscient selector may be added.
@@ -699,7 +711,7 @@ The following remain unsupported until their execution capability exists:
 - **Moving/swapping another actor:** this needs typed multi-actor destination and
   effect semantics; current adapters do not provide them.
 - **Arbitrary Lua, unbounded pathfinding expressions, or direct native function
-  names in policy data:** incompatible with the data-only/audited-entry contract.
+  names in policy data:** incompatible with the data-only/native-entry contract.
 
 Random landing, out-of-vision movement, retreat/kiting, and `change_level` are
 **not** on the unsupported list merely because of their strategy. A particular
@@ -710,7 +722,7 @@ talent may still wait for its adapter/target-plan implementation.
 1. **Self/friendly-fire metric and defaults:** freeze the exact reported unit and
    comparison semantics, then choose named-preset tolerances. The maintainer has
    explicitly left the default open; this document does not select one.
-2. **Hazard vocabulary:** define the first source-pinned terrain/ground-effect
+2. **Hazard vocabulary:** define the first curated terrain/ground-effect
    families and whether `known_safe` can ever be affirmative without a canonical
    manifest. Until then, `unknown` is honest and policy-controlled.
 3. **Target-plan wire shape:** decide whether ordered responses extend
@@ -719,7 +731,7 @@ talent may still wait for its adapter/target-plan implementation.
 4. **Epistemic passability:** visible terrain can be known passable while a hidden
    entity blocks it. The report must preserve `known_passable` versus actual
    native reachability and never claim omniscience.
-5. **Random landing envelope quality:** some audited talents expose center/radius;
+5. **Random landing envelope quality:** some curated talents expose center/radius;
    others may only support `kind=random, bounds=unknown`. The policy can accept
    either, but confidence/reason fields and postcondition logging need a stable
    schema.

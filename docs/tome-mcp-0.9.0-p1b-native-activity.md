@@ -1,13 +1,19 @@
 # P1b — native activities (`rest` / `auto_explore`) design note
 
+> **Supersession banner (v1.6).** This is a historical P1b delivery note. Its
+> `permissions.change_level=true` **hard gate** and "default off" framing are
+> **superseded** by `AGENTS.md` principle 3: `change_level` is a normal policy
+> action; whether to use it is a `strict` preset default, not a plugin-wide
+> permission bit. See [movement-skills-design](tome-mcp-0.9.0-movement-skills-design.md)
+> §6.2 and [review-disposition](tome-mcp-0.9.0-review-disposition.md) D5/D6.
+
 Date: 2026-09-17 · branch `feat/p1b-native-activity` · design
 [tome-mcp-auto-combat-plugin-design.md](tome-mcp-auto-combat-plugin-design.md) v1.3 §15 row 2 / §16.
 
 P1b turns the two runtime-managed native paths (`rest`, `auto_explore`) into
 **first-class data-policy actions** executed by the local auto-combat plugin,
 and extracts a generic **`NativeActivity`** abstraction so the multi-turn
-lifecycle is modelled in one place. `change_level` stays opt-in and **default
-off**. Execution remains gated by
+lifecycle is modelled in one place. Execution remains gated by
 `config.settings.tome_mcp_bridge.allow_auto_combat_execution` (default `false`).
 
 ## 1. §16 decisions (resolved)
@@ -27,9 +33,10 @@ off**. Execution remains gated by
      native full rest.
    - `auto_explore` keeps every native guard (zone/level `no_autoexplore`, a
      visible hostile refuses) and stops on the first interaction/popup.
-   - **`change_level` remains opt-in and default off.** Policies must set
-     `permissions.change_level=true`; the schema rejects a `change_level` rule
-     otherwise. No preset enables it.
+   - **`change_level` is a normal policy action (v1.6).** The historical
+     `permissions.change_level=true` opt-in and schema rejection are **superseded**;
+     the `strict` preset simply contains no change-level rule (a preset default).
+     A scene transition still pauses/resets and requires an explicit restart.
 
 ## 2. `NativeActivity` abstraction
 
@@ -108,20 +115,22 @@ of the *logic* now lives in the module.
 ## 3. Schema additions
 
 - `PolicySchema.ACTIONS` gains `rest`, `auto_explore`, `change_level`.
-- New optional top-level `permissions = { change_level = <bool, default false> }`.
+- *(Historical)* `permissions = { change_level = ... }`: removed under the v1.6
+  supersession (see the banner); `change_level` is admitted as an ordinary action.
 - `then` for `rest` accepts an optional `max_turns` (1..1000); `then` for the
   other activity actions rejects `talent`/`target`.
-- `change_level` is rejected unless `permissions.change_level == true`
-  (`change_level_not_enabled`).
-- `emergency:true` may only use self-preservation actions (`use_talent`/`attack`);
-  `rest`/`auto_explore`/`change_level`/`wait` are rejected as emergency rules
-  (`emergency_not_self_preservation`). This keeps the §5.4 critical layer honest.
+- No global `change_level` rejection: whether a rule exists for it is a preset/mode
+  choice, not a schema/permission gate.
+- `emergency:true` labels a rule for `emergency_only` scheduling; it does not
+  grant or revoke action capability. `rest`/`auto_explore`/`change_level`/`wait`
+  are not forced into an emergency allowlist by the *plugin* (a strict preset may
+  simply not schedule them at low HP).
 
 ## 4. Non-goals
 
 No P2/P3 work: no new predicates/selectors, no decision replay, no extra class
-adapters, no assistant translation. `change_level` is gated but deliberately not
-enabled by any built-in preset.
+adapters, no assistant translation. `change_level` is admitted as an ordinary
+action and simply not used by the built-in `strict` preset (v1.6).
 
 ## 5. Implementation status
 

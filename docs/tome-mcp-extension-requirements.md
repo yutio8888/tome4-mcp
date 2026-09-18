@@ -1,6 +1,14 @@
 # ToME MCP 功能扩展需求（草案）
 
+> **Supersession banner (v1.6 / `AGENTS.md` + design §8.3).** 本文是 0.8.0/v3 时期的需求草案。
+> 其中 §0.3 “只读纯度（不得调用 RNG / `preUseTalent` / 动态 `info`…）”与 §0.7 的“源码一致性校验”
+> 前提已被**取代**：当前协议为 **v4**，读取只有两条红线——不提交动作、不泄露玩家未知信息；当前实时
+> 的 getter/builder（含动态 `info`/`target`/`preUseTalent`-类构建器，除执行入口外）**可以调用**，
+> 允许消耗 RNG/有读副作用。另参见 §0.7 与 R3–R5 的修订。历史需求原文保留作背景。
+
 日期：2026-09-15。基线：ToME / T-Engine 1.7.6（HEAD `624a67329f`）、MCP Bridge 与 Python server **0.8.0**。协议已统一为 **v3**（v1/v2 在测试阶段移除）；字段以 [v3 契约](tome-mcp-v3-talent-query.md) 和 [API 字段](tome-mcp-api-fields.md) 为准，[交互能力设计](tome-mcp-interaction-capabilities-design.md) 仍有参考价值。
+
+> 注：当前实现已升级到协议 **v4**；v3 描述与字段清单为历史。
 
 本文只定义以下 7 项功能扩展需求，**不处理整场战役等流程缺口**（出生、通关、长程规划等仍不在本轮范围）。每项需求都给出原生依据、接口需求、行为边界和验收标准，作为实现与验收的输入，不是实现方案本身。
 
@@ -8,11 +16,11 @@
 
 1. **单一控制来源。** 一次只有一个未释放执行占用的根命令；接入 `session_id` / `control_token` / `revision` / `command_id`，沿用去重、回执、`stop`、手动接管和 Battle Companion 互斥语义。
 2. **只经原生入口。** 不直接改内存字段、不调用 `forceUseTalent`、不跳过冷却/资源/前置检查、不提供任意 Lua、方法名或回调地址。新增动作必须在原生调用发生前重新校验场景、角色、目标与交互归属。
-3. **只读纯度。** `observe` / `inspect` / `status` 不得调用 RNG、`canSee`/`canSeeNoCache`、`preUseTalent`、动态 `info`/描述函数、投射或命中计算、物品鉴定与命名函数。无法安全计算的信息返回 `unknown`，不得现场试运行。
+3. **只读边界（v1.6 修订）。** `observe` / `inspect` / `status` **不提交任何游戏动作**，也**不暴露玩家未获知的信息**——这是读取的两条红线。除此之外，读取**可以**调用当前实时的原生 getter/builder（包括 `getTalentTarget`/`t.target`、动态 `info`/描述函数、`preUseTalent`-类构建器等，**执行入口**除外），**允许消耗 RNG / 有读副作用**。报错/缺失/返回 `nil`/类型无效时该值标 `unknown`，不现场篡改游戏状态。
 4. **错误语义。** 原生返回 `false` 也可能已消耗资源；`failed` / `uncertain` 不等于未执行。不自动重试，不声称回滚。原生异常隔离写入，直到读档或新 session。
 5. **会话边界。** TCP 重连保留游戏 session；读档/重启/切图按既有规则失效旧引用；运行态（socket、队列、协程、租约）不进入存档。
 6. **协议版本。** 协议已统一为 **v3**；新增能力直接在 v3 上提供，不再保留 v1/v2 分支。
-7. **验证与留证。** 每项需求需有单元回归 + 隔离真实游戏场景；失败与预期故障注入保留；生产 `.teaa` 不含测试 probe，原生插入点打包前做源码一致性校验。
+7. **验证与留证。** 每项需求需有单元回归 + 隔离真实游戏场景；失败与预期故障注入保留；生产 `.teaa` 不含测试 probe。原生插入点可记录构建/源码摘要作为**离线重审/遥测**（不构成运行期门槛）。
 
 ## R1. 洗点
 
@@ -105,11 +113,11 @@
 
 ### R3.3 接口需求
 
-- `learn_talent` / `learn_category` 扩展到**任意原生未被改写的类别**：
+- `learn_talent` / `learn_category` 扩展到**任意可由运行时原生检查确认的类别**：
   - 支持情况在运行时由角色现有 `talents_types_def`、类别定义审核和原生 `canLearnTalent` **执行时**检查决定，只读摘要用其保守近似并标注 `readiness`。
-  - 类别来源校验改为“函数来源 + 定义完整性 + 版本清单”而非固定列表；被第三方覆盖或识别不了的定义统一报告 `unknown` / `unsupported`，不猜测。
+  - 类别来源可记录“函数来源 + 定义完整性 + 版本清单”作为**重审提示/遥测**；被第三方覆盖或识别不了的定义按实际调用结果处理（报错/缺失→`unknown`/`unsupported`），**不以“被替换”本身作为拒绝理由**，也不承担其它 addon 实现的责任。
 - 新增/复用的交互 provider 覆盖学习流程可能出现的：确认框、类别选择、自定义学习弹窗、进化提示。
-- `inspect(kind="progression")` 返回：`supported`、`readiness`（available/blocked/unknown）、`blocked_reason`、点数池、`next_raw_level`、`cost`；不运行动态描述/需求函数。
+- `inspect(kind="progression")` 返回：`supported`、`readiness`（available/blocked/unknown）、`blocked_reason`、点数池、`next_raw_level`、`cost`；可调用实时需求函数求值，不可得时标 `unknown`。
 - 快照暴露全部点数池：`unused_stats`、`unused_talents`、`unused_generics`、`unused_talents_types`、`unused_prodigies`。
 
 ### R3.4 行为与边界
@@ -120,7 +128,7 @@
 
 ### R3.5 验收标准
 
-- 单元：多职业/多类别定义的运行时准入、来源被改写时拒绝、点数池、原生回调、只读守卫、interaction 归属。
+- 单元：多职业/多类别定义的运行时准入、来源可记录为重审遥测（但不以“被替换”为拒绝理由）、点数池、原生回调、只读守卫、interaction 归属。
 - 原生：至少两个不同职业（非 Berserker）角色经 MCP 学习技能/类别；一个自定义确认弹窗通过 `respond` 完成；未知 UI 正确转人工。
 
 ## R4. 物品丢弃与买卖
@@ -171,7 +179,7 @@
 ### R5.2 原生依据
 
 - 目标：v1 已可用 `player:useTalent(id, nil, nil, nil, target)` 的 `force_target`；v2 当前刻意不预填（[交互能力设计](tome-mcp-interaction-capabilities-design.md) 规定“将来若增加首个输入预填，必须显式限定消费一次，另行扩展契约”）。
-- 查询函数：[`getTalentRange`](../../../../game/engines/default/engine/interface/ActorTalents.lua)、`getTalentRequiresTarget`、`getTalentTarget`、`getTalentCooldown`、`isTalentCoolingDown`、`getTalentLevel`、`getTalentFullDescription`；`preUseTalent` 有副作用，**不得用于只读查询**。
+- 查询函数：[`getTalentRange`](../../../../game/engines/default/engine/interface/ActorTalents.lua)、`getTalentRequiresTarget`、`getTalentTarget`、`getTalentCooldown`、`isTalentCoolingDown`、`getTalentLevel`、`getTalentFullDescription`；`preUseTalent` 属构建器读取，**可以调用**（可能消耗 RNG/有读副作用），但不得提交动作。
 
 ### R5.3 接口需求
 
@@ -185,28 +193,28 @@
 
 | 字段 | 来源/规则 |
 | --- | --- |
-| `range` / `radius` | 已审核的原生 `getTalentRange` 等只读函数；不可靠时 `unknown` |
+| `range` / `radius` | 调用当前实时的原生 `getTalentRange` 等 getter；缺失/报错/返回 `nil`/类型无效时 `unknown` |
 | `requires_target` / `target_mode` | `getTalentRequiresTarget` / 定义字段 |
 | `cooldown` / `cooldown_remaining` | 定义字段 / `isTalentCoolingDown` |
 | `current_costs` / `costs_complete` | 当前实时消耗（原生 `postUseTalent` 公式，含当前疲劳/效果）；不可知项为 `unknown` |
 | `base_costs` | 存储的基础消耗 |
 | `affordable` | 用当前快照资源与 `current_costs` 对比，资源不可知时 `unknown` |
-| `conditions` / `readiness` | 已审核的需求公式；`available`/`blocked`/`unknown`，非最终预检 |
+| `conditions` / `readiness` | 调用实时需求函数/公式求值；`available`/`blocked`/`unknown`，非最终预检 |
 | `distance_to_target` | 当传入 `target_id` 或 `x`/`y` 时，用快照坐标计算直线距离与是否在 `range` 内 |
-| `line_of_sight` | 本轮未提供（需另定无副作用判定）；不猜测 |
+| `line_of_sight` | 可调用实时 LOS 函数求值（允许读副作用）；缺失/报错/`nil` 时 `unknown` |
 | `prefill_supported` | 本连接是否允许预填目标 |
 
-- 不运行 `preUseTalent`、动态 `info`、`action`、投射/命中计算；不保证施法成功。
+- 不提交任何动作，也不泄露玩家未知信息；可调用当前实时的动态 `info`/`target`/需求函数（允许 RNG/读副作用），不可得时标 `unknown`；不保证施法成功。
 
 ### R5.4 行为与边界
 
 - 预填是**优化**不是保证：最终范围、阻挡、重定向、条件仍由原生决定；失败不重试。
 - 查询结果用于决策，不构成 `act` 的前置校验承诺；执行时仍重新验证。
-- 观察纯度回归必须继续证明查询不消耗 RNG、不调用 `preUseTalent`、不触发隐藏信息。
+- 观察读取回归必须验证：不提交动作、不读到隐藏信息；实时 getter 报错/缺失/`nil` 时结果为 `unknown`（**不**要求零 RNG/零副作用）。
 
 ### R5.5 验收标准
 
-- 单元：预填命中首问、原生改问时回退、预填目标非法时拒绝、去重；查询字段与 purity 守卫（RNG/`preUseTalent`/`info` 调用数为 0）。
+- 单元：预填命中首问、原生改问时回退、预填目标非法时拒绝、去重；查询字段与读取边界守卫（不提交动作、不读隐藏信息；实时 getter 不可得→`unknown`）。
 - 原生：对有目标技能预填目标完成一次施法；对无目标/错误目标返回正确结果；`inspect` 返回的 `range`/`current_costs`/`readiness` 与实测一致或标 `unknown`。
 
 ## R6. 自动探索接口
@@ -294,7 +302,7 @@ R5 与 R7 可并行；建议先落 R7 保护工作区，再实现 R5，其余按
 
 | 层次 | 要求 |
 | --- | --- |
-| Lua 单元 | 新动作/查询的校验、去重、边界、只读守卫；RNG / `preUseTalent` / `info` / 鉴定调用计数为 0 |
+| Lua 单元 | 新动作/查询的校验、去重、边界、读取边界守卫（不提交动作、不读隐藏信息；实时 getter 不可得→`unknown`） |
 | Python / 官方 SDK | 新工具 schema、严格参数联合、超时与回执、不重发 |
 | 原生隔离场景 | 每项需求至少一条真实游戏路径，保留命令、日志、存档与哈希 |
 | 回归 | 现有 Lua/Python 单元与原生 v3 套件（native / interactions）不回退 |

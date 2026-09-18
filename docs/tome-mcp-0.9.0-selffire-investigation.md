@@ -13,10 +13,17 @@ root (`/workspace/t-engine4`).
 > (`useTalent`, ...) are the boundary. The two read red lines are: never commit an
 > action, never expose player-unknown information. So the "never call `t.target`
 > at guard time" advice below is **superseded**: calling the audited native target
-> builder to obtain the real `typ` before deciding is allowed. The rest of this
-> document (engine defaults, component separation, ground effects, catalog drift,
-> footprint parity, fail-closed on unavailable getters) stands and is the basis
-> for the v2 work.
+> builder to obtain the real `typ` before deciding is allowed.
+>
+> **Extended supersession (v1.6).** The `rawequal` / function-identity /
+> dependency-closure / source-hash-as-runtime-gate language that recurs below is
+> also **superseded** by `AGENTS.md` and design §8.3. The guard calls the game's
+> **live** provider/getter/builder and judges its usable return value; a missing/
+> throwing/`nil`/invalid result makes the value `unknown`, while a replaced object,
+> changed closure, or source-digest mismatch is **advisory re-review telemetry
+> only**. What remains current below: the curated component/effect model, ground
+> components, footprint parity, and the *fail-closed on an unobtainable value*
+> rule. Pasted source quotes and observed results are kept as historical evidence.
 
 Use a **version-pinned, curated effect manifest**, not a guard-time call to an
 arbitrary talent `target` function. A talent adapter must describe the targeting
@@ -490,10 +497,11 @@ T_SEARING_LIGHT = {
 
 Required fields per adapter/component:
 
-* `source`: game version, complete source-file hashes, definition identity/line,
+* `source`: game version, source-file paths/lines and hashes, definition identity/line,
   adapter schema version, and hashes for relevant engine semantics (`Target.lua`,
   `ActorProject.lua`, ToME `Actor.lua`, `Map.lua`, geometry helpers, and any
-  damage-type/callback file in the closure).
+  damage-type/callback file). This is **advisory re-review metadata** (see the top
+  banner); the guard calls the live providers directly.
 * `target`: selector class and **cursor** geometry. Cursor geometry is never
   silently reused as damage geometry.
 * `variants[].when`: a declarative condition over an allowlist of audited scalar
@@ -521,19 +529,20 @@ apply.
 
 For each selected hostile action, immediately before calling `Actions.execute`:
 
-1. **Resolve a pinned adapter.** Require exact talent ID, expected talent mode,
-   source hashes, function identity where applicable, and engine-semantics hashes.
-   Missing/mismatched data is `safety_unknown`.
-2. **Resolve the variant without talent callbacks.** Read only registered,
-   identity/hash-pinned scalar providers or raw bounded fields. If a branch cannot
+1. **Resolve an adapter.** Require exact talent ID, expected talent mode and
+   curated source coverage; call the **live** function objects (no identity/hash
+   gate). Missing/mismatched *value* (missing/throwing/`nil`/invalid return) is
+   `safety_unknown`.
+2. **Resolve the variant without talent callbacks as a predicate.** Read the live
+   scalar providers or raw bounded fields. If a branch cannot
    be selected, use a declared conservative union only when that union is itself
    safe; otherwise return unknown. For Flame, the safe geometric union includes
    bolt, beam, and radius-1 wide-beam footprints. Burning Wake must be proven
    absent or modeled as a ground component.
 3. **Validate the bound target.** It must still exist, be hostile, visible/known,
-   and have finite coordinates. Use the adapter's cursor range and a pinned
-   `canProject` only for curated native-default block functions. A custom callback
-   makes the adapter unsupported.
+   and have finite coordinates. Use the adapter's cursor range and the live
+   `canProject` for block checks. A custom callback that cannot be resolved makes
+   the adapter unsupported.
 4. **Expand every component footprint.** Use a pure, engine-version-pinned
    geometry implementation. Bolt checks every potential stopping actor; beam
    checks its traversed line; wide-beam checks width; ball/cone use their actual
@@ -555,8 +564,9 @@ For each selected hostile action, immediately before calling `Actions.execute`:
    or `unknown`, affected known actors, and provenance in the decision log.
 9. **Conformance-check during execution.** At the first real `getTarget`, compare
    observed cursor shape/range/radius and explicit flags with the manifest. A
-   mismatch marks the adapter drifted and stops subsequent automation. It is
-   defense in depth, not the pre-commit proof.
+   mismatch is recorded as **telemetry** and disables only that adapter's precise
+   claim (falling back to the conservative union/unknown); it does not by itself
+   stop unrelated automation. It is defense in depth, not the pre-commit proof.
 
 ### Fail-closed behavior and `max_selffire_risk`
 
@@ -616,7 +626,8 @@ Required entry corrections:
 * `T_SUN_BEAM`: base hit plus TL3+ radius-2 blindness ball, SF 0 and FF 100.
 * `T_FLAME`: bolt/beam/wide-beam variants; use a conservative wide-line union if
   exact live branch is not safely available. Add conditional Burning Wake ground
-  components. Do not call `t.target`.
+  components. Do not call `t.target` as a *predicate* (calling the live builder to
+  read geometry is allowed; see §8.3/the top note).
 * `T_SOUL_ROT`: projectile bolt, FF 100; check allies/neutral blockers on path.
 * `T_BLOOD_GRASP`: projectile bolt, explicit SF 0 and FF 0.
 * `T_SHATTERING_BLOW` and `T_ATTACK`: melee delivery, not projected hit damage.
@@ -654,7 +665,7 @@ be removed.
 `T_SHADOW_BLAST` has an immediate ball with dynamic SF and a persistent ball that
 independently computes the same dynamic SF; both omit FF, so FF is 100
 (`game/modules/tome/data/talents/celestial/star-fury.lua:55-88`). Under
-`max_selffire_risk=0`, it is usable only if a curated, pinned evaluator proves SF
+`max_selffire_risk=0`, it is usable only if the live evaluator resolves SF to
 zero and the ground future-risk rule is satisfied—which still fails because FF
 is positive. Otherwise reject/pause.
 
@@ -663,11 +674,12 @@ is positive. Otherwise reject/pause.
 (`.../celestial/star-fury.lua:141-161`). It has no ground component, but any
 positive/unknown SF or a friendly in the footprint rejects/pauses.
 
-For these dynamic talents, encode the audited formula in metadata if support is
-valuable; do not call `spellFriendlyFire`, because its current implementation
-prints and a future implementation can drift. The formula and every scalar input
-provider must be hash/identity pinned. A source hash mismatch disables the
-adapter rather than falling back to engine defaults.
+For these dynamic talents, call the live `spellFriendlyFire` (or read it through
+  the live provider) to obtain the real value; a missing/throwing/`nil` return
+  stays `unknown`. Do **not** hard-code a copied formula as a substitute for the
+  live read, and do **not** disable the adapter on a source hash mismatch alone —
+  the live method's *return* is what matters; recorded hashes are re-review
+  telemetry.
 
 ## 9. Verification plan
 
@@ -689,9 +701,10 @@ Add a pure component-risk module and fixture tests before wiring it into runtime
 * per-talent fixtures: Searing's three geometries, Sun Ray TL2/TL3, Flame's three
   variants and Burning Wake on/off, Soul Rot bolt, Blood Grasp safe bolt,
   Fireflash/Flameshock/Shadow Blast/Starfall dispositions;
-* drift: changed source hash, replaced function identity, unknown variant input,
-  or getTarget conformance mismatch disables only that adapter and records a
-  stable reason.
+* drift telemetry: a changed recorded source hash, a replaced function object, an
+  unknown variant input, or a getTarget conformance mismatch is recorded as a
+  stable re-review reason; a missing/erroring/`nil`/invalid return disables only
+  that adapter's affected component.
 
 The fixtures must never call engine RNG or a talent function.
 
@@ -729,19 +742,22 @@ Before enabling any talent:
    create secondary harmful projections.
 5. Normalize defaults using the correct delivery path; record explicit versus
    default provenance and all positional `addEffect` arguments.
-6. Record a conservative footprint for every variant and prove all branch inputs
-   can be read without RNG/mutation. Otherwise mark the branch unknown.
+6. Record a conservative footprint for every variant. Reading branch inputs may
+   consume RNG or have read-side effects (allowed); only a missing/erroring/`nil`
+   value makes the branch unknown.
 7. Add pure fixtures and a native conformance case.
-8. Pin complete file hashes plus function identity/dependency closure. At startup
-   a mismatch returns `adapter_source_drift`; it never silently uses stale
-   metadata. CI regeneration should fail until a human repeats this checklist.
+8. Record complete file paths/lines and digests plus function identity/closure as
+   **advisory re-review metadata**. A recorded mismatch is telemetry (CI
+   regeneration may flag it for a human to repeat this checklist); it is not a
+   runtime gate. Only an unobtainable value returns `unknown`.
 
-This extends the full-file digest/identity pattern already implemented in
-`NativeCompatibility.lua:4-27, 65-119`.
+Digest/identity records extend the existing `NativeCompatibility` telemetry
+(`NativeCompatibility.lua:4-27, 65-119`); they are not consulted as a runtime
+entry gate.
 
 ## 10. Unsupported cases
 
-The following remain unsupported until separately audited:
+The following remain unsupported until a curated adapter exists:
 
 * Arbitrary or addon-replaced `target`, `range`, `radius`, block/filter, damage
   type, or callback functions. There is no engine purity contract.
@@ -749,17 +765,17 @@ The following remain unsupported until separately audited:
   adapter mapping to native grid generation.
 * Talents whose harmful component is created only inside action code and has no
   curated component manifest.
-* Dynamic variants whose condition cannot be obtained through a pinned,
-  mutation-free scalar read.
+* Dynamic variants whose condition cannot be obtained (the live read is missing,
+  throws, or returns `nil`/an invalid value).
 * Positive/unknown persistent ground SF/FF in strict mode; future actor movement
   makes an empty current footprint insufficient proof.
 * Random, bouncing, chaining, homing, reflected, teleported, delayed, or
   target-created secondary effects unless the complete footprint and callback
-  closure is modeled.
+  semantics are curated.
 * Friendly safety through unseen/unknown grids. The bridge may not inspect hidden
   actors; if occupancy matters and is not player-known, the action fails closed.
 * Relying on `nullify_all_friendlyfire` or other runtime safety modifiers unless
-  their exact getter and application point are part of the pinned adapter.
+  their exact getter and application point are part of the curated adapter.
 * A generic two-phase native probe. The existing seam occurs after potentially
   random/mutating pre-use work and cannot be rolled back.
 
@@ -772,5 +788,5 @@ current bridge's simple collinearity/radius helper is not enough to claim parity
 
 The per-talent source review did not execute live casts, so it intentionally does
 not claim that every compound damage type or external addon callback is harmless.
-That uncertainty is why the manifest pins and audits the full effect closure and
-fails closed on drift.
+That uncertainty is why the manifest curates the full effect semantics and treats
+an unobtainable value as `unknown` (never as safe).

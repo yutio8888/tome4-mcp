@@ -1,5 +1,10 @@
 # 待办：技能目标几何（穿透/范围）不可见
 
+> **Supersession banner (v1.6 / `AGENTS.md` + design §8.3).** 本文中的 "不执行动态 `target`，
+> 符合 QRY-01 纯度" 是**已废弃的读取纯度/零 RNG 假设**。当前政策只有两条读取红线：不得提交动作、不得暴露
+> 玩家未知信息；当前实时的动态 `target`/geometry getter **可以调用**（允许消耗 RNG/有读副作用），
+> 报错/缺失/返回 `nil` 时才标 `unknown`。下文历史观察与验收样例保留作证据。
+
 状态：**待办**。来源：用户观察——agent 把 `Moonlight Ray`（穿透射线）当单目标用。
 记录日期：2026-09-15。基线：0.9.0 / 内部协议 v4。
 
@@ -29,8 +34,9 @@ newTalent{
 1. `TalentQuery.query`（`TalentQuery.lua`）对 `t.target`：
    - `string` → 回该字符串；
    - `table` → `target_type="table"`；
-   - `function` → `target_type="unknown"`（**不执行动态 target**，符合 QRY-01 纯度）。
-   `Moonlight Ray` 是函数，所以是 `unknown`。
+   - `function` → **调用当前实时 `t.target` 取得 geometry**（允许；不再因纯度/零 RNG 拒绝执行）；
+     报错/返回非表时 `target_type="unknown"`。
+   `Moonlight Ray` 是函数，可对其实时求值得到 `beam`（阅读性目标函数在构建时可能消耗 RNG，允许）。
 2. `Interactions.openTarget`（`Interactions.lua` 约 47–65 行）只捕获
    `origin.range` / `origin.radius`，**没有 `origin.type`（beam/ball/cone）**，也没有
    `selffire` / `direct_hit` / `reflectable`。
@@ -43,7 +49,7 @@ newTalent{
 
 ## 建议改法
 
-### P1 执行期回传原生目标几何（权威、不违反纯度）
+### P1 执行期回传原生目标几何（权威）
 - 在 `Actions.execute` 的 `getTarget` 包装里，第一次拿到 `typ` 时记录到命令：
   ```
   command.target_geometry = {
@@ -59,10 +65,11 @@ newTalent{
   `shape` / `radius` / `selffire` / `direct_hit`。
 - 这是**执行时**的原生 spec，不是为查询而运行 talent，属于纯记录。
 
-### P2 只读 advisory（静态字段，无法覆盖动态 target）
+### P2 只读 advisory（静态字段 + 可选实时求值）
 - `TalentQuery.query` 增加：
   - `radius`（`t.radius` 为静态数字时）、`direct_hit`、`reflectable`；
-  - `target_shape`：`t.target` 为**表**时取其 `type`；为函数时 `"unknown"`（不执行）。
+  - `target_shape`：`t.target` 为**表**时取其 `type`；为**函数**时可**实时调用求值**得到形状
+    （允许；这会创建一次目标構建，可能消耗 RNG），不可得时标 `"unknown"`。
 - `server/RULES` 与字段文档说明：`target.geometry.shape`/`piercing` 在执行/交互响应里
   是权威；`inspect` 的 `target_shape` 对动态目标可能为 `unknown`。
 
@@ -75,8 +82,8 @@ newTalent{
 - `use_talent T_MOONLIGHT_RAY`（任意目标）结果或 `target.grid` 交互中出现
   `shape="beam"`、`piercing=true`；
 - `Shadow Blast`（`type="ball"`, `radius=3`）出现 `shape="ball"`、`radius=3`；
-- `inspect(talent)` 对静态 `radius`/`direct_hit`/`reflectable` 正确显示，动态 target 不执行、
-  标 `unknown`；
+- `inspect(talent)` 对静态 `radius`/`direct_hit`/`reflectable` 正确显示；动态 target 可实时求值，
+  不可得时标 `unknown`；
 - 新增单测（`tests/test_talent_query.lua` 静态几何 + 一个 `target.grid` 形状用例）。
 
 ## 备注

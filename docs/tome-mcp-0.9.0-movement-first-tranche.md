@@ -26,11 +26,13 @@ assistant/P3 work.
   deterministic scoring/tie-breaks (`score`, distance from origin, `y`, `x`),
   bounded candidate generation and no RNG. It evaluates the policy's `accept`
   object; it never adds a strategic filter.
-- New movement adapters in the v2 `EffectManifest` (source-pinned by
+- New movement adapters in the v2 `EffectManifest` (source-reviewed; the
+  generator records advisory drift hashes via
   `tools/generate_effect_manifest.py`): `T_RUSH` (actor-anchored
   `bounded_alternatives` line move), `T_SKIRMISHER_CUNNING_ROLL` (exact grid) and
-  `T_PHASE_DOOR` (random self teleport). The guard source-pins and then skips
-  movement entries (no damage footprint to model) instead of inventing one.
+  `T_PHASE_DOOR` (random self teleport). The guard calls the **live** native
+  getters/builders and then skips movement entries (no damage footprint to model)
+  instead of inventing one; recorded hashes are telemetry, not a runtime gate.
 
 ### MOV-2 — execution
 
@@ -116,8 +118,8 @@ are fixed; R-1…R-6 stay true.
   footprint it rejects. Dry-run, decisions and the policy log report the
   measurement.
 - **Ordered `target_plan` (REV-03).** Each step is validated for its request
-  kind; `EffectManifest.verify` compares the ordered sequence with the
-  source-pinned `movement.target_requests`; the planner consumes the first
+  kind; `EffectManifest.verify` compares the ordered sequence with the curated
+  `movement.target_requests`; the planner consumes the first
   request. A multi-prompt plan pauses with the typed
   `unsupported_target_plan` instead of being ignored.
 - **Destination semantics (REV-04).** `landing='deterministic'` rejects every

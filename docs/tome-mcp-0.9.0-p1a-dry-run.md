@@ -1,5 +1,11 @@
 # Auto-combat P1a completion — `dry_run` + §15/§15.1 audit
 
+> **Supersession banner (v1.6 / `AGENTS.md` + design §8.3).** This is a historical P1a status note. Its
+> "no RNG" wording and the §15.1 strategy rows are slice-scope defaults, **not** the current plugin contract:
+> current reads may consume RNG (the only red lines are no action submission and no player-unknown information),
+> and movement/retreat/kiting/teleport/`rest`/`auto_explore`/`change_level` are ordinary policy actions whose
+> restriction is a **`strict` preset default**. The rest of the `dry_run` record stands; historical results kept.
+
 Date: 2026-09-17 · branch `feat/p1a-dry-run` · design
 [tome-mcp-auto-combat-plugin-design.md](tome-mcp-auto-combat-plugin-design.md) v1.3.
 
@@ -12,8 +18,9 @@ It does **not** start P1b/P2/P3 and does **not** flip the execution default:
 
 `policy_op="dry_run"` evaluates a policy against the **current audited read
 snapshot** and returns the decision it *would* make. It never executes: no
-`Actions.execute`, no talent invocation, no energy spend, no dialog, no RNG and
-no control-lease change. Reads are the same bounded, audited readers the live
+`Actions.execute`, no talent invocation, no energy spend, no dialog, no
+control-lease change (a read may consume RNG/have read-side effects; that is
+allowed). Reads are the same bounded readers the live
 host uses, so the condition binding and the reported target are the same object.
 
 Policy resolution: explicit `policy` argument wins; otherwise `running`, then
@@ -64,8 +71,8 @@ Availability: dry-run is wired through a **read-only host**
 | Pilot build Halfling / Celestial-Anorithil | **satisfied** | `PolicyPresets.anorithil_p1a`, validated schema + catalog in `test_auto_combat_io.lua` |
 | Talent whitelist (8) each with an adapter | **satisfied** | All 8 in `Schema.TALENTS` and `Catalog.ENTRIES`; new catalog test asserts the two sets cannot drift. `T_ATTACK` → native attack; sustains → `set_sustain`; `T_TWILIGHT` is an active resource-conversion talent (not a sustain) and runs through the generic native `use_talent` entrypoint |
 | strict (`pause_on_new_enemy=true`), `max_selffire_risk=0` | **satisfied** | preset + `PolicyEvaluator`/`AutoCombat` strict logic; §14 fixture |
-| default no auto-retreat | **satisfied** | `flee_below_hp_pct` is accepted by the schema/editor but intentionally inert in P1a (design §5.4/§15.1); no `move{retreat}` action exists in the schema |
-| no rest / auto_explore / change_level | **satisfied** | `Schema.ACTIONS={use_talent,attack,wait}`; the auto-combat host maps nothing else |
+| default no auto-retreat | **satisfied (P1a slice default, superseded as a plugin contract v1.6)** | `flee_below_hp_pct` is accepted by the schema/editor but intentionally inert in P1a (design §5.4/§15.1); the P1a schema has no `move{retreat}` rule, but retreat/kiting are ordinary policy actions (a `strict` preset default, not a plugin-wide exclusion) |
+| no rest / auto_explore / change_level | **satisfied as the P1a/`strict` slice scope (superseded as a plugin contract v1.6)** | P1a `Schema.ACTIONS={use_talent,attack,wait}`; the auto-combat host maps nothing else at that slice. Current policy admits `move`/`rest`/`auto_explore`/`change_level`; the `strict` preset simply contains no such rules |
 | protocol v4 incremental capability gate | **satisfied** | `capabilities.auto_combat` (schema/source/baseline/execution/`policy_ops`, now incl. `dry_run`) |
 | `expected_hash` points at one object | **satisfied** | draft writes compare draft hash; approve/activate compare the approved hash; `policy_conflict` on mismatch (`PolicyStore`) |
 | `tome.policy` / `dry_run` / status / log | **satisfied** | `dry_run` added here; `status` exposes owner/lease/revision/three hashes/run/last decisions/log status; `PolicyLog` is the bounded §10 ring |

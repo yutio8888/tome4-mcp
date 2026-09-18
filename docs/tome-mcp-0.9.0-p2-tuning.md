@@ -1,15 +1,23 @@
 # P2 — tuning (predicates, decision replay, A/B, second class) design/status
 
+> **历史资料，非规范（Historical / non-normative）。** 本文是当时 P2 slice 的记录。其中
+> `change_level` opt-in/default-off、“audited reads only”与“nothing rolls RNG” 仅是**该 slice / `strict`
+> preset 的默认值**，**不是**插件级契约；已被 `AGENTS.md` 与 `docs/tome-mcp-auto-combat-plugin-design.md`
+> §8.3 **取代**。当前：`change_level` 为普通策略动作（场景切换仍 pause/reset）；读取仅受两条红线约束
+> （不提交动作、不泄露玩家未知信息），当前实时的动态 getter 可调用且**可能消耗 RNG/有读副作用**，
+> 不可得时标 `unknown`。历史观测与哈希保留作证据。
+
 Date: 2026-09-17 · branch `feat/p2-tuning` · design
 [tome-mcp-auto-combat-plugin-design.md](tome-mcp-auto-combat-plugin-design.md) v1.3
 §15 row 3 / §16.
 
 P2 is deliberately **bounded and evidence-driven**, data-only, and keeps the
 executor behind `settings.tome_mcp_bridge.allow_auto_combat_execution`
-(default **off**) and `change_level` opt-in (default **off**). No arbitrary
-Lua/functions/regex.
+(default **off**). The historical slice also kept `change_level` opt-in (default
+**off**); that is a **preset/slice default**, not a plugin-wide gate (see banner).
+No arbitrary Lua/functions/regex.
 
-## 1. Predicates / selectors (audited reads only)
+## 1. Predicates / selectors (live reads; historical slice label "audited reads only")
 
 Added (schema + catalogue + evaluator + `PolicySnapshot`):
 
@@ -22,7 +30,7 @@ Added (schema + catalogue + evaluator + `PolicySnapshot`):
 | `enemy_is_boss` | predicate (bool) | derived `rank >= 4` | no-arg (`{}`) |
 | `enemy_distance` | predicate (cmp) | bound target's grid distance | complements `nearest_enemy_distance` |
 | `highest_rank_hostile` | selector | rank, tie-break nearest | |
-| `most_dangerous_hostile` | selector | rank, then lowest hp, then nearest | **audited heuristic**, not `computed` |
+| `most_dangerous_hostile` | selector | rank, then lowest hp, then nearest | **curated heuristic**, not `computed` |
 
 Every target-related condition is now evaluated against the selector the
 action will bind (`PolicyEvaluator` gained an optional
@@ -35,10 +43,11 @@ the §5.3 "condition and action bind the same target" contract.
 [docs/tome-mcp-0.9.0-p2.5-tooltip-getters.md](tome-mcp-0.9.0-p2.5-tooltip-getters.md)):
 
 - `has_effect` / `computed` and `ally_count`: **resolved by P2.5** — now backed
-  by the audited `ActorCombat.computed` panel getters (finite enum + numeric
-  comparison) and bounded visible effect/ally reads, fail-closed to `unknown`.
-- `most_dangerous`-by-`computed`: the audited rank/hp/distance heuristic remains
-  the default; nothing rolls RNG.
+  by the live `ActorCombat.computed` panel getters (finite enum + numeric
+  comparison) and bounded visible effect/ally reads, missing/erroring/`nil` → `unknown`.
+- `most_dangerous`-by-`computed`: the rank/hp/distance heuristic remains
+  the default; the **planner tie-break** does not sample RNG (live getters may
+  consume RNG internally, which is allowed).
 - `cluster_center` / AoE selffire placement: needs target geometry and
   `canProject` proof, out of P2.
 - `map_frontier`, `turn_parity`: not panel data and not assembled in the
