@@ -70,19 +70,33 @@ signature** per entry:
   per-request guard inputs and vary with talent level) and closures
   (`block_path`).
 
-Matching is `typ.type == observed.cursor_type` **and** every declared flag/string
-equals the observed spec's value; observed fields the signature does not declare
-are ignored (they are guard inputs, not identity). This is a **drift check on
+Matching is `typ.type == observed.cursor_type` **and**, for every declared field, the
+matching constraint above. **Signature semantics (normative, S2-R3-01): the
+signature is a partial predicate.** A declared boolean flag constrains
+`(typ[flag]==true)==value` — a declared `false` matches an absent observed field
+("not truthy") exactly as it matches an explicit `false`; a declared string or
+`default_target` is an equality constraint; every **undeclared field is a wildcard**
+the matcher ignores (they are guard inputs, not identity). Because of the wildcards,
+two syntactically different signatures can still both match one prompt, so every
+published sequence's build rule is pairwise **MUTUAL EXCLUSIVITY**, not record
+inequality: for each pair of N≥2 entries at least one field must be declared by BOTH
+signatures with constraints that cannot both hold for one observed spec (a shared
+flag declared `true` vs `false`, or different strings on a shared
+`cursor_type`/`first_target`/`msg`; `default_target` only admits `'self'` and never
+discriminates). A declared value on a field the other signature omits is NOT a
+discriminator, so `{cursor_type='hit'}` vs `{cursor_type='hit',nowarning=true}` and
+`{cursor_type='hit'}` vs `{cursor_type='hit',nolock=false}` are both refused at build
+time — `movement_adapter_invalid` (detail `request_signature_ambiguous`, with the
+colliding indices) — and the executor's runtime carrier re-checks the same rule for
+directly submitted sequences (`invalid_sequence`). This is a **drift check on
 recorded fields, never an identity/closure audit** of the live object (a replaced
-live entry is called as-is; §7.1/AGENTS.md). Every published sequence **must**
-carry a signature on every entry; for `N≥2` the signatures must be **pairwise
-distinct** — two prompts no stable observed field can tell apart make their
-reorder undetectable, so the descriptor is `movement_adapter_invalid` (detail
-`request_signature_ambiguous`, with the colliding indices) and is never published.
-This is a plugin-completeness boundary, not a strategy judgement. Both Phase Door
-TL4/TL5+ descriptors carry their real, source-verified signatures (actor
+live entry is called as-is; §7.1/AGENTS.md). Every published sequence **must** carry
+a signature on every entry. This is a plugin-completeness boundary, not a strategy
+judgement. Both Phase Door TL4/TL5+ descriptors carry their real, source-verified
+signatures (actor
 `{cursor_type='hit',friendlyblock=false,nowarning=true,default_target='self'}`,
-landing `{cursor_type='ball',nolock=true,pass_terrain=true,nowarning=true}`).
+landing `{cursor_type='ball',nolock=true,pass_terrain=true,nowarning=true}`), which
+are mutually exclusive on `cursor_type`.
 
 ## 2. Phase Door matrix (TL4 / TL5+)
 
@@ -134,15 +148,20 @@ k-th declared entry's decided value.
   (a still-live prompt is neither answered nor cancelled). A spec the bridge
   cannot **read** as a signature (`typ` not a table, or `typ.type` not a string)
   is `movement_request_kind_unknown` with `observed_shape=nil`, also handed back.
-  Because published sequences have pairwise-distinct signatures, a reordered
-  native flow can never receive the k-th declared answer **for a published
-  descriptor**; what this check cannot observe is the native body's internal
-  consumption of an already-given answer, which stays bounded by the
-  per-request native guard, the native rejection and the declared postcondition
-  check. After any live handback the wrapper stops answering: the remaining
-  prompts of the invocation go to the player, and the settle check neither
-  overwrites the recorded deviation nor reports the remaining entries as
-  missing.
+  Because published sequences carry pairwise MUTUALLY EXCLUSIVE signatures (§1.1:
+  partial predicates with wildcard semantics), a reordered native flow can never
+  receive the k-th declared answer **for a published descriptor** — an out-of-order
+  prompt provably fails the arrival entry's signature match before any value is
+  built; what this check cannot observe is the native body's internal consumption of
+  an already-given answer, which stays bounded by the per-request native guard, the
+  native rejection and the declared postcondition check. After any live handback the
+  wrapper stops answering: the remaining prompts of the invocation go to the player,
+  and the settle check neither overwrites the recorded deviation nor reports the
+  remaining entries as missing.
+- **Runtime carrier rule (S2-R3-01).** `Actions.validate`/`normalizeSequence`
+  re-checks pairwise mutual exclusivity on a directly submitted `action.sequence`
+  (overlapping pair → `invalid_sequence`), so the build-time invariant cannot be
+  bypassed through the command path.
 - Every request keeps the **native per-request range/self-warning guard**
   (`allowed(typ,x,y)`), evaluated against that request's own spec, so a value
   legal for the grid prompt but not the actor prompt stays refused. A guard
@@ -199,7 +218,17 @@ not after the pending native call settles:
    invocation's current handle (`autoHandbackHandle`) once the arbiter no longer
    owns auto-combat and the run is stopped; the existing control-token,
    interaction-id, consumed and revision guards all apply, and nothing is
-   granted while the run is still live. The bounded abort
+   granted while the run is still live. S2-R3-02: the auto route computes the
+   response fingerprint **before** both routes and classifies a reused
+   `response_id` first — `response_conflict` when the recorded fingerprint
+   differs, an idempotent no-op reply when it matches (reachable after a failed
+   apply) — exactly like the command-scoped route, and every auto answer is
+   counted and bounded by `Interactions.MAX_RESPONSES`
+   (`response_budget_exhausted`). The command route's extra `revoke` on budget
+   exhaustion tears down a remote-owned command execution state that does not
+   exist for the auto invocation (its lease is already released to manual), so
+   the auto route enforces the bound by refusing the answer without revoking the
+   session. The bounded abort
    (`abortAutoInvocation`) is **live-handle-first**: a live target handle is
    cancelled (reason `handed_back_timeout` when the prompt was handed back)
    regardless of `command.target_cancelled`, and only when no live handle remains

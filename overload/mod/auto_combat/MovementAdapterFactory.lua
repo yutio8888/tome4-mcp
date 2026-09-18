@@ -131,10 +131,11 @@ end
 -- is only admitted on the trailing entry, `landing_from` is only 'envelope', and
 -- `observed` is the per-entry **curated observed signature** (S2 rev3): the
 -- closed allowlist of static discriminators the reviewed flow raises at this
--- position. A published sequence must carry a signature on every entry; for N≥2
--- the signatures must be pairwise distinct, else the program's reorder is
--- unobservable (the plugin's own undecidability) and the descriptor is
--- `movement_adapter_invalid`/`request_signature_ambiguous`.
+-- position. A published sequence must carry a signature on every entry; for
+-- N≥2 the signatures must be pairwise MUTUALLY EXCLUSIVE (partial predicates
+-- with wildcard semantics; see `signaturesDisjoint`), else the program's
+-- reorder is unobservable (the plugin's own undecidability) and the descriptor
+-- is `movement_adapter_invalid`/`request_signature_ambiguous`.
 -- Returns a fresh array of normalised entries (no shared reference with the
 -- caller's declaration).
 local SEQUENCE_KEYS={index=true,request=true,subject=true,value_source=true,
@@ -184,15 +185,39 @@ local function normalizeObserved(observed,index)
     end
     return copy
 end
--- A stable comparison key for a normalised signature (used only for the
--- build-time pairwise-distinctness rule).
-local function signatureKey(signature)
-    local keys={}
-    for key in pairs(signature) do keys[#keys+1]=key end
-    table.sort(keys)
-    local parts={}
-    for _,key in ipairs(keys) do parts[#parts+1]=key..'='..tostring(signature[key]) end
-    return table.concat(parts,'\1')
+-- S2-R3-01 (normative wildcard semantics). A curated observed signature is a
+-- PARTIAL predicate over the observed prompt spec, not a complete record:
+--   * `cursor_type` is always declared and constrains `typ.type` by equality;
+--   * a declared boolean flag constrains `(typ[flag]==true)==value`, so a
+--     declared `true` requires the flag truthy and a declared `false` requires
+--     it NOT truthy (an absent observed field reads as "not truthy");
+--   * a declared string (`first_target`/`msg`) or `default_target='self'`
+--     constrains the observed value by equality;
+--   * every UNDECLARED field is a wildcard (the runtime matcher ignores it).
+-- Because of the wildcards, two syntactically different signature records can
+-- still both match one observed spec. The build rule is therefore pairwise
+-- MUTUAL EXCLUSIVITY, never record inequality: for every pair of entries in an
+-- N>=2 sequence at least one field must be declared by BOTH signatures with
+-- constraints that cannot both hold for one observed spec. Within the closed
+-- vocabulary this means a shared flag declared `true` by one side and `false`
+-- by the other, or different strings on a shared `cursor_type`/`first_target`/
+-- `msg`. (`default_target` only admits 'self', so it never discriminates.)
+-- A declared value on a field the other signature omits is NOT discriminating:
+-- absence is a wildcard, and the matcher treats "absent" and "not true"
+-- identically, so declaring `false` adds no constraint beyond absence. This
+-- refuses, for example, `{cursor_type='hit'}` vs `{cursor_type='hit',
+-- nowarning=true}` (a `hit,nowarning=true` prompt matches both) and
+-- `{cursor_type='hit'}` vs `{cursor_type='hit',nolock=false}` (the same
+-- `{type='hit'}` spec matches both). Two prompts whose predicates provably
+-- cannot both match one observed spec are the only admissible pair; anything
+-- else makes the program's reorder unobservable (the plugin's own
+-- undecidability) and the descriptor is
+-- `movement_adapter_invalid`/`request_signature_ambiguous`.
+local function signaturesDisjoint(a,b)
+    for key,value in pairs(a) do
+        if b[key]~=nil and value~=b[key] then return true,key end
+    end
+    return false,nil
 end
 function M.normalizeRequestSequence(list)
     local ok,maxKey=validateArray(list,1)
@@ -245,19 +270,20 @@ function M.normalizeRequestSequence(list)
         if entry.optional==true then copy.optional=true end
         out[i]=copy
     end
-    -- S2 rev3: for N≥2 the curated signatures must be pairwise distinct. Two
-    -- prompts that no stable observed field can tell apart make their reorder
-    -- undetectable, so the descriptor is refused at build time (a
-    -- plugin-completeness boundary, never a strategy judgement).
+    -- S2-R3-01: for N≥2 the curated signatures must be pairwise MUTUALLY
+    -- EXCLUSIVE, not merely unequal as records (partial predicates with
+    -- wildcards; see `signaturesDisjoint`). Two prompts whose predicates can
+    -- both match one observed spec make their reorder undetectable, so the
+    -- descriptor is refused at build time (a plugin-completeness boundary,
+    -- never a strategy judgement).
     if maxKey>=2 then
-        local seen={}
-        for i=1,maxKey do
-            local key=signatureKey(out[i].observed)
-            if seen[key] then
-                return nil,{detail='request_signature_ambiguous',
-                    indexes={seen[key],i},signature=out[i].observed.cursor_type}
+        for i=1,maxKey-1 do
+            for j=i+1,maxKey do
+                if not signaturesDisjoint(out[i].observed,out[j].observed) then
+                    return nil,{detail='request_signature_ambiguous',
+                        indexes={i,j},signature=out[i].observed.cursor_type}
+                end
             end
-            seen[key]=i
         end
     end
     return out

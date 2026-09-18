@@ -82,12 +82,14 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 28 | S2 有序 prompt-响应队列（实现） | A（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | FAIL（**do_not_merge**） | 0 | 2 | 4 | 1 | 7 |
 | 29 | S2 rev2 修 REV-01..07 | **B**（Dev）/ **Sol**（Review，复用复核自身） | 同 #28（复核自身发现） | FAIL（**do_not_merge**） | 0 | 2 | 0 | 0 | 2 |
 | 30 | S2 契约修订（Investigation B）+ 应用事故修复 | B（Investigation）/ — | — | BLOCKED→已修复（Dev A 正确拒绝实施） | 0 | 0 | 0 | 0 | 0 |
+| 31 | S2 rev3 按修订契约实现（记录在 main 分支账本 c62c31e） | A（Dev）/ **Sol**（Review，复用复核自身） | 同 #29（复核自身发现） | FAIL（**do_not_merge**） | 0 | 1 | 2 | 0 | 3 |
+| 32 | S2 rev4 修 R3-01..03（本轮，Dev B） | **B**（Dev）/ —（待新 Sol 复审） | 全新 Sol 评审（本轮尚无） | 待评审 | 0 | 0 | 0 | 0 | 3 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**30**（含 1 个未进入评审的 BLOCKED 轮）。
+- Loop 总数：**32**（含 1 个未进入评审的 BLOCKED 轮；#31 记录于 main 分支账本 c62c31e）。
 - **PASS 10**、**FAIL 19**、BLOCKED 1、PARTIAL 0 → **通过率 10/30 = 33.3%**。
 - Issue 合计：**78**（P0 1 / P1 31 / P2 25 / P3 21）；平均每 loop 2.60。
 - **#30（契约修订，Investigation=B）**：交付 `s2-contract-revision.md`（sha256 `cd41df23…`）——

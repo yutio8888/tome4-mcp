@@ -67,8 +67,9 @@ M.EXPECTED={
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
     ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
-    ['handback-answer']={'hb_pending_deviation','hb_controller_paused','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_answered_effect'},
-    ['handback-timeout']={'hb_pending_deviation','hb_controller_paused','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_unanswered_cancelled'},
+    ['handback-answer']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt'},
+    ['handback-timeout']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_unanswered_cancelled'},
+    ['handback-reorder']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt','hb_same_kind_reorder'},
     ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
     ['solo-pump']={},
 }
@@ -1837,8 +1838,6 @@ local function runAll()
         movementPlan()
         movementFactoryChecks()
         movementSequenceChecks()
-        M.handbackCase('answer')
-        M.handbackCase('timeout')
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok
@@ -1870,23 +1869,53 @@ local function productionReady()
     return phase=='ready'
 end
 
--- S2 rev3/§6.2: a TRULY YIELDING native handback. Unlike the synchronous
--- reorder fixture above (which stubs `p.getTarget`), this fixture does NOT stub
--- `getTarget`: the declared program's curated signature mismatches the raised
--- prompt, so the executor wrapper falls through to the real `original`, which
--- enters `targetGetForPlayer`'s exclusive target mode, registers a bridge handle
--- and genuinely suspends the native body on `coroutine.yield()`. The typed
--- deviation must therefore survive on the `native_pending` result while the
--- invocation is live, and the production service must pause with that reason,
--- release the lease and stop the run without resubmitting.
+-- S2 rev3/§6.2 + S2-R3-03: TRULY YIELDING native handbacks driven through the
+-- PRODUCTION service/controller join. Unlike the synchronous reorder fixture
+-- above (which stubs `p.getTarget`), this fixture does NOT stub `getTarget`:
+-- the declared program's curated signature mismatches the raised prompt, so the
+-- executor wrapper falls through to the real `original`, which enters
+-- `targetGetForPlayer`'s exclusive target mode, registers a bridge handle and
+-- genuinely suspends the native body on `coroutine.yield()`. The typed deviation
+-- must therefore survive on the `native_pending` result while the invocation is
+-- live, and the production service must pause with that reason, release the
+-- lease and stop the run without resubmitting.
 --
--- Two sub-cases: (A) the handed-back prompt is answered after the lease is
--- released; (B) an unanswered prompt is cancelled at the bounded abort.
-local function handbackFixture(name,declaredSig)
+-- Evidence layering (exact, per the S2-R3-03 fix):
+--   * the yielding submission is driven by `AutoCombatService.step` — the same
+--     production function the frame pump calls — so the controller's
+--     deviation-before-`native_pending` ordering, its pause, the safety-pause
+--     stop and the Arbiter revoke are all observed in ONE submission without
+--     any manual `nativeDeviation` call;
+--   * the answered sub-cases go through the production MCP dispatch
+--     (`Runtime.respond` via the `bridgeRequestFor` seam), never
+--     `Interactions.prepare/apply` directly, so broken respond routing fails
+--     this probe (S2-R3-02 was exactly such a routing defect);
+--   * the unanswered sub-case triggers the bounded abort through the
+--     production `abortAutoInvocationFor` seam (the same function the frame
+--     pump calls) — it is NOT evidence for the pump's own frame bookkeeping;
+--   * the direct lower-layer probes (movementSequenceChecks) remain the
+--     executor-layer evidence and are unchanged.
+-- The cases run from the frame pump (stage `handback`) because the phase must
+-- be genuinely 'ready' (a flushed save pipe), which only arrives across real
+-- display frames.
+--
+-- Three sub-cases: (A) 'answer' — a single-entry program whose curated `hit`
+-- signature mismatches the raised `ball` prompt, answered after the lease is
+-- released through Runtime respond; (B) 'timeout' — the same yield left
+-- unanswered, cancelled at the bounded abort; (C) 'reorder' — a two-entry
+-- SAME-KIND yielding reorder: both declared prompts are `hit`-shaped actor
+-- prompts (mutually exclusive via the shared `nolock` discriminator), and the
+-- native flow raises the entry-2-flavoured prompt first, so position 1 cannot
+-- match and the live prompt is handed back.
+local function handbackFixture(name,sigs,raiseSpecs)
     local p=game.player
     local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+    local declared={}
+    for i,sig in ipairs(sigs) do
+        declared[i]={index=i,request='actor',subject='self',observed=sig}
+    end
     local entry=assert(Factory.expand('request_then_landing',{
-        request_sequence={{index=1,request='actor',subject='self',observed=declaredSig}},
+        request_sequence=declared,
         delivery='teleport',landing='random',center='self',traverses=false,
         relocates_other=false,radius=1,min_radius=0,range=10}))
     p.talents=p.talents or {}
@@ -1897,17 +1926,27 @@ local function handbackFixture(name,declaredSig)
     p.talents_def[name]={id=name,name='MCP handback probe',mode='activated',type={'spell/conveyance',1},
         cooldown=0,mana=0,
         action=function(self)
-            -- A prompt whose observed signature differs from the curated `hit`.
-            local x,y=self:getTarget({type='ball',range=10,radius=1,nowarning=true,nolock=true})
-            if not x then return nil end
-            self.handback_answer={x=x,y=y}
+            for _,spec in ipairs(raiseSpecs) do
+                local copy={}
+                for key,value in pairs(spec) do copy[key]=value end
+                local x,y=self:getTarget(copy)
+                if not x then return nil end
+                self.handback_answer={x=x,y=y}
+            end
             return true
         end}
-    local saved=EffectManifest.ENTRIES[name]
+    -- S2-R3-03: the fixture talent must be schema-admissible for the duration
+    -- of the case, so `set_draft` genuinely validates the policy and the run
+    -- really executes the controller path (a silently rejected draft would
+    -- bypass the production joins this probe exists to prove).
+    local savedEntry=EffectManifest.ENTRIES[name]
+    local savedSchema=Schema.TALENTS[name]
+    Schema.TALENTS[name]=true
     EffectManifest.ENTRIES[name]={kind='movement',target='self',resource='mana',
         movement=entry,components={},conformance={builder=false}}
     return entry,function()
-        EffectManifest.ENTRIES[name]=saved
+        EffectManifest.ENTRIES[name]=savedEntry
+        if savedSchema==nil then Schema.TALENTS[name]=nil else Schema.TALENTS[name]=savedSchema end
         if p.talents then p.talents[name]=nil end
         if p.talents_def then p.talents_def[name]=nil end
         if p.talents_cd then p.talents_cd[name]=nil end
@@ -1915,132 +1954,209 @@ local function handbackFixture(name,declaredSig)
     end
 end
 
--- Run one sub-case end to end; returns the observed signal list.
-local function handbackCase(answerMode)
+-- Stage 1 (one frame slot): prepare the run, drive ONE opportunity through the
+-- PRODUCTION service step, then answer or abort. Everything here is
+-- synchronous inside one submission; returns a finalize table for the answered
+-- modes (settled across later frames by the pump) or nil for the timeout mode
+-- (which completes inline).
+local function handbackRun(answerMode)
     forceReady()
     Runtime.setAutoCombatExecution(game,true)
     local p=game.player
-    local entry,restore=handbackFixture('T_MCP_HANDBACK',{cursor_type='hit',nowarning=true})
+    local sigs,raiseSpecs
+    if answerMode=='reorder' then
+        sigs={{cursor_type='hit',nolock=true,nowarning=true},
+            {cursor_type='hit',nolock=false,nowarning=true}}
+        raiseSpecs={{type='hit',range=10,nowarning=true}}
+    else
+        sigs={{cursor_type='hit',nowarning=true}}
+        raiseSpecs={{type='ball',range=10,radius=1,nowarning=true,nolock=true}}
+    end
+    local entry,restore=handbackFixture('T_MCP_HANDBACK',sigs,raiseSpecs)
     local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
     local dest={selector='position',x=p.x+2,y=p.y,accept=accept}
-    local pol=policy({{id='hb',priority=10,when={always={}},['then']={action='use_talent',
-        talent='T_MCP_HANDBACK',target='self'}}})
+    local steps={{request='actor',selector='self'}}
+    if answerMode=='reorder' then
+        steps[2]={request='actor',selector='self'}
+    end
+    -- A hand-built policy (not the shared helper) so the safety gates cannot
+    -- swallow this run: max_selffire_risk=100 (movement entries carry no damage
+    -- footprint anyway), rules evaluated even with no visible enemy, and no
+    -- new-enemy pause.
+    local pol={schema='tome-auto-combat/v1',id='hb-probe',name='probe',
+        limits={max_actions_per_tick=1},
+        mode={on_no_enemy='evaluate_rules'},
+        safety={min_hp_pct=35,max_selffire_risk=100,pause_on_new_enemy=false},
+        targeting={default='self'},
+        rules={{id='hb',priority=10,when={always={}},['then']={action='use_talent',
+            talent='T_MCP_HANDBACK',target='self',destination=dest,target_plan=steps}}}}
     -- Arm the run so the production service owns the controller and the arbiter.
     Runtime.autoCombatHandle(game,'set_draft',{policy=pol})
     local approved=Runtime.autoCombatHandle(game,'approve',{})
     Runtime.autoCombatHandle(game,'activate',{expected_hash=approved and approved.approved_hash})
+    -- The frame stage waited for a genuinely 'ready' phase boundary; assert it
+    -- through the production host (the audited phase read the controller uses).
+    local phaseHost=Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end})
+    local readyNow=phaseHost and phaseHost.phase and phaseHost.phase()=='ready'
+    check('handback:phase-ready',readyNow==true,{phase=phaseHost and phaseHost.phase and phaseHost.phase()})
     forceReady()
     local started=Runtime.autoCombatHandle(game,'start',{})
     local svc=Runtime.autoCombatService(game)
     local signals={}
-    local Interactions=require 'mod.mcp_bridge.Interactions'
+    signals[#signals+1]=readyNow and 'hb_phase_ready' or 'hb_phase_not_ready'
     if not (started and started.ok and svc and svc.controller) then
         check('handback:start',false,{started=started})
-        if restore then restore() end
-        return {'hb_setup_failed'}
+        Runtime.autoCombatHandle(game,'stop',{reason='handback_failed'})
+        Runtime.setAutoCombatExecution(game,false)
+        restore()
+        forceReady()
+        compare('handback-'..answerMode,signals)
+        return nil
     end
-    -- Plan and submit through the PRODUCTION host (audited reads + real
-    -- Actions.execute). The native body genuinely yields inside this call, so
-    -- the returned outcome is `native_pending` while the invocation is live.
-    local host=Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end})
-    local planned,planErr=host.plan({action='use_talent',talent='T_MCP_HANDBACK',target='self',
-        target_plan={{request='actor',selector='self'}},destination=dest})
-    local planOk=planned and planned.plan and planned.plan.kind=='sequence'
-    check('handback:plan',planOk,{kind=planned and planned.plan and planned.plan.kind,
-        reason=planErr and (planErr.reason or planErr.detail)})
-    local before={x=p.x,y=p.y}
-    local outcome=host.request({action='use_talent',talent='T_MCP_HANDBACK',
-        plan=planned.plan,destination=dest,rule='hb'})
+    -- S2-R3-03: drive ONE opportunity through the PRODUCTION service step (the
+    -- exact function the frame pump calls). The controller decides the 'hb'
+    -- rule, plans through the production host and submits through the real
+    -- executor; the native body genuinely yields inside this submission.
+    local step=AutoCombatService.step(svc)
     local root=Runtime.autoInvocationFor(game)
-    local deviation=outcome and outcome.sequence_deviation
-    local command=root and root.command
-    local pendingDev=outcome and outcome.status=='native_pending'
-        and deviation and deviation.reason=='unexpected_target_request'
-        and deviation.handed_back==true and deviation.observed_shape=='ball'
-        and outcome.handed_back==true
-    check('handback:pending-deviation',pendingDev,
-        {status=outcome and outcome.status,code=outcome and outcome.code,
-            deviation=deviation,handed_back=outcome and outcome.handed_back,
-            pending=root and root.pending})
-    signals[#signals+1]=pendingDev and 'hb_pending_deviation' or 'hb_pending_missing'
-    check('handback:live-handle',root and root.pending>0
-        and command and command.target_handed_back=='unexpected_target_request'
-        and command.target_cancelled==nil,
-        {pending=root and root.pending,
-            handed_back=command and command.target_handed_back,
-            cancelled=command and command.target_cancelled})
-    -- S2 rev3/§6.2 Path 2: the production service delivers the deviation, pauses
-    -- with the typed reason, stops the run and revokes the auto lease.
-    AutoCombatService.nativeDeviation(svc,deviation)
-    local status=Runtime.autoCombatStatus(game) or {}
-    local run=status.run or {}
-    -- `nativeDeviated` pauses with the typed reason and then stops the run
-    -- (the safety-pause handoff), so the settled state is `stopped` carrying the
-    -- typed deviation reason. Either the paused or the immediately-stopped state
-    -- with that reason proves the deviation drove the transition (never
-    -- `waiting_native`).
-    local paused=(svc.controller.state=='paused' or svc.controller.state=='stopped')
+    local stepInner=step and step.step or {}
+    local handoff=step and step.ok and step.handoff==true
+        and stepInner.action=='paused'
+        and stepInner.reason=='unexpected_target_request'
+        and stepInner.handed_back==true
+    check('handback:service-handoff',handoff,
+        {step=step,root=root~=nil})
+    signals[#signals+1]=handoff and 'hb_service_handoff' or 'hb_handoff_missing'
+    local okPending=root and (root.pending or 0)>0
+        and root.sequence_deviation
+        and root.sequence_deviation.reason=='unexpected_target_request'
+        and root.sequence_deviation.handed_back==true
+        and root.sequence_deviation.observed_shape~=nil
+    check('handback:pending-deviation',okPending,
+        {deviation=root and root.sequence_deviation,pending=root and root.pending,
+            handed_back=root and root.handed_back})
+    signals[#signals+1]=okPending and 'hb_pending_deviation' or 'hb_pending_missing'
+    check('handback:live-command',root and root.command
+        and root.command.target_handed_back=='unexpected_target_request'
+        and root.command.target_cancelled==nil,
+        {handed_back=root and root.command and root.command.target_handed_back,
+            cancelled=root and root.command and root.command.target_cancelled})
+    -- Path 1 + Option A in one submission: the controller paused with the typed
+    -- reason and the service stopped the run and released the lease. The
+    -- controller must never have entered `waiting_native` (the reason is the
+    -- typed deviation, not 'native_pending').
+    local svcStatus=Runtime.autoCombatStatus(game) or {}
+    local run=svcStatus.run or {}
+    local stopped=(svc.controller and svc.controller.state=='stopped')
         and svc.controller.reason=='unexpected_target_request'
-    check('handback:controller-paused',paused,
-        {state=svc.controller.state,reason=svc.controller.reason})
-    -- The controller must never have entered `waiting_native` on the deviation
-    -- path (the reason is the typed deviation, not 'native_pending').
-    check('handback:never-waiting-native',svc.controller.reason~='native_pending'
-        and run.reason~='native_pending',
-        {controller_reason=svc.controller.reason,run_reason=run.reason})
-    signals[#signals+1]=paused and 'hb_controller_paused' or 'hb_pause_missing'
-    local released=status.control_owner=='manual' and run.state=='stopped'
-    check('handback:lease-released',released,{owner=status.control_owner,state=run.state})
-    signals[#signals+1]=released and 'hb_lease_released' or 'hb_lease_held'
+        and svcStatus.control_owner=='manual' and run.state=='stopped'
+    check('handback:safety-stop',stopped,
+        {state=svc.controller and svc.controller.state,
+            reason=svc.controller and svc.controller.reason,
+            owner=svcStatus.control_owner,run_state=run.state})
+    signals[#signals+1]=stopped and 'hb_lease_released' or 'hb_lease_held'
+    local neverWaiting=(svc.controller and svc.controller.reason~='native_pending')
+        and run.reason~='native_pending'
+    check('handback:never-waiting-native',neverWaiting,
+        {controller_reason=svc.controller and svc.controller.reason,run_reason=run.reason})
     -- Not resubmitted: the run is stopped, so no new opportunity is taken.
     local attempts_before=run.attempts or 0
-    pcall(Runtime.onFrame,game)
+    AutoCombatService.step(svc)
     local status2=Runtime.autoCombatStatus(game) or {}
     check('handback:not-resubmitted',(status2.run and status2.run.attempts or 0)==attempts_before,
         {before=attempts_before,after=status2.run and status2.run.attempts})
     signals[#signals+1]='hb_not_resubmitted'
     -- The live interaction is answerable through the bridge after release.
+    local Interactions=require 'mod.mcp_bridge.Interactions'
     local handle=root and Interactions.current(root)
     local answerable=handle~=nil and handle.target~=nil
     check('handback:answerable',answerable,{handle=handle and handle.kind})
     signals[#signals+1]=answerable and 'hb_answerable' or 'hb_unanswerable'
     signals[#signals+1]='hb_never_waiting_native'
-    if answerMode=='answer' and handle then
-        local prepared=Interactions.prepare(handle,{type='position',x=p.x+2,y=p.y})
-        local ok_apply=prepared and pcall(Interactions.apply,handle,prepared)
-        local answered=ok_apply and p.handback_answer~=nil
+    if answerMode~='timeout' then
+        -- S2-R3-03: answer through the PRODUCTION MCP respond routing (never
+        -- Interactions.prepare/apply directly). The bridge dispatch needs an
+        -- authenticated session; connect through the same dispatch with the
+        -- configured token (the probe rig configures one).
+        local token=(config.settings.tome_mcp_bridge
+            and config.settings.tome_mcp_bridge.token) or 'auto-combat-probe'
+        local connected=Runtime.bridgeRequestFor(game,{v=4,id='hb-connect',op='connect',
+            args={token=token}})
+        local session=connected.result
+        check('handback:bridge-connect',session and session.session_id and session.control_token,
+            {connected=connected.ok,code=connected.error and connected.error.code})
+        local observedView=session and Runtime.bridgeRequestFor(game,{v=4,id='hb-observe',
+            op='observe',args={session_id=session.session_id}})
+        local revision=observedView and observedView.result and observedView.result.revision
+        local answered=session and Runtime.bridgeRequestFor(game,{v=4,id='hb-respond',
+            op='respond',args={session_id=session.session_id,
+                control_token=session.control_token,command_id='cmd-999999',
+                interaction_id=handle.interaction_id,response_id='r-hb',
+                expected_revision=revision,
+                answer={type='position',x=p.x+2,y=p.y}}})
+        local routed=answered and answered.result and answered.result.answered==true
+            and answered.result.scope=='auto_combat'
+            and p.handback_answer~=nil
             and p.handback_answer.x==p.x+2 and p.handback_answer.y==p.y
-        check('handback:answered-effect',answered,
-            {prepared=prepared~=nil,apply=ok_apply,answer=p.handback_answer})
-        signals[#signals+1]=answered and 'hb_answered_effect' or 'hb_answer_missing'
-        -- The body's own coroutine should settle once answered; the invocation
-        -- root is then released by the frame reaper.
-        for _=1,6 do
-            forceReady()
-            pcall(Runtime.onFrame,game)
+        check('handback:respond-routed',routed,
+            {ok=answered and answered.ok,code=answered and answered.error and answered.error.code,
+                answer=p.handback_answer})
+        signals[#signals+1]=routed and 'hb_respond_routed' or 'hb_respond_missing'
+        -- S2-R3-02 on the native path: the routed answer is fingerprinted,
+        -- counted and marked consumed on the auto command.
+        local autoCommand=(root and root.command) or {}
+        local receipt=autoCommand.responses and autoCommand.responses['r-hb']
+        local counted=autoCommand.response_count==1 and receipt~=nil
+            and receipt.fingerprint~=nil
+            and autoCommand.consumed_interactions
+                and autoCommand.consumed_interactions[handle.interaction_id]==true
+        check('handback:respond-receipt',counted,
+            {count=autoCommand.response_count,fingerprint=receipt and receipt.fingerprint~=nil})
+        signals[#signals+1]=counted and 'hb_respond_receipt' or 'hb_receipt_missing'
+        if answerMode=='reorder' then
+            -- Same-kind evidence: the handed-back prompt's shape equals the
+            -- declared cursor_type of BOTH entries (a pure order deviation,
+            -- not a shape one).
+            local seq=(root and root.command and root.command.target_sequence) or {}
+            local sameKind=seq[1]~=nil
+                and seq[1].shape==sigs[1].cursor_type
+                and seq[1].shape==sigs[2].cursor_type
+            check('handback:same-kind-reorder',sameKind,
+                {sequence=seq,expected=sigs[1].cursor_type})
+            signals[#signals+1]=sameKind and 'hb_same_kind_reorder' or 'hb_kind_missing'
         end
-        check('handback:body-settled',Runtime.autoInvocationFor(game)==nil,
-            {pending=Runtime.autoInvocationFor(game)~=nil})
-    elseif answerMode=='timeout' then
-        -- Do not answer: the bounded abort cancels the live targeting UI.
-        Runtime.abortAutoInvocationFor(game,{tick=game.turn,ms=0,frames=0},
-            {ticks=Runtime.AUTO_NATIVE_TIMEOUT_TICKS,ms=0,frames=Runtime.AUTO_NATIVE_TIMEOUT_FRAMES})
-        local record=Runtime.lastNativeAbort(game)
-        local cancelled=record and record.cancelled==true
-            and record.reason~='authoritative_target_cancelled'
-        check('handback:unanswered-cancelled',cancelled,
-            {record=record,handle_closed=not (root and Interactions.current(root))})
-        signals[#signals+1]=cancelled and 'hb_unanswered_cancelled' or 'hb_unanswered_open'
+        -- Finalize across later frames: the body settles once answered, then
+        -- the frame reaper releases the invocation root.
+        local function finalize()
+            check('handback:body-settled',Runtime.autoInvocationFor(game)==nil,
+                {pending=Runtime.autoInvocationFor(game)~=nil})
+            Runtime.autoCombatHandle(game,'stop',{reason='handback_done'})
+            Runtime.setAutoCombatExecution(game,false)
+            if root then pcall(Interactions.cancelTarget,root);pcall(Interactions.release,root) end
+            restore()
+            forceReady()
+            compare('handback-'..answerMode,signals)
+        end
+        return finalize
     end
+    -- Timeout mode: do not answer; the bounded abort cancels the live targeting
+    -- UI. The abort seam is the same production function the frame pump calls.
+    Runtime.abortAutoInvocationFor(game,{tick=game.turn,ms=0,frames=0},
+        {ticks=Runtime.AUTO_NATIVE_TIMEOUT_TICKS,ms=0,frames=Runtime.AUTO_NATIVE_TIMEOUT_FRAMES})
+    local record=Runtime.lastNativeAbort(game)
+    local cancelled=record and record.cancelled==true
+        and record.reason~='authoritative_target_cancelled'
+    check('handback:unanswered-cancelled',cancelled,
+        {record=record,handle_closed=not (root and Interactions.current(root))})
+    signals[#signals+1]=cancelled and 'hb_unanswered_cancelled' or 'hb_unanswered_open'
     Runtime.autoCombatHandle(game,'stop',{reason='handback_done'})
     Runtime.setAutoCombatExecution(game,false)
     if root then pcall(Interactions.cancelTarget,root);pcall(Interactions.release,root) end
     restore()
     forceReady()
     compare('handback-'..answerMode,signals)
-    return signals
+    return nil
 end
-M.handbackCase=handbackCase
 
 function M.onFrame()
     if M.done then return end
@@ -2092,15 +2208,79 @@ function M.onFrame()
             settleTick(M.final_frames)
             if productionReady() or M.final_frames>=120 then
                 forceReady()
-                M.final_stage='done'
-                M.waiting_final=false
-                sceneLifecycle()
-                M.done=true
-                M.emit{kind='auto_combat_done',passed=M.failures==0,failures=M.failures,checks=#M.checks}
+                -- S2-R3-03: the handback cases need a genuinely 'ready' phase
+                -- (a flushed save pipe), which only arrives across real display
+                -- frames; run them from the frame pump like the other native
+                -- final stages, before the scene lifecycle scenario.
+                M.final_stage='handback'
+                M.handback_queue={'answer','timeout','reorder'}
+                M.handback_index=1
+                M.handback_stage='wait'
+                M.final_frames=0
+            end
+            return
+        end
+        if M.final_stage=='handback' then
+            M.final_frames=(M.final_frames or 0)+1
+            if M.handback_stage=='wait' then
+                settleTick(M.final_frames)
+                if productionReady() or M.final_frames>=240 then
+                    forceReady()
+                    M.handback_stage='run'
+                end
+                return
+            end
+            if M.handback_stage=='settle' then
+                M.handback_frames=(M.handback_frames or 0)+1
+                settleTick(M.handback_frames)
+                if Runtime.autoInvocationFor(game)==nil or M.handback_frames>=240 then
+                    if M.handback_finalize then
+                        local ok_f,err_f=pcall(M.handback_finalize)
+                        if not ok_f then check('handback:finalize',false,{error=tostring(err_f)}) end
+                    end
+                    M.handback_finalize=nil
+                    M.handback_index=M.handback_index+1
+                    if M.handback_queue[M.handback_index]==nil then
+                        M.final_stage='scene'
+                        M.final_frames=0
+                        return
+                    end
+                    M.handback_stage='wait'
+                    M.final_frames=0
+                end
+                return
+            end
+            -- stage 'run': one synchronous yielding submission per case.
+            local finalize=handbackRun(M.handback_queue[M.handback_index])
+            if finalize then
+                M.handback_finalize=finalize
+                M.handback_stage='settle'
+                M.handback_frames=0
+            else
+                M.handback_index=M.handback_index+1
+                if M.handback_queue[M.handback_index]==nil then
+                    M.final_stage='scene'
+                    M.final_frames=0
+                    return
+                end
+                M.handback_stage='wait'
+                M.final_frames=0
             end
             return
         end
         if M.final_stage=='scene' then
+            -- S2-R3-03: settle-gate the scene scenario in the SAME frame it
+            -- runs: a ready check one frame earlier can be invalidated by the
+            -- alternate-tick settle (the yielding bodies need ticks, and a
+            -- controller started on a stale boundary defers to awaiting_ready).
+            M.final_frames=(M.final_frames or 0)+1
+            local sceneReady=productionReady()
+                and Runtime.autoInvocationFor(game)==nil
+            if not sceneReady and M.final_frames<240 then
+                settleTick(M.final_frames)
+                return
+            end
+            forceReady()
             sceneLifecycle()
             M.final_stage='done'
             M.waiting_final=false

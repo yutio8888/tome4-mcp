@@ -1454,7 +1454,7 @@ buildAutoCombatHost=function(s,policy,opts)
         local refusal=safetyGuard(attempt)
         if refusal then return {status='rejected',code=refusal.reason,energy_spent=false} end
         local command={command_id='auto-combat',status='auto_combat',auto_combat=true,
-            interactions={},responses={},consumed_interactions={},interaction_sequence=0,
+            interactions={},responses={},response_count=0,consumed_interactions={},interaction_sequence=0,
             rule=attempt.rule,action=action}
         local ok,root,result=pcall(Tracker.startAction,g,command,function()
             return Actions.execute(g,action,target,meta(s),command)
@@ -2017,6 +2017,12 @@ local function dispatch(s,request)
             return fail('command_history_expired','The parent command receipt is no longer retained.',
                 {accepted=Json.null,uncertain=true,acceptance_scope='response',recovery='do_not_replay',command_id=a.command_id})
         end
+        -- S2-R3-02: the fingerprint is computed BEFORE both routes (the ledger
+        -- branch and the auto-handback branch), so a reused response_id is
+        -- classified with the real fingerprint of THIS request — never as a
+        -- Lua global (the previous bug resolved `fingerprint` as a global).
+        -- Same formula and same revision input as the command-scoped route.
+        local fingerprint=Actions.fingerprint({interaction_id=a.interaction_id,answer=answer},a.expected_revision)
         local command=s.ledger:get(seq)
         if not command then
             -- S2 rev3/§6.2: an auto-combat handback has no ledger receipt (its
@@ -2028,8 +2034,18 @@ local function dispatch(s,request)
             local auto=s.auto_invocation
             local h=autoHandbackHandle(s)
             if h and a.interaction_id==h.interaction_id then
-                if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
                 local autoCommand=auto.command or {}
+                -- S2-R3-02: same classification order as the command-scoped
+                -- route: a reused response_id is classified (response_conflict
+                -- vs idempotent replay) BEFORE the consumed/ownership checks,
+                -- against the fingerprint recorded on its first use — never
+                -- silently re-applied.
+                local entry=autoCommand.responses and autoCommand.responses[a.response_id]
+                if entry then
+                    if entry.fingerprint~=fingerprint then return fail('response_conflict') end
+                    return {answered=true,scope='auto_combat',interaction_id=h.interaction_id}
+                end
+                if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
                 if autoCommand.consumed_interactions and autoCommand.consumed_interactions[a.interaction_id] then
                     return fail('interaction_consumed')
                 end
@@ -2037,13 +2053,20 @@ local function dispatch(s,request)
                 if a.expected_revision~=s.revision then return fail('stale_revision') end
                 local prepared2,code2=Interactions.prepare(h,answer,meta(s))
                 if not prepared2 then return fail(code2,nil,{interaction_id=h.interaction_id}) end
-                local entry=autoCommand.responses and autoCommand.responses[a.response_id]
-                if entry then
-                    if entry.fingerprint~=fingerprint then return fail('response_conflict') end
-                    return {answered=true,scope='auto_combat',interaction_id=h.interaction_id}
+                -- S2-R3-02: the command-scoped response budget applies unchanged:
+                -- every auto-handback answer is counted on the auto command and
+                -- bounded by `Interactions.MAX_RESPONSES`. The command route's
+                -- extra `revoke` tears down a remote-owned command execution
+                -- state that does not exist here (the auto lease is already
+                -- released to manual), so the bound is enforced by refusing the
+                -- answer without revoking the session.
+                autoCommand.response_count=autoCommand.response_count or 0
+                if autoCommand.response_count>=Interactions.MAX_RESPONSES then
+                    return fail('response_budget_exhausted')
                 end
                 autoCommand.responses=autoCommand.responses or {}
-                autoCommand.responses[a.response_id]={fingerprint=fingerprint}
+                autoCommand.responses[a.response_id]={fingerprint=fingerprint,interaction_id=a.interaction_id}
+                autoCommand.response_count=autoCommand.response_count+1
                 autoCommand.consumed_interactions=autoCommand.consumed_interactions or {}
                 autoCommand.consumed_interactions[a.interaction_id]=true
                 local ok2,err2=pcall(Interactions.apply,h,prepared2)
@@ -2060,7 +2083,6 @@ local function dispatch(s,request)
             return fail('command_not_accepted','The parent command was not accepted in this session.',
                 {accepted=false,acceptance_scope='response',recovery='observe_before_resubmit',command_id=a.command_id})
         end
-        local fingerprint=Actions.fingerprint({interaction_id=a.interaction_id,answer=answer},a.expected_revision)
         local existing=command.responses[a.response_id]
         if existing then
             if existing.fingerprint~=fingerprint then return fail('response_conflict') end
@@ -2342,6 +2364,26 @@ function M.autoCombatService(g)
     local s=state
     if not s or s.game~=g then return nil end
     return s.auto_combat
+end
+
+-- production dispatch path — the same pcall(dispatch) + response envelope +
+-- transport fan-out `receive` performs — and also return the response to the
+-- caller. The auto-combat handback probe uses this to answer a live handed-back
+-- prompt through the production respond/dismiss routing (never
+-- Interactions.prepare/apply directly), so broken MCP routing fails the probe.
+function M.bridgeRequestFor(g,request)
+    local s=state
+    if not s or s.game~=g then return {v=4,id=Json.null,ok=false} end
+    local ok,result,err=pcall(dispatch,s,request)
+    local response={v=4,id=type(request.id)=='string' and request.id or Json.null}
+    if not ok then
+        response.ok=false
+        response.error=ErrorRegistry.envelope('bridge_error','The bridge could not process this request.')
+        print('[MCP Bridge] request error: '..tostring(result))
+    elseif err then response.ok=false;response.error=err
+    else response.ok=true;response.result=result end
+    if s.transport then s.transport:send(response) end
+    return response
 end
 -- Test/native fixture seams for the S2 rev3 handback wiring: drive the production
 -- pump's reap/abort steps and inspect/replace the live auto invocation without

@@ -239,13 +239,29 @@ distinguish them. Dynamic numerics (`range`, `radius`) are never signature field
   raises at this position: `cursor_type` (required, the `typ.type` string the action
   passes) plus optional static discriminators from a closed allowlist — boolean flags
   `nolock`/`pass_terrain`/`friendlyblock`/`nowarning`/`immediate_keys`/`no_restrict`,
-  `first_target`, `msg`, and `default_target='self'`. For a sequence of N≥2 entries the
-  signatures must be **pairwise distinct**; prompts that cannot be told apart by any
-  stable observed field make the program's reorder undetectable, which is the plugin's
-  own undecidability, so the descriptor is `movement_adapter_invalid` (detail
-  `request_signature_ambiguous`) and is never published. The signature detects drift
-  from the reviewed flow as recorded; it is not an identity audit of any live object
-  (§7.1) and it never claims geometry proves actor/grid semantics (§3.2).
+  `first_target`, `msg`, and `default_target='self'`. **Signature semantics
+  (normative): a signature is a partial predicate.** `cursor_type` is always an
+  equality constraint; a declared boolean flag constrains `(typ[flag]==true)==value`,
+  so a declared `true` requires the flag truthy and a declared `false` requires it NOT
+  truthy (an absent observed field reads as "not truthy", exactly like an explicit
+  `false`); a declared string/`default_target` is an equality constraint; every
+  **undeclared field is a wildcard** the matcher ignores. Because of the wildcards,
+  record inequality does not imply distinguishability, so for a sequence of N≥2
+  entries the build rule is pairwise **MUTUAL EXCLUSIVITY**: every pair must have at
+  least one field declared by BOTH signatures with constraints that cannot both hold
+  for one observed spec (within the closed vocabulary: a shared flag declared `true`
+  by one side and `false` by the other, or different strings on a shared
+  `cursor_type`/`first_target`/`msg`; `default_target` only admits `'self'`, so it
+  never discriminates). A declared value on a field the other signature omits is NOT
+  a discriminator — absence is a wildcard and the matcher treats "absent" and "not
+  true" identically — so `{cursor_type='hit'}` vs `{cursor_type='hit',nowarning=true}`
+  and `{cursor_type='hit'}` vs `{cursor_type='hit',nolock=false}` are both
+  `movement_adapter_invalid` (detail `request_signature_ambiguous`, with the colliding
+  indices). Prompts whose predicates provably cannot both match one observed spec are
+  the only admissible pair; anything else makes the program's reorder undetectable,
+  which is the plugin's own undecidability. The signature detects drift from the
+  reviewed flow as recorded; it is not an identity audit of any live object (§7.1)
+  and it never claims geometry proves actor/grid semantics (§3.2).
 - `optional=true` marks a **trailing** entry the native flow may legitimately not raise.
   A missing `optional` trailing prompt is a settled native outcome (reported with
   `reduced=true`), **not** an error; a non-trailing `optional` entry is
@@ -284,12 +300,15 @@ k-th declared entry's decided value, keeping every existing per-request guard:
   value. Cursor geometry alone is never used as actor/grid evidence (§3.2: no sound
   automatic classifier exists). A spec the bridge cannot read as a signature
   (`typ` not a table or `typ.type` not a string) is `movement_request_kind_unknown`.
-  Because published sequences have pairwise-distinct signatures, a reordered native
-  flow can never receive the k-th declared answer **for a published descriptor**;
-  what this check cannot observe is the native body's internal consumption of an
-  already-given answer, which remains the native flow's own behaviour and is bounded
-  by the per-request native guard, the native rejection, and the declared
-  postcondition check (§6.1);
+  Because published sequences carry pairwise MUTUALLY EXCLUSIVE signatures (§4.4:
+  partial predicates with wildcard semantics; every pair shares a discriminator
+  constrained by both signatures to incompatible values), a reordered native flow can
+  never receive the k-th declared answer **for a published descriptor** — an
+  out-of-order prompt provably fails the arrival entry's signature match before any
+  value is built; what this check cannot observe is the native body's internal
+  consumption of an already-given answer, which remains the native flow's own
+  behaviour and is bounded by the per-request native guard, the native rejection, and
+  the declared postcondition check (§6.1);
 - a native flow that never raises the next prompt and never returns is bounded by the
   existing `native_timeout` abort
   (`overload/mod/mcp_bridge/Runtime.lua:50-52,2044-2078,2081-2104`).
@@ -424,7 +443,11 @@ and the bounded abort cancels a live target handle first, treating
 `target_cancelled` as authoritative only when no live handle remains
 (`overload/mod/mcp_bridge/Runtime.lua:2073-2105`). After the lease is released, the
 handed-back interaction is answerable by the caller through the existing
-respond/dismiss routing extended to the auto invocation's current handle; if nobody
+respond/dismiss routing extended to the auto invocation's current handle, with the
+command-scoped response guards preserved unchanged (S2-R3-02: the response
+fingerprint is computed before both routes, a reused `response_id` is classified
+conflict-vs-idempotent before the consumed checks, and every auto answer is counted
+and bounded by `Interactions.MAX_RESPONSES`); if nobody
 answers, the existing `native_timeout` bound force-cancels it
 (`overload/mod/mcp_bridge/Runtime.lua:2110-2134`). This preserves the rule that
 `native_pending` is tracked without resubmission

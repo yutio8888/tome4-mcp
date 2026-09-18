@@ -1326,7 +1326,8 @@ do
     local realTarget,realTargetCo,realTargetMode=g.target,g.target_co,g.targetMode
     g.target={active=true,setSpot=function() end,target={}};g.target_co=coroutine.create(function() end)
     g.targetMode=function() return 'target' end
-    local autoRoot={command={rule='seq',interactions={},interaction_sequence=0},
+    local autoRoot={command={rule='seq',interactions={},responses={},response_count=0,
+        consumed_interactions={},interaction_sequence=0},
         player=p,level=g.level,game=g}
     Tracker.reset()
     Tracker.scope({root=autoRoot},function() Interactions.openTarget(g,{type='hit',range=10}) end)
@@ -1353,11 +1354,71 @@ do
     Tracker.reset()
     Tracker.scope({root=autoRoot},function() Interactions.openTarget(g,{type='hit',range=10}) end)
     local h2=Interactions.current(autoRoot)
+    local answered_interaction_id=h2.interaction_id
+    -- The fingerprint covers `expected_revision`; capture it so the replay
+    -- carries exactly the same request as the first answer.
+    local answered_revision=observe().revision
     local answered=request('respond',{session_id=hello.session_id,control_token=hello.control_token,
         command_id='cmd-999999',interaction_id=h2.interaction_id,response_id='r-auto',
-        expected_revision=observe().revision,answer={type='position',x=3,y=2}})
+        expected_revision=answered_revision,answer={type='position',x=3,y=2}})
     check(answered.result and answered.result.answered==true and answered.result.scope=='auto_combat',
         'respond answers the handed-back auto prompt via the auto handle after lease release')
+    -- S2-R3-02: the auto route preserves the same response-fingerprint and
+    -- response-budget guards as the command-scoped route.
+    check(autoRoot.command.responses and autoRoot.command.responses['r-auto']
+        and autoRoot.command.responses['r-auto'].fingerprint~=nil
+        and autoRoot.command.response_count==1,
+        'an auto-handback answer records its response fingerprint and is counted')
+    -- (iv) Reused response_id on a fresh (reissued) interaction is
+    -- response_conflict, never silently accepted (classified before any
+    -- consumed/ownership check).
+    local reissued=Interactions.current(autoRoot)
+    check(reissued~=nil and reissued.interaction_id~=answered_interaction_id,
+        'an applied auto answer reissues the live handle with a fresh interaction id')
+    local conflict=request('respond',{session_id=hello.session_id,control_token=hello.control_token,
+        command_id='cmd-999999',interaction_id=reissued.interaction_id,response_id='r-auto',
+        expected_revision=observe().revision,answer={type='position',x=3,y=2}})
+    check(conflict.error~=nil and conflict.error.code=='response_conflict',
+        'a reused auto response_id on a fresh interaction is response_conflict')
+    check(autoRoot.command.response_count==1 and reissued.consumed~=true,
+        'a conflicting auto response is classified before any consumed state is touched')
+    -- (v) Idempotent replay: when the first apply FAILED, the retry of the same
+    -- response (same id/answer/revision, same live interaction) is answered
+    -- idempotently and is not counted again.
+    g.target.setSpot=function() error('boom') end
+    Tracker.reset()
+    Tracker.scope({root=autoRoot},function() Interactions.openTarget(g,{type='hit',range=10}) end)
+    local h5=Interactions.current(autoRoot)
+    local failed_revision=observe().revision
+    local failed=request('respond',{session_id=hello.session_id,control_token=hello.control_token,
+        command_id='cmd-999999',interaction_id=h5.interaction_id,response_id='r-fail',
+        expected_revision=failed_revision,answer={type='position',x=4,y=3}})
+    check(failed.error~=nil and failed.error.code=='dismiss_error',
+        'a failed auto answer surfaces the existing native-error code and keeps the receipt')
+    check(autoRoot.command.response_count==2
+        and autoRoot.command.responses['r-fail'].fingerprint~=nil,
+        'a failed auto answer is still fingerprinted and counted')
+    g.target.setSpot=function() end
+    local retried=request('respond',{session_id=hello.session_id,control_token=hello.control_token,
+        command_id='cmd-999999',interaction_id=h5.interaction_id,response_id='r-fail',
+        expected_revision=failed_revision,answer={type='position',x=4,y=3}})
+    check(retried.result and retried.result.answered==true and retried.result.scope=='auto_combat'
+        and autoRoot.command.response_count==2,
+        'a retried auto response_id after a failed apply is an idempotent replay, not a new answer')
+    -- (vi) The response budget applies unchanged: at the bound a fresh response
+    -- on a fresh handed-back prompt is refused.
+    Tracker.reset()
+    Tracker.scope({root=autoRoot},function() Interactions.openTarget(g,{type='hit',range=10}) end)
+    local h4=Interactions.current(autoRoot)
+    autoRoot.command.response_count=Interactions.MAX_RESPONSES
+    local overBudget=request('respond',{session_id=hello.session_id,control_token=hello.control_token,
+        command_id='cmd-999999',interaction_id=h4.interaction_id,response_id='r-budget',
+        expected_revision=observe().revision,answer={type='position',x=4,y=2}})
+    check(overBudget.error~=nil and overBudget.error.code=='response_budget_exhausted',
+        'the auto-handback response budget enforces Interactions.MAX_RESPONSES')
+    check(autoRoot.command.response_count==Interactions.MAX_RESPONSES
+        and autoRoot.command.responses['r-budget']==nil and h4.consumed~=true,
+        'a budget-exhausted auto response is not recorded or applied')
     g.target,g.target_co,g.targetMode=realTarget,realTargetCo,realTargetMode
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
     Runtime.reset(g);g:display()

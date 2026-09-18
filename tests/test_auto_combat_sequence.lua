@@ -158,22 +158,69 @@ do
         {target_requests={'actor','grid'}})
     check(length==nil and lengErr.detail=='request_sequence_length_mismatch',
         'a target_requests length disagreement is rejected')
-    -- S2 rev3: for N>=2 the curated signatures must be pairwise distinct, else
-    -- the program's reorder is unobservable (movement_adapter_invalid).
+    -- S2 rev3: for N>=2 the curated signatures must be pairwise mutually
+    -- exclusive, else the program's reorder is unobservable
+    -- (movement_adapter_invalid).
     local ambiguous,ambErr=seq({{index=1,request='actor',subject='self',observed=ACTOR_SIG},
         {index=2,request='grid',subject='self',observed=ACTOR_SIG}})
     check(ambiguous==nil and ambErr.reason=='movement_adapter_invalid'
         and ambErr.detail=='request_signature_ambiguous'
         and ambErr.indexes and ambErr.indexes[1]==1 and ambErr.indexes[2]==2,
         'identical signatures on N>=2 are movement_adapter_invalid/request_signature_ambiguous')
-    -- Distinct signatures differing only by a declared flag are distinct.
+    -- S2-R3-01 bypass 1 (wildcard overlap): signatures are PARTIAL predicates;
+    -- a declared value on a field the other signature omits is NOT a shared
+    -- discriminator (absence is a wildcard), so a hit,nowarning=true prompt
+    -- would match both entries and could consume the wrong k-th answer.
+    local overlap,overlapErr=seq({{index=1,request='actor',subject='self',
+            observed={cursor_type='hit'}},
+        {index=2,request='grid',subject='self',observed={cursor_type='hit',nowarning=true}}})
+    check(overlap==nil and overlapErr.reason=='movement_adapter_invalid'
+        and overlapErr.detail=='request_signature_ambiguous'
+        and overlapErr.indexes[1]==1 and overlapErr.indexes[2]==2,
+        'a wildcard-overlapping pair (declared value vs omitted field) is rejected')
+    -- S2-R3-01 bypass 2 (nil vs false): a declared `false` flag is the same
+    -- constraint as an omitted field under the matcher ((typ[flag]==true)==false),
+    -- so this pair is also not mutually exclusive and is rejected.
+    local nilFalse,nilFalseErr=seq({{index=1,request='actor',subject='self',
+            observed={cursor_type='hit'}},
+        {index=2,request='grid',subject='self',observed={cursor_type='hit',nolock=false}}})
+    check(nilFalse==nil and nilFalseErr.detail=='request_signature_ambiguous',
+        'a nil-vs-false pair (absence reads as not-true) is not mutually exclusive and is rejected')
+    -- Truly exclusive pairs are admitted: a shared discriminator constrained by
+    -- BOTH signatures to incompatible values provably cannot match one prompt.
+    local exclusive=assert(seq({{index=1,request='actor',subject='self',
+            observed={cursor_type='hit',nolock=true}},
+        {index=2,request='grid',subject='self',observed={cursor_type='hit',nolock=false}}}))
+    check(#exclusive.request_sequence==2,
+        'a shared flag declared true by one entry and false by the other is mutually exclusive')
+    local exclusiveStrings=assert(seq({{index=1,request='actor',subject='self',
+            observed={cursor_type='hit',first_target='a'}},
+        {index=2,request='grid',subject='self',observed={cursor_type='hit',first_target='b'}}}))
+    check(#exclusiveStrings.request_sequence==2,
+        'a shared string field declared to two different values is mutually exclusive')
+    -- The Phase Door shape pair stays admitted: differing cursor_type values
+    -- are themselves incompatible constraints on a field both entries declare.
     local distinct=assert(seq({{index=1,request='actor',subject='self',observed=ACTOR_SIG},
-        {index=2,request='grid',subject='self',observed={cursor_type='hit',nolock=true}}}))
+        {index=2,request='grid',subject='self',observed=GRID_SIG}}))
     check(#distinct.request_sequence==2,
-        'signatures differing by a declared discriminator are accepted as distinct')
+        'entries whose cursor_type differs are mutually exclusive')
     -- A template with a sequence but no curated target_requests derives the list.
     check(valid.target_requests~=nil and #valid.target_requests==2,
         'the capability list is derived when omitted')
+    -- S2-R3-01: the runtime carrier (Actions.validate -> normalizeSequence)
+    -- enforces the same pairwise mutual exclusivity for a directly submitted
+    -- `action.sequence`, so the overlap can never reach the queue through the
+    -- command path either (existing `invalid_sequence` code, no new error).
+    local direct,directErr=Actions.validate({type='use_talent',talent_id='T_SEQ',
+        sequence={{kind='self',request='actor',observed={cursor_type='hit'}},
+            {kind='grid',x=3,y=3,request='grid',observed={cursor_type='hit',nolock=false}}}})
+    check(direct==nil and directErr=='invalid_sequence',
+        'a directly submitted overlapping signature pair is invalid_sequence')
+    local directExclusive,directExclusiveErr=Actions.validate({type='use_talent',talent_id='T_SEQ',
+        sequence={{kind='self',request='actor',observed={cursor_type='hit',nolock=true}},
+            {kind='grid',x=3,y=3,request='grid',observed={cursor_type='hit',nolock=false}}}})
+    check(directExclusive~=nil and directExclusiveErr==nil,
+        'a directly submitted mutually exclusive pair stays valid')
 end
 
 -- 2. Planner lowering: one plan per declared entry, in order ------------------
