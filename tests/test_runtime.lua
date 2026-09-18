@@ -1118,4 +1118,75 @@ do
     Runtime.setAutoCombatExecution(g,false)
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
 end
+-- S2 production path: the live auto-combat host lowers a multi-prompt plan into
+-- the executor's ordered queue. A test-only fixture talent raises the exact
+-- actor-then-grid prompts; the real `Actions.execute` queue answers each with
+-- its own decided value in one submission and records the observed sequence.
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=true
+    g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+    Runtime.reset(g);g:display()
+    local Tracker=require 'mod.mcp_bridge.InvocationTracker'
+    local Compat=require 'mod.mcp_bridge.NativeCompatibility'
+    local ActionsMod=require 'mod.mcp_bridge.Actions'
+    local realMatches,realCheck=Compat.matches,Compat.check
+    Compat.matches=function(name,fn) if name=='useTalent' then return true end return realMatches(name,fn) end
+    Compat.check=function() return true end
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    -- The fixture defines a talent whose action calls getTarget twice, in order.
+    local seen={}
+    p.talents={T_SEQ_FIXTURE=1}
+    p.talents_def=p.talents_def or {}
+    p.talents_def.T_SEQ_FIXTURE={id='T_SEQ_FIXTURE',mode='activated',
+        action=function(self)
+            local a,b=self:getTarget({type='hit',range=10,nowarning=true})
+            seen[#seen+1]={a,b}
+            local c,d=self:getTarget({type='ball',range=14,radius=1,nowarning=true})
+            seen[#seen+1]={c,d}
+            return (a and c) and true or nil
+        end}
+    function p:useTalent(id) return self.talents_def[id].action(self) end
+    -- The native `Player:getTarget` seam the queue wrapper replaces.
+    function p:getTarget() return 99,99,nil end
+    -- A fixture movement adapter declaring the ordered program, installed for the
+    -- probe talent only (the manifest is static production data).
+    local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+    local movement=assert(Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self'},
+            {index=2,request='grid',subject='self',value_source='target_plan',landing_from='envelope'}},
+        delivery='teleport',landing='random',center='requested_grid',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10}))
+    local Manifest=require 'mod.auto_combat.EffectManifest'
+    local saved_entry=Manifest.ENTRIES.T_SEQ_FIXTURE
+    Manifest.ENTRIES.T_SEQ_FIXTURE={kind='movement',target='self',resource='mana',
+        movement=movement,components={},conformance={builder=false}}
+    p.attr=engineFn('/engine/Entity.lua','return function(self,id) return self[id] end')
+    p.x,p.y=2,2
+    p.phase_door_force_precise=nil
+    local pl={schema='tome-auto-combat/v1',id='seq',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35,max_selffire_risk=0},targeting={default='self'},
+        rules={{id='door',priority=1,when={always={}},['then']={action='use_talent',
+            talent='T_SEQ_FIXTURE',target='self',
+            target_plan={{request='actor',selector='self'},
+                {request='grid',destination={selector='position',x=3,y=2,accept=accept}}}}}}}
+    local host=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
+    local planned,planErr=host.plan({action='use_talent',talent='T_SEQ_FIXTURE',target='self',
+        target_plan=pl.rules[1]['then'].target_plan,
+        destination=pl.rules[1]['then'].target_plan[2].destination})
+    check(planned and planned.plan and planned.plan.kind=='sequence' and planErr==nil,
+        'the live host plans the ordered prompt-sequence lowering')
+    local outcome=host.request({action='use_talent',talent='T_SEQ_FIXTURE',plan=planned.plan,rule='door'})
+    check(outcome.status=='ok','the live host executes the ordered queue in one native submission')
+    check(seen[1] and seen[1][1]==2 and seen[1][2]==2,
+        'the actor prompt is answered with the caster cell')
+    check(seen[2] and seen[2][1]==3 and seen[2][2]==2,
+        'the landing prompt is answered with its own distinct decided coordinate')
+    check(type(outcome.target_sequence)=='table' and #outcome.target_sequence==2,
+        'the observed prompt sequence reaches the controller outcome')
+    check(outcome.reduced==nil,'a fully answered sequence is not reduced')
+    Manifest.ENTRIES.T_SEQ_FIXTURE=saved_entry
+    Compat.matches,Compat.check=realMatches,realCheck
+    Runtime.reset(g);g:display()
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+end
 print('Runtime: '..count..' checks passed')

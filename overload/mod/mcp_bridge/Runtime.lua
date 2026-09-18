@@ -1245,6 +1245,15 @@ function M.mapAutoCombatOutcome(result,action,noEnergy)
         if type(result.native_message)=='string' and #result.native_message>0 then
             mapped.native_message=result.native_message
         end
+        -- S2 ordered prompt-response queue evidence (internal auto-combat
+        -- plumbing, never a protocol field): the observed prompt sequence, a
+        -- typed deviation, and the reduced-trailing-optional marker.
+        if type(result.target_sequence)=='table' then mapped.target_sequence=result.target_sequence end
+        if type(result.sequence_deviation)=='table' then mapped.sequence_deviation=result.sequence_deviation end
+        if result.reduced==true then
+            mapped.reduced=true
+            mapped.reduced_reason=result.reduced_reason
+        end
         return mapped
     end
     if result.uncertain then
@@ -1374,7 +1383,19 @@ buildAutoCombatHost=function(s,policy,opts)
             action={type='change_level'}
         elseif attempt.action=='use_talent' then
             action={type='use_talent',talent_id=attempt.talent}
-            if plan and plan.kind=='grid' then
+            if plan and plan.kind=='sequence' then
+                -- S2 ordered prompt-response queue: one native submission, one
+                -- decided value per declared prompt. The executor answers the
+                -- k-th native getTarget with the k-th entry's value (a grid
+                -- coordinate, the caster cell or the bound actor) and keeps each
+                -- request's own native range/self-warning guard. `sequence`
+                -- implies the authoritative wrapper, so no one-shot prefill is
+                -- consumed by a message-path prompt.
+                action.sequence=plan.values
+                if type(action.sequence)~='table' or #action.sequence==0 then
+                    return {status='rejected',code='sequence_unavailable',energy_spent=false}
+                end
+            elseif plan and plan.kind=='grid' then
                 action.x,action.y=plan.x,plan.y
                 -- Grid lowering: answer every native target request with the
                 -- requested coordinate (no entity). `authoritative_target` makes
@@ -1423,6 +1444,14 @@ buildAutoCombatHost=function(s,policy,opts)
         local ok,root,result=pcall(Tracker.startAction,g,command,function()
             return Actions.execute(g,action,target,meta(s),command)
         end)
+        -- S2: publish the observed prompt sequence and any typed deviation on the
+        -- invocation root before it is reaped, so the abort/pause path and the
+        -- controller can report them even when the action failed.
+        if type(command)=='table' and root~=nil and type(root)=='table' then
+            root.target_sequence=command.target_sequence
+            root.sequence_deviation=command.sequence_deviation
+            root.sequence_reduced=command.sequence_reduced or nil
+        end
         if type(root)=='table' and root.done then
             NativeTasks.release(root);Interactions.release(root);Tracker.release(root);root.invocation=nil
             if s.auto_invocation==root then s.auto_invocation=nil end

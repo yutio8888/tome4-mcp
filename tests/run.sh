@@ -59,6 +59,8 @@ fi
 
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_auto_combat_movement_factory.lua"
 
+"$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_auto_combat_sequence.lua"
+
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_auto_combat_controller.lua"
 
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_auto_combat_catalog.lua"

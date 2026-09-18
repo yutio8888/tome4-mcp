@@ -484,6 +484,10 @@ function M.step(svc)
             target=step.bound_target,generation=step.generation,
             movement=step.destination,risk=step.risk,
             native_result=step.outcome and step.outcome.status or nil,
+            -- S2 ordered prompt-response queue evidence: the observed prompt
+            -- sequence and the reduced-trailing-optional marker.
+            target_sequence=step.target_sequence,reduced=step.reduced,
+            reduced_reason=step.reduced_reason,
             rule_results=step.results,rejections=step.rejections,
             resources_before=before,resources_after=after,policy_hash=policy_hash}))
     elseif step.action=='stopped' then

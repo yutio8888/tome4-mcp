@@ -406,6 +406,166 @@ local function resolveMovement(movement,provider,talent)
 end
 
 
+-- Plan one entry of an ordered `request_then_landing` program (S2 §2.5). Each
+-- entry is planned by the *existing* kind-specific branch, so range bounding,
+-- occupancy resolution, envelope annotation and `accept` evaluation are reused
+-- verbatim; the entry additionally carries the decided value the executor's
+-- queue will answer that native prompt with. `value` is a closed internal
+-- descriptor consumed only by the executor (`Actions.lua`), never by policy.
+local function planSequenceEntry(entry,step,attempt,provider,movement,origin)
+    -- The accept object is the step's own `destination.accept` when present; the
+    -- action-level destination is the fallback for entries that declare none (a
+    -- policy may reasonably put the accept object on the landing step only).
+    local accept=(type(step.destination)=='table') and step.destination.accept or nil
+    if accept==nil and type(attempt.destination)=='table' then accept=attempt.destination.accept end
+    if entry.request=='grid' then
+        -- A grid prompt is answered either from the step's own policy target
+        -- (`value_source='target_plan'`) or, when the descriptor curates
+        -- `value_source='subject'`, from the subject's cell. The declared value
+        -- source is honoured; it is never inferred from the native cursor spec.
+        if entry.value_source=='subject' then
+            local anchor
+            if entry.subject=='self' then
+                anchor={x=origin.x,y=origin.y}
+            else
+                anchor=provider.anchor and provider.anchor('bound_target',attempt.bound_target) or nil
+            end
+            if not anchor then
+                return nil,{reason='movement_request_value_unknown',
+                    dependency=entry.subject=='self' and 'self' or 'bound_actor'}
+            end
+            local annotation=nativeLandingAnnotation(movement,anchor)
+            local ok,reason=M.accepts(accept or {visibility='any',passability='native',
+                hazard='any',landing='allow_random'},annotation)
+            if not ok then return nil,{reason=reason,annotation=annotation} end
+            local value={kind='grid',request='grid',x=anchor.x,y=anchor.y}
+            if entry.optional==true then value.optional=true end
+            return {kind='grid',x=anchor.x,y=anchor.y,annotation=annotation,value=value}
+        end
+        if type(step.destination)~='table' then
+            return nil,{reason='movement_request_value_unknown',index=nil,
+                dependency='target_plan.destination'}
+        end
+        local planned,err=M.planTalent(step.destination,provider,attempt.bound_target,
+            movement,origin,attempt.exclude)
+        if not planned then return nil,err end
+        planned.value={kind='grid',request='grid',x=planned.x,y=planned.y}
+        if entry.optional==true then planned.value.optional=true end
+        return planned
+    end
+    if entry.request=='none' then
+        local annotation=nativeLandingAnnotation(movement,nil)
+        local ok,reason=M.accepts(accept or {visibility='any',passability='native',
+            hazard='any',landing='allow_random'},annotation)
+        if not ok then return nil,{reason=reason,annotation=annotation} end
+        local value={kind='none',request='none'}
+        if entry.optional==true then value.optional=true end
+        return {kind='none',annotation=annotation,value=value}
+    end
+    if entry.request=='self' then
+        local annotation=nativeLandingAnnotation(movement,{x=origin.x,y=origin.y})
+        annotation.landing.kind=(movement.landing=='exact' or movement.landing==nil)
+            and 'deterministic' or annotation.landing.kind
+        annotation.confidence='self_request'
+        annotation.reasons={'self_request','landing_is_origin'}
+        local ok,reason=M.accepts(accept or {visibility='any',passability='native',
+            hazard='any',landing='allow_random'},annotation)
+        if not ok then return nil,{reason=reason,annotation=annotation} end
+        local value={kind='self',request='self'}
+        if entry.optional==true then value.optional=true end
+        return {kind='self',annotation=annotation,value=value}
+    end
+    -- actor
+    local stepSelector=step.selector
+    local actionSelector=attempt.target
+    if stepSelector~=nil and actionSelector~=nil and stepSelector~=actionSelector then
+        return nil,{reason='target_plan_selector_mismatch',talent=attempt.talent,
+            expected=actionSelector,got=stepSelector}
+    end
+    local effective=stepSelector or actionSelector
+    -- The descriptor's `subject` is the curated binding of the answer. A
+    -- self-subject prompt must be answered with the caster; a policy that binds
+    -- another actor moves that actor, which the single-subject descriptor cannot
+    -- verify (the S4 `moving_or_swapping_another_actor` gap). This is a
+    -- capability reason, never a strategy refusal.
+    if entry.subject=='self' and effective~=nil and effective~='self' then
+        return nil,{reason='unsupported_movement_variant',scope='subject_other_than_self',
+            missing='moving_or_swapping_another_actor',
+            reason_text='the descriptor binds this prompt to the caster; relocating another actor needs the typed two-subject descriptor (S4)'}
+    end
+    local anchor
+    local value
+    if entry.subject=='self' then
+        anchor=provider.anchor and provider.anchor('self') or nil
+        value={kind='self',request='actor'}
+    else
+        anchor=provider.anchor and provider.anchor('bound_target',attempt.bound_target) or nil
+        value={kind='actor',request='actor',target_id=attempt.bound_target}
+        if attempt.bound_target==nil then
+            return nil,{reason='movement_request_value_unknown',index=nil,
+                dependency='bound_actor'}
+        end
+    end
+    if not anchor then
+        return nil,{reason='anchor_unavailable',selector=effective or 'bound_target'}
+    end
+    local annotation=nativeLandingAnnotation(movement,anchor)
+    local ok,reason=M.accepts(accept or {visibility='any',passability='native',
+        hazard='any',landing='allow_random'},annotation)
+    if not ok then return nil,{reason=reason,annotation=annotation} end
+    if entry.optional==true then value.optional=true end
+    return {kind='actor',annotation=annotation,value=value}
+end
+
+-- Build a `{kind='sequence'}` plan for an ordered `request_then_landing`
+-- program: one planned step per declared entry, in order, each carrying the
+-- decided value the executor answers that native prompt with. The landing
+-- annotation is the last entry's (the landing step), augmented with the declared
+-- request kinds and the per-step request annotation; the policy's `accept` object
+-- is evaluated per entry, so a random/out-of-vision landing stays an annotation
+-- and only the policy's decision can refuse it.
+function M.planSequence(attempt,provider,movement,origin)
+    local sequence=movement.request_sequence
+    local plan=attempt.target_plan
+    if type(plan)~='table' or #plan<1 then return nil,{reason='invalid_target_plan'} end
+    if #plan~=#sequence then
+        -- The descriptor declares an ordered program, so a plan that disagrees in
+        -- length/kind is a policy/adapter mismatch (the static validator already
+        -- rejects it; this is the planner's own honest defence).
+        return nil,{reason='target_plan_mismatch',talent=attempt.talent,
+            expected=#sequence,got=#plan}
+    end
+    for i=1,#sequence do
+        if plan[i].request~=sequence[i].request then
+            return nil,{reason='target_plan_mismatch',talent=attempt.talent,
+                expected=Factory.requestKinds(sequence)[i],got=plan[i].request,index=i}
+        end
+    end
+    local steps={}
+    local values={}
+    for i=1,#sequence do
+        local entry=sequence[i]
+        local planned,err=planSequenceEntry(entry,plan[i],attempt,provider,movement,origin)
+        if not planned then
+            if err and err.reason=='movement_request_value_unknown' then err.index=i end
+            return nil,err
+        end
+        steps[i]=planned
+        values[i]=planned.value
+    end
+    local landing=steps[#steps].annotation
+    local kinds={}
+    for i=1,#sequence do kinds[i]=sequence[i].request end
+    local annotation={}
+    for key,value in pairs(landing) do annotation[key]=value end
+    annotation.requests=kinds
+    annotation.sequence=kinds
+    annotation.reasons=annotation.reasons or {}
+    annotation.reasons[#annotation.reasons+1]='ordered_prompt_sequence'
+    return {kind='sequence',steps=steps,values=values,
+        request_sequence=sequence,annotation=annotation}
+end
+
 -- Consume an ordered target plan: the executor pre-fills one native prompt, so
 -- only a single-request plan is driven; a longer sequence is a typed capability
 -- pause rather than a silent ignore.
@@ -511,9 +671,19 @@ function M.plan(attempt,provider,movement)
         end
     end
     if type(attempt.target_plan)=='table' then
-        if #attempt.target_plan~=1 then
+        -- S2 §12.1: a descriptor that declares an ordered `request_sequence` is
+        -- driven by the queue for every N (including N=1: a self-subject actor
+        -- prompt cannot be expressed by the single-target lowering, which would
+        -- otherwise reject with `target_lost`). Only an un-upgraded multi-prompt
+        -- adapter keeps the typed capability pause (never a silent ignore).
+        if movement~=nil and type(movement.request_sequence)=='table'
+            and #movement.request_sequence>0 then
+            return M.planSequence(attempt,provider,movement,origin)
+        end
+        if #attempt.target_plan>1 then
             return nil,{reason='unsupported_target_plan',talent=attempt.talent,
-                count=#attempt.target_plan,scope='multi_prompt'}
+                count=#attempt.target_plan,scope='multi_prompt',
+                missing='ordered_request_sequence'}
         end
         if movement==nil then
             return nil,{reason='unsupported_movement_adapter',talent=attempt.talent}

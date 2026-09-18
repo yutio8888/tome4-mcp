@@ -644,22 +644,22 @@ do
         'a multi-prompt target plan pauses with a typed capability reason')
 end
 
--- 5g. MAF-REV-01: a known Phase Door actor+grid rule is classified by the real
--- planner as the typed `unsupported_target_plan` and the controller pauses on
--- it (not a denial/fall-through).
+-- 5g. S2: a known Phase Door actor+grid rule plans as an ordered sequence (the
+-- S1 capability gap is closed); the controller submits exactly one native
+-- request for it.
 do
     local p=policy()
     p.rules={{id='door',priority=10,when={always={}},
         ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
             target_plan={{request='actor',selector='self'},{request='grid',
-                destination={selector='relative',dx=1,dy=0,accept=accept()}}}}}}
+                destination={selector='position',x=3,y=2,accept=accept()}}}}}}
     local h=host()
     h.plan=function(attempt)
         local provider={preflight=function() return true end,
             origin=function() return {x=2,y=2} end,
             anchor=function() return {x=2,y=2} end,
             talentLevel=function() return 4 end,
-            attr=function() return nil,true end,
+            attr=function() return true,true end,
             talentGetter=function() return 6 end,
             builder=function() return {shape='hit',range=8} end,
             occupancy=function() return 'empty' end,
@@ -676,9 +676,10 @@ do
     local c=AutoCombat.new(p,h,{strict=false})
     c:start()
     local step=c:step()
-    check(step.action=='paused' and step.reason=='unsupported_target_plan',
-        'a known Phase Door actor+grid rule pauses with the typed capability reason')
-    check(#h.requests==0,'no native request is submitted for the multi-prompt gap')
+    check(step.action=='acted' and #h.requests==1,
+        'a known Phase Door actor+grid rule is executed in one native submission')
+    check(h.requests[1].plan and h.requests[1].plan.kind=='sequence',
+        'the lowered plan is the ordered sequence')
 end
 
 -- 6. Schema/decision carry the destination through to the planner -------------

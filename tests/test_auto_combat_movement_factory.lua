@@ -139,24 +139,36 @@ do
     check(precise.target_requests[1]=='grid' and precise.landing=='bounded_alternatives'
         and precise.fallback_center=='self','TL<4 with the precise attribute is the precise grid leaf')
 
-    -- MAF-REV-01: TL4+ with a known attribute is the ordered-queue capability
-    -- gap, published as the runtime `unsupported_target_plan` reason the live and
-    -- dry-run controllers pause on.
+    -- S2: TL4+ now resolves to a closed `request_then_landing` program. TL4
+    -- without the precise attribute is the actor-only program; TL4 precise and
+    -- TL5+ declare the actor-then-grid program (the design's recommended
+    -- explicit attribute split instead of a trailing `optional`).
     local gap,gapErr=Factory.resolveVariant(movement,'T_PHASE_DOOR',read(4,true,false))
-    check(gap==nil and gapErr.reason=='unsupported_target_plan' and gapErr.scope=='multi_prompt'
-        and gapErr.missing=='actor_then_grid_target_plan',
-        'TL4 with a known attribute resolves to the ordered-queue pause reason')
+    check(gap~=nil and gapErr==nil and #gap.target_requests==1
+        and gap.target_requests[1]=='actor'
+        and gap.request_sequence[1].request=='actor'
+        and gap.request_sequence[1].subject=='self',
+        'TL4 without the precise attribute is the actor-only ordered program')
     local gap5,gap5Err=Factory.resolveVariant(movement,'T_PHASE_DOOR',read(5,true,true))
-    check(gap5==nil and gap5Err.reason=='unsupported_target_plan',
-        'TL5 with a known attribute resolves to the ordered-queue pause reason')
+    check(gap5~=nil and gap5Err==nil and #gap5.target_requests==2
+        and gap5.target_requests[1]=='actor' and gap5.target_requests[2]=='grid',
+        'TL5 is the actor-then-grid ordered program')
     -- Every remaining cell: TL4 precise, TL5 non-precise, and the unknown axis
     -- at both levels fail closed with the correct typed reason.
     local tl4p,tl4pErr=Factory.resolveVariant(movement,'T_PHASE_DOOR',read(4,true,true))
-    check(tl4p==nil and tl4pErr.reason=='unsupported_target_plan','TL4 with the precise attribute is the pause reason')
+    check(tl4p~=nil and tl4pErr==nil and #tl4p.target_requests==2
+        and tl4p.target_requests[2]=='grid','TL4 with the precise attribute is the actor-then-grid program')
     local tl5f,tl5fErr=Factory.resolveVariant(movement,'T_PHASE_DOOR',read(5,true,false))
-    check(tl5f==nil and tl5fErr.reason=='unsupported_target_plan','TL5 without the precise attribute is the pause reason')
+    check(tl5f~=nil and tl5fErr==nil and #tl5f.target_requests==2,
+        'TL5 without the precise attribute is still the unconditional actor-then-grid program')
     local tl5u,tl5uErr=Factory.resolveVariant(movement,'T_PHASE_DOOR',read(5,false,nil))
     check(tl5u==nil and tl5uErr.reason=='movement_variant_unknown','TL5 with an unknown attribute fails closed')
+    -- TL4 and TL5 declare distinct value sources: the actor entry repeats the
+    -- subject, the grid entry takes its own policy target_plan value.
+    local tl5seq=tl5f.request_sequence
+    check(tl5seq[1].value_source=='subject' and tl5seq[2].value_source=='target_plan'
+        and tl5seq[2].landing_from=='envelope' and tl5seq[2].optional==nil,
+        'the TL5 sequence declares source/landing for each entry and no optional')
 
     -- MAF-REV-01: an unavailable attribute at TL4+ is still read (axes) and
     -- yields movement_variant_unknown, never a branch that skipped the read.

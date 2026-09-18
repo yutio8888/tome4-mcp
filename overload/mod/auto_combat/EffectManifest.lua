@@ -295,9 +295,22 @@ M.ENTRIES={
     -- `phase_door_force_precise` attribute. The old level-only gate was wrong:
     -- the grid prompt appears below TL4 when that attribute is set. Both axes
     -- are pre-read (matrix `axes`), so an unknown level or attribute is
-    -- `movement_variant_unknown` even at TL4+. The TL4+ actor(+grid) prompt is a
-    -- known capability gap published as the `unsupported_target_plan` reason the
-    -- live/dry-run controllers pause on.
+    -- `movement_variant_unknown` even at TL4+. From effective TL4 the action
+    -- prompts for a subject (`{'actor'}`) and, at TL5 or under the precise
+    -- attribute, for a landing grid (`{'actor','grid'}`): those cells are S2
+    -- `request_then_landing` ordered prompt programs (design §4.4).
+    --
+    -- The TL4 cell is split into two explicit attribute branches rather than
+    -- declaring the grid entry `optional=true` (both forms are admitted by
+    -- §4.4/§12.1(a); the design recommends the split). Reasons: (1) the
+    -- `phase_door_force_precise` axis is already read and must be known at TL4+,
+    -- so the two states are already distinguishable; (2) an explicit N=1 branch
+    -- keeps the declared program exactly what the source raises, instead of a
+    -- second entry the executor must tolerate as missing; (3) the TL5+ cell is
+    -- then statically unconditional (`at_least=5`), matching the source's first
+    -- disjunct. The trailing-`optional` rule is still implemented and tested
+    -- (`MovementAdapterFactory.normalizeRequestSequence`, executor `reduced`),
+    -- for genuinely state-dependent trailing prompts.
     T_PHASE_DOOR={kind='movement',target='self',resource='mana',
         movement=movementMatrix({
             {when={kind='all',conditions={
@@ -314,12 +327,43 @@ M.ENTRIES={
                     range={getter='getRange'},min_radius=0,
                     fallback_center='self',fallback_radius={getter='getRange'},fallback_when='los_fizzle',
                     landing_proof='grid prompt below TL4 under the precise attribute'}},
-            {when={kind='talent_level',at_least=4},
-                unsupported={scope='multi_prompt',
-                    missing='actor_then_grid_target_plan',
-                    typed_reason='unsupported_target_plan',
-                    requests={{'actor'},{'actor','grid'}},
-                    reason='Phase Door prompts for a target at TL4+ and a landing at TL5; the executor pre-fills one native prompt only'}},
+            -- Effective TL4 without the precise attribute: the actor prompt only;
+            -- the landing is the native random self teleport with `t.getRange`.
+            {when={kind='all',conditions={
+                    {kind='talent_level',at_least=4,below=5},
+                    {kind='attr',id='phase_door_force_precise',truthy=false}}},
+                template='request_then_landing',
+                params={delivery='teleport',landing='random',center='self',
+                    traverses=false,relocates_other=false,
+                    radius={getter='getRange'},min_radius=0,range={getter='getRange'},
+                    request_sequence={{index=1,request='actor',subject='self'}},
+                    landing_proof='TL4 actor prompt then teleportRandom(self, getRange)'}},
+            -- Effective TL4 with the precise attribute: actor prompt then the
+            -- landing grid prompt, landing bounded around the requested grid.
+            {when={kind='all',conditions={
+                    {kind='talent_level',at_least=4,below=5},
+                    {kind='attr',id='phase_door_force_precise',truthy=true}}},
+                template='request_then_landing',
+                params={delivery='teleport',landing='random',center='requested_grid',
+                    traverses=false,relocates_other=false,
+                    radius={getter='getRadius'},min_radius=0,range={getter='getRange'},
+                    fallback_center='self',fallback_radius={getter='getRange'},fallback_when='los_fizzle',
+                    request_sequence={{index=1,request='actor',subject='self'},
+                        {index=2,request='grid',subject='self',value_source='target_plan',
+                            landing_from='envelope'}},
+                    landing_proof='TL4 precise: actor prompt then the landing grid prompt'}},
+            -- Effective TL5+: the grid prompt is statically unconditional (the
+            -- first disjunct of the native gate is true for this very level read).
+            {when={kind='talent_level',at_least=5},
+                template='request_then_landing',
+                params={delivery='teleport',landing='random',center='requested_grid',
+                    traverses=false,relocates_other=false,
+                    radius={getter='getRadius'},min_radius=0,range={getter='getRange'},
+                    fallback_center='self',fallback_radius={getter='getRange'},fallback_when='los_fizzle',
+                    request_sequence={{index=1,request='actor',subject='self'},
+                        {index=2,request='grid',subject='self',value_source='target_plan',
+                            landing_from='envelope'}},
+                    landing_proof='TL5+: actor prompt then the unconditional landing grid prompt'}},
         },{{kind='attr',id='phase_door_force_precise'}}),
         components={},conformance={builder=false}},
 }
@@ -335,9 +379,6 @@ function M.source(talent) return Sources.talents[talent] end
 -- actions whose adapters are not yet source-reviewed; they are not strategy
 -- refusals and do not affect already-supported actions.
 M.UNSUPPORTED={
-    {talent='T_PHASE_DOOR',scope='effective_talent_level>=4',
-        missing='actor_then_grid_target_plan',
-        reason='the no-prompt and precise-grid single-prompt forms are driven; the TL4+ actor and TL5 actor-then-grid prompts need the ordered queue'},
     {talent='T_BLINK_RUNE',scope='any',missing='stable_native_talent_id',
         reason='the native inscription id is slot-indexed (T_RUNE:_BLINK_1..6); no single stable id to source-pin'},
     {talent='T_DIMENSIONAL_STEP',scope='effective_talent_level>=5 and requested_grid_occupied',

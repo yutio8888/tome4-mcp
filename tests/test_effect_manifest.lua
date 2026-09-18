@@ -114,11 +114,15 @@ end
 check(Manifest.entry('T_SKIRMISHER_CUNNING_ROLL').movement.landing=='exact','Tumble is an exact grid move')
 check(Manifest.entry('T_SKIRMISHER_VAULT').movement.landing=='exact','Vault is an exact grid move')
 check(Manifest.entry('T_RUSH').movement.landing=='bounded_alternatives','Rush is an actor-anchored line move')
--- Phase Door is a closed matrix: the no-prompt and precise-grid branches are
--- single-prompt; the TL4+ branch is the ordered-queue capability gap.
+-- Phase Door is a closed matrix: the no-prompt, precise-grid, TL4 actor and
+-- TL4/TL5 actor-then-grid branches are all executable S2 ordered programs.
 local phaseDoorSequences=Manifest.requestSequences(Manifest.entry('T_PHASE_DOOR'))
-check(#phaseDoorSequences==4 and phaseDoorSequences[1][1]=='none' and phaseDoorSequences[2][1]=='grid',
-    'Phase Door declares the no-prompt, precise-grid and TL4+ request sequences')
+check(#phaseDoorSequences==5 and phaseDoorSequences[1][1]=='none' and phaseDoorSequences[2][1]=='grid',
+    'Phase Door declares the no-prompt, precise-grid, TL4 actor and actor+grid request sequences')
+local phaseDoorSeen={}
+for _,sequence in ipairs(phaseDoorSequences) do phaseDoorSeen[table.concat(sequence,',')]=true end
+check(phaseDoorSeen['actor'] and phaseDoorSeen['actor,grid'],
+    'Phase Door declares both the TL4 actor-only and the actor+grid ordered programs')
 check(Manifest.entry('T_PHASE_DOOR').movement.variants~=nil,'Phase Door declares a state-variant matrix')
 check(Manifest.SOURCES.talents['T_PHASE_DOOR'].getters~=nil,'Phase Door pins its dynamic getters')
 check(Manifest.compat(Manifest.entry('T_FLAME')).shape=='widebeam','Flame compat reports the widest union member')
@@ -155,12 +159,18 @@ do
         end
         return nil
     end
-    for _,talent in ipairs({'T_PHASE_DOOR','T_BLINK_RUNE',
+    for _,talent in ipairs({'T_BLINK_RUNE',
         'T_DIMENSIONAL_STEP','T_SHADOWSTEP','T_GIANT_LEAP','T_DISPLACEMENT_SHIELD'}) do
         local entry=unsupportedEntry(talent)
         check(entry~=nil and entry.missing and entry.reason and entry.scope,
             talent..' has a structured unsupported entry')
     end
+    -- S2: Phase Door's TL4+ ordered prompt-response queue is implemented, so its
+    -- capability gap is gone (only the generic multi-actor swap gap remains).
+    check(unsupportedEntry('T_PHASE_DOOR')==nil,
+        'Phase Door TL4+ is admitted after the S2 ordered queue')
+    check(Manifest.entry('T_PHASE_DOOR').movement.variants~=nil,
+        'Phase Door still declares its state-variant matrix')
     check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupported')
     local step=unsupportedEntry('T_DIMENSIONAL_STEP')
     check(step~=nil and step.missing=='moving_or_swapping_another_actor',

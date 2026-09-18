@@ -47,6 +47,10 @@ M.REASON_VARIANT_UNKNOWN='movement_variant_unknown'
 M.REASON_DERIVATION_UNKNOWN='movement_derivation_unknown'
 
 M.TARGET_REQUESTS={none=true,actor=true,grid=true,self=true}
+-- S2 (`request_then_landing`): the binding of one ordered prompt's answer and
+-- the source of its decided value. Both are closed vocabularies.
+M.REQUEST_SUBJECTS={self=true,actor=true}
+M.REQUEST_VALUE_SOURCES={subject=true,target_plan=true}
 M.DELIVERIES={step=true,line_move=true,leap=true,teleport=true,scene_change=true}
 M.LANDINGS={exact=true,bounded_alternatives=true,random=true,source_defined=true}
 M.CENTERS={self=true,actor=true,requested_grid=true}
@@ -113,6 +117,63 @@ local function validateArray(list,minLen)
 end
 
 M.validateArray=validateArray
+
+-- Normalise and validate one `request_sequence` (S2 §4.4). The record is closed:
+-- `index` must equal the array position (a hole/gap/reorder is invalid), the
+-- prompt kind and subject binding come from the closed vocabularies, `optional`
+-- is only admitted on the trailing entry, and `landing_from` is only 'envelope'.
+-- Returns a fresh array of normalised entries (no shared reference with the
+-- caller's declaration).
+local SEQUENCE_KEYS={index=true,request=true,subject=true,value_source=true,
+    landing_from=true,optional=true}
+function M.normalizeRequestSequence(list)
+    local ok,maxKey=validateArray(list,1)
+    if not ok then return nil,{detail='request_sequence_not_array'} end
+    if maxKey>8 then return nil,{detail='request_sequence_too_long'} end
+    local out={}
+    for i=1,maxKey do
+        local entry=list[i]
+        if type(entry)~='table' then return nil,{detail='bad_request_entry',index=i} end
+        for key in pairs(entry) do
+            if not SEQUENCE_KEYS[key] then
+                return nil,{detail='unknown_request_key',index=i,key=tostring(key)}
+            end
+        end
+        if entry.index~=i then return nil,{detail='request_index_mismatch',index=i} end
+        if not M.TARGET_REQUESTS[entry.request] then
+            return nil,{detail='bad_request_kind',index=i}
+        end
+        if not M.REQUEST_SUBJECTS[entry.subject] then
+            return nil,{detail='bad_subject',index=i}
+        end
+        local valueSource=entry.value_source or 'subject'
+        if not M.REQUEST_VALUE_SOURCES[valueSource] then
+            return nil,{detail='bad_value_source',index=i}
+        end
+        if entry.landing_from~=nil and entry.landing_from~='envelope' then
+            return nil,{detail='bad_landing_from',index=i}
+        end
+        if entry.optional~=nil and type(entry.optional)~='boolean' then
+            return nil,{detail='bad_optional',index=i}
+        end
+        if entry.optional==true and i~=maxKey then
+            return nil,{detail='optional_not_trailing',index=i}
+        end
+        local copy={index=i,request=entry.request,subject=entry.subject,
+            value_source=valueSource}
+        if entry.landing_from~=nil then copy.landing_from=entry.landing_from end
+        if entry.optional==true then copy.optional=true end
+        out[i]=copy
+    end
+    return out
+end
+
+-- The declared prompt kinds of one normalised sequence.
+function M.requestKinds(sequence)
+    local out={}
+    for i=1,#sequence do out[i]=sequence[i].request end
+    return out
+end
 
 -- Discriminant-closed condition records: each kind allows only the fields it
 -- actually consumes. A field belonging to another kind is rejected rather than
@@ -212,6 +273,21 @@ local TEMPLATES={
             landing='bounded_alternatives',center='actor',traverses=false,
             relocates_other=false},
     },
+    -- Ordered prompt-response program (S2 §4.4): the executor answers the k-th
+    -- native `getTarget` with the k-th declared entry's decided value inside one
+    -- action opportunity and one native submission. There are **no** mechanical
+    -- defaults for the request order, subject binding, centre, bounds or landing:
+    -- every value is a per-talent source-review output, and the sequence plus
+    -- every branch/envelope is curated. `target_requests` is derived from the
+    -- sequence when omitted; when supplied it must agree in length and kind.
+    request_then_landing={
+        required={request_sequence=true,delivery=true,landing=true,center=true,
+            traverses=true,relocates_other=true},
+        optional={target_requests=true,radius=true,min_radius=true,range=true,
+            builder_shape=true,fallback_center=true,fallback_radius=true,
+            fallback_when=true,occupancy_dependent=true,landing_proof=true},
+        fixed={},
+    },
 }
 
 M.TEMPLATES=TEMPLATES
@@ -250,6 +326,33 @@ function M.expand(template,params)
     end
     for key,value in pairs(params) do
         if key=='target_requests' then out.target_requests=copyArray(value) else out[key]=value end
+    end
+    -- S2: a `request_sequence` is normalised and cross-checked against the
+    -- static capability list. A hole, gap, reorder, bad kind/subject/value
+    -- source, non-trailing `optional`, unknown key or a `target_requests`
+    -- disagreement is `movement_adapter_invalid` (never silently ignored).
+    if out.request_sequence~=nil then
+        local sequence,seqErr=M.normalizeRequestSequence(out.request_sequence)
+        if not sequence then
+            local err={reason=M.REASON_INVALID,template=template}
+            for key,value in pairs(seqErr) do err[key]=value end
+            return nil,err
+        end
+        local kinds=M.requestKinds(sequence)
+        if out.target_requests~=nil then
+            if #out.target_requests~=#kinds then
+                return nil,{reason=M.REASON_INVALID,
+                    detail='request_sequence_length_mismatch',template=template}
+            end
+            for i=1,#kinds do
+                if out.target_requests[i]~=kinds[i] then
+                    return nil,{reason=M.REASON_INVALID,
+                        detail='request_sequence_kind_mismatch',template=template,index=i}
+                end
+            end
+        end
+        out.request_sequence=sequence
+        out.target_requests=copyArray(kinds)
     end
     if not checkEnum(out.delivery,M.DELIVERIES) then
         return nil,{reason=M.REASON_INVALID,detail='bad_delivery',template=template,value=out.delivery}
@@ -421,9 +524,14 @@ local function evalWhen(when,talent,reads)
         if type(reads.talentLevel)~='function' then return nil end
         local ok,level=pcall(reads.talentLevel,talent)
         if not ok or not finite(level) then return nil end
-        if when.at_least~=nil then return level>=when.at_least end
-        if when.below~=nil then return level<when.below end
-        return nil
+        -- `at_least` and `below` may be declared together (a bounded cell of the
+        -- variant matrix, for example Phase Door's effective TL4 cell in [4,5)).
+        -- The effective level is read once; the declared bounds are then applied
+        -- to that single value so a replaced getter cannot disagree with itself.
+        if when.at_least==nil and when.below==nil then return nil end
+        if when.at_least~=nil and level<when.at_least then return false end
+        if when.below~=nil and level>=when.below then return false end
+        return true
     end
     if when.kind=='attr' then
         if type(reads.attr)~='function' then return nil end
@@ -482,7 +590,16 @@ function M.resolveVariant(movement,talent,reads)
     local descriptor=matched.movement
     local out={}
     for key,value in pairs(descriptor) do
-        if key=='target_requests' then out.target_requests=copyArray(value) else out[key]=value end
+        if key=='target_requests' then out.target_requests=copyArray(value)
+        elseif key=='request_sequence' then
+            local sequence={}
+            for i=1,#value do
+                local entry={}
+                for k,v in pairs(value[i]) do entry[k]=v end
+                sequence[i]=entry
+            end
+            out.request_sequence=sequence
+        else out[key]=value end
     end
     return out
 end

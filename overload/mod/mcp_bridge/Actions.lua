@@ -26,6 +26,63 @@ end
 local function finite(value) return type(value)=='number' and value==value and value>-math.huge and value<math.huge end
 local function stringId(value) return type(value)=='string' and #value>0 and #value<=256 and not value:find('%z') end
 local function coordinate(value) return type(value)=='number' and value%1==0 and value>=0 and value<=2147483647 end
+-- S2 ordered prompt-response queue: one internal decided value per declared native
+-- prompt. The record is closed and every field is a scalar so command dedup
+-- (`M.fingerprint`) stays deterministic and JSON-safe. `kind` is what the answer
+-- *is* (`grid` coordinates with no entity, `self` the caster, `actor` the bound
+-- actor); `request` is the declared prompt kind it answers, kept for the
+-- expected/observed deviation report.
+local SEQUENCE_KINDS={grid=true,self=true,actor=true}
+local SEQUENCE_REQUESTS={grid=true,self=true,actor=true,none=true}
+-- The decided-value kind admissible for each declared prompt kind: an `actor`
+-- prompt may be answered with the caster (`self`) or the bound actor; a `grid`
+-- prompt only with coordinates (no entity); a `self`/`none` prompt with the
+-- caster cell.
+local SEQUENCE_VALUE_KINDS={actor={self=true,actor=true},grid={grid=true},
+    self={self=true},none={self=true}}
+M.SEQUENCE_VALUE_KINDS=SEQUENCE_VALUE_KINDS
+function M.normalizeSequence(list)
+    if type(list)~='table' then return nil,'invalid_sequence' end
+    local maxKey,count=0,0
+    for key in pairs(list) do
+        if type(key)~='number' or key%1~=0 or key<1 then return nil,'invalid_sequence' end
+        if key>maxKey then maxKey=key end
+        count=count+1
+    end
+    if count~=maxKey or maxKey<1 or maxKey>8 then return nil,'invalid_sequence' end
+    local out=Json.array()
+    for i=1,maxKey do
+        local entry=list[i]
+        if type(entry)~='table' then return nil,'invalid_sequence' end
+        local kind=entry.kind
+        if not SEQUENCE_KINDS[kind] then return nil,'invalid_sequence' end
+        if entry.request~=nil and not SEQUENCE_REQUESTS[entry.request] then return nil,'invalid_sequence' end
+        local copy={kind=kind,request=entry.request or kind}
+        if entry.optional~=nil then
+            if type(entry.optional)~='boolean' then return nil,'invalid_sequence' end
+            if entry.optional then copy.optional=true end
+        end
+        if kind=='grid' then
+            if not coordinate(entry.x) or not coordinate(entry.y) then return nil,'invalid_sequence' end
+            for key in pairs(entry) do
+                if key~='kind' and key~='request' and key~='x' and key~='y' and key~='optional' then return nil,'invalid_sequence' end
+            end
+            copy.x,copy.y=entry.x,entry.y
+        elseif kind=='actor' then
+            if entry.target_id~=nil and not stringId(entry.target_id) then return nil,'invalid_sequence' end
+            for key in pairs(entry) do
+                if key~='kind' and key~='request' and key~='target_id' and key~='optional' then return nil,'invalid_sequence' end
+            end
+            if entry.target_id~=nil then copy.target_id=entry.target_id end
+        else
+            for key in pairs(entry) do
+                if key~='kind' and key~='request' and key~='optional' then return nil,'invalid_sequence' end
+            end
+        end
+        out[i]=copy
+    end
+    return out
+end
 -- Statistical audit of an attack entry (NO-AUDIT): the only structural
 -- requirement is a callable action + target with no post_action override. A
 -- replaced-but-usable action/target is used; provenance is advisory.
@@ -119,6 +176,18 @@ function M.validate(action)
             if type(action.authoritative_target)~='boolean' then return nil,'invalid_authoritative_target' end
             a.authoritative_target,allowed.authoritative_target=action.authoritative_target,true
         end
+        -- S2 ordered prompt-response queue (internal auto-combat field). A
+        -- non-empty decided-value list answers the k-th native target request
+        -- with the k-th value inside one submission; it implies the
+        -- authoritative wrapper (the queue, not the one-shot prefill, owns every
+        -- request). Closed and validated: an unknown kind, a malformed
+        -- coordinate/actor, a hole or more than 8 entries is `invalid_sequence`.
+        if action.sequence~=nil then
+            local sequence,sequenceErr=M.normalizeSequence(action.sequence)
+            if not sequence then return nil,sequenceErr end
+            a.sequence,allowed.sequence=sequence,true
+            a.authoritative_target,allowed.authoritative_target=true,true
+        end
         local has_actor,has_position=action.target_id~=nil,action.x~=nil or action.y~=nil
         if has_actor and has_position then return nil,'conflicting_target' end
         if has_actor then
@@ -171,14 +240,20 @@ function M.execute(g, action, target, meta, command)
     if not normalized then return {ok=false,code=invalid,energy_spent=0} end
     action=normalized
     -- Each command records its own native target geometry and target-cancel
-    -- marker; clear any previous run.
-    if type(command)=='table' then command.target_geometry=nil;command.target_cancelled=nil end
+    -- marker; clear any previous run. The S2 ordered-queue evidence
+    -- (`target_sequence`) and deviations are per-invocation too.
+    if type(command)=='table' then
+        command.target_geometry=nil;command.target_cancelled=nil
+        command.target_sequence=nil;command.sequence_deviation=nil
+        command.sequence_reduced=nil;command.sequence_reduced_reason=nil
+    end
     if Progression.isAction(action.type) then return Progression.execute(g,action) end
     if Items.isAction(action.type) then return Items.execute(g,action,meta) end
     if action.type=='rest' then return {ok=false,code='runtime_managed_action',energy_spent=0} end
     if action.type=='change_level' then return changeLevel(g) end
     local p = g.player
-    local prefilling=action.type=='use_talent' and (action.target_id~=nil or action.x~=nil)
+    local prefilling=action.type=='use_talent'
+        and (action.target_id~=nil or action.x~=nil or action.sequence~=nil)
     if action.target_id and not prefilling and (not target or target==p or target.dead) then
         return {ok=false,code='target_lost',energy_spent=0}
     end
@@ -248,26 +323,20 @@ function M.execute(g, action, target, meta, command)
                     local original=p.getTarget
                     if type(original)~='function' then return run() end
                     local authoritative=action.authoritative_target==true
+                    -- S2 ordered prompt-response queue: the k-th observed native
+                    -- request is answered with the k-th declared decided value.
+                    -- The queue lives inside this one submission; it never
+                    -- resubmits the talent. A deviation (extra/reordered/
+                    -- wrong-kind/missing prompt, or an unevaluable value) is a
+                    -- typed failure recorded on the command, answered as a native
+                    -- cancel so the native body unwinds and no unanswerable UI
+                    -- opens, and surfaced to the caller.
+                    local queue=(type(action.sequence)=='table' and #action.sequence>0)
+                        and action.sequence or nil
                     local consumed=false
-                    local function allowed(typ,x,y)
-                        local map=g.level and g.level.map
-                        if not map or not finite(x) or not finite(y) then return false,'invalid_target' end
-                        if x<0 or y<0 or x>=map.w or y>=map.h then return false,'target_out_of_bounds' end
-                        if type(typ)=='table' then
-                            -- Preserve the native range guard.
-                            if finite(typ.range) and finite(p.x) and finite(p.y)
-                                and Distance.grid(p.x,p.y,x,y)>typ.range then return false,'target_out_of_range' end
-                            -- Let the native UI raise its own self-target warning.
-                            if x==p.x and y==p.y and typ.nowarning~=true and typ.talent~=nil then
-                                return false,'self_target_warning'
-                            end
-                        end
-                        return true
-                    end
-                    p.getTarget=function(self,typ,...)
-                        -- Record the native target geometry once, for the agent
-                        -- (beam/ball radius/self-fire). This is the spec the
-                        -- native talent itself built, not a speculative run.
+                    local observed=0
+                    if queue and command then command.target_sequence={} end
+                    local function recordGeometry(typ)
                         if command and type(typ)=='table' and not command.target_geometry then
                             local talent=type(typ.talent)=='string' and p.talents_def and p.talents_def[typ.talent] or nil
                             local shape=type(typ.type)=='string' and typ.type or 'unknown'
@@ -281,7 +350,126 @@ function M.execute(g, action, target, meta, command)
                                 piercing=typ.type=='beam' or nil,damage_scope=scope,
                                 residual_area_radius=residual}
                         end
+                        if command and queue and #command.target_sequence<8 then
+                            command.target_sequence[#command.target_sequence+1]={
+                                shape=type(typ)=='table' and (type(typ.type)=='string' and typ.type or 'unknown') or nil,
+                                range=type(typ)=='table' and finite(typ.range) and typ.range or nil,
+                                radius=type(typ)=='table' and finite(typ.radius) and typ.radius or nil}
+                        end
+                    end
+                    local function allowed(typ,x,y)
+                        local map=g.level and g.level.map
+                        if not map or not finite(x) or not finite(y) then return false,'invalid_target' end
+                        if x<0 or y<0 or x>=map.w or y>=map.h then return false,'target_out_of_bounds' end
+                        if type(typ)=='table' then
+                            -- Preserve the native range guard. It is evaluated
+                            -- against THIS request's own spec, so a value legal
+                            -- for one prompt but not another stays refused.
+                            if finite(typ.range) and finite(p.x) and finite(p.y)
+                                and Distance.grid(p.x,p.y,x,y)>typ.range then return false,'target_out_of_range' end
+                            -- Let the native UI raise its own self-target warning.
+                            if x==p.x and y==p.y and typ.nowarning~=true and typ.talent~=nil then
+                                return false,'self_target_warning'
+                            end
+                        end
+                        return true
+                    end
+                    -- Record a typed queue deviation once, answer the native
+                    -- request with a cancel (nil), and let native unwinding
+                    -- settle the body. Returns nil so the caller can return it.
+                    local function deviate(expectedIndex,expectedRequest,observedRequest,extra)
+                        if command and not command.sequence_deviation then
+                            command.sequence_deviation={reason='unexpected_target_request',
+                                expected={index=expectedIndex,request=expectedRequest},
+                                observed={index=observed,request=observedRequest},
+                                -- Only a missing trailing `optional` entry is
+                                -- skippable; that case settles with `reduced=true`
+                                -- instead of this deviation, so every emitted
+                                -- deviation is a non-skippable mismatch.
+                                skippable=false}
+                            if extra then
+                                for key,value in pairs(extra) do command.sequence_deviation[key]=value end
+                            end
+                            command.target_cancelled=command.target_cancelled or 'unexpected_target_request'
+                        end
+                        return nil
+                    end
+                    -- Evaluate one declared entry's decided value at answer
+                    -- time. An unevaluable value is the plugin's own
+                    -- uncomputability boundary (`movement_request_value_unknown`),
+                    -- never a wrong answer.
+                    local function valueUnknown(index,request,dependency)
+                        if command and not command.sequence_deviation then
+                            command.sequence_deviation={reason='movement_request_value_unknown',
+                                index=index,request=request,dependency=dependency}
+                            command.target_cancelled=command.target_cancelled or 'movement_request_value_unknown'
+                        end
+                        return nil
+                    end
+                    local function resolveQueued()
+                        local index=observed
+                        local entry=queue[index]
+                        local value=action.sequence[index]
+                        if value==nil then return valueUnknown(index,entry.kind,'sequence_entry') end
+                        -- Kind integrity (design §2.3/§4.4): the value we would
+                        -- answer with must be admissible for the prompt kind this
+                        -- position declares. This is the one non-inferential
+                        -- kind check available (it never inspects the native
+                        -- cursor spec); a real native reorder is not provable
+                        -- here and surfaces as the native rejection or the
+                        -- postcondition check instead.
+                        if value.request~=nil and value.request~=entry.request then
+                            return deviate(index,entry.request,value.request)
+                        end
+                        local valueKinds=SEQUENCE_VALUE_KINDS[entry.request]
+                        if valueKinds==nil or not valueKinds[value.kind] then
+                            return deviate(index,entry.request,value.kind)
+                        end
+                        if value.kind=='grid' then
+                            if not finite(value.x) or not finite(value.y) then
+                                return valueUnknown(index,entry.kind,'target_plan['..index..'].destination')
+                            end
+                            return value.x,value.y,nil
+                        end
+                        if value.kind=='self' then
+                            if not (finite(p.x) and finite(p.y)) then
+                                return valueUnknown(index,entry.kind,'self')
+                            end
+                            return p.x,p.y,p
+                        end
+                        if value.kind=='actor' then
+                            local actor=target
+                            if type(actor)~='table' or not finite(actor.x) or not finite(actor.y) then
+                                return valueUnknown(index,entry.kind,'bound_actor')
+                            end
+                            return actor.x,actor.y,actor
+                        end
+                        return valueUnknown(index,entry.kind,'sequence_entry')
+                    end
+                    p.getTarget=function(self,typ,...)
+                        recordGeometry(typ)
                         if consumed and not authoritative then return original(self,typ,...) end
+                        if queue then
+                            observed=observed+1
+                            local entry=queue[observed]
+                            -- Order is the primary key: the k-th observed native
+                            -- request must be the k-th declared prompt kind. The
+                            -- declared kind is curated; the observed cursor spec
+                            -- is used only for this request's own native guard.
+                            if entry==nil then
+                                return deviate(nil,nil,'sequence_exhausted',{exhausted=true,count=#queue})
+                            end
+                            consumed=true
+                            local x,y,entity=resolveQueued()
+                            if x==nil then return nil end
+                            local ok,reason=allowed(typ,x,y)
+                            if ok then return x,y,entity end
+                            -- A value refused by this request's own native guard is
+                            -- the existing native target-cancel path with its
+                            -- typed reason (never a bypass).
+                            if command then command.target_cancelled=reason end
+                            return nil
+                        end
                         consumed=true
                         if not authoritative then rawset(p,'getTarget',prior) end
                         local x,y,entity=resolve()
@@ -304,6 +492,28 @@ function M.execute(g, action, target, meta, command)
                     local ok,value=pcall(run)
                     if authoritative or not consumed then rawset(p,'getTarget',prior) end
                     if not ok then error(value,0) end
+                    -- Settle the queue on return: a missing non-optional entry is
+                    -- a typed deviation (pauses, never resubmits); a missing
+                    -- trailing `optional` entry is a settled native outcome
+                    -- reported with `reduced=true`, not an error. A skipped
+                    -- optional that was in fact raised leaves no marker.
+                    if queue and command then
+                        local answeredSeq=observed
+                        if answeredSeq<#queue then
+                            local missing=queue[answeredSeq+1]
+                            local optional=missing.optional==true
+                            if optional then
+                                command.sequence_reduced=true
+                                command.sequence_reduced_reason='trailing_optional_not_raised'
+                            else
+                                command.sequence_deviation={reason='unexpected_target_request',
+                                    expected={index=answeredSeq+1,request=missing.request},
+                                    observed={index=answeredSeq+1,request=nil},
+                                    skippable=false}
+                                command.target_cancelled=command.target_cancelled or 'unexpected_target_request'
+                            end
+                        end
+                    end
                     return value
                 end)
             else
@@ -318,7 +528,19 @@ function M.execute(g, action, target, meta, command)
     if not finite(p.energy.value) then return {ok=false,code='invalid_native_energy',uncertain=true,
         native_message=not ok and tostring(ret) or nil} end
     local spent = math.max(0, before-p.energy.value)
-    if not ok then return {ok=false,code='execution_error',energy_spent=spent,uncertain=true,native_message=tostring(ret)} end
+    if not ok then
+        local failure={ok=false,code='execution_error',energy_spent=spent,uncertain=true,
+            native_message=tostring(ret)}
+        -- A typed queue deviation is the more precise reason when the native body
+        -- also raised: surface it (and its evidence) instead of masking it as a
+        -- generic execution_error.
+        if command and command.target_sequence then failure.target_sequence=command.target_sequence end
+        if command and command.sequence_deviation then
+            failure.sequence_deviation=command.sequence_deviation
+            failure.code=command.sequence_deviation.reason
+        end
+        return failure
+    end
     -- T_ATTACK returns true even when the underlying blow misses. A false
     -- talent result can spend energy during native pre-use failure; settle it.
     if command and command.invocation and command.invocation.pending>0 and not command.invocation.error then
@@ -331,6 +553,22 @@ function M.execute(g, action, target, meta, command)
     -- reports the typed guard reason instead of a generic native rejection.
     if command and command.target_cancelled and not success then
         result.code=command.target_cancelled
+    end
+    -- S2: surface the ordered-queue evidence and typed deviations through the
+    -- already-declared command plumbing (no protocol/schema widening). A
+    -- deviation always fails the action (it paused rather than answered a native
+    -- request with a wrong value); a missing trailing `optional` entry is a
+    -- settled native outcome reported with `reduced=true`.
+    if command and command.target_sequence then result.target_sequence=command.target_sequence end
+    if command and command.sequence_deviation then
+        result.sequence_deviation=command.sequence_deviation
+        result.ok=false
+        result.code=command.sequence_deviation.reason
+        result.uncertain=true
+    end
+    if command and command.sequence_reduced then
+        result.reduced=true
+        result.reduced_reason=command.sequence_reduced_reason
     end
     -- P3-2: a native rejection of an activated talent whose own cooldown is
     -- still running carries structured, client-visible cooldown info through the

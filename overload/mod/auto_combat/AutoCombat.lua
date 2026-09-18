@@ -189,7 +189,8 @@ end
 -- set of known keys are carried; nested tables are shallow-copied with a cap.
 local DETAIL_KEYS={'measurement','threshold','risk','unknown','provenance','phase','component',
     'landing','visible','remembered','known_passable','known_hazard','confidence','reasons',
-    'selector','talent','scope','missing','native_message','hint','requests','friendlies','selffire','friendlyfire'}
+    'selector','talent','scope','missing','native_message','hint','requests','friendlies','selffire','friendlyfire',
+    'reason','expected','observed','index','dependency','exhausted','count','request','skippable'}
 -- D-2: the structured `missing` array (for example the native cooldown entry
 -- `{kind='cooldown',talent,remaining,required=0}`) is an array of small objects,
 -- so the generic scalar-only table projection above would drop it. Project the
@@ -602,14 +603,36 @@ function M:step()
                 self.state='waiting_native'; self.reason='native_pending'
                 return {action='wait_native',rule=decision.rule,state=self.state,generation=generation}
             end
+            -- S2 ordered prompt-response queue deviation: the executor could not
+            -- answer the k-th native prompt with the k-th declared value (an
+            -- extra/missing/reordered/wrong-kind prompt or an unevaluable value).
+            -- The plugin cannot prove it answered correctly, so it pauses with the
+            -- typed reason and NEVER resubmits (no re-plan of a single
+            -- coordinate: a multi-prompt deviation has none). This is a
+            -- post-commit integrity pause, not a strategy refusal and not a
+            -- native-landing exclusion.
+            if outcome.sequence_deviation then
+                local reason=outcome.sequence_deviation.reason or 'unexpected_target_request'
+                self:record({kind='paused',reason=reason,rule=decision.rule,
+                    detail=boundedDetail(outcome.sequence_deviation)})
+                local paused=self:pause(reason)
+                paused.detail=outcome.sequence_deviation
+                paused.results=decision.results;paused.rejections=self.rejections
+                return paused
+            end
             if outcome.status=='ok' then
                 self.actions=self.actions+1
                 self:countInstant(outcome)
                 self:record({kind='acted',rule=decision.rule,talent=decision.talent,
                     target=bound.bound_target,destination=plan and plan.annotation,
+                    reduced=outcome.reduced==true or nil,
+                    reduced_reason=outcome.reduced_reason,
+                    target_sequence=outcome.target_sequence,
                     detail=boundedDetail(guard_detail)})
                 return {action='acted',rule=decision.rule,talent=decision.talent,bound_target=bound.bound_target,
                     destination=plan and plan.annotation,risk=boundedDetail(guard_detail),
+                    reduced=outcome.reduced==true or nil,reduced_reason=outcome.reduced_reason,
+                    target_sequence=outcome.target_sequence,
                     results=decision.results,rejections=self.rejections,outcome=outcome,
                     state=self.state,generation=generation}
             end

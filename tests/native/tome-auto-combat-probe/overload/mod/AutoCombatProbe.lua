@@ -65,6 +65,7 @@ M.EXPECTED={
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
     ['movement-fallback']={'blocked_landing','alternative_planned','fallback_moved'},
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
+    ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
     ['solo-pump']={},
@@ -1569,6 +1570,166 @@ local function sceneLifecycle()
     return compare('scene-lifecycle',signals)
 end
 
+-- S2 (§13.1/§6.2): ordered prompt-response queue. A test-only fixture talent
+-- raises the exact native prompts in order; the production host lowers a
+-- two-entry target plan and the real executor answers each prompt with its own
+-- decided value in one submission. `sd_second_range_refused` proves the native
+-- per-request range guard, `sd_missing_optional_reduced` the trailing-optional
+-- `reduced=true` settlement.
+local function movementSequenceFixture(name,secondSpec,raiseSecond,secondEntryOptional)
+    local p=game.player
+    local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+    local entry=assert(Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self'},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                landing_from='envelope',optional=secondEntryOptional or nil}},
+        delivery='teleport',landing='random',center='requested_grid',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10}))
+    p.talents=p.talents or {}
+    p.talents_def=p.talents_def or {}
+    p.talents[name]=1
+    p.talents_def[name]={id=name,name='MCP sequence probe',mode='activated',type={'spell/conveyance',1},
+        cooldown=0,mana=0,
+        action=function(self)
+            local tx,ty=self:getTarget({type='hit',range=10,nowarning=true})
+            if not tx then return nil end
+            if raiseSecond then
+                local x,y=self:getTarget(secondSpec)
+                if not x then return nil end
+            end
+            return true
+        end}
+    local saved=EffectManifest.ENTRIES[name]
+    EffectManifest.ENTRIES[name]={kind='movement',target='self',resource='mana',
+        movement=entry,components={},conformance={builder=false}}
+    return entry,function()
+        EffectManifest.ENTRIES[name]=saved
+        -- Remove the test-only talent so no later native cooldown/message
+        -- callback can touch the minimal fixture definition.
+        if p.talents then p.talents[name]=nil end
+        if p.talents_def then p.talents_def[name]=nil end
+        if p.talents_cd then p.talents_cd[name]=nil end
+    end
+end
+
+local function movementSequenceChecks()
+    local signals={}
+    local p=game.player
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    forceReady()
+    -- Save the native seams the fixture replaces so the later async stages
+    -- (movement-talents / scene-lifecycle) drive the real production entries.
+    local saved_useTalent=rawget(p,'useTalent')
+    local saved_getTarget=rawget(p,'getTarget')
+    local saved_cd=p.talents_cd
+    local function restoreSeams()
+        rawset(p,'useTalent',saved_useTalent)
+        rawset(p,'getTarget',saved_getTarget)
+        p.talents_cd=saved_cd
+    end
+    -- (a) The planner lowers a two-entry program into an ordered sequence.
+    local entry,restore=movementSequenceFixture('T_MCP_SEQ_A',{type='ball',range=14,radius=1,nowarning=true},true,false)
+    local pol=policy({{id='seq',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_SEQ_A',target='self'}}})
+    local host=Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end})
+    local before={x=p.x,y=p.y}
+    local dest={selector='position',x=p.x+3,y=p.y,accept=accept}
+    local planArgs={action='use_talent',talent='T_MCP_SEQ_A',target='self',
+        target_plan={{request='actor',selector='self'},{request='grid',destination=dest}},
+        destination=dest}
+    local planned,planErr=host.plan(planArgs)
+    local okPlan=planned and planned.plan and planned.plan.kind=='sequence'
+        and #planned.plan.steps==2 and planned.plan.values[1].kind=='self'
+        and planned.plan.values[2].kind=='grid'
+    check('movement-sequence:plan',okPlan,{kind=planned and planned.plan and planned.plan.kind,
+        reason=planErr and planErr.reason})
+    signals[#signals+1]=okPlan and 'sd_plan_sequence' or 'sd_plan_missing'
+    -- (b) A reversed plan is a typed mismatch, never silently reordered.
+    local reversed,reversedErr=host.plan({action='use_talent',talent='T_MCP_SEQ_A',target='self',
+        target_plan={{request='grid',destination=dest},{request='actor',selector='self'}},
+        destination=dest})
+    local okReverse=reversed==nil and reversedErr and reversedErr.reason=='target_plan_mismatch'
+    check('movement-sequence:reverse',okReverse,{reason=reversedErr and reversedErr.reason})
+    signals[#signals+1]=okReverse and 'sd_reverse_plan_rejected' or 'sd_reverse_missing'
+    -- (c) An un-upgraded multi-prompt descriptor keeps the typed capability gap.
+    local static,staticErr=host.plan({action='use_talent',talent='T_SEQ_STATIC',target='self',
+        target_plan={{request='actor',selector='self'},{request='grid',destination=dest}},
+        destination=dest})
+    local okStatic=static==nil and staticErr and staticErr.reason=='unsupported_target_plan'
+        and staticErr.missing=='ordered_request_sequence' and staticErr.scope=='multi_prompt'
+    check('movement-sequence:static-unsupported',okStatic,
+        {reason=staticErr and staticErr.reason,missing=staticErr and staticErr.missing})
+    signals[#signals+1]=okStatic and 'sd_static_unsupported' or 'sd_static_missing'
+    -- (d) The ordered queue answers both prompts distinct in one submission.
+    local outcome
+    if planned then
+        outcome=host.request({action='use_talent',talent='T_MCP_SEQ_A',plan=planned.plan,rule='seq'})
+    end
+    local settled=outcome and outcome.status=='ok'
+    local seq=outcome and outcome.target_sequence
+    local ordered=type(seq)=='table' and #seq==2
+    check('movement-sequence:two-requests',settled and ordered,
+        {status=outcome and outcome.status,code=outcome and outcome.code,count=seq and #seq})
+    signals[#signals+1]=(settled and ordered) and 'sd_two_requests_ordered' or 'sd_two_requests_missing'
+    -- The two recorded requests are distinguishable (the landing prompt carries
+    -- a radius) and both answers were consumed (the native body settled).
+    local distinct=ordered and seq[2].radius==1 and seq[1].radius==nil
+    check('movement-sequence:distinct-values',settled and distinct,
+        {first=seq and seq[1],second=seq and seq[2]})
+    signals[#signals+1]=(settled and distinct) and 'sd_distinct_values' or 'sd_distinct_missing'
+    restore()
+    -- (e) The per-request native guard: a landing 3 tiles away with a range-1
+    -- second prompt is refused as the typed native cancel (never bypassed).
+    local entry2,restore2=movementSequenceFixture('T_MCP_SEQ_B',{type='ball',range=1,radius=1,nowarning=true},true,false)
+    local pol2=policy({{id='seq',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_SEQ_B',target='self'}}})
+    local host2=Runtime.buildAutoCombatHostFor(game,pol2,{drift=function() return true end})
+    p.x,p.y=before.x,before.y
+    local plan2=host2.plan({action='use_talent',talent='T_MCP_SEQ_B',target='self',
+        target_plan=planArgs.target_plan,destination=dest})
+    local outcome2
+    forceReady()
+    if p.talents_cd then p.talents_cd.T_MCP_SEQ_B=0 end
+    if plan2 and plan2.plan then
+        outcome2=host2.request({action='use_talent',talent='T_MCP_SEQ_B',plan=plan2.plan,rule='seq'})
+    end
+    local refused=outcome2 and outcome2.code=='target_out_of_range'
+    check('movement-sequence:second-range-refused',refused,
+        {status=outcome2 and outcome2.status,code=outcome2 and outcome2.code,
+            deviation=outcome2 and outcome2.sequence_deviation})
+    signals[#signals+1]=refused and 'sd_second_range_refused' or 'sd_second_range_missing'
+    restore2()
+    -- (f) A missing trailing optional entry is a settled native outcome with
+    -- reduced=true (not an error).
+    local entry3,restore3=movementSequenceFixture('T_MCP_SEQ_C',{type='ball',range=14,radius=1,nowarning=true},false,true)
+    local pol3=policy({{id='seq',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_SEQ_C',target='self'}}})
+    local host3=Runtime.buildAutoCombatHostFor(game,pol3,{drift=function() return true end})
+    p.x,p.y=before.x,before.y
+    local plan3=host3.plan({action='use_talent',talent='T_MCP_SEQ_C',target='self',
+        target_plan=planArgs.target_plan,destination=dest})
+    local outcome3
+    forceReady()
+    if p.talents_cd then p.talents_cd.T_MCP_SEQ_C=0 end
+    if plan3 and plan3.plan then
+        outcome3=host3.request({action='use_talent',talent='T_MCP_SEQ_C',plan=plan3.plan,rule='seq'})
+    end
+    local reduced=outcome3 and outcome3.status=='ok' and outcome3.reduced==true
+        and outcome3.reduced_reason=='trailing_optional_not_raised'
+    check('movement-sequence:missing-optional-reduced',reduced,
+        {status=outcome3 and outcome3.status,reduced=outcome3 and outcome3.reduced,
+            deviation=outcome3 and outcome3.sequence_deviation})
+    signals[#signals+1]=reduced and 'sd_missing_optional_reduced' or 'sd_missing_optional_missing'
+    restore3()
+    -- Restore the native seams and the player's previous position/energy so the
+    -- later asynchronous stages drive the real production entries.
+    restoreSeams()
+    p.x,p.y=before.x,before.y
+    forceReady()
+    return compare('movement-sequence',signals)
+end
+M.movementSequenceChecks=movementSequenceChecks
+
 local function runAll()
     local ok,err=pcall(function()
         startWhenReady()
@@ -1590,6 +1751,7 @@ local function runAll()
         movementNativeFallback()
         movementPlan()
         movementFactoryChecks()
+        movementSequenceChecks()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok
