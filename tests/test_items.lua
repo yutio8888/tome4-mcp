@@ -226,7 +226,13 @@ check(exec(g,'equip',b).code=='unsupported_item_transfer','replacement cannot en
 g,p,map=fixture();a=bag(p,object{slot='PSIONIC_FOCUS'})
 check(exec(g,'equip',a).code=='unsupported_equipment_slot','special equipment slot stays unsupported')
 g,p,map=fixture();a=bag(p,object());p.doWear=function() error('modified action') end
-check(exec(g,'equip',a).code=='item_operation_modified' and p.energy.value==1000,'modified native method rejected')
+-- NO-AUDIT: a replaced-but-present doWear is used, not identity-gated; its
+-- error surfaces as an uncertain native execution error.
+local replaced_result=exec(g,'equip',a)
+check(replaced_result.code=='execution_error' and replaced_result.uncertain,
+    'a replaced item operation is used and its error surfaced')
+g,p,map=fixture();a=bag(p,object());p.doWear=false
+check(exec(g,'equip',a).code=='item_operation_modified','a non-callable item operation is unavailable')
 g,p,map=fixture();a=bag(p,object());g.dialogs={{}}
 check(exec(g,'equip',a).code=='player_busy','dialog blocks item mutation')
 g.dialogs={};p.no_inventory_access=true

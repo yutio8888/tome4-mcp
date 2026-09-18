@@ -94,7 +94,8 @@ check(#observe().actors==0,'negative cache takes priority')
 p.can_see_cache=nil;enemy.invisible=10
 check(#observe().actors==0,'uncached invisibility hidden')
 enemy.invisible=nil;p.attr=function() return nil end
-check(#observe().actors==0,'modified perception disables fallback')
+-- NO-AUDIT: a replaced perception helper is not a gate; the visible actor stays visible.
+check(#observe().actors==1,'a replaced perception helper does not hide the actor')
 p.attr=attr
 local rev=observe().revision
 check(act('move',{type='move',direction=4},rev).result.status=='queued','single action queued')

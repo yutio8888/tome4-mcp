@@ -61,14 +61,14 @@ end
 
 -- The native RUN_AUTO guard is reactionToward(actor) < 0. A visible escort or
 -- summon is not hostile, so it must not refuse auto-explore.
+-- NO-AUDIT: the live `reactionToward` is called as a normal entry when present
+-- and usable; a missing/erroring/non-numeric result falls back to the stored
+-- scalar/faction classification. Source identity never changes the decision.
 function M.hostileVisible(g,p,actor)
     if actor==p or type(actor)~='table' or not actor.__is_actor or not Observer.visible(g,actor) then return false end
     if type(p.reactionToward)=='function' then
-        local info=debug.getinfo(p.reactionToward,'S')
-        if info~=nil and type(info.source)=='string' and info.source:sub(-#'/mod/class/Actor.lua')=='/mod/class/Actor.lua' then
-            local ok,r=pcall(p.reactionToward,p,actor)
-            if ok and type(r)=='number' then return r<0 end
-        end
+        local ok,r=pcall(p.reactionToward,p,actor)
+        if ok and type(r)=='number' then return r<0 end
     end
     if type(actor.reaction)=='number' then return actor.reaction<0 end
     return actor.faction~=nil and actor.faction~=p.faction

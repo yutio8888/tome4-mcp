@@ -21,12 +21,6 @@ local function wildernessVision(g,p,map)
         and type(p.playerFOV)=='function' and type(p.computeFOV)=='function'
         and type(map.applyLite)=='function' and type(map.cleanFOV)=='function'
 end
-local function native(fn,suffix)
-    if type(fn)~='function' then return false end
-    local info=debug.getinfo(fn,'S')
-    return info and type(info.source)=='string' and info.source:sub(1,1)=='@'
-        and info.source:sub(-#suffix)==suffix
-end
 function M.reset() memories=setmetatable({}, {__mode='k'}) end
 -- The exact terrain-visibility predicate used by the window capture: FOV plus
 -- the light/actor guard, with the audited wilderness branch. Shared so the
@@ -54,11 +48,12 @@ function M.visible(g, actor)
     seen = seen and seen['nil/nil']
     if seen then return seen[1]==true end
     -- Actor:act clears its seeing cache even when stationary map objects are
-    -- not rebuilt. The native ordinary-vision branch is deterministic when
-    -- none of the four special conditions applies. Audit every method used
-    -- by that branch, then read its scalar inputs without invoking callbacks.
-    if not native(p.canSee,'/mod/class/Actor.lua') or not native(p.canSeeNoCache,'/mod/class/Actor.lua')
-        or not native(p.attr,'/engine/Entity.lua') or not native(actor.attr,'/engine/Entity.lua') then return false end
+    -- not rebuilt. The ordinary-vision branch is deterministic when none of the
+    -- four special conditions applies; read its scalar inputs without invoking
+    -- callbacks. This is the intentional no-callback structural projection (the
+    -- read policy forbids running perception callbacks during observation), and
+    -- it must NOT depend on any method's provenance: a replaced perception
+    -- method never hides the actor. (NO-AUDIT)
     if active(p.blind) or active(actor.invisible) or active(actor.stealth) or active(actor.concealment) then return false end
     return true
 end
