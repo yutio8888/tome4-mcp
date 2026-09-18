@@ -326,6 +326,42 @@ The following remain per-talent review output:
 These are execution semantics, not policy preferences. Templates may provide
 field defaults only where the category itself proves them.
 
+### 3.3 What `tome-auto_talent_assistant` (ATA) does with multi-prompt targeting (evidence)
+
+An independent read-only analysis of the sibling addon `tome-auto_talent_assistant` (`game/addons/
+tome-auto_talent_assistant`) is recorded at `tmp/mcp-play-support/ata-targeting-analysis.md` (sha256
+`159463ad436206e10d2664219e4059fb0a2ee2e4df0d76b80c324e7e1ec54e33`). Its mechanism, verified directly
+against the source:
+
+- ATA pre-computes a target in its own scoring pipeline and then **hijacks `Player:getTarget`** with a
+  transient `self.talentAssistantTarget` envelope (`superload/mod/class/Player.lua:204-226`); inside that
+  branch it **never reads the native `typ` descriptor at all** (`typ` is only forwarded to `old_getTarget`).
+  Whether the answer is an actor is decided by `self.talentAssistantTarget.target.name`
+  (`Player.lua:215-217`), i.e. by the *shape of its own data*, not by the native request.
+- It does **not** use the engine's `force_target` argument for auto-casts (the fifth `useTalent` argument is
+  `nil`, `hooks/load.lua:719,733`).
+- Multi-prompt talents are handled with a **counter**: `talentAssistantTarget.num` increments per native
+  prompt (`Player.lua:206-210`), and prompts after the first **re-enter its scoring pipeline**
+  (`useAutoTalent`) and overwrite `.target`. Per-stage configuration exists only through a player-authored,
+  **positional** `textListList[num]` table with an off-by-one (entry 1 = the second prompt,
+  `hooks/load.lua:680-699`); the "composite talent" path (`num=-999`, `hooks/load.lua:433`) answers **every**
+  prompt with one pre-aimed target.
+- Failure handling: when re-scoring finds nothing it **silently reuses the previous answer**; only a few
+  shapes (`safety-tp`/`mov`) fail closed via `notarget` → `nil` answer → talent abort (`hooks/load.lua:
+  1719-1721`); if the envelope is absent the call falls through to `old_getTarget` (manual UI, **no
+  timeout**). There is **no identity/digest/source-line audit** anywhere in ATA, and `useTalent` is not
+  wrapped to clear the envelope on error (a stale envelope can leak).
+
+**Implication for this design.** The convergent lesson is that "which prompt am I answering" is a real
+hazard that ATA only sidesteps because it is **typ-blind by construction** (it answers whatever arrives, in
+order, from its own pre-computed list, and silently reuses the previous answer when its re-score fails).
+That posture is unsound here: it can commit a semantically wrong target, and it cannot detect an unexpected
+shape/order. Conversely, three of its mechanisms are sound and are already reflected above — a per-cast
+envelope with an explicit prompt **counter**, an explicit fail-closed "no target" path, and reads gated on
+player-visible information. This is also why §4.4 requires the per-entry **curated observed signature** and
+pairwise **mutual exclusivity** rather than a positional list: our executor must be able to *prove* which
+prompt it is answering, or pause and hand the live interaction back.
+
 ## 5. Landing envelopes and mixed effects
 
 ToME's module override for `teleportRandom(x,y,0)` first calls
