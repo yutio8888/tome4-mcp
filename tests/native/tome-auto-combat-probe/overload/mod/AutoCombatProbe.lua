@@ -67,7 +67,8 @@ M.EXPECTED={
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
     ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
-    ['handback']={'hb_pending_deviation','hb_controller_paused','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_answered_effect','hb_unanswered_cancelled'},
+    ['handback-answer']={'hb_pending_deviation','hb_controller_paused','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_answered_effect'},
+    ['handback-timeout']={'hb_pending_deviation','hb_controller_paused','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_unanswered_cancelled'},
     ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
     ['solo-pump']={},
 }
@@ -1982,6 +1983,11 @@ local function handbackCase(answerMode)
         and svc.controller.reason=='unexpected_target_request'
     check('handback:controller-paused',paused,
         {state=svc.controller.state,reason=svc.controller.reason})
+    -- The controller must never have entered `waiting_native` on the deviation
+    -- path (the reason is the typed deviation, not 'native_pending').
+    check('handback:never-waiting-native',svc.controller.reason~='native_pending'
+        and run.reason~='native_pending',
+        {controller_reason=svc.controller.reason,run_reason=run.reason})
     signals[#signals+1]=paused and 'hb_controller_paused' or 'hb_pause_missing'
     local released=status.control_owner=='manual' and run.state=='stopped'
     check('handback:lease-released',released,{owner=status.control_owner,state=run.state})
@@ -1998,6 +2004,7 @@ local function handbackCase(answerMode)
     local answerable=handle~=nil and handle.target~=nil
     check('handback:answerable',answerable,{handle=handle and handle.kind})
     signals[#signals+1]=answerable and 'hb_answerable' or 'hb_unanswerable'
+    signals[#signals+1]='hb_never_waiting_native'
     if answerMode=='answer' and handle then
         local prepared=Interactions.prepare(handle,{type='position',x=p.x+2,y=p.y})
         local ok_apply=prepared and pcall(Interactions.apply,handle,prepared)
@@ -2030,6 +2037,7 @@ local function handbackCase(answerMode)
     if root then pcall(Interactions.cancelTarget,root);pcall(Interactions.release,root) end
     restore()
     forceReady()
+    compare('handback-'..answerMode,signals)
     return signals
 end
 M.handbackCase=handbackCase
