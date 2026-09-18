@@ -2,7 +2,7 @@
 
 - Worktree: `/workspace/t-engine4/game/addons/tome-mcp-bridge-approach`
 - Branch: `fix/approach-alternative-landing` (off `main@c4b40bc`), pushed, PR #19
-- New head: `2c7a88e2b690c984cf660aab792c3277391485ad`
+- Production head (code + dist): `2c7a88e2b690c984cf660aab792c3277391485ad`; the docs-only dev-report commit sits on top of it (branch tip reported to the dispatcher).
 - dist artifact: `dist/tome-mcp-bridge.teaa`
   - baseline sha `2f7c15e41740bd60674242b9703d34945bbf9ab7883015618790dc7edbf89a9e`
   - new sha `6d68fdfd559f89a34bb8e006a9e7be06cb2666d91e07937e036917e1b9088819`
