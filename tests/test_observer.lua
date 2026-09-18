@@ -152,6 +152,30 @@ check(replaced.blocked==true,'a replaced-but-usable block_move value is used')
 local dynamicFalse=Details.terrain({name='dynamic pass',block_move=function() return false end},p)
 check(dynamicFalse.blocked==false,'a replaced block_move returning false is used')
 check(Details.terrain({name='door',block_move=gridclass.block_move,door_opened='OPEN',door_player_check='Confirm'},p).confirmation_required,'door confirmation is described only')
+-- NO-AUDIT door branch: the live callable block_move is invoked and validated,
+-- then the stored door metadata is attached independently.
+do
+    local called=0
+    local doorFalse=Details.terrain({name='door open',door_opened='OPEN',
+        block_move=function() called=called+1;return false end},p)
+    check(called==1 and doorFalse.blocked==false and doorFalse.block_status=='passable'
+        and doorFalse.door==true,'a door invokes the live block_move and uses a usable false')
+    check(doorFalse.can_open==true,'door open metadata is attached after the live call')
+    local doorTrue=Details.terrain({name='door blocked',door_opened='OPEN',
+        block_move=function() return true end},p)
+    check(doorTrue.blocked==true,'a door uses a usable true from the live block_move')
+    local doorNil=Details.terrain({name='door nil',door_opened='OPEN',
+        block_move=function() return nil end},p)
+    check(doorNil.blocked==false,'a door uses the native nil-means-passable return')
+    local doorThrow=Details.terrain({name='door throw',door_opened='OPEN',
+        block_move=function() error('boom') end},p)
+    check(doorThrow.blocked==nil and doorThrow.block_status=='unknown' and doorThrow.door==true,
+        'a throwing door block_move yields unknown but keeps door metadata')
+    local doorInvalid=Details.terrain({name='door invalid',door_opened='OPEN',
+        block_move=function() return 'yes' end},p)
+    check(doorInvalid.blocked==nil and doorInvalid.block_status=='unknown',
+        'an invalid door block_move return yields unknown')
+end
 
 -- Seeing an actor with ESP does not reveal terrain beneath it.
 Observer.reset();map.infovs[enemy.x+enemy.y*5]=false
@@ -328,6 +352,35 @@ do
     check(NativeActivity.hostileVisible(g2,pl,act)==false,'a stored friendly reaction is non-hostile')
     act.reaction=nil
     check(NativeActivity.hostileVisible(g2,pl,act)==true,'a differing faction is hostile')
+    -- A non-finite reactionToward result is not usable: fall back to the stored
+    -- scalar/faction classification rather than treating NaN/±inf as a verdict.
+    act.reaction=-1
+    pl.reactionToward=function() return 0/0 end
+    check(NativeActivity.hostileVisible(g2,pl,act)==true,
+        'a NaN reactionToward falls back to the stored hostile reaction')
+    act.reaction=1
+    check(NativeActivity.hostileVisible(g2,pl,act)==false,
+        'a NaN reactionToward falls back to the stored friendly reaction')
+    act.reaction=-1
+    pl.reactionToward=function() return math.huge end
+    check(NativeActivity.hostileVisible(g2,pl,act)==true,
+        '+inf reactionToward falls back to the stored hostile reaction')
+    act.reaction=1
+    pl.reactionToward=function() return -math.huge end
+    check(NativeActivity.hostileVisible(g2,pl,act)==false,
+        '-inf reactionToward falls back to the stored friendly reaction')
+    -- The non-finite fallback must not admit auto_explore over a stored hostile.
+    act.reaction=-1
+    pl.reactionToward=function() return 0/0 end
+    pl.autoExplore=function() return true end
+    pl.runStep=function() return false end
+    pl.enoughEnergy=function() return true end
+    pl.runStop=function() end
+    local s2={game=g2,native_activity=nil,control_token='tok',revision=1,
+        auto_combat={arbiter={owner='auto_combat'}}}
+    local refusal=NativeActivity.start(s2,{owner='command',command={input_owner='remote'}},'auto_explore')
+    check(refusal.ok==false and refusal.code=='enemies_in_sight',
+        'a non-finite reactionToward does not admit auto_explore over a stored hostile')
 end
 
 print('Observer: '..checks..' checks passed; stress snapshot '..bytes..' bytes')

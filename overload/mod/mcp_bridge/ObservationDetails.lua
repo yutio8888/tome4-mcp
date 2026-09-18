@@ -482,28 +482,29 @@ function M.terrain(terrain,p)
         char=type(terrain.display)=='string' and #terrain.display==1 and terrain.display:match('[ -~]') and terrain.display or '.',
         block_status='unknown'}
     -- NO-AUDIT: call the live `block_move` as a normal entry with `act=false`
-    -- (the side-effect-free branch). A usable boolean is used; an erroring or
-    -- non-boolean result is `unknown`. Door/exit labels below are stored scalars.
+    -- (the side-effect-free branch), for doors and open terrain alike. A usable
+    -- boolean is used; a `nil` return means "does not block"; an erroring or
+    -- otherwise-invalid result stays `unknown`. Door/exit labels are stored
+    -- scalars attached independently after the call, never forced on the result.
     if type(terrain.block_move)=='boolean' then
         result.blocked=terrain.block_move
     elseif type(terrain.block_move)=='function' then
+        local px=p and M.finite(p.x) and p.x or 0
+        local py=p and M.finite(p.y) and p.y or 0
+        local ok,blocked=pcall(terrain.block_move,terrain,px,py,p,false,false)
+        -- Native returns `self.does_block_move`: a boolean, or nil for
+        -- "does not block". Any other value is not a usable obstruction
+        -- answer and stays `unknown`.
+        if ok then
+            if type(blocked)=='boolean' then result.blocked=blocked
+            elseif blocked==nil then result.blocked=false end
+        end
         if terrain.door_opened then
-            result.blocked=true;result.door=true
+            result.door=true
             if p.open_door==nil or p.open_door==false then result.can_open=false
             elseif type(p.open_door)=='boolean' or type(p.open_door)=='string' or M.finite(p.open_door) then result.can_open=true end
             if terrain.door_player_check then result.confirmation_required=true end
             if terrain.door_player_stop then result.opening_blocked=true end
-        else
-            local px=p and M.finite(p.x) and p.x or 0
-            local py=p and M.finite(p.y) and p.y or 0
-            local ok,blocked=pcall(terrain.block_move,terrain,px,py,p,false,false)
-            -- Native returns `self.does_block_move`: a boolean, or nil for
-            -- "does not block". Any other value is not a usable obstruction
-            -- answer and stays `unknown`.
-            if ok then
-                if type(blocked)=='boolean' then result.blocked=blocked
-                elseif blocked==nil then result.blocked=false end
-            end
         end
     elseif type(terrain.does_block_move)=='boolean' then
         result.blocked=terrain.does_block_move

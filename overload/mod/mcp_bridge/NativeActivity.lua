@@ -25,6 +25,8 @@ local Details=require 'mod.mcp_bridge.ObservationDetails'
 local Observer=require 'mod.mcp_bridge.Observer'
 local M={}
 
+local function finite(v) return type(v)=='number' and v==v and v>-math.huge and v<math.huge end
+
 M.KINDS={rest=true,auto_explore=true}
 
 function M.is(kind) return kind~=nil and M.KINDS[kind]==true end
@@ -61,16 +63,17 @@ end
 
 -- The native RUN_AUTO guard is reactionToward(actor) < 0. A visible escort or
 -- summon is not hostile, so it must not refuse auto-explore.
--- NO-AUDIT: the live `reactionToward` is called as a normal entry when present
--- and usable; a missing/erroring/non-numeric result falls back to the stored
--- scalar/faction classification. Source identity never changes the decision.
+-- NO-AUDIT: the live `reactionToward` is called as a normal entry when present;
+-- only a **finite** numeric result is usable. A missing/erroring/non-numeric or
+-- non-finite (NaN/±inf) result falls back to the stored scalar/faction
+-- classification. Source identity never changes the decision.
 function M.hostileVisible(g,p,actor)
     if actor==p or type(actor)~='table' or not actor.__is_actor or not Observer.visible(g,actor) then return false end
     if type(p.reactionToward)=='function' then
         local ok,r=pcall(p.reactionToward,p,actor)
-        if ok and type(r)=='number' then return r<0 end
+        if ok and finite(r) then return r<0 end
     end
-    if type(actor.reaction)=='number' then return actor.reaction<0 end
+    if finite(actor.reaction) then return actor.reaction<0 end
     return actor.faction~=nil and actor.faction~=p.faction
 end
 
