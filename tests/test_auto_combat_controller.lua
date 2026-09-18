@@ -495,4 +495,34 @@ do
     for _,entry in ipairs(host.requests) do if entry.action=='set_sustain' then attempts=attempts+1 end end
     check(attempts==AutoCombat.SUSTAIN_FAILURE_CAP,'a disabled sustain is not attempted again')
 end
+
+-- P0/F4: a bounded native abort is a typed controller event in the decision ring
+-- and (through notify) the policy log, carrying the action, talent, target and
+-- elapsed ticks/frames. It never mutates the native game.
+do
+    local host=makeHost()
+    local c=AutoCombat.new(policy(),host)
+    c:start()
+    local entry=c:nativeAborted({code='native_timeout',rule='beam',action='use_talent',
+        talent='T_MOONLIGHT_RAY',target='e1',elapsed_ticks=12,elapsed_frames=40})
+    check(entry.kind=='native_aborted' and entry.reason=='native_timeout',
+        'the abort is recorded as a typed native_aborted decision')
+    check(entry.action=='use_talent' and entry.talent=='T_MOONLIGHT_RAY' and entry.target=='e1'
+        and entry.elapsed_ticks==12 and entry.elapsed_frames==40,
+        'the abort event carries the action, talent, target and elapsed ticks/frames')
+    local notified
+    for _,event in ipairs(host.notifications) do
+        if event.kind=='native_aborted' then notified=event end
+    end
+    check(notified and notified.reason=='native_timeout' and notified.elapsed_frames==40,
+        'the abort reaches the notify callback (policy log)')
+    local recent=false
+    for _,event in ipairs(c.recent) do if event.kind=='native_aborted' then recent=true end end
+    check(recent,'the abort is retained in the bounded decision ring')
+    local denied=false
+    for _,rejection in ipairs(c.rejections) do
+        if rejection.rule=='beam' and rejection.reason=='native_timeout' then denied=true end
+    end
+    check(denied,'the aborted rule is recorded in the opportunity rejections')
+end
 print('Auto-combat controller: '..checks..' checks passed')

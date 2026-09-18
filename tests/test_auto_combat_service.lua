@@ -616,4 +616,29 @@ do
     check(Service.loadState(restored,{approved={schema='bad'}})==true and restored.store.approved~=nil,
         'an invalid stored policy is ignored')
 end
+-- P0/F4: a bounded native abort records a typed event, stops the run and hands
+-- the lease back to the player.
+do
+    local svc=Service.new({host_factory=fakeHost})
+    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
+    Service.handle(svc,'start',{})
+    Service.step(svc)
+    local entry=Service.nativeAbort(svc,{code='native_timeout',rule='beam',action='use_talent',
+        talent='T_MOONLIGHT_RAY',target='e1',elapsed_ticks=3,elapsed_frames=22})
+    check(entry and entry.kind=='native_aborted' and entry.reason=='native_timeout',
+        'the native abort records the typed controller event')
+    check(svc.arbiter.owner=='manual','the native abort releases the auto-combat lease')
+    check(svc.controller.state=='stopped' and svc.controller.reason=='native_timeout',
+        'the native abort stops the run with the typed reason')
+    local log=Service.handle(svc,'log',{limit=8})
+    local found
+    for _,event in ipairs(log.events or {}) do
+        if event.kind=='native_aborted' then found=event end
+    end
+    check(found and found.reason=='native_timeout' and found.talent=='T_MOONLIGHT_RAY'
+        and found.target=='e1' and found.elapsed_frames==22,
+        'the typed abort reaches the service policy log with action/talent/target/elapsed')
+end
 print('Auto-combat service: '..checks..' checks passed')

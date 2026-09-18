@@ -529,6 +529,36 @@ function M.apply(h,prepared)
 end
 
 function M.reissue(h) if M.valid(h) then issue(h) end end
+-- Cancel an open target interaction owned by `root` (used by the auto-combat
+-- executor's bounded abort). Returns ok, reason. It only acts on a handle that
+-- belongs to this root; a stale handle is dropped. The native target cancel
+-- resumes the suspended talent body with nil coordinates, so the native flow
+-- rejects as if the player pressed Escape.
+function M.cancelTarget(root)
+    if not root then return false,'no_root' end
+    for g,h in pairs(targets) do
+        if h.root==root and not h.closed then
+            if not M.valid(h) then
+                h.closed=true;targets[g]=nil
+                return false,'target_expired'
+            end
+            local ok,err=pcall(M.apply,h,{type='cancel'})
+            if not ok then return false,tostring(err) end
+            return true,'cancelled'
+        end
+    end
+    return false,'no_target'
+end
+-- P0: drop any lingering target handle belonging to `root` when an auto invocation
+-- is aborted. The authoritative prefill wrapper restores the player `getTarget`
+-- itself on both the normal and error paths; this only clears the bridge-side
+-- interaction registry so the handle cannot outlive the invocation. Safe when
+-- there is nothing to clean.
+function M.clearTargets(root)
+    for g,h in pairs(targets) do
+        if h.root==root then h.closed=true;targets[g]=nil end
+    end
+end
 function M.release(root)
     for _,h in ipairs(root.interactions or {}) do
         if h.dialog then dialogs[h.dialog]=nil end

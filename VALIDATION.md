@@ -19,6 +19,22 @@
 > `docs/tome-mcp-auto-combat-plugin-design.md` §8.3（及 §0.1/§1.2/§5.3/§5.4）。下方各节在相关处已加
 > **局部 supersession 注解**；未加注解的普通功能/协议验收仍有效。
 
+## 0.9.0：S1 Rush 原生结算 P0（F1/F3/F4，dev 待评审）
+
+日期：2026-09-18。分支 `fix/auto-movement-native-settlement`（off `main@3d78590`）。来源：
+`tmp/mcp-play-support/agent-ham-s1rush-report.md`（F1 P0 死锁、F3 P2 预设无移动规则、F4 P2 日志失明）。
+实现说明见 [docs/tome-mcp-0.9.0-auto-combat-native-settlement.md](docs/tome-mcp-0.9.0-auto-combat-native-settlement.md)。
+
+| finding | 结果 | 修复与回归证据 |
+| --- | --- | --- |
+| F1（P0）auto 槽 Rush 死锁 | **PASS** | 内部 `authoritative_target`：决定目标回答每次原生 `getTarget`（保留 range/self-warning 守卫，真无效目标返回 typed native cancel）；残留不可答请求浮出为 `observe.auto_combat.pending_interaction`；bounded typed abort（`native_timeout`，ticks/wall/frames）取消 UI、释放 invocation 与租约。单测 `test_talent_query.lua`（每次请求/落点后置条件/守卫/校验）、`test_runtime.lua`（不重提交、typed timeout、日志、租约、恢复）、`test_auto_combat_controller.lua`、`test_auto_combat_service.lua`；原生探针 `movement-talents:rush-settles` |
+| F3（P2）`berserker_p2` 无移动 | **PASS** | 删除陈旧 “no move rule” 注释；新增 `rush`（stamina/CD/distance 门控）与确定性 `approach` 步；`test_auto_combat_pilots.lua` 覆盖窗口内/外、无 Rush、无 stamina |
+| F4（P2）卡死日志失明 | **PASS** | typed `native_aborted`/`native_timeout` 事件（含 action/talent/target/elapsed ticks/frames）经 `PolicyLog`/`tome.policy_log`；`observe.auto_combat.last_native_abort` |
+
+在最终 head 独立复跑（证据 `tmp/s1-dev/`）：Lua 41 套全绿、Python 39 OK、三个 `--check` 绿、
+auto-combat 探针 source `s1-dev-timeouttest-02` 与 dist `s1-dev-dist-01` 各 **118/118**。
+`allow_auto_combat_execution` 保持 `false`。
+
 ## 0.9.0：移动适配器工厂 S1（no-audit 收口，已合并）
 
 日期：2026-09-17。分支 `feat/movement-adapter-factory`（PR #16，head `5908eef57b58d7d7dd435c9e1cf0247e5df0b7ec`）**已合并到 `main`（merge `bc3eea01948ed651b61e67d6cd6817db0118d949`）**。交付：闭合的 `MovementAdapterFactory`（5 个单提示模板 + Phase Door 有效等级 × `phase_door_force_precise` 变体矩阵）、类型化缺口（Phase Door TL4+ 多提示 → S2；Dimensional Step TL5 占用格 → S4；Blink Rune 无稳定 id），以及**运行期身份/摘要/闭包门禁的彻底移除**。

@@ -188,11 +188,27 @@ M.PRESETS={
                 ['then']={action='use_talent',talent='T_SHATTERING_BLOW',target='nearest_hostile'}},
             {id='melee',priority=50,when={enemy_in_melee={}},
                 ['then']={action='attack',target='nearest_hostile'}},
-            -- A visible but not-yet-adjacent foe: wait for it to close instead
-            -- of ending the run (the policy action set has no move rule).
-            {id='close',priority=1,
+            -- Movement/close-in tranche (v1.6). A visible foe outside melee is
+            -- closed with Rush when the stamina pool can pay for it and the
+            -- distance window proves at least one tile of momentum; otherwise a
+            -- plain deterministic step toward the bound target approaches
+            -- instead of standing still and eating ranged fire.
+            {id='rush',priority=40,
+                when={all={{enemy_count={ge=1}},
+                    {['not']={enemy_in_melee={}}},
+                    {talent_known={talent='T_RUSH'}},
+                    {cooldown_ready={talent='T_RUSH'}},
+                    {resource_value={resource='stamina',ge=22}},
+                    {enemy_distance={ge=2}},
+                    {enemy_distance={le=6}}}},
+                ['then']={action='use_talent',talent='T_RUSH',target='nearest_hostile',
+                    destination={selector='native_landing',anchor='bound_target',
+                        accept={visibility='any',passability='native',hazard='any',landing='allow_random'}}}},
+            {id='approach',priority=30,
                 when={all={{enemy_count={ge=1}},{['not']={enemy_in_melee={}}}}},
-                ['then']={action='wait'}},
+                ['then']={action='move',target='nearest_hostile',
+                    destination={selector='toward',anchor='bound_target',
+                        accept={visibility='any',passability='native',hazard='any',landing='allow_random'}}}},
         },
     },
 }

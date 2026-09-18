@@ -102,7 +102,7 @@ do
         'Corruptor waits while Soul Rot cools down')
 end
 
--- Berserker: emergency Adrenaline Surge / Shattering Blow / melee / close wait.
+-- Berserker: emergency Adrenaline Surge / Shattering Blow / melee / Rush / approach.
 do
     local d=decide('berserker_p2',ctx({hp_pct=20}))
     check(d.decision=='act' and d.rule=='adrenaline' and d.talent=='T_ADRENALINE_SURGE',
@@ -114,9 +114,26 @@ do
         cooldown_ready=function(id) return id~='T_SHATTERING_BLOW' end}))
     check(basic.decision=='act' and basic.rule=='melee' and basic.action=='attack',
         'Berserker falls back to the native attack while Shattering Blow cools down')
-    local far=decide('berserker_p2',ctx({hp_pct=80,enemy_in_melee=false}))
-    check(far.decision=='act' and far.rule=='close' and far.action=='wait',
-        'Berserker waits for a visible foe to close')
+    -- F3: a visible foe within the Rush window is closed natively (movement rule).
+    local rush=decide('berserker_p2',ctx({hp_pct=80,enemy_in_melee=false,enemy_distance=4}))
+    check(rush.decision=='act' and rush.rule=='rush' and rush.talent=='T_RUSH'
+        and rush.action=='use_talent' and rush.destination
+        and rush.destination.selector=='native_landing',
+        'Berserker in the Rush window drives the native Rush movement talent')
+    -- Out of / adjacent to the Rush window, or Rush unavailable: a deterministic
+    -- step approaches instead of standing still.
+    local far=decide('berserker_p2',ctx({hp_pct=80,enemy_in_melee=false,enemy_distance=9}))
+    check(far.decision=='act' and far.rule=='approach' and far.action=='move'
+        and far.destination and far.destination.selector=='toward',
+        'Berserker approaches a distant foe with a deterministic step')
+    local noRush=decide('berserker_p2',ctx({hp_pct=80,enemy_in_melee=false,enemy_distance=4,
+        talent_known=function(id) return id~='T_RUSH' end}))
+    check(noRush.decision=='act' and noRush.rule=='approach' and noRush.action=='move',
+        'Berserker approaches when Rush is not known')
+    local noStamina=decide('berserker_p2',ctx({hp_pct=80,enemy_in_melee=false,enemy_distance=4,
+        resource_value=function(name) return name=='stamina' and 5 or 100 end}))
+    check(noStamina.decision=='act' and noStamina.rule=='approach' and noStamina.action=='move',
+        'Berserker approaches without the Rush stamina gate')
 end
 
 print('Auto-combat pilots: '..checks..' checks passed')

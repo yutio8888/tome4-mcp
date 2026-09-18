@@ -346,7 +346,8 @@ function M.start(svc)
     if not host then return fail('execution_not_available') end
     svc.controller=Combat.new(svc.store.running,host,{strict=svc.strict,notify=function(event)
         Log.add(svc.log,withContext(svc,{kind=event.kind,reason=event.reason,rule=event.rule,talent=event.talent,
-            target=event.target,generation=event.generation,
+            target=event.target,action=event.action,elapsed_ticks=event.elapsed_ticks,
+            elapsed_frames=event.elapsed_frames,generation=event.generation,
             policy_hash=Schema.hash(svc.store.running)}))
     end})
     local started=svc.controller:start()
@@ -397,6 +398,26 @@ function M.manualInput(svc,reason)
     end
     svc.controller=nil
     return moved
+end
+
+-- P0/F4: the executor had to abort an auto-slot native invocation that did not
+-- settle within its bound (for example a native target request the executor
+-- cannot answer). Record the typed event on the controller (bounded decision
+-- ring + policy log) and hand control back to the player. The native side of the
+-- abort (cancel the UI, release the invocation) is owned by the Runtime pump;
+-- this function only arbitrates control and records the event so the stall is
+-- never invisible in the policy log.
+function M.nativeAbort(svc,info)
+    if not svc then return nil end
+    info=info or {}
+    local code=info.code or 'native_timeout'
+    local entry
+    if svc.controller then entry=svc.controller:nativeAborted(info) end
+    -- Keep the stopped run visible for status/observe (like the Option-A safety
+    -- handoff) and release the lease so the player can act immediately.
+    if svc.controller and svc.controller.state~='stopped' then svc.controller:stop(code) end
+    if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,code) end
+    return entry
 end
 
 local function resourcesOf(host)

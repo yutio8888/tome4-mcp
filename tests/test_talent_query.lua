@@ -259,6 +259,73 @@ check(result.ok and command.target_geometry and command.target_geometry.shape=='
     and command.target_geometry.piercing==true,
     'the native target geometry (beam/piercing) is recorded on the command')
 
+-- --- Authoritative prefill (auto-combat slot, P0/Rush) ----------------------
+-- The auto-combat executor cannot answer a native targeting UI, so an
+-- authoritative target answers EVERY native target request for the invocation.
+-- The native flow (Rush: `useTalentMessage` then `action`) requests a target
+-- more than once; the one-shot prefill only covered the first request.
+local nativeCalls2
+p.useTalent=function(self,id)
+    local def=self.talents_def[id] or {}
+    local spec={range=def.test_range,type=def.test_type,talent=def.test_warn and def or nil}
+    local x,y,t=self:getTarget(spec)
+    seen[#seen+1]={x,y,t}
+    -- The native message path asks for a target first (useTalentMessage).
+    x,y,t=self:getTarget(spec)
+    seen[#seen+1]={x,y,t}
+    -- Then the action requests it again (Rush.action -> getTargetLimited).
+    x,y,t=self:getTarget(spec)
+    seen[#seen+1]={x,y,t}
+    if not (x and y) then return nil end
+    -- Landed postcondition: the native action moves the player next to the
+    -- resolved target, mirroring Rush's forced move.
+    self.x,self.y=x,y
+    return true
+end
+setmetatable(p,{__index={getTarget=function() nativeCalls2=(nativeCalls2 or 0)+1;return 99,99,nil end}})
+local function runAuthoritative(action,target)
+    seen={};nativeCalls2=0
+    local result=Actions.execute(g,action,target,meta,command)
+    check(rawget(p,'getTarget')==nil,'authoritative wrapper is always removed from the player')
+    return result
+end
+local actor2={x=6,y=3}
+result=runAuthoritative({type='use_talent',talent_id='T_PREFILL',target_id='actor-1',
+    authoritative_target=true},actor2)
+check(result.ok,'the authoritative actor action settles without opening the native UI')
+check(#seen==3 and seen[1][3]==actor2 and seen[2][3]==actor2 and seen[3][3]==actor2,
+    'every native target request returns the decided actor')
+check(nativeCalls2==0,'no native targeting UI is opened for the authoritative actor')
+check(p.x==6 and p.y==3,'the landed postcondition holds (player reached the target)')
+-- The native range guard is preserved: a target outside the native spec range is
+-- answered as a native target cancel with the typed reason, not bypassed.
+p.x,p.y=1,1
+result=runAuthoritative({type='use_talent',talent_id='T_PREFILL_RANGE',target_id='actor-1',
+    authoritative_target=true},{x=1,y=10})
+check(not result.ok and result.code=='target_out_of_range',
+    'an authoritative out-of-range request reports target_out_of_range')
+check(nativeCalls2==0,'an authoritative invalid target never opens native targeting')
+-- The native self-target warning is preserved for the authoritative path.
+result=runAuthoritative({type='use_talent',talent_id='T_PREFILL_WARN',target_id='actor-1',
+    authoritative_target=true},{x=1,y=1})
+check(not result.ok and result.code=='self_target_warning',
+    'an authoritative self-target request reports the native self warning')
+-- A grid authoritative request answers every request with the same coordinate.
+p.useTalent=function(self,id)
+    local x,y=self:getTarget({type='beam',range=5})
+    seen[#seen+1]={x,y}
+    x,y=self:getTarget({type='beam',range=5})
+    seen[#seen+1]={x,y}
+    return true
+end
+result=runAuthoritative({type='use_talent',talent_id='T_PREFILL',x=3,y=3,
+    authoritative_target=true},nil)
+check(result.ok and seen[1][1]==3 and seen[2][1]==3 and nativeCalls2==0,
+    'an authoritative grid request answers every request with the same coordinate')
+-- Validation: the internal flag must be a boolean.
+check(not Actions.validate({type='use_talent',talent_id='T_A',authoritative_target='yes'}),
+    'authoritative_target must be boolean')
+
 Tracker.start,Compat.check,Compat.matches=realStart,realCheck,realMatches
 
 -- Grid answers must enforce the same native talent range.

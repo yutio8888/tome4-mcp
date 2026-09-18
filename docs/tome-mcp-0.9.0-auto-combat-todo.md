@@ -338,3 +338,30 @@ Status doc: [docs/tome-mcp-0.9.0-selffire-correction.md](tome-mcp-0.9.0-selffire
     a range-0 cone guard fix. `EffectManifest.UNSUPPORTED` is empty. See
     [docs/tome-mcp-0.9.0-v2-dynamic-talents.md](tome-mcp-0.9.0-v2-dynamic-talents.md).
     `allow_auto_combat_execution` stays `false`.
+
+## Round S1: Rush native settlement (2026-09-18)
+
+Status doc:
+[docs/tome-mcp-0.9.0-auto-combat-native-settlement.md](tome-mcp-0.9.0-auto-combat-native-settlement.md).
+Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
+
+56. **F1 (P0) auto-slot Rush deadlock — FIXED.** `Actions.execute` prefilled only
+    the first native `getTarget`; Rush requests a target twice (the use-message
+    path then the action), so the second request opened the native targeting UI
+    and the auto pump stayed in `waiting_native`/`settling` forever (~500% CPU,
+    no Lua error). The internal `authoritative_target` flag now answers **every**
+    native target request with the decided target via the native force path,
+    keeping the range/self-warning guards (a genuine invalid target is a typed
+    native cancel, never bypassed). A residual unanswerable request is surfaced
+    as `observe.auto_combat.pending_interaction` and a bounded typed abort
+    (`native_timeout`, ticks/wall/frames) cancels the UI, releases the invocation
+    and the lease, and settles. Native probe: `movement-talents:rush-settles`.
+57. **F3 (P2) `berserker_p2` movement — FIXED.** The stale "no move rule" comment
+    is gone; the preset now drives `rush` (stamina/cooldown/distance gated) and a
+    deterministic `approach` step. Preset defaults, not plugin restrictions.
+58. **F4 (P2) invisible stall — FIXED.** A typed `native_aborted` /
+    `native_timeout` policy-log event is recorded with action/talent/target and
+    elapsed ticks/frames; `observe.auto_combat.last_native_abort` exposes it.
+59. **Remaining follow-up (not this fix).** F2 (no-enemy `enemy_distance` vs
+    safety-predicate authoring semantics) is a documented authoring pattern, not
+    a plugin defect; no code change. `allow_auto_combat_execution` stays `false`.

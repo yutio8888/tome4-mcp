@@ -1250,6 +1250,18 @@ movementTalentAssert=function(spec)
         landed=p.x==M.mt.tumble_target.x and p.y==M.mt.tumble_target.y
     end
     local ok=moved and landed
+    -- P0: Rush's native flow requests a target more than once (the useTalent
+    -- message path and then the action). The auto slot drives it through the
+    -- authoritative native force path, so it must settle on the first
+    -- opportunity with no unanswerable target UI left active.
+    if spec.kind=='rush' then
+        local settled=outcome and outcome.status=='ok'
+        local no_ui=not (game.target and game.target.active) and game.target_co==nil
+        check('movement-talents:rush-settles',settled and no_ui,
+            {status=outcome and outcome.status,code=outcome and outcome.code,
+                target_active=game.target and game.target.active or false,co=game.target_co~=nil})
+        ok=ok and settled and no_ui
+    end
     M.mt.signals[#M.mt.signals+1]=ok and movementTalentSignal(spec.kind,'executed')
         or movementTalentSignal(spec.kind,'rejected')
     check('movement-talents:'..spec.name..'-execute',ok,
