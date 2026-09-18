@@ -377,6 +377,9 @@ function M.start(svc)
         Log.add(svc.log,withContext(svc,{kind=event.kind,reason=event.reason,rule=event.rule,talent=event.talent,
             target=event.target,action=event.action,elapsed_ticks=event.elapsed_ticks,
             elapsed_frames=event.elapsed_frames,generation=event.generation,
+            -- S2 rev3/§6.2: the typed ordered-queue deviation detail (expected/
+            -- observed index and shape) reaches the client-visible policy log.
+            detail=event.detail,handed_back=event.handed_back,
             -- P2-1: a deterministic-landing retry carries the refused landing
             -- and the underlying native result (for example `blocked`) so the
             -- refusal stays auditable in the client-visible policy log/replay.
@@ -453,6 +456,25 @@ function M.nativeAbort(svc,info)
     -- handoff) and release the lease so the player can act immediately.
     if svc.controller and svc.controller.state~='stopped' then svc.controller:stop(code) end
     if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,code) end
+    return entry
+end
+
+-- S2 rev3/§6.2 (Path 2): deliver a settled-time ordered-queue deviation to the
+-- controller exactly once. Modelled on `nativeAbort`: record the typed event,
+-- pause the controller with the deviation's reason, stop the run and revoke the
+-- auto lease through the arbiter. The Runtime `reapAutoInvocation` calls this for
+-- a root deviation that Path 1 (the `native_pending` result) did not deliver.
+function M.nativeDeviation(svc,deviation)
+    if not svc then return nil end
+    deviation=deviation or {}
+    local reason=deviation.reason or 'unexpected_target_request'
+    local entry
+    if svc.controller then
+        entry=svc.controller:nativeDeviated(deviation)
+        svc.controller:pause(reason)
+        if svc.controller.state~='stopped' then svc.controller:stop(reason) end
+    end
+    if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,reason) end
     return entry
 end
 

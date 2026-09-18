@@ -186,13 +186,15 @@ do
         'no_emergency_action also hands control back')
 end
 
--- S2-REV-05: a typed queue deviation (unexpected_target_request — the live
--- native prompt was handed to the real targeting UI — and
--- movement_request_value_unknown — the prompt was cancelled) is a
--- player-handoff pause: the controller pauses, never resubmits, and the
--- service releases the auto-combat lease instead of keeping it.
+-- S2 rev3/§6.2: a typed queue deviation riding on the `native_pending` result
+-- (the live native prompt was handed to the real targeting UI, or the prompt was
+-- cancelled) is a player-handoff pause: the controller checks the deviation
+-- BEFORE its `native_pending` branch (so it never enters `waiting_native`), the
+-- service stops the run and releases the auto-combat lease, and the rule is never
+-- resubmitted.
 do
-    for _,reason in ipairs({'unexpected_target_request','movement_request_value_unknown'}) do
+    for _,reason in ipairs({'unexpected_target_request','movement_request_value_unknown',
+        'movement_request_kind_unknown'}) do
         local svc=Service.new({host_factory=fakeHost})
         local d=Service.handle(svc,'set_draft',{policy=policy()})
         local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
@@ -201,21 +203,49 @@ do
         local requests=0
         svc.controller.host.request=function()
             requests=requests+1
-            return {status='uncertain',code=reason,
+            -- The deviation rides the native_pending result: the controller must
+            -- pause on it instead of entering waiting_native.
+            return {status='native_pending',code='native_pending',energy_spent=true,
+                handed_back=true,
                 sequence_deviation={reason=reason,
                     expected={index=1,request='actor'},
                     observed={index=1,request='grid'},skippable=false}}
         end
         local stepped=Service.step(svc)
         check(stepped.ok and stepped.step.action=='paused' and stepped.step.reason==reason,
-            reason..' pauses the controller with its typed reason')
+            reason..' pauses the controller with its typed reason (before native_pending)')
         check(stepped.handoff==true and svc.arbiter.owner=='manual'
             and svc.controller.state=='stopped',
-            reason..' releases the auto-combat lease to the player (S2-REV-05)')
+            reason..' releases the auto-combat lease to the player')
         check(requests==1,'the deviation is never resubmitted')
         check(Service.handle(svc,'resume',{}).error.code=='not_running',
             reason..' hands the interaction back; resume cannot loop the pause')
     end
+end
+
+-- S2 rev3/§6.2 Path 2: a settled-time deviation (reapAutoInvocation delivers an
+-- undelivered root deviation) records the typed event, pauses, stops the run and
+-- revokes the lease.
+do
+    local svc=Service.new({host_factory=fakeHost})
+    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
+    Service.handle(svc,'start',{})
+    local entry=Service.nativeDeviation(svc,{reason='unexpected_target_request',
+        handed_back=true,expected={index=1,request='actor'}})
+    check(entry and entry.kind=='paused' and entry.reason=='unexpected_target_request',
+        'the settle-time deviation records the typed paused event')
+    check(svc.arbiter.owner=='manual','the settle-time deviation releases the auto-combat lease')
+    check(svc.controller.state=='stopped' and svc.controller.reason=='unexpected_target_request',
+        'the settle-time deviation stops the run with the typed reason')
+    local log=Service.handle(svc,'log',{limit=8})
+    local found
+    for _,event in ipairs(log.events or {}) do
+        if event.kind=='paused' and event.reason=='unexpected_target_request' then found=event end
+    end
+    check(found and found.detail and found.detail.expected.index==1,
+        'the settle-time deviation detail reaches the service policy log')
 end
 
 do

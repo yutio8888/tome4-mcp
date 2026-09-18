@@ -493,7 +493,8 @@ do
     local function program(params)
         local merged={delivery='teleport',landing='random',center='self',
             traverses=false,relocates_other=false,
-            request_sequence={{index=1,request='actor',subject='self'}}}
+            request_sequence={{index=1,request='actor',subject='self',
+                observed={cursor_type='hit',nowarning=true}}}}
         for k,v in pairs(params or {}) do merged[k]=v end
         return Factory.expand('request_then_landing',merged)
     end

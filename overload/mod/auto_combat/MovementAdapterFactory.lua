@@ -128,11 +128,72 @@ end
 -- Normalise and validate one `request_sequence` (S2 §4.4). The record is closed:
 -- `index` must equal the array position (a hole/gap/reorder is invalid), the
 -- prompt kind and subject binding come from the closed vocabularies, `optional`
--- is only admitted on the trailing entry, and `landing_from` is only 'envelope'.
+-- is only admitted on the trailing entry, `landing_from` is only 'envelope', and
+-- `observed` is the per-entry **curated observed signature** (S2 rev3): the
+-- closed allowlist of static discriminators the reviewed flow raises at this
+-- position. A published sequence must carry a signature on every entry; for N≥2
+-- the signatures must be pairwise distinct, else the program's reorder is
+-- unobservable (the plugin's own undecidability) and the descriptor is
+-- `movement_adapter_invalid`/`request_signature_ambiguous`.
 -- Returns a fresh array of normalised entries (no shared reference with the
 -- caller's declaration).
 local SEQUENCE_KEYS={index=true,request=true,subject=true,value_source=true,
-    landing_from=true,optional=true}
+    landing_from=true,optional=true,observed=true}
+-- The closed `observed` signature allowlist: `cursor_type` plus the static
+-- discriminators. Dynamic numerics (`range`/`radius`) and closures are never
+-- signature fields.
+local OBSERVED_SIGNATURE_KEYS={cursor_type=true,default_target=true,first_target=true,
+    msg=true,nolock=true,pass_terrain=true,friendlyblock=true,nowarning=true,
+    immediate_keys=true,no_restrict=true}
+local OBSERVED_SIGNATURE_FLAGS={nolock=true,pass_terrain=true,friendlyblock=true,
+    nowarning=true,immediate_keys=true,no_restrict=true}
+local OBSERVED_SIGNATURE_STRINGS={first_target=64,msg=512}
+local function normalizeObserved(observed,index)
+    if type(observed)~='table' then return nil,{detail='bad_observed_signature',index=index} end
+    for key in pairs(observed) do
+        if not OBSERVED_SIGNATURE_KEYS[key] then
+            return nil,{detail='unknown_observed_key',index=index,key=tostring(key)}
+        end
+    end
+    if type(observed.cursor_type)~='string' or #observed.cursor_type==0
+        or #observed.cursor_type>32 then
+        return nil,{detail='bad_observed_cursor_type',index=index}
+    end
+    local copy={cursor_type=observed.cursor_type}
+    for flag in pairs(OBSERVED_SIGNATURE_FLAGS) do
+        if observed[flag]~=nil then
+            if type(observed[flag])~='boolean' then
+                return nil,{detail='bad_observed_flag',index=index,key=flag}
+            end
+            copy[flag]=observed[flag]
+        end
+    end
+    for key,limit in pairs(OBSERVED_SIGNATURE_STRINGS) do
+        if observed[key]~=nil then
+            if type(observed[key])~='string' or #observed[key]>limit then
+                return nil,{detail='bad_observed_string',index=index,key=key}
+            end
+            copy[key]=observed[key]
+        end
+    end
+    if observed.default_target~=nil then
+        if observed.default_target~='self' then
+            return nil,{detail='bad_observed_default_target',index=index}
+        end
+        copy.default_target='self'
+    end
+    return copy
+end
+-- A stable comparison key for a normalised signature (used only for the
+-- build-time pairwise-distinctness rule).
+local function signatureKey(signature)
+    local keys={}
+    for key in pairs(signature) do keys[#keys+1]=key end
+    table.sort(keys)
+    local parts={}
+    for _,key in ipairs(keys) do parts[#parts+1]=key..'='..tostring(signature[key]) end
+    return table.concat(parts,'\1')
+end
 function M.normalizeRequestSequence(list)
     local ok,maxKey=validateArray(list,1)
     if not ok then return nil,{detail='request_sequence_not_array'} end
@@ -174,11 +235,30 @@ function M.normalizeRequestSequence(list)
         if entry.optional==true and i~=maxKey then
             return nil,{detail='optional_not_trailing',index=i}
         end
+        -- S2 rev3: every published sequence entry carries a curated observed
+        -- signature (the runtime evidence the executor matches).
+        local observed,observedErr=normalizeObserved(entry.observed,i)
+        if not observed then return nil,observedErr end
         local copy={index=i,request=entry.request,subject=entry.subject,
-            value_source=valueSource}
+            value_source=valueSource,observed=observed}
         if entry.landing_from~=nil then copy.landing_from=entry.landing_from end
         if entry.optional==true then copy.optional=true end
         out[i]=copy
+    end
+    -- S2 rev3: for N≥2 the curated signatures must be pairwise distinct. Two
+    -- prompts that no stable observed field can tell apart make their reorder
+    -- undetectable, so the descriptor is refused at build time (a
+    -- plugin-completeness boundary, never a strategy judgement).
+    if maxKey>=2 then
+        local seen={}
+        for i=1,maxKey do
+            local key=signatureKey(out[i].observed)
+            if seen[key] then
+                return nil,{detail='request_signature_ambiguous',
+                    indexes={seen[key],i},signature=out[i].observed.cursor_type}
+            end
+            seen[key]=i
+        end
     end
     return out
 end
@@ -628,7 +708,13 @@ function M.resolveVariant(movement,talent,reads)
             local sequence={}
             for i=1,#value do
                 local entry={}
-                for k,v in pairs(value[i]) do entry[k]=v end
+                for k,v in pairs(value[i]) do
+                    if k=='observed' and type(v)=='table' then
+                        local sig={}
+                        for sk,sv in pairs(v) do sig[sk]=sv end
+                        entry.observed=sig
+                    else entry[k]=v end
+                end
                 sequence[i]=entry
             end
             out.request_sequence=sequence

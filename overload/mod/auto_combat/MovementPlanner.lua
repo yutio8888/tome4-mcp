@@ -578,6 +578,10 @@ function M.planSequence(attempt,provider,movement,origin)
         end
         steps[i]=planned
         values[i]=planned.value
+        -- S2 rev3: carry the curated observed signature with the decided value, so
+        -- the executor matches the live prompt against the same curation the
+        -- factory validated for this position (`action.sequence[i].observed`).
+        if values[i]~=nil and entry.observed~=nil then values[i].observed=entry.observed end
     end
     local landing=steps[#steps].annotation
     local kinds={}

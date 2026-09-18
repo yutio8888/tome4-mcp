@@ -729,4 +729,44 @@ do
     end
     check(denied,'the aborted rule is recorded in the opportunity rejections')
 end
+
+-- S2 rev3/§6.2: a deviation riding on a `native_pending` result pauses BEFORE the
+-- controller's native_pending branch (it never enters waiting_native), and a
+-- settled-time deviation delivered by nativeDeviated does the same.
+do
+    local requests=0
+    local host=makeHost()
+    host.request=function(attempt)
+        host.requests[#host.requests+1]=attempt
+        requests=requests+1
+        return {status='native_pending',code='native_pending',energy_spent=true,
+            handed_back=true,
+            sequence_deviation={reason='unexpected_target_request',
+                expected={index=1,request='actor'},observed={index=1,request='grid'},
+                handed_back=true,skippable=false}}
+    end
+    local c=AutoCombat.new(policy(),host)
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='paused' and step.reason=='unexpected_target_request',
+        'a native_pending carrying a deviation pauses instead of entering waiting_native')
+    check(step.handed_back==true and c.state=='paused' and c.reason=='unexpected_target_request',
+        'the pause carries the handback evidence and the typed reason')
+    check(requests==1 and c.attempts==0,
+        'the pending deviation is never resubmitted and consumes no action budget')
+end
+do
+    local host=makeHost()
+    local c=AutoCombat.new(policy(),host)
+    c:start()
+    local entry=c:nativeDeviated({reason='movement_request_kind_unknown',handed_back=true})
+    check(entry.kind=='paused' and entry.reason=='movement_request_kind_unknown'
+        and entry.handed_back==true,
+        'nativeDeviated records the settle-time deviation as a paused handback event')
+    local notified
+    for _,event in ipairs(host.notifications) do
+        if event.kind=='paused' and event.reason=='movement_request_kind_unknown' then notified=event end
+    end
+    check(notified,'the settle-time deviation reaches the notify callback (policy log)')
+end
 print('Auto-combat controller: '..checks..' checks passed')

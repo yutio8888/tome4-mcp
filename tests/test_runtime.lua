@@ -1152,8 +1152,10 @@ do
     -- probe talent only (the manifest is static production data).
     local Factory=require 'mod.auto_combat.MovementAdapterFactory'
     local movement=assert(Factory.expand('request_then_landing',{
-        request_sequence={{index=1,request='actor',subject='self'},
-            {index=2,request='grid',subject='self',value_source='target_plan',landing_from='envelope'}},
+        request_sequence={{index=1,request='actor',subject='self',
+                observed={cursor_type='hit',nowarning=true}},
+            {index=2,request='grid',subject='self',value_source='target_plan',landing_from='envelope',
+                observed={cursor_type='ball',nowarning=true}}},
         delivery='teleport',landing='random',center='requested_grid',traverses=false,
         relocates_other=false,radius=1,min_radius=0,range=10}))
     local Manifest=require 'mod.auto_combat.EffectManifest'
@@ -1188,5 +1190,176 @@ do
     Compat.matches,Compat.check=realMatches,realCheck
     Runtime.reset(g);g:display()
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+end
+
+-- S2 rev3/§6.2 handback wiring: outcome mapping survival, reap exactly-once, and
+-- the live-handle-first bounded abort. These call the real production seams.
+do
+    local Interactions=require 'mod.mcp_bridge.Interactions'
+    local Service=require 'mod.auto_combat.AutoCombatService'
+    -- (a) A real-shaped native_pending result carrying the queue deviation and
+    -- `handed_back` survives mapAutoCombatOutcome (no field is swallowed).
+    local mapped=Runtime.mapAutoCombatOutcome({ok=true,code='native_pending',energy_spent=0,
+        target_sequence={{shape='ball'}},
+        sequence_deviation={reason='unexpected_target_request',handed_back=true,
+            expected={index=1,request='actor'},observed_shape='ball',skippable=false},
+        handed_back=true},'use_talent',nil)
+    check(mapped.status=='native_pending'
+        and mapped.sequence_deviation and mapped.sequence_deviation.reason=='unexpected_target_request'
+        and mapped.sequence_deviation.handed_back==true
+        and mapped.handed_back==true and mapped.target_sequence[1].shape=='ball',
+        'a native_pending result keeps its deviation/target_sequence (production mapping)')
+    -- (b) reapAutoInvocation delivers an undelivered root deviation exactly once
+    -- (Path 2), and a delivered one is not delivered twice.
+    g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=true
+    Runtime.autoCombatHandle(g,'set_draft',{policy={schema='tome-auto-combat/v1',
+        id='p2',name='unit',limits={max_actions_per_tick=1},safety={min_hp_pct=35},
+        targeting={default='self'},
+        rules={{id='w',priority=1,when={always={}},['then']={action='wait'}}}}})
+    Runtime.autoCombatHandle(g,'approve',{})
+    Runtime.autoCombatHandle(g,'activate',{})
+    Runtime.setAutoCombatExecution(g,true)
+    Runtime.autoCombatHandle(g,'start',{})
+    local svc=Runtime.autoCombatService(g)
+    local root={done=true,command={rule='seq'},
+        sequence_deviation={reason='unexpected_target_request',handed_back=true,
+            expected={index=1,request='actor'}}}
+    Runtime.setAutoInvocationFor(g,root)
+    Runtime.reapAutoInvocationFor(g)
+    check(root.deviation_delivered==true,'the reap marks the root deviation delivered')
+    check(svc.arbiter.owner=='manual' and svc.controller.state=='stopped'
+        and svc.controller.reason=='unexpected_target_request',
+        'the reap delivers the deviation: run stopped + lease released (Path 2)')
+    -- Exactly once: a second reap is a no-op (the root is already released).
+    Runtime.reapAutoInvocationFor(g)
+    check(Runtime.autoInvocationFor(g)==nil,'the root is released after the reap')
+    local delivered=0
+    for _,event in ipairs(svc.log.entries or {}) do
+        if event.kind=='paused' and event.reason=='unexpected_target_request' then delivered=delivered+1 end
+    end
+    check(delivered==1,'the settle-time deviation is delivered exactly once')
+    -- A deviation already delivered inside the step is NOT re-delivered.
+    Runtime.autoCombatHandle(g,'start',{})
+    local svc2=Runtime.autoCombatService(g)
+    svc2.arbiter.owner='auto_combat'
+    local root2={done=true,command={},
+        sequence_deviation={reason='movement_request_kind_unknown',handed_back=true},
+        deviation_delivered=true}
+    Runtime.setAutoInvocationFor(g,root2)
+    Runtime.reapAutoInvocationFor(g)
+    local redelivered=false
+    for _,event in ipairs(svc2.log.entries or {}) do
+        if event.kind=='paused' and event.reason=='movement_request_kind_unknown' then redelivered=true end
+    end
+    check(redelivered==false,'an already-delivered deviation is not delivered a second time')
+    -- (c) The bounded abort is live-handle-first: with a live target handle and a
+    -- handed-back marker (no target_cancelled) it cancels the handle (not the
+    -- authoritative fast path).
+    Runtime.autoCombatHandle(g,'start',{})
+    local svc3=Runtime.autoCombatService(g)
+    local Compat=require 'mod.mcp_bridge.NativeCompatibility'
+    local liveRoot={command={rule='seq',target_handed_back='unexpected_target_request',
+            interactions={},interaction_sequence=0},player=p,level=g.level,game=g}
+    -- Register a bridge-side target handle through the real constructor path.
+    local realTarget,realTargetCo,realTargetMode=g.target,g.target_co,g.targetMode
+    g.target={active=true,setSpot=function() end,target={}};g.target_co=coroutine.create(function() end)
+    g.targetMode=function() return 'target' end
+    local realOpen=Interactions.openTarget
+    -- Build the handle the way the native seam does (Tracker.current must be the
+    -- root): run inside the tracker scope so openTarget registers it.
+    local Tracker=require 'mod.mcp_bridge.InvocationTracker'
+    local opened
+    Tracker.reset()
+    Tracker.scope({root=liveRoot},function()
+        Interactions.openTarget(g,{type='hit',range=10})
+    end)
+    local h=Interactions.current(liveRoot)
+    check(h~=nil and h.target~=nil and h.kind=='target.grid','the production seam registers a live target handle')
+    liveRoot.done=true
+    Runtime.setAutoInvocationFor(g,liveRoot)
+    Runtime.abortAutoInvocationFor(g,{tick=0,ms=0,frames=0},{ticks=Runtime.AUTO_NATIVE_TIMEOUT_TICKS,
+        ms=0,frames=Runtime.AUTO_NATIVE_TIMEOUT_FRAMES})
+    check(Runtime.autoInvocationFor(g)==nil,'the abort releases the live auto invocation')
+    local abortRecord=Runtime.lastNativeAbort(g)
+    check(abortRecord and abortRecord.cancelled==true
+        and abortRecord.reason=='handed_back_timeout',
+        'the bounded abort cancels the LIVE target handle first (not the authoritative fast path)')
+    -- (d) Regression: a target_cancelled marker with NO live handle keeps the
+    -- authoritative fast path (the abort does not fabricate a live handle).
+    Runtime.autoCombatHandle(g,'start',{})
+    local deadRoot={done=true,command={rule='seq',target_cancelled='target_out_of_range',
+            interactions={},interaction_sequence=0},
+        player=p,level=g.level,game=g}
+    Runtime.setAutoInvocationFor(g,deadRoot)
+    Runtime.abortAutoInvocationFor(g,{tick=0,ms=0,frames=0},{ticks=Runtime.AUTO_NATIVE_TIMEOUT_TICKS,
+        ms=0,frames=Runtime.AUTO_NATIVE_TIMEOUT_FRAMES})
+    check(Runtime.autoInvocationFor(g)==nil,'a cancelled-marker root with no live handle still aborts')
+    local deadRecord=Runtime.lastNativeAbort(g)
+    check(deadRecord and deadRecord.reason=='authoritative_target_cancelled',
+        'a target_cancelled root with no live handle keeps the authoritative fast path')
+    g.target,g.target_co,g.targetMode=realTarget,realTargetCo,realTargetMode
+    Interactions.openTarget=realOpen
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+    Runtime.reset(g);g:display()
+end
+
+-- S2 rev3/§6.2: after the lease is released, the caller answers the handed-back
+-- auto invocation's current handle through the ordinary respond/dismiss routing.
+-- While the run is live (arbiter still owns auto-combat) the auto handle is NOT
+-- a caller target, so the routing grants nothing.
+do
+    local Interactions=require 'mod.mcp_bridge.Interactions'
+    local Tracker=require 'mod.mcp_bridge.InvocationTracker'
+    g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=true
+    Runtime.autoCombatHandle(g,'set_draft',{policy={schema='tome-auto-combat/v1',
+        id='p3',name='unit',limits={max_actions_per_tick=1},safety={min_hp_pct=35},
+        targeting={default='self'},
+        rules={{id='w',priority=1,when={always={}},['then']={action='wait'}}}}})
+    Runtime.autoCombatHandle(g,'approve',{})
+    Runtime.autoCombatHandle(g,'activate',{})
+    Runtime.setAutoCombatExecution(g,true)
+    Runtime.autoCombatHandle(g,'start',{})
+    local svc=Runtime.autoCombatService(g)
+    -- Install a live target handle on the auto invocation.
+    local realTarget,realTargetCo,realTargetMode=g.target,g.target_co,g.targetMode
+    g.target={active=true,setSpot=function() end,target={}};g.target_co=coroutine.create(function() end)
+    g.targetMode=function() return 'target' end
+    local autoRoot={command={rule='seq',interactions={},interaction_sequence=0},
+        player=p,level=g.level,game=g}
+    Tracker.reset()
+    Tracker.scope({root=autoRoot},function() Interactions.openTarget(g,{type='hit',range=10}) end)
+    local h=Interactions.current(autoRoot)
+    check(h~=nil,'the auto invocation has a live target handle')
+    Runtime.setAutoInvocationFor(g,autoRoot)
+    local revision=observe().revision
+    -- (i) While the lease is held, respond to the auto handle is refused (the
+    -- run would answer it itself; the caller is granted nothing).
+    local held=request('respond',{session_id=hello.session_id,control_token=hello.control_token,
+        command_id='cmd-999999',interaction_id=h.interaction_id,response_id='r-held',
+        expected_revision=revision,answer={type='cancel'}})
+    check(held.error~=nil,'a respond to the auto handle while the lease is held is refused')
+    -- (ii) Release the lease (the safety-pause stop) and dismiss the handed-back
+    -- prompt through the auto invocation's handle.
+    svc.arbiter.owner='manual'
+    svc.controller:stop('unexpected_target_request')
+    local dismissed=request('dismiss',{session_id=hello.session_id,control_token=hello.control_token,
+        interaction_id=h.interaction_id,expected_revision=observe().revision,answer={type='cancel'}})
+    check(dismissed.result and dismissed.result.dismissed==true,
+        'after the lease is released the handed-back auto prompt is dismissable via the auto handle')
+    -- (iii) respond routes to the auto handle too (a live position answer).
+    -- Reinstall a fresh live handle for the respond path.
+    Tracker.reset()
+    Tracker.scope({root=autoRoot},function() Interactions.openTarget(g,{type='hit',range=10}) end)
+    local h2=Interactions.current(autoRoot)
+    local answered=request('respond',{session_id=hello.session_id,control_token=hello.control_token,
+        command_id='cmd-999999',interaction_id=h2.interaction_id,response_id='r-auto',
+        expected_revision=observe().revision,answer={type='position',x=3,y=2}})
+    check(answered.result and answered.result.answered==true and answered.result.scope=='auto_combat',
+        'respond answers the handed-back auto prompt via the auto handle after lease release')
+    g.target,g.target_co,g.targetMode=realTarget,realTargetCo,realTargetMode
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+    Runtime.reset(g);g:display()
 end
 print('Runtime: '..count..' checks passed')

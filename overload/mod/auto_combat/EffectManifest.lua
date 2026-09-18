@@ -336,7 +336,8 @@ M.ENTRIES={
                 params={delivery='teleport',landing='random',center='self',
                     traverses=false,relocates_other=false,
                     radius={getter='getRange'},min_radius=0,range={getter='getRange'},
-                    request_sequence={{index=1,request='actor',subject='self'}},
+                    request_sequence={{index=1,request='actor',subject='self',
+                        observed={cursor_type='hit',friendlyblock=false,nowarning=true,default_target='self'}}},
                     landing_proof='TL4 actor prompt then teleportRandom(self, getRange)'}},
             -- Effective TL4 with the precise attribute: actor prompt then the
             -- landing grid prompt, landing bounded around the requested grid.
@@ -348,9 +349,10 @@ M.ENTRIES={
                     traverses=false,relocates_other=false,
                     radius={getter='getRadius'},min_radius=0,range={getter='getRange'},
                     fallback_center='self',fallback_radius={getter='getRange'},fallback_when='los_fizzle',
-                    request_sequence={{index=1,request='actor',subject='self'},
+                    request_sequence={{index=1,request='actor',subject='self',
+                            observed={cursor_type='hit',friendlyblock=false,nowarning=true,default_target='self'}},
                         {index=2,request='grid',subject='self',value_source='target_plan',
-                            landing_from='envelope'}},
+                            landing_from='envelope',observed={cursor_type='ball',nolock=true,pass_terrain=true,nowarning=true}}},
                     landing_proof='TL4 precise: actor prompt then the landing grid prompt'}},
             -- Effective TL5+: the grid prompt is statically unconditional (the
             -- first disjunct of the native gate is true for this very level read).
@@ -360,9 +362,10 @@ M.ENTRIES={
                     traverses=false,relocates_other=false,
                     radius={getter='getRadius'},min_radius=0,range={getter='getRange'},
                     fallback_center='self',fallback_radius={getter='getRange'},fallback_when='los_fizzle',
-                    request_sequence={{index=1,request='actor',subject='self'},
+                    request_sequence={{index=1,request='actor',subject='self',
+                            observed={cursor_type='hit',friendlyblock=false,nowarning=true,default_target='self'}},
                         {index=2,request='grid',subject='self',value_source='target_plan',
-                            landing_from='envelope'}},
+                            landing_from='envelope',observed={cursor_type='ball',nolock=true,pass_terrain=true,nowarning=true}}},
                     landing_proof='TL5+: actor prompt then the unconditional landing grid prompt'}},
         },{{kind='attr',id='phase_door_force_precise'}}),
         components={},conformance={builder=false}},

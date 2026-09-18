@@ -42,6 +42,11 @@ Compat.check=function() return true end
 Compat.matches=function() return true end
 
 local meta={protocol_version=4,session_id='s',level_instance_id='l',revision=1}
+-- S2 rev3 curated observed signatures for the fixtures: the actor prompt is the
+-- `hit` shape, the landing prompt the `ball` shape (the reviewed Phase Door
+-- specs). Dynamic numerics are never signature fields.
+local ACTOR_SIG={cursor_type='hit',nowarning=true}
+local GRID_SIG={cursor_type='ball',nowarning=true}
 
 -- A fixture player at (1,1) whose `useTalent` raises exactly the prompts the
 -- scenario declares. `def.prompts` is a list of specs; the action calls
@@ -93,9 +98,9 @@ do
         for key,value in pairs(extra or {}) do params[key]=value end
         return Factory.expand('request_then_landing',params)
     end
-    local valid=assert(seq({{index=1,request='actor',subject='self'},
+    local valid=assert(seq({{index=1,request='actor',subject='self',observed=ACTOR_SIG},
         {index=2,request='grid',subject='self',value_source='target_plan',
-            landing_from='envelope',optional=true}}))
+            landing_from='envelope',optional=true,observed=GRID_SIG}}))
     check(valid.target_requests[1]=='actor' and valid.target_requests[2]=='grid',
         'a valid sequence derives target_requests from the declared kinds')
     check(valid.request_sequence[2].value_source=='target_plan'
@@ -106,38 +111,66 @@ do
         local out,err=seq(entries)
         return out==nil and err.reason=='movement_adapter_invalid' and err.detail==detail
     end
-    check(invalid({{index=2,request='actor',subject='self'}},'request_index_mismatch'),
+    check(invalid({{index=2,request='actor',subject='self',observed=ACTOR_SIG}},'request_index_mismatch'),
         'an explicit index that does not match the array position is rejected')
-    check(invalid({{index=1,request='actor',subject='self'},
-        {index=2,request='grid',subject='self',optional=true},
-        {index=3,request='grid',subject='self'}},'optional_not_trailing'),
+    check(invalid({{index=1,request='actor',subject='self',observed=ACTOR_SIG},
+        {index=2,request='grid',subject='self',optional=true,observed=GRID_SIG},
+        {index=3,request='grid',subject='self',observed=GRID_SIG}},'optional_not_trailing'),
         'a non-trailing optional entry is rejected')
-    check(invalid({{index=1,request='actor',subject='ghost'}},'bad_subject'),
+    check(invalid({{index=1,request='actor',subject='ghost',observed=ACTOR_SIG}},'bad_subject'),
         'an unknown subject binding is rejected')
-    check(invalid({{index=1,request='actor',subject='self',value_source='ghost'}},
+    check(invalid({{index=1,request='actor',subject='self',value_source='ghost',observed=ACTOR_SIG}},
         'bad_value_source'),'an unknown value_source is rejected')
-    check(invalid({{index=1,request='ghost',subject='self'}},'bad_request_kind'),
+    check(invalid({{index=1,request='ghost',subject='self',observed=ACTOR_SIG}},'bad_request_kind'),
         'an unknown request kind is rejected')
-    check(invalid({{index=1,request='actor',subject='self',landing_from='exact'}},
+    check(invalid({{index=1,request='actor',subject='self',landing_from='exact',observed=ACTOR_SIG}},
         'bad_landing_from'),"a landing_from other than 'envelope' is rejected")
-    check(invalid({{index=1,request='actor',subject='self',bogus=1}},'unknown_request_key'),
+    check(invalid({{index=1,request='actor',subject='self',bogus=1,observed=ACTOR_SIG}},'unknown_request_key'),
         'an unknown entry key is rejected')
-    check(invalid({{index=1,request='actor',subject='self',optional='yes'}},'bad_optional'),
+    check(invalid({{index=1,request='actor',subject='self',optional='yes',observed=ACTOR_SIG}},'bad_optional'),
         'a non-boolean optional is rejected')
+    -- S2 rev3: the observed signature is required and closed-validated.
+    check(invalid({{index=1,request='actor',subject='self'}},'bad_observed_signature'),
+        'a sequence entry without a curated observed signature is rejected')
+    check(invalid({{index=1,request='actor',subject='self',observed={}}},'bad_observed_cursor_type'),
+        'an observed signature without a cursor_type is rejected')
+    check(invalid({{index=1,request='actor',subject='self',observed={cursor_type=7}}},
+        'bad_observed_cursor_type'),'a non-string cursor_type is rejected')
+    check(invalid({{index=1,request='actor',subject='self',observed={cursor_type='hit',range=10}}},
+        'unknown_observed_key'),'a dynamic numeric (range) is not a signature field')
+    check(invalid({{index=1,request='actor',subject='self',observed={cursor_type='hit',nolock='yes'}}},
+        'bad_observed_flag'),'a non-boolean signature flag is rejected')
+    check(invalid({{index=1,request='actor',subject='self',observed={cursor_type='hit',first_target=1}}},
+        'bad_observed_string'),'a non-string signature string is rejected')
+    check(invalid({{index=1,request='actor',subject='self',observed={cursor_type='hit',default_target='friend'}}},
+        'bad_observed_default_target'),'a default_target other than self is rejected')
     -- A hole in the array is `request_sequence_not_array` (the dense-array rule).
-    local holed={[1]={index=1,request='actor',subject='self'},
-        [3]={index=3,request='grid',subject='self'}}
+    local holed={[1]={index=1,request='actor',subject='self',observed=ACTOR_SIG},
+        [3]={index=3,request='grid',subject='self',observed=GRID_SIG}}
     local out,err=seq(holed)
     check(out==nil and err.detail=='request_sequence_not_array','a hole in the sequence is rejected')
     -- target_requests disagreement (length and kind) is invalid.
-    local mismatch,merr=seq({{index=1,request='actor',subject='self'}},
+    local mismatch,merr=seq({{index=1,request='actor',subject='self',observed=ACTOR_SIG}},
         {target_requests={'grid'}})
     check(mismatch==nil and merr.detail=='request_sequence_kind_mismatch',
         'a target_requests kind disagreement is rejected')
-    local length,lengErr=seq({{index=1,request='actor',subject='self'}},
+    local length,lengErr=seq({{index=1,request='actor',subject='self',observed=ACTOR_SIG}},
         {target_requests={'actor','grid'}})
     check(length==nil and lengErr.detail=='request_sequence_length_mismatch',
         'a target_requests length disagreement is rejected')
+    -- S2 rev3: for N>=2 the curated signatures must be pairwise distinct, else
+    -- the program's reorder is unobservable (movement_adapter_invalid).
+    local ambiguous,ambErr=seq({{index=1,request='actor',subject='self',observed=ACTOR_SIG},
+        {index=2,request='grid',subject='self',observed=ACTOR_SIG}})
+    check(ambiguous==nil and ambErr.reason=='movement_adapter_invalid'
+        and ambErr.detail=='request_signature_ambiguous'
+        and ambErr.indexes and ambErr.indexes[1]==1 and ambErr.indexes[2]==2,
+        'identical signatures on N>=2 are movement_adapter_invalid/request_signature_ambiguous')
+    -- Distinct signatures differing only by a declared flag are distinct.
+    local distinct=assert(seq({{index=1,request='actor',subject='self',observed=ACTOR_SIG},
+        {index=2,request='grid',subject='self',observed={cursor_type='hit',nolock=true}}}))
+    check(#distinct.request_sequence==2,
+        'signatures differing by a declared discriminator are accepted as distinct')
     -- A template with a sequence but no curated target_requests derives the list.
     check(valid.target_requests~=nil and #valid.target_requests==2,
         'the capability list is derived when omitted')
@@ -146,9 +179,9 @@ end
 -- 2. Planner lowering: one plan per declared entry, in order ------------------
 do
     local movement=assert(Factory.expand('request_then_landing',{
-        request_sequence={{index=1,request='actor',subject='self'},
+        request_sequence={{index=1,request='actor',subject='self',observed=ACTOR_SIG},
             {index=2,request='grid',subject='self',value_source='target_plan',
-                landing_from='envelope'}},
+                landing_from='envelope',observed=GRID_SIG}},
         delivery='teleport',landing='random',center='requested_grid',
         traverses=false,relocates_other=false,radius=1,min_radius=0,range={getter='getRange'}}))
     local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
@@ -224,7 +257,8 @@ do
         end}
     local result,command,p=runQueue(def,
         {type='use_talent',talent_id='T_SEQ',
-            sequence={{kind='self',request='actor'},{kind='grid',request='grid',x=5,y=3}}})
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+                {kind='grid',request='grid',x=5,y=3,observed=GRID_SIG}}})
     check(result.ok,'the two-prompt queue settles in one submission')
     check(seen[1].x==1 and seen[1].y==1 and seen[1].entity==p,
         'the first request is answered with the caster cell and entity')
@@ -246,7 +280,7 @@ do
         on_answer=function(self,answers) seen=answers;return true end}
     local result,command,player=runQueue(def,
         {type='use_talent',talent_id='T_SEQ',
-            sequence={{kind='self',request='actor'}}},nil)
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG}}},nil)
     check(result.ok,'an N=1 self-subject actor program executes through the queue')
     check(seen[1] and seen[1].x==1 and seen[1].y==1 and seen[1].entity==player,
         'the single actor prompt is answered with the caster cell and entity')
@@ -258,7 +292,7 @@ end
 do
     local movement=assert(Factory.expand('request_then_landing',{
         request_sequence={{index=1,request='grid',subject='self',value_source='subject',
-            landing_from='envelope'}},
+            landing_from='envelope',observed=GRID_SIG}},
         delivery='teleport',landing='random',center='requested_grid',traverses=false,
         relocates_other=false,radius=1,min_radius=0,range=10}))
     local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
@@ -270,6 +304,37 @@ do
         provider,movement,{x=2,y=2}))
     check(plan.values[1].kind=='grid' and plan.values[1].x==2 and plan.values[1].y==2,
         'a subject-source grid entry answers from the subject cell, not the policy plan')
+    check(plan.values[1].observed and plan.values[1].observed.cursor_type=='ball',
+        'the curated observed signature rides with the decided value (the executor carrier)')
+end
+
+-- 3d. S2 rev3: since the executor matches the observed signature, a different
+-- SPEC that carries the same declared discriminators still matches, and the
+-- cursor_type alone is sufficient when it is the only declared field.
+do
+    local movement=assert(Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='grid',subject='self',value_source='target_plan',
+            landing_from='envelope',observed={cursor_type='hit'}}},
+        delivery='teleport',landing='random',center='requested_grid',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10}))
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local provider={origin=function() return {x=2,y=2} end,
+        anchor=function() return {x=2,y=2} end,
+        knowledge=function() return {in_bounds=true,visible=true,passable=true,hazard=false} end}
+    local plan=assert(Planner.planSequence({talent='T_X',target='self',
+        target_plan={{request='grid',destination={selector='position',x=6,y=2,accept=accept}}}},
+        provider,movement,{x=2,y=2}))
+    -- A grid-semantics prompt may legitimately be raised with the `hit` shape
+    -- (Dimensional Step does exactly this); a curated signature saying so must
+    -- be accepted. Undeclared observed fields (range/radius) are ignored.
+    local seen={}
+    local def={prompts={{type='hit',range=10,nowarning=true}},
+        on_answer=function(self,answers) seen=answers;return true end}
+    local result,command=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=5,y=3,observed={cursor_type='hit'}}}})
+    check(result.ok and seen[1] and seen[1].x==5 and seen[1].y==3,
+        'a legal grid-via-hit request is accepted when the curated signature says so')
 end
 
 -- 4. Per-request native guard: a value legal for one prompt is refused for
@@ -290,7 +355,8 @@ do
     -- out of range for the actor prompt's range 2.
     local actor={x=6,y=1}
     local result,command,player=runQueue(def,{type='use_talent',talent_id='T_SEQ',
-        sequence={{kind='actor',request='actor',target_id='a1'},{kind='grid',request='grid',x=6,y=1}}},
+        sequence={{kind='actor',request='actor',target_id='a1',observed=ACTOR_SIG},
+            {kind='grid',request='grid',x=6,y=1,observed=GRID_SIG}}},
         actor)
     check(not result.ok and result.code=='target_out_of_range',
         'the native range guard is evaluated for the request own spec')
@@ -306,8 +372,8 @@ do
         on_answer=function() return true end}
     local result,command=runQueue(def,
         {type='use_talent',talent_id='T_SEQ',
-            sequence={{kind='self',request='actor'},
-                {kind='grid',request='grid',x=5,y=3,optional=true}}})
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+                {kind='grid',request='grid',x=5,y=3,optional=true,observed=GRID_SIG}}})
     check(result.ok and result.reduced==true,
         'a missing trailing optional entry is a settled native outcome with reduced=true')
     check(result.reduced_reason=='trailing_optional_not_raised',
@@ -321,7 +387,8 @@ do
         on_answer=function() return true end}
     local result,command=runQueue(def,
         {type='use_talent',talent_id='T_SEQ',
-            sequence={{kind='self',request='actor'},{kind='grid',request='grid',x=5,y=3}}})
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+                {kind='grid',request='grid',x=5,y=3,observed=GRID_SIG}}})
     check(not result.ok and result.code=='unexpected_target_request',
         'a missing non-optional prompt is the typed unexpected_target_request')
     local deviation=result.sequence_deviation
@@ -337,42 +404,53 @@ do
             {type='ball',range=14,radius=1,nowarning=true},
             {type='ball',range=14,radius=1,nowarning=true}},
         on_answer=function() return true end}
-    local result=runQueue(def,
+    local result,command=runQueue(def,
         {type='use_talent',talent_id='T_SEQ',
-            sequence={{kind='self',request='actor'},{kind='grid',request='grid',x=5,y=3}}})
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+                {kind='grid',request='grid',x=5,y=3,observed=GRID_SIG}}})
     check(not result.ok and result.code=='unexpected_target_request',
         'a third prompt past the declared sequence is unexpected')
     check(result.sequence_deviation.exhausted==true
         and result.sequence_deviation.observed.index==3,
         'an extra prompt reports the exhausted sequence and observed index 3')
-    -- S2-REV-01: the extra prompt's OBSERVED shape is classified and reported,
-    -- not a synthetic placeholder.
-    check(result.sequence_deviation.observed.request=='grid',
-        'the extra prompt reports the observed actor/grid kind')
+    -- S2 rev3: the extra prompt's OBSERVED SHAPE is recorded (there is no
+    -- declared entry for it, so no signature to match).
+    check(result.sequence_deviation.observed_shape=='ball'
+        and result.sequence_deviation.handed_back==true
+        and command.target_handed_back=='unexpected_target_request'
+        and command.target_cancelled==nil,
+        'an extra prompt hands the live prompt back (handed_back, never target_cancelled)')
 end
 
 -- 8. Wrong-kind decided value pauses typed (never a wrong answer) -------------
+-- The prompt matches its curated signature (the flow is what was reviewed); the
+-- internal carrier still holds a value whose KIND cannot answer that prompt. The
+-- value is never answered blindly: the executor cancels the native prompt with
+-- the typed deviation (there is no correct value to hand the player either).
 do
     local def={prompts={{type='hit',range=10,nowarning=true}},
         on_answer=function() return true end}
-    local result=runQueue(def,
+    local result,command=runQueue(def,
         {type='use_talent',talent_id='T_SEQ',
-            sequence={{kind='grid',request='actor',x=5,y=3}}})
+            sequence={{kind='grid',request='actor',x=5,y=3,observed=ACTOR_SIG}}})
     check(not result.ok and result.code=='unexpected_target_request',
         'a decided value whose kind cannot answer the declared prompt is unexpected')
     check(result.sequence_deviation.expected.request=='actor'
         and result.sequence_deviation.observed.request=='grid',
         'the wrong-kind deviation reports expected/observed kinds')
+    check(result.sequence_deviation.handed_back==nil
+        and command.target_cancelled=='unexpected_target_request',
+        'an internal value-kind deviation is not a live handback')
 end
 
 -- 9. Unevaluable value pauses with movement_request_value_unknown -------------
 
--- 9b. S2-REV-01: a reordered NATIVE flow. The declared program is actor-then-
--- grid, but the native body raises a grid-shaped prompt (ball) first and an
--- actor-shaped prompt (hit) second. Every observed prompt is classified from
--- its cursor spec and matched against the declared entry at that index, so the
--- reordered flow is `unexpected_target_request` (never `action_complete`) and
--- the k-th declared value is never blindly answered to the wrong prompt.
+-- 9b. S2 rev3: a reordered NATIVE flow. The declared program is actor-then-grid
+-- (curated signatures hit-then-ball), but the native body raises the ball prompt
+-- first. The observed signature at index 1 does not match the entry curated for
+-- that position, so the flow is `unexpected_target_request` (never
+-- `action_complete`), the live prompt is HANDED BACK, and the k-th declared
+-- value is never blindly answered to the wrong prompt.
 do
     local seen={}
     local def={prompts={{type='ball',range=14,radius=1,nowarning=true},
@@ -384,40 +462,92 @@ do
         end}
     local result,command=runQueue(def,
         {type='use_talent',talent_id='T_SEQ',
-            sequence={{kind='self',request='actor'},{kind='grid',request='grid',x=5,y=3}}})
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+                {kind='grid',request='grid',x=5,y=3,observed=GRID_SIG}}})
     check(not result.ok and result.code=='unexpected_target_request',
         'a reordered native flow is the typed unexpected_target_request, not action_complete')
     local deviation=result.sequence_deviation
     check(deviation and deviation.expected.index==1 and deviation.expected.request=='actor'
-        and deviation.observed.index==1 and deviation.observed.request=='grid'
-        and deviation.skippable==false,
-        'the reorder deviation reports the declared actor entry vs the observed grid prompt')
+        and deviation.observed.index==1 and deviation.observed_shape=='ball'
+        and deviation.handed_back==true and deviation.skippable==false,
+        'the reorder deviation reports the declared actor entry vs the observed ball shape')
+    check(command.target_handed_back=='unexpected_target_request'
+        and command.target_cancelled==nil,
+        'a live reorder records target_handed_back, never target_cancelled')
     -- The queue never answered: both prompts were handed to the real native
     -- target request (the metatable seam), so the declared self/grid values are
     -- absent from the native flow and no wrong target was supplied.
     check(seen[1] and seen[1].x==99 and seen[1].y==99 and seen[1].entity==nil,
-        'the first (grid-shaped) prompt was handed back to the player, unanswered by the queue')
+        'the first (ball) prompt was handed back to the player, unanswered by the queue')
     check(seen[2] and seen[2].x==99 and seen[2].entity==nil,
-        'the second (actor-shaped) prompt was handed back to the player as well')
+        'the second (hit) prompt was handed back to the player as well')
+    check(seen[1].x~=1 and seen[2].x~=5,
+        'the k-th declared values were never supplied to the reordered prompts')
     check(command.target_sequence and #command.target_sequence==2,
         'both observed prompts are still recorded for evidence')
 end
 
--- 9c. A native cursor spec that cannot be classified unambiguously is never
--- answered blindly: it is a typed deviation with the live interaction handed
--- back (the declared kind stays curated; the cursor type is only a guard).
+-- 9c. S2 rev3: a spec the bridge CANNOT read as a signature (`typ` not a table,
+-- or `typ.type` not a string) is `movement_request_kind_unknown` with
+-- observed_shape=nil. The live prompt is handed back; the plugin never answers
+-- blindly.
 do
-    local def={prompts={{type='exotic_cursor_shape',range=10,nowarning=true}},
+    local def={prompts={{type=7,range=10,nowarning=true}},
+        on_answer=function() return true end}
+    local result,command=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG}}})
+    check(not result.ok and result.code=='movement_request_kind_unknown',
+        'an unreadable native spec is a typed deviation, never a blind answer')
+    local deviation=result.sequence_deviation
+    check(deviation and deviation.expected.request=='actor'
+        and deviation.observed_shape==nil and deviation.skippable==false
+        and deviation.handed_back==true,
+        'the kind-unknown deviation reports observed_shape=nil and the handback')
+    check(command.target_handed_back=='movement_request_kind_unknown'
+        and command.target_cancelled==nil,
+        'the unreadable spec is a live handback (never target_cancelled)')
+end
+-- 9c-2. A READABLE spec that matches no declared entry is NOT kind_unknown: it
+-- is unexpected_target_request with the observed shape (the narrowed trigger).
+do
+    local def={prompts={{type='mcp_unknown_shape',range=10,nowarning=true}},
         on_answer=function() return true end}
     local result=runQueue(def,
         {type='use_talent',talent_id='T_SEQ',
-            sequence={{kind='self',request='actor'}}})
-    check(not result.ok and result.code=='movement_request_kind_unknown',
-        'an unclassifiable native request shape is a typed deviation, never a blind answer')
-    local deviation=result.sequence_deviation
-    check(deviation and deviation.expected.request=='actor'
-        and deviation.observed_shape=='exotic_cursor_shape' and deviation.skippable==false,
-        'the kind-unknown deviation reports the observed native shape')
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG}}})
+    check(not result.ok and result.code=='unexpected_target_request',
+        'an unknown-but-readable shape is unexpected_target_request, not kind_unknown')
+    check(result.sequence_deviation.observed_shape=='mcp_unknown_shape',
+        'the readable-but-unmatched deviation reports its observed shape')
+end
+-- 9c-3. A curated `default_target='self'` matches only when the observed spec
+-- carries the caster as default_target.
+do
+    local def={prompts={{type='hit',range=10,nowarning=true,default_target=true}},
+        on_answer=function() return true end}
+    -- `default_target=true` is not the caster: the declared default_target='self'
+    -- does not match, so the prompt is handed back.
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor',
+                observed={cursor_type='hit',nowarning=true,default_target='self'}}}})
+    check(not result.ok and result.code=='unexpected_target_request',
+        "a declared default_target='self' does not match a non-caster default_target")
+end
+do
+    -- With the caster as default_target the same signature matches.
+    local p=player({T_SEQ={prompts={{type='hit',range=10,nowarning=true}},
+        on_answer=function() return true end}},{x=1,y=1})
+    p.default_target_ref=p
+    local g={player=p,level={map={w=20,h=20}}}
+    local def=p.talents_def.T_SEQ
+    def.prompts={{type='hit',range=10,nowarning=true,default_target=p}}
+    local command={command_id='c1'}
+    local result=Actions.execute(g,{type='use_talent',talent_id='T_SEQ',
+        sequence={{kind='self',request='actor',
+            observed={cursor_type='hit',nowarning=true,default_target='self'}}}},nil,meta,command)
+    check(result.ok,"a declared default_target='self' matches an observed caster default_target")
 end
 do
     local def={prompts={{type='hit',range=10,nowarning=true}},
@@ -426,12 +556,65 @@ do
     -- nil) is the plugin's own uncomputability boundary.
     local result=runQueue(def,
         {type='use_talent',talent_id='T_SEQ',
-            sequence={{kind='actor',request='actor',target_id='a1'}}})
+            sequence={{kind='actor',request='actor',target_id='a1',observed=ACTOR_SIG}}})
     check(not result.ok and result.code=='movement_request_value_unknown',
         'an unevaluable decided value is the typed movement_request_value_unknown')
     check(result.sequence_deviation.dependency=='bound_actor'
         and result.sequence_deviation.index==1,
         'the value-unknown deviation carries the index and dependency')
+end
+
+
+-- 9d. S2 rev3: a SAME-KIND reorder. Two `grid` entries with distinct signatures
+-- (`cone` then `ball`); the native body raises the `ball` prompt first, so the
+-- observed signature at index 1 does not match the entry curated there. Detected
+-- as unexpected_target_request; the declared coordinate is never consumed.
+do
+    local seen={}
+    local def={prompts={{type='ball',range=14,radius=1,nowarning=true}},
+        on_answer=function(self,answers) seen=answers;return true end}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=4,y=3,observed={cursor_type='cone'}},
+                {kind='grid',request='grid',x=5,y=3,observed={cursor_type='ball'}}}})
+    check(not result.ok and result.code=='unexpected_target_request',
+        'a same-kind reorder is detected via the signature mismatch (never action_complete)')
+    check(result.sequence_deviation.expected.index==1
+        and result.sequence_deviation.observed_shape=='ball'
+        and result.sequence_deviation.handed_back==true,
+        'the same-kind reorder deviation reports the index and observed shape')
+    check(seen[1] and seen[1].x==99 and seen[1].x~=4,
+        'the first declared coordinate was never supplied to the reordered prompt')
+end
+
+-- 9e. A `self` entry whose curated signature is `hit`, answered with the caster
+-- cell (the legal self-on-hit combination).
+do
+    local seen={}
+    local def={prompts={{type='hit',range=10,nowarning=true}},
+        on_answer=function(self,answers) seen=answers;return true end}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='self',observed={cursor_type='hit',nowarning=true}}}})
+    check(result.ok,'a self-on-hit program is answered per its curated signature')
+    check(seen[1] and seen[1].x==1 and seen[1].y==1 and seen[1].entity~=nil,
+        'the self prompt is answered with the caster cell and entity')
+end
+
+-- 9f. S2 rev3 classifier falsification: the SAME geometry can carry either
+-- semantics, so a legal actor-via-`ball` and a legal grid-via-`hit` are both
+-- accepted when the curated signature says so (the geometry-era classifier
+-- falsely rejected these).
+do
+    local seen={}
+    local def={prompts={{type='ball',range=10,nowarning=true}},
+        on_answer=function(self,answers) seen=answers;return true end}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor',
+                observed={cursor_type='ball',nowarning=true}}}})
+    check(result.ok and seen[1] and seen[1].x==1 and seen[1].y==1,
+        'a legal actor-semantics-via-ball request is accepted when the curated signature says so')
 end
 
 -- 10. Validation: the internal sequence field is closed ----------------------
@@ -448,11 +631,19 @@ do
         sequence={{kind='self',request='none'}}}),
         'a none request is not a sequence prompt (invalid_sequence)')
     local normalized=Actions.validate({type='use_talent',talent_id='T_A',
-        sequence={{kind='self'},{kind='grid',x=3,y=4}}})
+        sequence={{kind='self',observed=ACTOR_SIG},{kind='grid',x=3,y=4,observed=GRID_SIG}}})
     check(normalized and normalized.authoritative_target==true,
         'a valid sequence implies the authoritative wrapper')
-    check(Actions.fingerprint({type='use_talent',talent_id='T_A',sequence={{kind='grid',x=3,y=4}}},1)
-        ~=Actions.fingerprint({type='use_talent',talent_id='T_A',sequence={{kind='grid',x=3,y=5}}},1),
+    check(normalized.sequence[1].observed.cursor_type=='hit',
+        'the curated observed signature is carried on the internal sequence field')
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='self'}}}),
+        'a sequence entry without a curated observed signature is invalid_sequence')
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='self',observed={cursor_type='hit',radius=3}}}}),
+        'a dynamic numeric in the observed signature is invalid_sequence (not a signature field)')
+    check(Actions.fingerprint({type='use_talent',talent_id='T_A',sequence={{kind='grid',x=3,y=4,observed=GRID_SIG}}},1)
+        ~=Actions.fingerprint({type='use_talent',talent_id='T_A',sequence={{kind='grid',x=3,y=5,observed=GRID_SIG}}},1),
         'the sequence participates in command dedup')
 end
 
@@ -561,8 +752,8 @@ do
     local Planner=require 'mod.auto_combat.MovementPlanner'
     local executed=false
     local movement=assert(Factory.expand('request_then_landing',{
-        request_sequence={{index=1,request='actor',subject='self'},
-            {index=2,request='grid',subject='self',value_source='target_plan',landing_from='envelope'}},
+        request_sequence={{index=1,request='actor',subject='self',observed=ACTOR_SIG},
+            {index=2,request='grid',subject='self',value_source='target_plan',landing_from='envelope',observed=GRID_SIG}},
         delivery='teleport',landing='random',center='requested_grid',traverses=false,
         relocates_other=false,radius=1,min_radius=0,range=10}))
     local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
