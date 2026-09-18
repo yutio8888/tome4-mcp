@@ -79,15 +79,24 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 25 | anor-reg-01 fix2（R-1/R-2） | **B**（Dev）/ **Sol**（Review，复用复核自身） | 同 #24（复核自身发现） | **PASS**（merge with follow-ups） | 0 | 0 | 0 | 1 | 1 |
 | 26 | anor fix2 定向回归（Test，协调者提前终止） | **A** | 无（测试任务） | **PASS**（D-1/R-1 核心通过；未覆盖项已声明） | 0 | 0 | 0 | 0 | 0 |
 | 27 | P3 门禁清尾（#60-N2/#63-P3-b/-c/#64） | A→**B**（Dev）/ **Sol**（Review，复用复核自身） | 首轮全新 Sol；修正轮复用 | **PASS**（终审 **MERGE**，0 findings） | 0 | 0 | 0 | 2 | 2 |
+| 28 | S2 有序 prompt-响应队列（实现） | A（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | FAIL（**do_not_merge**） | 0 | 2 | 4 | 1 | 7 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**27**（全部已判定）。
-- **PASS 10**（#4、#14、#17、#19、#20、#21、#22、#25、#26、#27）、**FAIL 17**、PARTIAL 0 →
-  **通过率 10/27 = 37.0%**。
-- Issue 合计：**69**（P0 1 / P1 27 / P2 21 / P3 20）；平均每 loop 2.56。
+- Loop 总数：**28**（全部已判定）。
+- **PASS 10**（#4、#14、#17、#19、#20、#21、#22、#25、#26、#27）、**FAIL 18**、PARTIAL 0 →
+  **通过率 10/28 = 35.7%**。
+- Issue 合计：**76**（P0 1 / P1 29 / P2 25 / P3 21）；平均每 loop 2.71。
+- **#28（S2 首轮实现，Dev A / 全新 Sol 评审）do_not_merge**：Sol 抓到 **2 个 P1**——
+  **S2-REV-01**：队列**盲序应答**（`resolveQueued` 只比对声明条目、从不分类**原生**请求的 kind/顺序），
+  实测"声明 `actor,grid` 而原生先抛 grid 形状再抛 actor 形状"仍返回 `action_complete, deviation=nil`；
+  **S2-REV-02**：`away`/`toward`/`preferred_distance` 选择器**不套用落点包络**，把随机落点报成
+  deterministic 并**绕过 `accept.landing`**。另有 4 个 P2（`target_requests` 未按稠密数组校验、
+  `request='none'` 可声明但不可执行、typed 偏差只取消提示且**仍持有租约**而未交接交互、
+  原生探针 `sd_distinct_values` 只比较几何不比较**应答值**）与 1 个 P3（文档 checks 69→71 过期）。
+  已按轮换派 **Dev B** 修复（Dev 序列 A→B）。
 - **#27 闭环（Dev 先 A 后 B，Sol 首审 + 复用复核）**：四项 P3 门禁（#60-N2 文档同步、#63-P3-b 测试根、
   #63-P3-c landing 守卫回归、#64/RR-1 oldest-first replay 断言）全部关闭。Sol 首审**只放行 3 项**并按
   "文档不准确"**拦下 #60-N2**（DOC-V4-01 五个子点 + DOC-PROVENANCE-01），Dev B 逐条修正后 Sol **终审
