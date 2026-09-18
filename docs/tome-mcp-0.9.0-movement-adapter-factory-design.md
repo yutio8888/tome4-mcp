@@ -179,18 +179,37 @@ it requires the entire prompt program and all branches to be curated.
 ### 4.4 Ordered request sequences (S2)
 
 A `request_then_landing` descriptor declares its prompts as a closed, ordered list. The
-list is curated data, never inferred: the native cursor `type` is semantically ambiguous
-(§3.2), so the *expected* kind at each position comes from the source review while the
-observed cursor spec is used only to apply the native per-request range/self-warning
-guard.
+list is curated data, never inferred. The engine's cursor geometry is **not** a sound
+request-kind classifier: `hit` is documented as "hit a single grid in LOS"
+(`engines/default/engine/Target.lua:634`), `setSpot` populates `target.entity` from the
+selected cell for every geometry (`Target.lua:731-732`), the cursor's `entity` starts
+as the caster for every geometry (`engine/interface/GameTargeting.lua:28-33`), and the
+same shapes are consumed with opposite semantics by reviewed talents — Dimensional Step
+raises a grid request with `type="hit"` (`game/modules/tome/data/talents/chronomancy/
+spacetime-weaving.lua:29-46`), Rush an actor request with `bolt`, Tumble a grid landing
+with `beam`, Phase Door an actor request with `hit` (`spells/conveyance.lua:78-84`);
+see §3.2 ("no sound automatic classifier", `:107-109`). The *expected* kind at each
+position therefore comes only from the source review, and the review must also curate,
+per entry, the entry's **observed signature** — the stable, distinguishing fields of
+the cursor spec that prompt actually raises — which is the only runtime evidence the
+bridge matches against (§6.1).
 
 ```lua
 request_sequence = {
-  { index=1, request='actor', subject='self' },
+  { index=1, request='actor', subject='self',
+    observed={cursor_type='hit', default_target='self'} },
   { index=2, request='grid', subject='self', value_source='target_plan',
-    landing_from='envelope', optional=true },
+    landing_from='envelope', optional=true,
+    observed={cursor_type='ball', nolock=true} },
 }
 ```
+
+Phase Door's prompts are the worked example: the actor prompt is
+`{default_target=self, type="hit", friendlyblock=false, nowarning=true,
+range=getTalentRange}` (`spells/conveyance.lua:78-84`) and the landing prompt is
+`{type="ball", nolock=true, pass_terrain=true, nowarning=true, range=getRange,
+radius=getRadius}` (`:105-107`); their `cursor_type` values alone already
+distinguish them. Dynamic numerics (`range`, `radius`) are never signature fields.
 
 - `index` is explicit and must equal the array position; a hole, gap or reorder is
   `movement_adapter_invalid`. `request_sequence` and `target_requests` must agree in
@@ -212,6 +231,17 @@ request_sequence = {
   express “actor prompt ⇒ the caster, landing prompt ⇒ this coordinate”.
 - `landing_from='envelope'` annotates the landing from the declared envelope
   (`radius`/`min_radius`/`fallback_center`/`fallback_radius`) instead of an exact cell.
+- `observed` is the per-entry curated signature of the prompt the reviewed native flow
+  raises at this position: `cursor_type` (required, the `typ.type` string the action
+  passes) plus optional static discriminators from a closed allowlist — boolean flags
+  `nolock`/`pass_terrain`/`friendlyblock`/`nowarning`/`immediate_keys`/`no_restrict`,
+  `first_target`, `msg`, and `default_target='self'`. For a sequence of N≥2 entries the
+  signatures must be **pairwise distinct**; prompts that cannot be told apart by any
+  stable observed field make the program's reorder undetectable, which is the plugin's
+  own undecidability, so the descriptor is `movement_adapter_invalid` (detail
+  `request_signature_ambiguous`) and is never published. The signature detects drift
+  from the reviewed flow as recorded; it is not an identity audit of any live object
+  (§7.1) and it never claims geometry proves actor/grid semantics (§3.2).
 - `optional=true` marks a **trailing** entry the native flow may legitimately not raise.
   A missing `optional` trailing prompt is a settled native outcome (reported with
   `reduced=true`), **not** an error; a non-trailing `optional` entry is
@@ -360,12 +390,29 @@ outcome changes adapter capability.
 ### 6.2 Pre-commit versus post-commit
 
 All static/derivation faults are resolved before `Actions.execute`. If the exact
-native prompt sequence can be preflighted, a mismatch never starts the action.
-If an adapted action has already yielded and then produces an undeclared prompt,
-the controller enters waiting/pause and never submits the talent again. This
-preserves the existing rule that `native_pending` is tracked without resubmission
-(`overload/mod/mcp_bridge/Actions.lua:294-300`;
-`docs/tome-mcp-auto-combat-plugin-design.md:256-263`).
+native prompt sequence can be preflighted, a mismatch never starts the action. If an
+adapted action has already yielded to a live native prompt and then produces a
+mismatch, the executor hands the prompt back to the real native targeting UI, and the
+typed deviation must be delivered to the controller **inside the same submission**,
+not after the pending native call settles: `Actions.execute` attaches
+`sequence_deviation` (and `target_sequence`, `handed_back`) to its `native_pending`
+result (`overload/mod/mcp_bridge/Actions.lua:671-672`); the controller checks the
+deviation **before** its `native_pending` branch and pauses with the typed reason
+(`overload/mod/auto_combat/AutoCombat.lua`, deviation check before the
+`native_pending` branch); and `AutoCombatService` then stops the run and revokes the
+lease through the existing safety-pause path
+(`overload/mod/auto_combat/AutoCombatService.lua:480-487`). While the prompt is handed
+back live, `command.target_cancelled` is **not** set — a still-live prompt is neither
+answered nor cancelled — the executor records `command.target_handed_back` instead,
+and the bounded abort cancels a live target handle first, treating
+`target_cancelled` as authoritative only when no live handle remains
+(`overload/mod/mcp_bridge/Runtime.lua:2073-2105`). After the lease is released, the
+handed-back interaction is answerable by the caller through the existing
+respond/dismiss routing extended to the auto invocation's current handle; if nobody
+answers, the existing `native_timeout` bound force-cancels it
+(`overload/mod/mcp_bridge/Runtime.lua:2110-2134`). This preserves the rule that
+`native_pending` is tracked without resubmission
+(`docs/tome-mcp-auto-combat-plugin-design.md:256-263`).
 
 ## 7. Source records and advisory drift telemetry
 
