@@ -124,19 +124,32 @@ end
 -- differ. `window` makes that difference explicit instead of letting a client
 -- mistake the ring's oldest sequence for the oldest returned event (round
 -- anor-reg-01 D-4).
+-- R-2 (round anor-reg-01 fix2): the window is order-aware. `log`/`status` return
+-- a newest-first tail while `replay` returns an oldest-first slice; computing
+-- the extent from the min/max sequence keeps `first_seq <= last_seq` (oldest
+-- and newest returned event) for both orders.
 function M.window(entries)
     entries=entries or {}
-    return {count=#entries,
-        first_seq=entries[#entries] and entries[#entries].seq,
-        last_seq=entries[1] and entries[1].seq}
+    local first,last
+    for _,entry in ipairs(entries) do
+        local seq=entry and entry.seq
+        if seq~=nil then
+            if first==nil or seq<first then first=seq end
+            if last==nil or seq>last then last=seq end
+        end
+    end
+    return {count=#entries,first_seq=first,last_seq=last}
 end
 
 function M.status(log,entries)
     local status={count=#log.entries,limit=log.limit,total=log.total,
         first_seq=log.entries[1] and log.entries[1].seq,
         last_seq=log.entries[#log.entries] and log.entries[#log.entries].seq,
-        semantics='first_seq/last_seq/count/total describe the retained ring; '
-            ..'the returned window is window.* (bounded by the request limit)'}
+        semantics='first_seq/last_seq/count/limit describe the retained ring; '
+            ..'total is the lifetime event count (it can exceed count after '
+            ..'eviction); the returned window is window.* (bounded by the request '
+            ..'limit, first_seq/last_seq are the oldest/newest returned seq '
+            ..'regardless of the returned event order)'}
     if entries~=nil then status.window=M.window(entries) end
     return status
 end

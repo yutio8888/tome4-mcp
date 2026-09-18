@@ -145,8 +145,16 @@ function M.dryRun(svc,args)
     -- calls request()/execute() or commits anything.
     local maxActions=(policy.limits and policy.limits.max_actions_per_tick) or 1
     local maxInstant=(policy.limits and policy.limits.max_instant_per_tick) or 3
+    -- R-1 (round anor-reg-01 fix2) mirror: a dry run executes nothing, so no
+    -- budget is ever consumed; refusals (planner/guard/rebind) deny the rule
+    -- instead of counting against max_actions_per_tick. The controller-side
+    -- charged-action semantics are mirrored by the bounded loop below: if the
+    -- candidates never resolve, the mirror reports the controller's typed
+    -- rule_loop_limit boundary instead of pretending an action would be
+    -- submitted past the cap.
     local denied={}
     local attempts=0
+    local resolved=false
     -- MFT-REV-05(a): the instant cap is a distinct per-opportunity counter that
     -- advances only after a successful instant action, not the total attempt
     -- counter. A rejected candidate never consumes an instant slot.
@@ -238,11 +246,11 @@ function M.dryRun(svc,args)
                     break
                 end
                 if guard and guard.action=='reject' then
-                    attempts=attempts+1
                     denied[d.rule]=true
                     trace[#trace+1]={rule=d.rule,reason=guard.reason,risk=guard.detail}
                 else
                     -- This is the action live execution would next submit.
+                    resolved=true
                     decision=d
                     bound_target,target_distance=bt,td
                     -- Keep the default binding selector unless a non-default
@@ -256,11 +264,21 @@ function M.dryRun(svc,args)
             end
         end
         if attempts>=maxActions then
+            -- Unreachable while a dry run consumes no budget (see above); kept
+            -- as a defensive mirror of the evaluator's charged-action check.
             decision={decision='pause',reason='budget_exhausted',rule=decision.rule,
                 results=decision.results,layer=decision.layer}
             loop_paused=true
             break
         end
+    end
+    -- R-1 mirror: the live controller's rule loop is hard-capped; when the
+    -- candidates never resolve within it, live stops (or pauses) with the typed
+    -- `rule_loop_limit` boundary instead of submitting again. Report the same.
+    if not resolved and decision.decision=='act' then
+        decision={decision='pause',reason='rule_loop_limit',rule=decision.rule,
+            results=decision.results,layer=decision.layer}
+        loop_paused=true
     end
     -- A planner/guard fall-through selection keeps the same binding metadata.
     if decision.decision=='act' and binding==nil then

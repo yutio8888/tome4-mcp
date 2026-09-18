@@ -215,8 +215,9 @@
 
 `policy_log` 的 `status.log`（及 `policy status`）报**保留 ring** 的 `count`/`first_seq`/`last_seq`/
 `total`/`limit`，以及**实际返回窗口**的 `window={count,first_seq,last_seq}` 与 `semantics` 说明
-（早期条目通过 `tome.policy` `replay` 游标分页读取）。`log.events` 为最新优先的有界 tail；`replay`
-为旧→新的分页追踪。
+（早期条目通过 `tome.policy` `replay` 游标分页读取）。`window.first_seq`/`last_seq` 是**返回事件中最旧/
+最新的 seq**，与返回顺序无关：`log.events` 为最新优先的有界 tail，`replay` 为旧→新的分页追踪，二者
+报出一致的窗口（`first_seq <= last_seq`）。`total` 是累计写入的事件数，ring 淘汰后可以大于 `count`。
 
 `status`：`mode` 含已校验的调度值 `on_no_enemy`、`on_low_hp`、`on_new_enemy='pause'|'continue'`
 （`on_new_enemy` 由 preset/mode 选择，非插件级门禁）。

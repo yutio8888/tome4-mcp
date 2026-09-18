@@ -32,6 +32,12 @@ emergency 规则命中，就返回 `pause no_emergency_action`。当 emergency �
 
 **影响面**：`budget_exhausted` 语义不变（仍先于层评估）；`emergency` 仍只是调度标签。
 
+> **R-1 fix2 更新（2026-09-18）**：上句已被
+> [docs/tome-mcp-0.9.0-anor-reg-01-fix2-feedback.md](tome-mcp-0.9.0-anor-reg-01-fix2-feedback.md)
+> 取代：`max_actions_per_tick` 改为计量**产生原生动作的提交**，settled no-energy 拒绝不消耗预算，
+> limit=1 同机会 fall-through 照常；`budget_exhausted` 只在完成 max 次有效动作后触发；refusal
+> 终点与规则循环耗尽（无有效动作时）改为 stop 交接，不再持有 lease 冻结世界。
+
 ### D-2（P2，N1/P3-2 follow-through）— auto denied 事件丢结构化详情
 
 命令路径 `Actions.execute` 对自身冷却中的 `use_talent` 原生拒绝返回

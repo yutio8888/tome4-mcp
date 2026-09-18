@@ -119,14 +119,32 @@ do
 end
 
 do
-    -- Budget: all real attempts count; exhaustion pauses.
+    -- R-1: a settled reject that produced no native action does not consume the
+    -- action budget, so the fall-through runs in the same opportunity even at
+    -- max_actions_per_tick=1 (the schema-valid and assistant-import default).
     local host=makeHost()
     host.responses={{status='rejected',energy_spent=false}}
     local c=AutoCombat.new(policy({limits={max_actions_per_tick=1}}),host)
     c:start(); local step=c:onOpportunity()
+    check(#host.requests==2 and host.requests[1].rule=='beam' and host.requests[2].rule=='attack',
+        'a settled no-energy reject does not consume the budget (R-1)')
+    check(step.action=='acted' and c.attempts==1,
+        'the limit-1 opportunity falls through and completes one action (R-1)')
+end
+
+do
+    -- The budget still bounds completed native actions per opportunity: with a
+    -- repeated opportunity id the limit-1 budget pauses after one charged
+    -- action, and the reason is honest (the cause is a completed action, never
+    -- a refusal).
+    local host=makeHost()
+    local c=AutoCombat.new(policy({limits={max_actions_per_tick=1}}),host)
+    c:start()
+    check(c:onOpportunity().action=='acted' and c.attempts==1,'a completed action consumes the budget')
+    local step=c:onOpportunity()
     check(step.action=='paused' and step.reason=='budget_exhausted',
-        'the attempt budget pauses once exhausted')
-    check(#host.requests==1,'the exhausted budget does not retry')
+        'the limit-1 budget pauses after the completed action (budget_exhausted stays honest)')
+    check(#host.requests==1,'the exhausted budget does not submit again')
 end
 
 do
@@ -292,16 +310,19 @@ end
 
 do
     -- AC-03/D1/D2: the controller consults the production guard before
-    -- submitting; a reject counts as an attempt and tries the next candidate.
+    -- submitting. R-1: a guard rejection never reaches the native executor and
+    -- produces no native action, so it does not consume the budget; the next
+    -- candidate is submitted in the same opportunity.
     local host=makeHost(); host.snap={hp_pct=80,enemy_count=1}
     local seen=false
-    host.guard=function() seen=true;return {action='reject',reason='selffire_risk'} end
+    host.guard=function(attempt) seen=true
+        if attempt.rule=='beam' then return {action='reject',reason='selffire_risk'} end end
     local c=AutoCombat.new(policy({limits={max_actions_per_tick=1}}),host)
     c:start()
     local step=c:onOpportunity()
-    check(seen and c.attempts>=1,'the guard runs and a rejection counts as an attempt')
-    check(step.action=='paused' and step.reason=='budget_exhausted',
-        'the guard rejection consumes the budget rather than firing')
+    check(seen,'the guard runs')
+    check(step.action=='acted' and #host.requests==1 and c.attempts==1,
+        'a guard rejection does not consume the limit-1 budget (R-1)')
 end
 
 do
@@ -467,15 +488,60 @@ do
 end
 
 do
-    -- D-1: when genuinely nothing is applicable after an emergency refusal, the
-    -- typed reason is the refusal (`action_denied`), never `no_emergency_action`.
+    -- R-1 (P1 regression): at max_actions_per_tick=1 a refused emergency action
+    -- must fall through in the same opportunity: the fallback acts, time passes,
+    -- the cooldown decays and the emergency action is used again. The old
+    -- charged-per-attempt contract consumed the only attempt on the refusal and
+    -- paused budget_exhausted with the lease held — the same livelock under a
+    -- different reason.
+    local cooldown=3
+    local host=makeHost()
+    host.snap={hp_pct=30,enemy_count=1}
+    host.request=function(attempt)
+        host.requests[#host.requests+1]=attempt
+        if attempt.rule=='heal' then
+            if cooldown>0 then
+                return {status='rejected',code='native_rejected',energy_spent=false,
+                    missing={{kind='cooldown',talent='T_HEALING_LIGHT',remaining=cooldown,required=0}}}
+            end
+        end
+        -- Every charged submission spends the turn: time passes, so the native
+        -- cooldown decays (exactly what a frozen pause would prevent).
+        cooldown=math.max(0,cooldown-1)
+        return {status='ok',energy_spent=true}
+    end
+    local p=policy({mode={on_low_hp='emergency_only'},limits={max_actions_per_tick=1},rules={
+        {id='heal',priority=100,emergency=true,when={always={}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
+        {id='attack',priority=40,when={always={}},
+            ['then']={action='attack',target='nearest_hostile'}}}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    local acted,parked,usedHeal=0,0,false
+    for _=1,6 do
+        local step=c:onOpportunity()
+        if step.action=='acted' then
+            acted=acted+1
+            if step.rule=='heal' then usedHeal=true end
+        elseif step.action=='paused' then parked=parked+1 end
+        host.oid=host.oid+1
+    end
+    check(acted>=3,'the limit-1 run keeps acting while the emergency action is on cooldown (R-1)')
+    check(parked==0,'a refused emergency action never parks the limit-1 run (R-1)')
+    check(usedHeal,'after the cooldown recovers the emergency action is used again (R-1)')
+end
+
+do
+    -- R-1: when genuinely nothing is applicable after an emergency refusal, the
+    -- run stops with the typed refusal (`action_denied`) and releases control —
+    -- it must not pause with the lease held over a frozen world.
     local host=makeHost()
     host.snap={hp_pct=30,enemy_count=1}
     host.request=function(attempt)
         host.requests[#host.requests+1]=attempt
         return {status='rejected',code='native_rejected',energy_spent=false}
     end
-    local p=policy({mode={on_low_hp='emergency_only'},limits={max_actions_per_tick=4},rules={
+    local p=policy({mode={on_low_hp='emergency_only'},limits={max_actions_per_tick=1},rules={
         {id='heal',priority=100,emergency=true,when={always={}},
             ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
         {id='unreachable',priority=40,when={enemy_count={ge=99}},
@@ -483,8 +549,11 @@ do
     local c=AutoCombat.new(p,host)
     c:start()
     local step=c:onOpportunity()
-    check(step.action=='paused' and step.reason=='action_denied',
-        'a refused emergency action with no applicable fallback pauses action_denied (D-1)')
+    check(step.action=='stopped' and step.reason=='action_denied' and step.rule=='heal',
+        'a refused emergency action with no applicable fallback stops with the typed refusal (R-1)')
+    check(c.state=='stopped' and c.reason=='action_denied',
+        'the refusal terminal is a stop, not a held-lease pause (R-1)')
+    check(#host.requests==1,'the refusal terminal submits exactly once')
     local sawRefusal=false
     for _,row in ipairs(step.results or {}) do
         if row.rule=='heal' and row.result=='denied' then sawRefusal=true end

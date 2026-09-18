@@ -52,4 +52,9 @@ auto-combat 原生探针（126/126 各）：
 
 - 无未修项。所有 D-1..D-4 已实现并有回归证据；D-5（每场战斗结束即 `no_visible_enemies` stop、
   需手动 start）仍是报告中的“已声明 preset 设计取舍”，不在本次范围（记录为**后续可选**）。
+- **fix2 轮新增**：评审 `review-anor-reg-01-fixes.md` 的 R-1（P1 limit-1）与 R-2（P3 replay 窗口）
+  已在 [docs/tome-mcp-0.9.0-anor-reg-01-fix2-feedback.md](tome-mcp-0.9.0-anor-reg-01-fix2-feedback.md)
+  解决并有回归证据；台账见 `VALIDATION.md` fix2 段。待办（非本轮）：`unknown_safety` /
+  `action_uncertain` / 策略声明 pause 的暂停仍按原语义持有 lease（不可判定 fail-closed / 非冻结 /
+  策略作者选择），如需统一交接另行立项。
 - 复核（新一轮独立 `[Review]`）待派发。

@@ -19,6 +19,33 @@
 > `docs/tome-mcp-auto-combat-plugin-design.md` §8.3（及 §0.1/§1.2/§5.3/§5.4）。下方各节在相关处已加
 > **局部 supersession 注解**；未加注解的普通功能/协议验收仍有效。
 
+## 0.9.0：anor-reg-01 修复二轮 R-1（P1 limit-1 活锁）+ R-2（P3 replay 窗口）（`fix/emergency-deny-livelock`，off `2348556`，dev 待评审）
+
+日期：2026-09-18。Role `[Dev]`（model B, rotation）。来源评审：`tmp/mcp-play-support/review-anor-reg-01-fixes.md`
+（verdict **do_not_merge**，P0 0 / P1 1 / P2 0 / P3 1）。实现与解析后的契约见
+[docs/tome-mcp-0.9.0-anor-reg-01-fix2-feedback.md](docs/tome-mcp-0.9.0-anor-reg-01-fix2-feedback.md)。
+
+| finding | 结果 | 修复与回归证据 |
+| --- | --- | --- |
+| R-1（P1 limit-1 settled-reject 活锁） | **PASS** | 预算契约解析：`max_actions_per_tick` 只计**产生原生动作的提交**（`ok` 或 `energy_spent==true`）；无原生动作的 settled 拒绝（含 guard 拒绝）不消耗预算 ⇒ limit=1 同机会 fall-through 照常（世界 tick、冷却恢复、heal 复用）。`budget_exhausted` 诚实化（只在完成 max 次有效动作后触发）。refusal 终点与规则循环耗尽（无有效动作时）stop 交接，不持有 lease 冻结；`SAFETY_PAUSES` 保持 `{flee_below_hp_pct,no_emergency_action}`。单测 controller/service/movement + dry-run 镜像 + 原生探针 `critical:fallthrough`（limit=1 经真实执行器）/`action-denied`/`lease-released`（经生产 `AutoCombatService`） |
+| R-2（P3 replay 窗口反转） | **PASS** | `PolicyLog.window` 改为顺序无关（min/max seq ⇒ `first_seq`=最旧返回、`last_seq`=最新返回，`log` tail 与 `replay` slice 一致）；`semantics` 修正 `total` 语义（累计写入，可大于保留 count）；`docs/tome-mcp-api-fields.md` §6.1 同步 |
+
+**before/after 复现**（生产 service/controller 路径，limit=1）：
+`tmp/anor-reg-01-fix2/repro-before.out`（sha256 `05ec9c938ec0bfa8e84ce009b237e0d3d332af7ad3185524cd5d0f1b9b295369`，
+head `2348556` 树：`paused budget_exhausted` + lease held + 冷却冻结）vs
+`repro-fix2.out`（sha256 `6a09a6fd9742aa871d448abc64ae7a4a6e7662429c7e5773ae62e9cdc479d265`：
+fallback 同机会行动/typed `action_denied` stop + lease 释放/诚实 charged `budget_exhausted`）。
+
+**证据**（`tmp/anor-reg-01-fix2/`）：Lua 41 套全绿（`lua-suite.log`
+`e972ccf3c81f338a516fa1fbf153cbdf5c0c127e72a729e6943bd8459cb0d898`）、Python 39 OK
+（`python-tests.log` `8ca95e31be7867668fb4ebdd33c333486aef38dc54ceff69c77299b45fe4409f`）、
+三个 `--check` 退 0（`generator-checks.log` `29218d2d9431908f929dbe241e643c881afa79d95937f65fb4e4e29d6367a4ac`）、
+auto-combat 探针 source `anor-live-fix2-src-01` 与 dist `anor-live-fix2-dist-01` 各 **127/127**
+（game.log sha256 `a27f1bbd365167a029e996964678d9738f18eaeb8ead058f2fed9c8615edbbbd` /
+`5cf62c7eb78543397fa043573b22f22bcc23eaba3b7bd8205025292e974bae28`）、原生验收 source
+`anor-live-fix2-accept-src-01` 与 dist `anor-live-fix2-accept-dist-01` 各 **101/101**。
+dist `tome-mcp-bridge.teaa` sha256 `536d5e14602c51f69df5f1db4a35a3487c4d80de8c3eaf73d562d31be8812e35`，parity 68/68。
+
 ## 0.9.0：Anorithil 回归轮 D-1（P1 活锁）+ D-2/D-3/D-4（`fix/emergency-deny-livelock`，off `main@3fe98ed`，dev 待评审）
 
 日期：2026-09-18。来源：实机报告 `tmp/mcp-play-support/agent-ham-anor-reg-01-report.md`

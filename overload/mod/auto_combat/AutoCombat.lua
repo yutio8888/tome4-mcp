@@ -407,10 +407,16 @@ function M:step()
     if sched.layer=='normal' and (pre.enemy_count or 0)>0 then
         local sustain=self:sustainStep()
         if sustain then
-            self.attempts=self.attempts+1
             local outcome=(self.host and self.host.request and self.host.request({
                 rule='sustain:'..sustain.talent,action='set_sustain',talent=sustain.talent,
                 target='self',generation=generation})) or {}
+            -- R-1 (round anor-reg-01 fix2): the action budget counts native
+            -- submissions that took effect (a completed action or a charged
+            -- attempt). A settled refusal that produced no native action and
+            -- spent no energy does not consume it.
+            if outcome.status=='ok' or outcome.energy_spent==true then
+                self.attempts=self.attempts+1
+            end
             if outcome.status=='native_pending' then
                 self.state='waiting_native'; self.reason='native_pending'
                 return {action='wait_native',rule='sustain:'..sustain.talent,state=self.state,generation=generation}
@@ -445,6 +451,21 @@ function M:step()
             return rc
         end})
         if decision.decision=='pause' then
+            -- R-1 (round anor-reg-01 fix2): the emergency-refusal terminal (a
+            -- settled reject left nothing applicable in this opportunity) must
+            -- not pause with the lease held: nothing was submitted, the world
+            -- is frozen and no cooldown could ever decay, so every resume would
+            -- replay the same rejected action. That is the same integrity exit
+            -- as the no-rule hold: stop the run with the typed refusal reason
+            -- and let the service release the lease. The reason stays honest
+            -- (`action_denied`), and `start` re-acquires explicitly.
+            if decision.reason=='action_denied' and decision.fallback then
+                self:record({kind='stopped',reason=decision.reason,rule=decision.rule})
+                self:stop(decision.reason)
+                return {action='stopped',reason=decision.reason,rule=decision.rule,
+                    results=decision.results,rejections=self.rejections,
+                    state=self.state,generation=self.generation}
+            end
             self:record({kind='paused',reason=decision.reason,rule=decision.rule})
             local paused=self:pause(decision.reason)
             paused.results=decision.results; paused.rejections=self.rejections
@@ -536,19 +557,36 @@ function M:step()
                 return paused
             end
             if guard and guard.action=='reject' then
-                -- A guard rejection is a real pre-execution attempt (frozen
-                -- budget contract): count it, then try the next candidate.
-                self.attempts=self.attempts+1
+                -- R-1 (round anor-reg-01 fix2): a guard rejection is a
+                -- pre-execution refusal: it never reaches the native executor,
+                -- produces no native action and must not consume the action
+                -- budget (with max_actions_per_tick=1 a consumed budget would
+                -- freeze the fall-through and livelock a held lease). Deny the
+                -- rule and try the next candidate; the per-opportunity work
+                -- stays bounded by the denied-rule set and the rule-loop cap.
                 self:deny(decision.rule,guard.reason or 'safety_rejected',guard.detail)
             else
             local guard_detail=guard and guard.detail
-            self.attempts=self.attempts+1
             local outcome=(self.host and self.host.request and self.host.request({
                 rule=decision.rule,action=decision.action,talent=decision.talent,
                 emergency=decision.emergency==true,
                 max_turns=decision.max_turns,direction=decision.direction,
                 destination=decision.destination,target_plan=decision.target_plan,plan=plan,
                 target=decision.target,bound_target=bound.bound_target,generation=generation})) or {}
+            -- R-1 (round anor-reg-01 fix2): the action budget counts native
+            -- submissions that took effect (a completed action or a charged
+            -- attempt). A settled refusal that produced no native action and
+            -- spent no energy does not consume it, so the same-opportunity
+            -- fall-through stays available even at max_actions_per_tick=1. The
+            -- opportunity stays bounded without the budget: every refused rule
+            -- is denied for the rest of the opportunity (movement retries are
+            -- bounded by the excluded-landing set) and the rule loop below is
+            -- hard-capped. budget_exhausted therefore always means "this
+            -- opportunity already completed max charged actions", never "the
+            -- cause was a refusal".
+            if outcome.status=='ok' or outcome.energy_spent==true then
+                self.attempts=self.attempts+1
+            end
             -- MFT-REV-06: a scene transition is scene-boundary evidence,
             -- independent of the outcome status. Any started/completed
             -- transition stops/resets the run and requires an explicit start on
@@ -584,11 +622,12 @@ function M:step()
                 -- Explicitly rejected and no energy spent. For a deterministic
                 -- movement landing this is a native collision/refusal of one
                 -- coordinate: exclude it and re-plan the same selector/anchor
-                -- so an acceptable alternative is tried (P2-1). The attempt was
-                -- already counted, so the per-tick budget still bounds the
-                -- fallback. Every other action keeps the frozen behavior: do
-                -- not retry as-is in this opportunity, but another rule may
-                -- still be valid.
+                -- so an acceptable alternative is tried (P2-1). No native
+                -- action was produced, so the attempt does not consume the
+                -- budget (R-1); the retries are bounded by the excluded-landing
+                -- set and the rule-loop cap. Every other action keeps the
+                -- frozen behavior: do not retry as-is in this opportunity, but
+                -- another rule may still be valid.
                 local key=self.landingKey(plan)
                 if key and not self.rejected_landings[key] then
                     self.rejected_landings[key]=true
@@ -607,6 +646,17 @@ function M:step()
             end
             end
         end
+    end
+    -- R-1 (round anor-reg-01 fix2): the rule-loop cap is the bound that replaced
+    -- attempt counting for refusals. Exhaustion without any charged action means
+    -- the world is frozen and the run cannot progress: stop (release the lease)
+    -- instead of pausing with the lease held. With charged actions the world
+    -- advances on its own, so the ordinary pause keeps its meaning.
+    if self.attempts==0 then
+        self:record({kind='stopped',reason='rule_loop_limit'})
+        self:stop('rule_loop_limit')
+        return {action='stopped',reason='rule_loop_limit',rejections=self.rejections,
+            state=self.state,generation=self.generation}
     end
     return self:pause('rule_loop_limit')
 end

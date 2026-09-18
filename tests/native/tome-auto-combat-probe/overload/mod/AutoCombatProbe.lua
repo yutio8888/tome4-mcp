@@ -8,6 +8,7 @@
 -- is loaded by the production addon.
 local Runtime=require 'mod.mcp_bridge.Runtime'
 local AutoCombat=require 'mod.auto_combat.AutoCombat'
+local AutoCombatService=require 'mod.auto_combat.AutoCombatService'
 local NativeActivity=require 'mod.mcp_bridge.NativeActivity'
 local Presets=require 'mod.auto_combat.PolicyPresets'
 local Schema=require 'mod.auto_combat.PolicySchema'
@@ -47,7 +48,7 @@ M.EXPECTED={
     ['start-when-ready']={'schedule_pump'},
     ['pause-resume']={'paused','schedule_pump'},
     ['native-pending']={'wait_native','wait_native','wait_native','acted'},
-    ['critical']={'fallthrough','heal_recovered','action_denied'},
+    ['critical']={'fallthrough','heal_recovered','action_denied','lease_released'},
     ['strict-resume']={'new_enemy','new_enemy'},
     ['rest-policy']={'wait_native','stopped'},
     ['explore-policy']={'wait_native','stopped'},
@@ -182,8 +183,11 @@ end
 -- production `native_rejected` + cooldown `missing` shape, on cooldown) must
 -- not park the run. It falls through to the next applicable normal rule so
 -- ticks keep advancing and the cooldown recovers; the emergency action is used
--- again on a later opportunity. When no fallback is applicable the typed reason
--- is action_denied, never no_emergency_action.
+-- again on a later opportunity. R-1 (fix2): the schema-valid limit-1 boundary
+-- behaves the same — a settled no-energy reject does not consume the only
+-- budget slot, so the fall-through runs in the same opportunity. When no
+-- fallback is applicable the run stops with the typed reason action_denied and
+-- releases the lease (never a held-lease frozen pause).
 local function criticalState()
     forceReady()
     local p=game.player
@@ -208,9 +212,11 @@ local function criticalState()
         return p.talents_cd and (p.talents_cd.T_HEALING_LIGHT or 0)>0
     end
     -- (a) the refused emergency falls through to the wait rule, which runs
-    -- natively and spends the turn (advancing the world tick/cooldown).
+    -- natively and spends the turn (advancing the world tick/cooldown). The
+    -- limit is the schema-valid boundary max_actions_per_tick=1: the refusal
+    -- produced no native action, so it does not consume the only slot (R-1).
     forceCooldown()
-    local pol=policy({HEAL,WAIT},{max_actions_per_tick=3})
+    local pol=policy({HEAL,WAIT},{max_actions_per_tick=1})
     local host,attempts=recordingHost(pol,{phase=function() return 'ready' end,
         opportunity_id=function() return oid end,
         request=function(attempt,real_request)
@@ -247,22 +253,43 @@ local function criticalState()
     check('critical:heal-recovered',healActed,{action=result2.action,rule=result2.rule,reason=result2.reason,
         outcome=result2.outcome})
     signals[#signals+1]=healActed and 'heal_recovered' or 'heal_not_recovered'
-    -- (c) no applicable fallback: the typed reason is the refusal.
+    -- (c) no applicable fallback: the production service stops the run with the
+    -- typed refusal (`action_denied`) and releases the lease — a settled reject
+    -- can never leave a held-lease frozen loop (R-1); `resume` cannot replay
+    -- the rejected action.
     forceCooldown()
     p.life=p.max_life*0.3
     forceReady()
-    local onlyHeal=policy({HEAL},{max_actions_per_tick=3})
-    local oid2=1
+    local onlyHeal=policy({HEAL},{max_actions_per_tick=1})
     local host2,attempts2=recordingHost(onlyHeal,{phase=function() return 'ready' end,
-        opportunity_id=function() return oid2 end,
+        opportunity_id=function() return 1 end,
         request=function() return cooldownRefusal() end})
-    local c2=AutoCombat.new(onlyHeal,host2,{strict=false})
-    c2:start()
-    local result3=c2:onOpportunity()
-    local typed=result3.action=='paused' and result3.reason=='action_denied'
-    check('critical:action-denied',typed,
-        {action=result3.action,reason=result3.reason,attempts=attempts2})
-    signals[#signals+1]=typed and 'action_denied' or 'wrong_reason'
+    local svc=AutoCombatService.new{host_factory=function() return host2 end}
+    local d2=AutoCombatService.handle(svc,'set_draft',{policy=onlyHeal})
+    AutoCombatService.handle(svc,'approve',{expected_hash=d2.draft_hash})
+    AutoCombatService.handle(svc,'activate',{})
+    local started2=AutoCombatService.handle(svc,'start',{})
+    if not (started2 and started2.ok) then
+        check('critical:action-denied',false,{start=started2})
+        signals[#signals+1]='start_failed'
+    else
+        local stepped=AutoCombatService.step(svc)
+        local result3=stepped and stepped.step or {}
+        local typed=(result3.action=='stopped' or result3.action=='paused')
+            and result3.reason=='action_denied'
+        check('critical:action-denied',typed,
+            {action=result3.action,reason=result3.reason,attempts=attempts2})
+        signals[#signals+1]=typed and 'action_denied' or 'wrong_reason'
+        local released=svc.arbiter.owner=='manual' and svc.controller
+            and svc.controller.state=='stopped'
+        local resumed=AutoCombatService.handle(svc,'resume',{})
+        local refused=resumed and resumed.ok==false and resumed.error
+            and resumed.error.code=='not_running'
+        check('critical:lease-released',released and refused,
+            {owner=svc.arbiter.owner,state=svc.controller and svc.controller.state,
+                resume=resumed})
+        signals[#signals+1]=(released and refused) and 'lease_released' or 'lease_held'
+    end
     if p.talents_cd then p.talents_cd.T_HEALING_LIGHT=saved_cd end
     p.life=p.max_life
     return compare('critical',signals)
