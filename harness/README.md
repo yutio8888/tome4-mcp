@@ -69,6 +69,31 @@ x11vnc -display :140 -forever -shared -nopw -rfbport 5900
 Connect a VNC viewer to `127.0.0.1:5900` (or bridge `podman exec` from the host);
 `5901` can serve the same display for a second viewer.
 
+## Teardown（强制流程：会话用后必须回收）
+
+一场实机/原生会话结束后（**报告落盘即算结束**），由**派发方（开发对话）**立刻回收，`[Test]`
+代理无权也不得代劳。原因是无头 Xvfb 下 ToME 渲染不节流：一个被遗忘的会话会持续占用
+**200–360% CPU**（实测 3 个残留会话 ≈ 900% CPU，16 核机器 load 冲到 30）。
+
+```bash
+# 列出还活着的会话及其 CPU
+/workspace/t-engine4/game/addons/tome-mcp-bridge/harness/console/reap-session.sh --list
+
+# 默认：杀整个进程组（agent-play.py + t-engine + Xvfb + tome_mcp），并删除该会话 FIFO
+.../harness/console/reap-session.sh <session>
+
+# 需要保留现场继续取证：先暂停（CPU≈0），取证后再杀
+.../harness/console/reap-session.sh <session> --stop
+.../harness/console/reap-session.sh <session> --cont
+.../harness/console/reap-session.sh <session>
+
+# 清场：回收所有存活会话
+.../harness/console/reap-session.sh --all
+```
+
+证据文件（`game.log`、`play-mcp.jsonl`、`result.json`、控制台 `.log`）**从不删除**，只移除 FIFO。
+派发下一位代理前先 `--list`，确认没有残留会话在烧 CPU。
+
 ## Command channel (summary)
 
 - `{}` / `{"observe":true}` — snapshot; `{"observe":{"sections":["player"]}}` trims domains.
