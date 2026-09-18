@@ -75,15 +75,22 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 21 | P2-1 备选落点 + P3-2 冷却详情 | A（Dev）/ **B**（Review） | 全新 Review（新任务） | **PASS**（merge with follow-ups） | 0 | 0 | 0 | 3 | 3 |
 | 22 | N2 测试运行器根 + N1 日志 landing | A（Dev）/ **B**（Review） | 全新 Review（新任务） | **PASS**（**merge**，无阻塞项） | 0 | 0 | 0 | 3 | 3 |
 | 23 | 星月术士回归实机测试（Test） | **B** | 无（测试任务） | FAIL（无 P0 回归；新 P1 1 / P2 1 / P3 2） | 0 | 1 | 1 | 2 | 4 |
+| 24 | anor-reg-01 修复 D-1..D-4 | A（Dev）/ **Sol**（Review） | 全新 Sol（新任务） | FAIL（**do_not_merge**） | 0 | 1 | 0 | 1 | 2 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**23**（全部已判定）。
-- **PASS 7**（#4、#14、#17、#19、#20、#21、#22）、**FAIL 16**、PARTIAL 0 →
-  **通过率 7/23 = 30.4%**。
-- Issue 合计：**64**（P0 1 / P1 26 / P2 21 / P3 16）；平均每 loop 2.78。
+- Loop 总数：**24**（全部已判定）。
+- **PASS 7**（#4、#14、#17、#19、#20、#21、#22）、**FAIL 17**、PARTIAL 0 →
+  **通过率 7/24 = 29.2%**。
+- Issue 合计：**66**（P0 1 / P1 27 / P2 21 / P3 17）；平均每 loop 2.75。
+- **#24 闭环（首个 Sol 评审）**：Dev A 交付 D-1..D-4，GPT-5.6 Sol（Codex）独立复核 → **do_not_merge**：
+  **R-1 P1** —— `max_actions_per_tick=1`（schema 合法，且 assistant 导入默认 1）时，被原生拒绝的紧急动作
+  在 deny 前已 `attempts+1`，下一次评估**先查预算**→ `paused budget_exhausted` 且**持有租约** → 世界冻结、
+  CD 永不衰减 ⇒ **同一活锁换 reason**；**R-2 P3** —— `replay` 窗口 extent 反了（`first_seq > last_seq`）。
+  Sol 明确指出这是"同机会 fallback / 每次原生尝试都计入上限 / 上限=1"之间的**真实契约张力**，必须显式解决
+  而非只测 2/3。**已按轮换派模型 B 修复**（Dev 序列 A→B），评审仍为全新 Sol。
 - **#23（模型 B 实机回归）**：**无 P0 回归**（68/68 原生 ok、0 `native_timeout`/`native_aborted`、
   Moonlight Ray 原生目标请求正常结算）——PR #18 在射线类技能上得到正向验证。新发现：
   **D-1 P1**（emergency 治疗被原生拒绝 → `no_emergency_action` 暂停 + 暂停期世界不推进 ⇒ CD 永不衰减
