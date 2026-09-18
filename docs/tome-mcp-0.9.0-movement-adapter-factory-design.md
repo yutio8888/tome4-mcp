@@ -380,13 +380,13 @@ disposition — not the talent name:
 | Talent | Source | Prompts | Disposition |
 | --- | --- | --- | --- |
 | **Phase Door** (effective TL≥5) | `spells/conveyance.lua:78-114` | 2: `hit`+`default_target=self`, then `ball`+`nolock` | **supported** (two-entry sequence) |
-| **Vault** | `techniques/agility.lua:113-121` | 2: `hit` (no `nolock`), then `hit`+`nolock=true` | **supported** (two-entry sequence; distinguishable only under presence-explicit signatures, §4.4) |
+| **Vault** (`T_VAULT`) | `techniques/agility.lua:83-121` | 2: `hit` (no `nolock`), then `hit`+`nolock=true` | **supported** (two-entry sequence; distinguishable only under presence-explicit signatures, §4.4). **Note the id:** this is the *Agility*-tree `Vault` (T2, no `short_name`, so `T_VAULT`); it was previously **not modelled at all**. The *Acrobatics*-tree `T_SKIRMISHER_VAULT` (`techniques/acrobatics.lua:28-50`) is a **different, single-prompt beam** talent and stays a single-prompt descriptor. |
 | **Merge** | `cursed/advanced-shadowmancy.lua:43-46` | 2: both `hit` | **unsupported** — `signature_not_distinguishable` (separated only by `first_target`/`start_x`/`source_actor`, outside the curated allowlist) |
 | **Stone** | `cursed/advanced-shadowmancy.lua:80-83` | 2: both `hit` | **unsupported** — `signature_not_distinguishable` |
 | **Cursed Bolt** | `cursed/advanced-shadowmancy.lua:245` | **N dynamic** — a `getTarget` inside a per-shadow `for` loop | **unsupported** — `dynamic_prompt_count` |
-| **Wormhole** | `chronomancy/spacetime-weaving.lua:145,153` | 2: `bolt`+`simple_dir_request`, then `hit`+`pass_terrain` | **unsupported** — `signature_not_distinguishable` (not a movement-slice target either) |
+| **Wormhole** | `chronomancy/spacetime-weaving.lua:145,153` | 2: `bolt`+`simple_dir_request`, then `hit`+`pass_terrain` | **unsupported** — `cross_prompt_postcondition` (the exit's legality depends on the entrance, so a one-shot decided pair would need a joint postcondition; not a movement-slice target either) |
 | **Earthen Missiles** | `spells/stone.lua:39-54` | 3 (TL≥5): `bolt`×3, identical | **unsupported** — `same_shape_equivalent` (order is semantically irrelevant, so there is nothing to disambiguate and nothing to gain) |
-| **Stone Shards** | `gifts/dwarven-nature.lua:35-50` | 3 (TL≥5): `bolt`×3, identical | **unsupported** — `same_shape_equivalent` |
+| **Earthen Missiles** (dwarven) (`T_DWARVEN_HALF_EARTHEN_MISSILES`) | `gifts/dwarven-nature.lua:21-50` | 3 (TL≥5): `bolt`×3, identical | **unsupported** — `same_shape_equivalent` (mis-named "Stone Shards" in the first pass of this survey) |
 
 Consequences that shape §4.4 and §6.1:
 
