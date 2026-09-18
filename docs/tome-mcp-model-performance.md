@@ -76,15 +76,20 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 22 | N2 测试运行器根 + N1 日志 landing | A（Dev）/ **B**（Review） | 全新 Review（新任务） | **PASS**（**merge**，无阻塞项） | 0 | 0 | 0 | 3 | 3 |
 | 23 | 星月术士回归实机测试（Test） | **B** | 无（测试任务） | FAIL（无 P0 回归；新 P1 1 / P2 1 / P3 2） | 0 | 1 | 1 | 2 | 4 |
 | 24 | anor-reg-01 修复 D-1..D-4 | A（Dev）/ **Sol**（Review） | 全新 Sol（新任务） | FAIL（**do_not_merge**） | 0 | 1 | 0 | 1 | 2 |
+| 25 | anor-reg-01 fix2（R-1/R-2） | **B**（Dev）/ **Sol**（Review，复用复核自身） | 同 #24（复核自身发现） | **PASS**（merge with follow-ups） | 0 | 0 | 0 | 1 | 1 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**24**（全部已判定）。
-- **PASS 7**（#4、#14、#17、#19、#20、#21、#22）、**FAIL 17**、PARTIAL 0 →
-  **通过率 7/24 = 29.2%**。
-- Issue 合计：**66**（P0 1 / P1 27 / P2 21 / P3 17）；平均每 loop 2.75。
+- Loop 总数：**25**（全部已判定）。
+- **PASS 8**（#4、#14、#17、#19、#20、#21、#22、#25）、**FAIL 17**、PARTIAL 0 →
+  **通过率 8/25 = 32.0%**。
+- Issue 合计：**67**（P0 1 / P1 27 / P2 21 / P3 18）；平均每 loop 2.68。
+- **#25 闭环（轮换生效：Dev=B）**：Sol 的 R-1（limit=1 活锁）与 R-2（replay 窗口顺序）由**模型 B** 修复，
+  Sol 复用复核 → **PASS（merge with follow-ups）**：limit=1 下被拒即 fall-through、CD 前进、仅拒绝型终局
+  停/释放租约、对抗性拒绝上限 8、replay 2,3,4 报 window 2..4；仅 1 项 P3（缺 oldest-first 的已提交断言）。
+  PR #21 合并 `7dfd6c85`；main 重建 dist。
 - **#24 闭环（首个 Sol 评审）**：Dev A 交付 D-1..D-4，GPT-5.6 Sol（Codex）独立复核 → **do_not_merge**：
   **R-1 P1** —— `max_actions_per_tick=1`（schema 合法，且 assistant 导入默认 1）时，被原生拒绝的紧急动作
   在 deny 前已 `attempts+1`，下一次评估**先查预算**→ `paused budget_exhausted` 且**持有租约** → 世界冻结、

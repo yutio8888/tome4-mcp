@@ -431,3 +431,10 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
     - **P3-c（加固）**：`PolicyLog.add`（`PolicyLog.lua:46-47`）复制 `landing` 未做类型守卫（`movement`/`risk`
       用 `boundedObject`）。当前唯一生产者产出受限字符串；建议加 `type(event.landing)=='string'` 守卫。
 
+64. **anor-reg-01 fix2 review follow-up（评审 sha256
+    `a91c5955e3ccb2c276d1c0df26c912c4597c35567104f3f45102dceccab61ac5`；verdict merge with
+    follow-ups，1 项 P3 非阻塞）。**
+    - **RR-1（P3，测试覆盖）**：`replay.status.window` 的 **oldest-first**（`replay`）顺序缺少**已提交**的
+      回归断言——本次只对 newest-first（status）有断言，oldest-first 仅经人工/临时验证（实测 replay 2,3,4
+      报告 window 2..4）。建议补一条提交进仓库的断言，覆盖两种顺序的 `first_seq<=last_seq` 与 extent。
+
