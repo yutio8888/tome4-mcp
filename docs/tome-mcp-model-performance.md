@@ -49,15 +49,22 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 18 | S1 Rush 实机测试（Test） | **B** | 无（测试任务） | FAIL（主指标 NOT_OBSERVED） | 1 | 0 | 2 | 1 | 4 |
 | 19 | auto-combat 移动原生死锁 P0 修复 | A（Dev）/ **B**（Review） | 全新 Review（新任务） | **PASS**（merge with follow-ups） | 0 | 0 | 0 | 5 | 5 |
 | 20 | P0 修复后 Rush 复测（Test） | **B** | 无（测试任务） | **PASS**（P0 关闭；新 P2 1 / P3 2） | 0 | 0 | 1 | 2 | 3 |
+| 21 | P2-1 备选落点 + P3-2 冷却详情 | A（Dev）/ **B**（Review） | 全新 Review（新任务） | **PASS**（merge with follow-ups） | 0 | 0 | 0 | 3 | 3 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前，模型 A / A′；B 尚未用于任何 loop）
-- Loop 总数：**20**（全部已判定）。
-- **PASS 5**（#4、#14、#17、#19 P0 修复、#20 P0 复测）、**FAIL 15**、PARTIAL 0 →
-  **通过率 5/20 = 25.0%**。
-- Issue 合计：**54**（P0 1 / P1 25 / P2 20 / P3 8）；平均每 loop 2.70。
+- Loop 总数：**21**（全部已判定）。
+- **PASS 6**（#4、#14、#17、#19 P0 修复、#20 P0 复测、#21 P2-1/P3-2）、**FAIL 15**、PARTIAL 0 →
+  **通过率 6/21 = 28.6%**。
+- Issue 合计：**57**（P0 1 / P1 25 / P2 20 / P3 11）；平均每 loop 2.71。
+- **#21 闭环**：模型 A 修 P2-1（approach 被原生拒绝后选次优落点，never-resubmit 三层强制、
+  受 `max_actions_per_tick` 约束、非确定性落点与 Rush `authoritative_target` 路径不变）+ P3-2
+  （denied 冷却详情），模型 B 做**跨模型独立复核** → `merge with follow-ups`（P2-1/P3-2 PASS、
+  证伪干净：无预算绕过/无 exclude 泄漏/无重复提交/无策略限制；3 项 P3 已登记 TODO #62，
+  其中 **N2 为 `tests/run.sh` 在备用 worktree 会跑主检出测试的工具链缺陷**）。PR #19 合并
+  `8c977429`；main 重建 dist `6d68fdfd`。
 - **P0 线程关闭**：模型 B 实测 12/12 `T_RUSH` 经 auto 槽**即时原生结算**（`native_result=ok`、全部
   到达目标相邻），无 `waiting_native`/`settling` 卡死、无 CPU 空转、`native_timeout` 未触发；
   意外 pause/stop = 0。该复测另发现 1 个 P2（approach 被原生拒绝后无备选落点 → `no_available_action`）

@@ -399,3 +399,15 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
       会带 `{kind='cooldown',talent,remaining,required=0}` 并附 `hint`。复用已声明的 `missing`/`hint`，
       **不扩宽协议/schema**。
 
+62. **P2-1 / P3-2 review follow-ups（评审 sha256
+    `8e67e3917d0fc9b7339d6cc25c2256b6562539ff9bf8e43583aa54c7e05487a2`；verdict merge with
+    follow-ups，均 P3，非阻塞）。**
+    - **N1**：`PolicyLog.add`（`PolicyLog.lua:44-53`）丢掉了 `movement_retry` 日志里客户端可见的
+      `landing` 字段 → 建议在允许字段集中补上 `landing`。
+    - **N2（工具链，重要）**：`tests/run.sh` 的 `task_root` 上溯 4 层目录，**在备用 worktree 中运行会
+      静默指向主检出（main）的测试**，导致 worktree 内的验证结果失真。修法：优先用脚本自身所在目录
+      推导根（如 `${BASH_SOURCE[0]}` 的 `realpath ../../..`），或显式支持 `TOME_MCP_ADDON_DIR`。
+      在修复前，worktree 内验证**必须**用绝对路径逐文件跑（本次 dispatcher/评审均如此，结论有效）。
+    - **N3（可选）**：`exclude` 是 opportunity 级全局集合，跨规则可能**过度排除**（保守失败方向，可接受）；
+      如需精细可在集合键里带 rule。
+
