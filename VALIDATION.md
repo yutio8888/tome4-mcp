@@ -19,6 +19,38 @@
 > `docs/tome-mcp-auto-combat-plugin-design.md` §8.3（及 §0.1/§1.2/§5.3/§5.4）。下方各节在相关处已加
 > **局部 supersession 注解**；未加注解的普通功能/协议验收仍有效。
 
+## 0.9.0：移动适配器工厂 S1（no-audit 收口，已合并）
+
+日期：2026-09-17。分支 `feat/movement-adapter-factory`（PR #16，head `5908eef57b58d7d7dd435c9e1cf0247e5df0b7ec`）**已合并到 `main`（merge `bc3eea01948ed651b61e67d6cd6817db0118d949`）**。交付：闭合的 `MovementAdapterFactory`（5 个单提示模板 + Phase Door 有效等级 × `phase_door_force_precise` 变体矩阵）、类型化缺口（Phase Door TL4+ 多提示 → S2；Dimensional Step TL5 占用格 → S4；Blink Rune 无稳定 id），以及**运行期身份/摘要/闭包门禁的彻底移除**。
+
+**本节验收准则即文件顶部 v1.6 原则**（取代历史纯度/审计口径）：读取只有两条红线（不提交动作、不泄露玩家未知信息）；实时 getter/builder 作为普通入口直接调用，**替换但可用即使用**，只有缺失/报错/`nil`/类型无效/非有限才 fail-closed；**不追求运行期入口=原生入口的严格审计**。唯一例外是 `Progression`（其自有策展成长映射公式），已由评审双方同意。
+
+| 轮次 | 评审结论 | 修复 |
+| --- | --- | --- |
+| rev7 | do_not_merge（`NO-AUDIT_FAIL_P1`） | 移除 movement/guard/drift 的恒等/摘要门；`EffectManifestDrift.identity` 降为遥测 |
+| rev8 | do_not_merge（NEW-01 P1：`NativeCompatibility` 之外仍有 source-suffix 门；NEW-02 P2：打包件 README 与 HEAD 不一致） | `NativeCompatibility` 改为**纯诊断**；`Observer`/`NativeActivity`/`ObservationDetails`/`Items` 去来源门；重打包 |
+| rev9 | do_not_merge（NEW-01 P1：非有限 `reactionToward` 绕过回退并可错误准入 `auto_explore`；NEW-02 P2：门分支未调用 `block_move`；NEW-03 P2：README 可见性表述与实现不符） | 要求 `finite` 结果；门分支 `pcall` 调实时 `block_move`；README 改为 cache-first 无回调投影；重打包 |
+| rev10 | **verdict=merge（P0/P1/P2/P3 全 0）** | 报告 sha256 `a8f8e75e795da5a3013646985867a301cbac123bb4e7b1510d1e3a4f1939f663` |
+
+在最终 head `5908eef` 独立复跑：
+
+| 命令 | 结果 |
+| --- | --- |
+| Lua 套件 | **41/41 全绿** |
+| Python unittest | **39 OK** |
+| `generate_protocol` / `generate_native_seams` / `generate_effect_manifest` `--check` | **3/3 exit 0** |
+| auto-combat 探针 source / dist | **117/117** / **117/117** |
+| 原生验收 source / dist | **100/100** / **100/100** |
+| 打包一致性 | 归档 68 成员 = `dist/manifest.json` = `HEAD`，**0 处不符** |
+
+最终包 `dist/tome-mcp-bridge.teaa` SHA-256（**不被 git 跟踪**；检出后须 `python3 tools/package.py` 重建）：
+
+```text
+3f04884cb42feb3c5a597eb4e16f8b35be8a060af53130c87e03e7f065c3f436
+```
+
+`allow_auto_combat_execution` 保持 `false`。实现说明见 [S1 实现文档](docs/tome-mcp-0.9.0-movement-s1-implementation.md)（已按本节原则修订）。
+
 ## 0.9.0：移动/重新定位第一段 + change_level 重新纳入（已合并）
 
 日期：2026-09-17。分支 `feat/movement-first-tranche`（PR #15，head `3953788d`）**已合并到 `main`（merge `f770cdd`）**。交付：策略驱动的 `move` + `destination` 选择器与接受条件、有序 `target_plan`、确定性规划器；相邻步 / Rush actor 落点 / 精确网格位移执行；随机传送按**不确定性标注**而非拒绝；`change_level` 随场景生命周期（pause+reset+显式重启）**重新纳入**；Q4 自伤阈值改为**策略可配**（容忍内 permit、超出 reject、仅不可计算 footprint fail-closed）。独立评审最终 **全 PASS（verdict=merge，无新问题）**，报告 sha256 `93801cafec5cacc193de754ddfc9382e904f5e8fd4d8e5201975e177e7e3792b`；rev 2/3/4 逐条修复（6 P1 + 3 P2 + 1 文档 P2）并各有回归。`allow_auto_combat_execution` 保持 `false`。开发对话在最终 head 独立复跑：Lua 40 套全绿、Python 39、三个 `--check` 绿、auto-combat 探针 source/dist 各 **105/105**、原生验收 source/dist 各 **100/100**、最终 `dist` sha256 `688ae61f89fc0452c91b19555f7d4467d319e3883674750054927e01e1445c77`。原始证据见 `tmp/movement-first-tranche/rev4/`。

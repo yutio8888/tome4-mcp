@@ -1,6 +1,9 @@
 # Movement adapter factory — S1 implementation (0.9.0)
 
-Status: **implemented on `feat/movement-adapter-factory`**, ready for review.
+Status: **implemented and merged into `main`** (PR #16, merge commit
+`bc3eea01948ed651b61e67d6cd6817db0118d949`; branch head
+`5908eef57b58d7d7dd435c9e1cf0247e5df0b7ec`; final artifact
+`3f04884cb42feb3c5a597eb4e16f8b35be8a060af53130c87e03e7f065c3f436`).
 This document records what S1 of
 `docs/tome-mcp-0.9.0-movement-adapter-factory-design.md` §13 actually built,
 the closed template/variant model, the admitted talents, the typed unsupported
@@ -10,8 +13,8 @@ entries, and the evidence.
 
 S1 delivers the closed `MovementAdapterFactory`, the **single-prompt** templates,
 the **Phase Door effective-level x `phase_door_force_precise` variant matrix**
-(fixing the old level-only gate), and source identity pins + drift for the new
-descriptors. It does **not** implement the ordered prompt-response queue (S2),
+(fixing the old level-only gate), and **advisory** provenance pins + drift
+(telemetry only, never a runtime gate) for the new descriptors. It does **not** implement the ordered prompt-response queue (S2),
 movement/effect composition (S3) or moving/swapping another actor (S4).
 `allow_auto_combat_execution` stays `false`.
 
@@ -48,8 +51,10 @@ talent name; every admitted talent keeps an explicit manifest entry.
   `movement_derivation_unknown`.
 - `M.resolveBuilder(...)` calls the pinned target builder for **live geometry/
   conformance only** and copies an allowlisted `shape`/`range`/`radius`. A wrong
-  or missing builder shape is `adapter_source_drift`/`movement_derivation_unknown`;
-  a builder-backed descriptor without a finite range fails closed. The builder
+  or missing builder shape makes the geometry unusable ->
+  `movement_derivation_unknown` (the `adapter_source_drift` label is advisory
+  telemetry, not a decision); a builder-backed descriptor without a finite range
+  fails closed. The builder
   never supplies actor/grid semantics or prompt order.
 - `M.resolveOccupancy(...)` turns a player-known `'empty'|'actor'|'unknown'` read
   into the admitted non-swap descriptor, the typed S4 gap, or
@@ -101,7 +106,7 @@ Structured unsupported (typed reason, never a strategy refusal):
 - `T_SHADOWSTEP`, `T_GIANT_LEAP`: movement/effect composition (S3).
 - `T_DISPLACEMENT_SHIELD`: effect-adapter task, no player relocation.
 
-## 5. Source identity and the live-getter boundary
+## 5. Advisory provenance pins and the live-getter boundary
 
 `tools/generate_effect_manifest.py` also records, for movement talents:
 
@@ -131,21 +136,23 @@ the live builder.
 ## 6. Evidence
 
 Final artifact: `dist/tome-mcp-bridge.teaa`
-`4dbe674792f78bfd78de4e3c21c9c00463fbf76b94dfe2c7f8ca47a63415e702`
-(baseline `5cbf6407ce46675c4e00ce463ef50837bfdb2583e3c762fd43ec89c4b63aade9`).
+`3f04884cb42feb3c5a597eb4e16f8b35be8a060af53130c87e03e7f065c3f436`
+(68 members; packaged contents verified against `HEAD` and `dist/manifest.json`
+with zero mismatches). The archive is not tracked in git (`dist/*.teaa` is
+ignored); rebuild it with `python3 tools/package.py` after checkout.
 `allow_auto_combat_execution` remains `false` (read-only unless explicitly set).
 
 - `tests/test_auto_combat_movement_factory.lua` — 91 checks (templates, closed
   records/lists, Phase Door matrix, no-audit live-getter semantics, builder
   geometry/range, occupancy, `Distance.grid` bounds, advisory-pin demotion).
-- `tests/test_effect_manifest_drift.lua` — 45 checks; movement action/getter/
+- `tests/test_effect_manifest_drift.lua` — 38 checks; movement action/getter/
   range pins are advisory and do not gate identity.
-- `tests/test_runtime.lua` — 191 checks: a real-dispatch fixture implements the
+- `tests/test_runtime.lua` — 192 checks: a real-dispatch fixture implements the
   actual chain; the live chain plans; a replaced getter returning a usable value
   is used; an erroring/missing/nil getter is `movement_derivation_unknown`.
 - Full Lua suite 41/41 green; Python 39/39; the three generator `--check` runs
   exit 0.
 - Native probes (source + `dist`) settle the task and assert final postconditions:
-  auto-combat probe 116/116 each (including `movement-factory:live-getter-value`
+  auto-combat probe 117/117 each (including `movement-factory:live-getter-value`
   and `movement-factory:getter-error`), full native acceptance 100/100 each. Raw
   output is under `tmp/s1/`.
