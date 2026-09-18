@@ -217,8 +217,11 @@ distinguish them. Dynamic numerics (`range`, `radius`) are never signature field
   of `target_requests` — `EffectManifest.requestSequences`, the static policy validator
   and the capability summary — keeps working unchanged
   (`overload/mod/auto_combat/EffectManifest.lua:363-384,485-566`).
-- `request` is one of the existing `TARGET_REQUESTS` (`none`/`actor`/`grid`/`self`,
-  `overload/mod/auto_combat/MovementAdapterFactory.lua:49`).
+- `request` is one of `actor`/`grid`/`self` — **`none` is not a declarable `request_sequence` entry**
+  (a prompt-less talent declares no `request_sequence` at all; `none` remains valid only for the N=1
+  `target_requests` leaf produced by `self_random_teleport`/similar, §4.1). Declaring `none` in a
+  `request_sequence` is `movement_adapter_invalid`; the earlier draft's `TARGET_REQUESTS (... none ...)`
+  wording was superseded by the S2 rev2 decision (`tmp/mcp-play-support/s2-fix1-dev-report.md`).
 - `subject` is the binding of the answer: `'self'` always answers with the caster cell,
   `'actor'` with the policy's decided actor. Phase Door's Phase-1 default is the caster
   (`game/modules/tome/data/talents/spells/conveyance.lua:79`), and its Phase-1 result may
@@ -271,9 +274,21 @@ k-th declared entry's decided value, keeping every existing per-request guard:
 - a value that fails the guard is answered as a native target cancel carrying the typed
   reason (existing `command.target_cancelled`, `overload/mod/mcp_bridge/Actions.lua:297`
   surfaced at `:330-334`);
-- an undeclared, reordered or wrong-kind request is `unexpected_target_request` with the
-  expected/observed index: the executor pauses, never resubmits, and hands the live
-  interaction back if safely possible (§6.2);
+- the observed prompt is **matched against the declared entry's curated observed
+  signature** before any answer is built: the signature was reviewed for exactly this
+  flow, so a mismatch — including a reordered flow, whose out-of-order prompt cannot
+  match the entry curated for its arrival position, and an extra prompt beyond the
+  sequence — is a typed deviation (`unexpected_target_request` with the expected/
+  observed index and the observed shape), never a blind answer of the k-th declared
+  value. Cursor geometry alone is never used as actor/grid evidence (§3.2: no sound
+  automatic classifier exists). A spec the bridge cannot read as a signature
+  (`typ` not a table or `typ.type` not a string) is `movement_request_kind_unknown`.
+  Because published sequences have pairwise-distinct signatures, a reordered native
+  flow can never receive the k-th declared answer **for a published descriptor**;
+  what this check cannot observe is the native body's internal consumption of an
+  already-given answer, which remains the native flow's own behaviour and is bounded
+  by the per-request native guard, the native rejection, and the declared
+  postcondition check (§6.1);
 - a native flow that never raises the next prompt and never returns is bounded by the
   existing `native_timeout` abort
   (`overload/mod/mcp_bridge/Runtime.lua:50-52,2044-2078,2081-2104`).
@@ -353,11 +368,11 @@ it is not a global tactical veto
 | --- | --- | --- |
 | Unknown template, missing required parameter, or malformed expansion | `movement_adapter_invalid` | Build/test failure; never publish the adapter. |
 | Builder/action/getter/helper missing, throwing, returning `nil`, or wrong type | `movement_derivation_unknown` with `dependency` detail (a replaced live object is only telemetry; its usable return value decides) | Disable this action before commit. |
-| Builder is valid but request kind is not curated | `movement_request_kind_unknown` | Disable this action; never infer actor/grid from cursor shape. |
+| Builder is valid but a raised prompt cannot be read as a signature (`typ` not a table or `typ.type` not a string) | `movement_request_kind_unknown` with `{index, request, observed_shape=nil}` | Disable this action for this run and pause with the live prompt handed back; never infer actor/grid from cursor shape (§3.2). |
 | No variant, multiple variants, or a level/attribute read that errors or returns `nil` | `movement_variant_unknown` with the unresolved condition | Disable this action before commit. |
 | Policy target plan differs in length/order/kind | existing `target_plan_mismatch` / `target_plan_selector_mismatch` | Policy validation error or action denial. Existing exact comparison is at `overload/mod/auto_combat/EffectManifest.lua:427-456`. |
 | Adapter declares a valid multi-prompt plan but executor lacks the queue | existing `unsupported_target_plan`, `scope='multi_prompt'` | Capability pause/denial before commit (`overload/mod/auto_combat/MovementPlanner.lua:396-400`). |
-| Native asks for an extra, missing, reordered, or wrong-kind prompt after commit starts | `unexpected_target_request` with `expected={index,request}`, `observed={index,request|nil}`, and `skippable` for a missing entry | Pause the executor, do not resubmit, and hand the live interaction back if safely possible. A missing **skippable trailing** entry (`optional=true`, §4.4) is a settled native outcome reported with `reduced=true`, not this code. |
+| Native asks for an extra, missing, reordered, or signature-mismatched prompt after commit starts | `unexpected_target_request` with `expected={index,request}`, `observed={index,request|nil}`, `observed_shape`, and `skippable` for a missing entry; matching is against the entry's curated observed signature (§4.4), never a global shape→kind map | Pause and stop the executor, never resubmit, release the lease via the safety-pause path, and hand the live interaction back to the player/caller (§6.2); a missing **skippable trailing** entry (`optional=true`, §4.4) is a settled native outcome reported with `reduced=true`, not this code. |
 | A declared entry's decided value cannot be evaluated at answer time (unresolvable subject actor, or a `value_source='target_plan'` step with no planned destination) | `movement_request_value_unknown` with `{index, request, dependency}` | Pause the executor before answering with a wrong value; this is the plugin's own uncomputability boundary, never a strategy refusal. |
 | A multi-prompt plan resolves against a descriptor that has no `request_sequence` (not yet upgraded, including every S1 talent) | existing `unsupported_target_plan`, `missing='ordered_request_sequence'`, `scope='multi_prompt'` | Capability pause/denial before commit; unchanged from the current behaviour. |
 ```
