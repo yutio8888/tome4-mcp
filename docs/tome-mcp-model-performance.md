@@ -50,15 +50,21 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 19 | auto-combat 移动原生死锁 P0 修复 | A（Dev）/ **B**（Review） | 全新 Review（新任务） | **PASS**（merge with follow-ups） | 0 | 0 | 0 | 5 | 5 |
 | 20 | P0 修复后 Rush 复测（Test） | **B** | 无（测试任务） | **PASS**（P0 关闭；新 P2 1 / P3 2） | 0 | 0 | 1 | 2 | 3 |
 | 21 | P2-1 备选落点 + P3-2 冷却详情 | A（Dev）/ **B**（Review） | 全新 Review（新任务） | **PASS**（merge with follow-ups） | 0 | 0 | 0 | 3 | 3 |
+| 22 | N2 测试运行器根 + N1 日志 landing | A（Dev）/ **B**（Review） | 全新 Review（新任务） | **PASS**（**merge**，无阻塞项） | 0 | 0 | 0 | 3 | 3 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前，模型 A / A′；B 尚未用于任何 loop）
-- Loop 总数：**21**（全部已判定）。
-- **PASS 6**（#4、#14、#17、#19 P0 修复、#20 P0 复测、#21 P2-1/P3-2）、**FAIL 15**、PARTIAL 0 →
-  **通过率 6/21 = 28.6%**。
-- Issue 合计：**57**（P0 1 / P1 25 / P2 20 / P3 11）；平均每 loop 2.71。
+- Loop 总数：**22**（全部已判定）。
+- **PASS 7**（#4、#14、#17、#19、#20、#21、#22 N1/N2）、**FAIL 15**、PARTIAL 0 →
+  **通过率 7/22 = 31.8%**。
+- Issue 合计：**60**（P0 1 / P1 25 / P2 20 / P3 14）；平均每 loop 2.73。
+- **#22 闭环**：模型 A 修 **N2**（`tests/run.sh` 从脚本自身位置推导 addon 根 + 支持
+  `TOME_MCP_ADDON_DIR` + 坏覆盖 fail-fast；旧实现上溯 4 层会**静默跑主检出测试**）与 **N1**
+  （`movement_retry` 客户端可见日志携带 `landing`，允许集有界），模型 B 独立复核 → **verdict MERGE**
+  （N1/N2 端到端 PASS、证伪干净；3 项 P3 均为环境/加固注记，已登记 TODO #63）。PR #20 合并 `923d0bc6`；
+  main 重建 dist `24b99327`。
 - **#21 闭环**：模型 A 修 P2-1（approach 被原生拒绝后选次优落点，never-resubmit 三层强制、
   受 `max_actions_per_tick` 约束、非确定性落点与 Rush `authoritative_target` 路径不变）+ P3-2
   （denied 冷却详情），模型 B 做**跨模型独立复核** → `merge with follow-ups`（P2-1/P3-2 PASS、

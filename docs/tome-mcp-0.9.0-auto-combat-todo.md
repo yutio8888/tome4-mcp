@@ -420,3 +420,14 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
     - **N3（可选）**：`exclude` 是 opportunity 级全局集合，跨规则可能**过度排除**（保守失败方向，可接受）；
       如需精细可在集合键里带 rule。
 
+63. **N1/N2 review follow-ups（评审 sha256
+    `72c764df332a0cc41575da97268d9b4306e1e3ffe9bae38c576929288bccb9b4`；verdict MERGE，3 项 P3 非阻塞）。**
+    - **P3-a（环境）**：冻结 worktree 无 `server/.venv`（未跟踪、不在归档内），用系统 python 跑会因缺 `mcp`
+      模块产生 2 个收集错误；用 `/workspace/t-engine4/tmp/tome-mcp-venv` 则 39 OK。非本次改动所致。
+    - **P3-b（潜在、既有）**：42 个测试文件的根推导回退 `or 'game/addons/tome-mcp-bridge'`（如
+      `tests/test_actions.lua:4`），若以**裸相对路径**（`lua tests/test_json.lua`，无 `/tests/` 前缀）
+      从非规范 cwd 调用，会**静默测试规范树**。`run.sh` 始终用绝对路径，安全；建议加
+      `assert(root,'invoke via absolute path')` 之类护栏。
+    - **P3-c（加固）**：`PolicyLog.add`（`PolicyLog.lua:46-47`）复制 `landing` 未做类型守卫（`movement`/`risk`
+      用 `boundedObject`）。当前唯一生产者产出受限字符串；建议加 `type(event.landing)=='string'` 守卫。
+
