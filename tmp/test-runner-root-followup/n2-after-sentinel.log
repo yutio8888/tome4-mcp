@@ -1,0 +1,109 @@
+tests/run.sh: addon_dir=/workspace/t-engine4/game/addons/tome-mcp-bridge-runner game_root=/workspace/t-engine4
+json: 62 checks passed
+SENTINEL-WORKTREE-RUNNER-PICKED-UP
+Command ledger: 100288 checks passed
+Observation views: 120 checks passed
+transport: 31 checks passed
+Actions: 78 checks passed
+Talent query/prefill: 72 checks passed
+Query purity: 14 checks passed
+Resource filter: 3 checks passed
+Journal: 30 checks passed
+Observer: 113 checks passed; stress snapshot 194866 bytes
+Level map: 23 checks passed
+Actor combat: 28 checks passed
+Progression: 235 checks passed
+Items: 98 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Tasks: 65 checks passed
+Invocations: 29 checks passed
+Auto-combat policy: 105 checks passed
+Auto-combat pilots: 64 checks passed
+Friendly fire: 40 checks passed
+Effect manifest: 392 checks passed
+Effect manifest drift: 38 checks passed
+Effect footprint: 30 checks passed
+Effect risk: 29 checks passed
+Auto-combat guard: 49 checks passed
+Auto-combat movement: 80 checks passed
+Movement adapter factory: 91 checks passed
+Auto-combat controller: 87 checks passed
+Auto-combat catalog: 71 checks passed
+Auto-combat snapshot: 25 checks passed
+Auto-combat service: 112 checks passed
+Auto-combat A/B: 10 checks passed; divergent scenarios: 1 (boss-visible)
+Auto-combat assistant adapter: 44 checks passed
+Auto-combat execution: 14 checks passed
+Auto-combat host: 12 checks passed
+Auto-combat IO: 26 checks passed
+Auto-combat editor model: 37 checks passed
+Native activity: 17 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Runtime: 206 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Interactive Runtime: 122 checks passed
+[CHAT] selected	Rendered answer	function: 0x7f34c3c6c270	done
+Chat: 20 checks passed
+Native compatibility: 17 checks passed

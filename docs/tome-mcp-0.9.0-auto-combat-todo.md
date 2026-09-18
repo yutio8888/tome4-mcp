@@ -404,10 +404,19 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
     follow-ups，均 P3，非阻塞）。**
     - **N1**：`PolicyLog.add`（`PolicyLog.lua:44-53`）丢掉了 `movement_retry` 日志里客户端可见的
       `landing` 字段 → 建议在允许字段集中补上 `landing`。
+      **已修复**：`PolicyLog.add` 的允许字段集中加入 `landing`；同时 `AutoCombatService` 的
+      controller notify 回调也把 `landing` 透传进 `withContext`（否则即使 PolicyLog 允许，
+      客户端可见的 `movement_retry` 仍缺该字段）。回归测试：`test_auto_combat_catalog.lua`
+      （PolicyLog 条目）与 `test_auto_combat_service.lua`（端到端 service log），两处均在
+      还原生产代码后失败、修复后通过。
     - **N2（工具链，重要）**：`tests/run.sh` 的 `task_root` 上溯 4 层目录，**在备用 worktree 中运行会
       静默指向主检出（main）的测试**，导致 worktree 内的验证结果失真。修法：优先用脚本自身所在目录
       推导根（如 `${BASH_SOURCE[0]}` 的 `realpath ../../..`），或显式支持 `TOME_MCP_ADDON_DIR`。
       在修复前，worktree 内验证**必须**用绝对路径逐文件跑（本次 dispatcher/评审均如此，结论有效）。
+      **已修复**：`tests/run.sh` 现从 `${BASH_SOURCE[0]}` 推导 `addon_dir`（脚本目录的上一级），
+      支持 `TOME_MCP_ADDON_DIR` 覆盖，并从 `addon_dir/../../..` 推导 `game_root` 读取游戏核心；
+      运行时会打印 `tests/run.sh: addon_dir=… game_root=…`。在备用 worktree 中运行实测本 worktree
+      （sentinel 证明），在规范检出中仍跑 41 套全绿（行为未削弱）。
     - **N3（可选）**：`exclude` 是 opportunity 级全局集合，跨规则可能**过度排除**（保守失败方向，可接受）；
       如需精细可在集合键里带 rule。
 

@@ -88,6 +88,15 @@ do
     check(carried.risk and carried.risk.measurement==40 and carried.risk.threshold==50
         and carried.risk.provenance and carried.risk.provenance.selffire=='explicit',
         'PolicyLog stores the permitted-risk detail (MFT-REV-07)')
+    -- N1: the client-visible movement_retry entry must keep the refused
+    -- deterministic landing (not only the native code), so policy_log/replay can
+    -- reconstruct which coordinate the engine refused.
+    PolicyLog.add(log,{kind='movement_retry',rule='approach',action='move',
+        landing='4,2',native_result='blocked',generation=7})
+    local retry=PolicyLog.tail(log,1)[1]
+    check(retry.kind=='movement_retry' and retry.landing=='4,2'
+        and retry.native_result=='blocked' and retry.action=='move',
+        'PolicyLog keeps the refused landing on a movement_retry entry (N1)')
     -- A hostile deep/wide table cannot grow the entry unbounded.
     local deep={}
     local cursor=deep

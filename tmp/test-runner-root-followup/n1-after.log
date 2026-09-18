@@ -1,0 +1,3 @@
+step: acted
+movement_retry keys: action=move,generation=1,kind=movement_retry,landing=4,2,native_result=blocked,policy_hash=ffffffffa0ce78c4,reason=blocked,rule=approach,seq=1
+landing present: 4,2
