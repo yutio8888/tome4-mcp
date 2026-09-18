@@ -685,5 +685,8 @@ do
     end
     check(found and found.rule=='approach' and found.native_result=='blocked',
         'the movement_retry event reaches the policy log with the native code')
+    -- N1: the client-visible retry entry must carry the refused landing, not
+    -- only the native result, so a client can reconstruct the blocked cell.
+    check(found.landing=='4,2','the movement_retry event keeps the refused landing (N1)')
 end
 print('Auto-combat service: '..checks..' checks passed')

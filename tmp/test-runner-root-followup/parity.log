@@ -1,0 +1,5 @@
+parity archive/manifest: PASS (68/68 files, 0 mismatches)
+files changed vs HEAD in archive: 2
+  - overload/mod/auto_combat/AutoCombatService.lua
+  - overload/mod/auto_combat/PolicyLog.lua
+dist sha256: 24b993278b4159668912df3c35fe1bddbd55964918b6eac6bc412553c40c6c6f

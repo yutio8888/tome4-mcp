@@ -1,6 +1,6 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "6d68fdfd559f89a34bb8e006a9e7be06cb2666d91e07937e036917e1b9088819",
+  "sha256": "24b993278b4159668912df3c35fe1bddbd55964918b6eac6bc412553c40c6c6f",
   "files": {
     "README.md": "62b71bd51c4b32f202909cf1529211e0d4f70ad5d65fffaf0072b06250f43912",
     "hooks/load.lua": "8c11d088a300e6ce1a4778c7388ef42a9c868fe60b41fa1e4fde37f667a061f6",
@@ -10,7 +10,7 @@
     "overload/mod/auto_combat/AutoCombatCatalog.lua": "2a0a7b569dc415f2697868e970d4667b7b33f429c3f47e9fa37a12404afbce82",
     "overload/mod/auto_combat/AutoCombatGuard.lua": "d61275094147787eb52ed79c1accb1ff251fffbcced4dcc6db40dec09f009f44",
     "overload/mod/auto_combat/AutoCombatHost.lua": "e51cf0693c98b378d132b8e203fe71f8e934f6c15f5cf7901d78d9e88a2d01c3",
-    "overload/mod/auto_combat/AutoCombatService.lua": "5c886120ab61a5d47974171b6558d764f9ab3632213394201881d117a99312a9",
+    "overload/mod/auto_combat/AutoCombatService.lua": "355d442455490f4c6ff7ab13e1d90c1ebfb652890ff15bdf8ecb6fd2a534c1f0",
     "overload/mod/auto_combat/ControlArbiter.lua": "22c1b40fd80ac46f81bbbe23c93e32922b9ee88a8d9a20c5e59f95b11ecb302e",
     "overload/mod/auto_combat/EffectFootprint.lua": "b2cb860000ef55f582c0e6e762db2c7ea6e0798352f722cd156aec425dbb9ee4",
     "overload/mod/auto_combat/EffectManifest.lua": "3893d4cffb62b48f3e1d7504ccac46251c045540c6ad05eecf982d858f5ab6ab",
@@ -22,7 +22,7 @@
     "overload/mod/auto_combat/PolicyEditorModel.lua": "238a254cacb6edf0cb60f571f4c1e9bbf2a03d53e1fbbddf9813703d183ba2f1",
     "overload/mod/auto_combat/PolicyEvaluator.lua": "234150a309081a7604af313a1c037302630fce3095a8ed5a2036b412bc74b850",
     "overload/mod/auto_combat/PolicyIO.lua": "e90ca46c72b24e9449ff87d53bf007c9c44d372983a6c85fbef20f2486985ced",
-    "overload/mod/auto_combat/PolicyLog.lua": "94efe4fa8a84ed909baa798250a62eef1d3436dcfa6f56e851040075e5891987",
+    "overload/mod/auto_combat/PolicyLog.lua": "1472f3e30ca6329f0a9187f2ebcf294f0e3a604bb88ecb8628b3137285e18219",
     "overload/mod/auto_combat/PolicyPresets.lua": "ff4ed02b11c74837db044baa660cd038e55b05fd723203b867792dc53be9c73a",
     "overload/mod/auto_combat/PolicySchema.lua": "122bb830a59c8bc9505b3782ced2698951ce71bb18d0106e7048e3fbcaac3c15",
     "overload/mod/auto_combat/PolicySnapshot.lua": "e63aae95f50ee4e6f4a41f4bc916de4da446fb760c37bf996179ae487ceed0e9",

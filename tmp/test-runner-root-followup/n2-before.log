@@ -1,0 +1,4 @@
+=== PRE-FIX runner (HEAD:tests/run.sh) run from THIS worktree, sentinel in THIS worktree's test_json.lua ===
++ task_root=/workspace/t-engine4
++ luajit -O2 game/addons/tome-mcp-bridge/tests/test_json.lua
+--- sentinel count in output: 0 (0 == ran MAIN's tests) ---
