@@ -149,7 +149,7 @@ class Acceptance:
         self.runtime.wait_ready()
         birth = self.runtime.records()
         perception = [r for r in birth if r.get('kind') == 'visibility_check']
-        self.check(len(perception)==9 and all(r['passed'] for r in perception),
+        self.check(len(perception)==10 and all(r['passed'] for r in perception),
                    'native_world_and_dungeon_perception_regressions', checks=perception)
         self.check(any(r.get("kind") == "birth_started" for r in birth)
                    and any(r.get("kind") == "birth_complete" and r.get("new_character") for r in birth),

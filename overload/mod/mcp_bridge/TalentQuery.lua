@@ -1,14 +1,14 @@
 -- GPL-3.0-or-later. Pure, read-only talent query (spec QRY-01..09).
 --
 -- This module never runs talent actions, preUseTalent, dynamic info/require
--- functions or unverified getters. Only stored scalars and registered native
--- dependencies are read. When an audited input is missing the field is
--- "unknown", and affordability stays a three-state value instead of falling
--- back to the stored base cost (that fallback was the B-03 defect).
+-- functions. Under the no-strict-audit principle the cost/attribute helpers are
+-- the game's actual live functions, called directly; provenance is advisory
+-- only. A replaced-but-usable helper is used; a missing/erroring/non-finite
+-- result is "unknown", and affordability stays a three-state value instead of
+-- falling back to the stored base cost (the B-03 defect).
 local Json = require 'mod.mcp_bridge.Json'
 local Compat = require 'mod.mcp_bridge.NativeCompatibility'
 local Distance = require 'mod.mcp_bridge.Distance'
-local Manifest = require 'mod.mcp_bridge.NativeManifest'
 local M = {}
 local RESOURCES={'mana','stamina','vim','positive','negative','psi','hate','equilibrium','paradox'}
 
@@ -17,9 +17,8 @@ local function resourceDef(p,name)
     local defs=p.resources_def
     return type(defs)=='table' and defs[name] or nil
 end
--- A read-only dependency is only called after it has been registered once.
--- Re-registering an existing id never overwrites the baseline, so a later
--- replacement stays failed instead of being adopted.
+-- Diagnostic provenance registration (never a gate). The helper functions are
+-- called directly by the query below; this only records where they came from.
 local function registerOnce(id,domain,fn,path,purpose,digest,declaration,depends_on)
     if Compat.hasDependency and Compat.hasDependency(id) then return end
     Compat.registerDependency(id,domain,fn,path,purpose,digest,declaration,depends_on)
@@ -27,26 +26,20 @@ end
 function M.registerNative(player)
     if type(player)~='table' then return end
     if type(player.attr)=='function' then
-        registerOnce('actor.attr','talent_query',player.attr,'/engine/Entity.lua','resource suppression flags',
-            Manifest.entity_md5,'function _M:attr')
+        registerOnce('actor.attr','talent_query',player.attr,'/engine/Entity.lua','resource suppression flags')
     end
     if type(player.alterTalentCost)=='function' then
-        -- alterTalentCost reads combatFatigue, so its indirect closure includes
-        -- the fatigue dependency; a broken link makes the cost field unknown.
-        registerOnce('actor.alterTalentCost','talent_query',player.alterTalentCost,'/mod/class/Actor.lua','talent cost mutation',
-            Manifest.actor_md5,'function _M:alterTalentCost',{'actor.combatFatigue'})
+        registerOnce('actor.alterTalentCost','talent_query',player.alterTalentCost,'/mod/class/Actor.lua','talent cost mutation')
     end
     if type(player.combatFatigue)=='function' then
-        registerOnce('actor.combatFatigue','talent_query',player.combatFatigue,'/mod/class/interface/Combat.lua','fatigue-dependent cost factor',
-            Manifest.combat_md5,'function _M:combatFatigue')
+        registerOnce('actor.combatFatigue','talent_query',player.combatFatigue,'/mod/class/interface/Combat.lua','fatigue-dependent cost factor')
     end
     local defs=player.resources_def
     if type(defs)=='table' then
         for name,def in pairs(defs) do
             -- Only the short-name keys; the array indices alias the same defs.
             if type(name)=='string' and type(def)=='table' and type(def.cost_factor)=='function' then
-                registerOnce('resource.cost_factor:'..name,'talent_query',def.cost_factor,'/data/resources.lua','resource cost factor',
-                    Manifest.resources_md5,'cost_factor = function',{'actor.combatFatigue'})
+                registerOnce('resource.cost_factor:'..name,'talent_query',def.cost_factor,'/data/resources.lua','resource cost factor')
             end
         end
     end
@@ -61,28 +54,26 @@ local function finalResourceCosts(p,t,base_costs)
         return final,false,reasons
     end
     -- Independent, already-known suppression rules first (stored scalars).
-    -- Otherwise the suppression flags must be read through an audited helper:
-    -- a missing, untrusted or raising helper is NOT "no suppression" (F4).
+    -- Otherwise the suppression flags are read through the live helper: a
+    -- missing or raising helper is NOT "no suppression" (F4).
     local suppressed=false
     if t.fake_ressource then suppressed=true
     elseif type(p.talent_no_resources)=='table' and p.talent_no_resources[t.id] then suppressed=true end
     if not suppressed then
         if type(p.attr)~='function' then return unknownAll('suppression_unverified') end
-        local attr,attr_reason=Compat.dependency('actor.attr',p.attr)
-        if not attr then return unknownAll(attr_reason or 'suppression_unverified') end
         local ok,value=pcall(function()
-            return (attr(p,'zero_resource_cost') and true) or (attr(p,'force_talent_ignore_ressources') and true) or false
+            return (p.attr(p,'zero_resource_cost') and true) or (p.attr(p,'force_talent_ignore_ressources') and true) or false
         end)
         if not ok then return unknownAll('suppression_unverified') end
         suppressed = value==true
     end
-    local alter=Compat.dependency('actor.alterTalentCost',p.alterTalentCost)
+    local alter=p.alterTalentCost
     for name in pairs(base_costs) do
         local base=t[name]
         if suppressed==true then final[name]=0
         elseif type(base)~='number' or not finite(base) then
             final[name]='unknown';complete=false;reasons[name]='cost_dependency_unverified'
-        elseif not alter then
+        elseif type(alter)~='function' then
             final[name]='unknown';complete=false;reasons[name]='cost_helper_unverified'
         else
             local called,cost=pcall(alter,p,t,name,base)
@@ -94,27 +85,11 @@ local function finalResourceCosts(p,t,base_costs)
                 local factor=1
                 if def and def.cost_factor~=nil then
                     if type(def.cost_factor)=='function' then
-                        local cf,cfreason=Compat.dependency('resource.cost_factor:'..name,def.cost_factor)
-                        if not cf then
-                            factor=nil;reasons[name]=cfreason or 'cost_factor_unverified'
-                        else
-                            -- A function factor may read fatigue indirectly. Require
-                            -- that transitive getter to be audited too, so replacing
-                            -- it (while the factor identity is unchanged) still
-                            -- degrades the field to unknown instead of executing it (F1).
-                            local fatigue_ok=true
-                            if type(p.combatFatigue)=='function' then
-                                local fatigue,fatigue_reason=Compat.dependency('actor.combatFatigue',p.combatFatigue)
-                                if not fatigue then fatigue_ok=false;reasons[name]=fatigue_reason or 'dependency_unverified' end
-                            end
-                            if not fatigue_ok then
-                                factor=nil
-                            else
-                                local factor_ok,value=pcall(cf,p,t,false,cost)
-                                factor=factor_ok and finite(value) and value or nil
-                                if factor==nil then reasons[name]='cost_factor_unverified' end
-                            end
-                        end
+                        -- A function factor may read fatigue indirectly; call it
+                        -- directly (no identity/closure gate).
+                        local factor_ok,value=pcall(def.cost_factor,p,t,false,cost)
+                        factor=factor_ok and finite(value) and value or nil
+                        if factor==nil then reasons[name]='cost_factor_unverified' end
                     elseif type(def.cost_factor)=='number' and finite(def.cost_factor) then factor=def.cost_factor
                     else factor=nil;reasons[name]='cost_factor_unverified' end
                 end

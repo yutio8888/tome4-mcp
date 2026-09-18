@@ -22,7 +22,6 @@
 --
 -- The session holds at most one: `s.native_activity`.
 local Details=require 'mod.mcp_bridge.ObservationDetails'
-local Compat=require 'mod.mcp_bridge.NativeCompatibility'
 local Observer=require 'mod.mcp_bridge.Observer'
 local M={}
 
@@ -75,13 +74,6 @@ function M.hostileVisible(g,p,actor)
     return actor.faction~=nil and actor.faction~=p.faction
 end
 
-local function nativeAt(fn,suffix)
-    if type(fn)~='function' then return false end
-    local info=debug.getinfo(fn,'S')
-    return info~=nil and type(info.source)=='string' and info.source:sub(1,1)=='@'
-        and info.source:sub(-#suffix)==suffix
-end
-
 -- A failed native activity cleanup leaves native state the bridge cannot
 -- repair: mark it uncertain, quarantine automatic steps, and (for a command
 -- owner) revoke the remote lease rather than pretending success.
@@ -102,11 +94,6 @@ local rest={
     guards=function(env)
         local p=env.player
         if type(p.restInit)~='function' then return {ok=false,code='rest_unavailable',energy_spent=0} end
-        local info=debug.getinfo(p.restInit,'S')
-        if not Compat.matches('restInit',p.restInit)
-            and (not info or type(info.source)~='string' or not info.source:match('[/]engine/interface/PlayerRest%.lua$')) then
-            return {ok=false,code='rest_modified',energy_spent=0}
-        end
     end,
     start=function(env,activity,options)
         local s,p=env.session,env.player
@@ -141,9 +128,8 @@ local auto_explore={
     kind='auto_explore',label='task.auto_explore',
     guards=function(env)
         local p,g=env.player,env.game
-        if not nativeAt(p.autoExplore,'/mod/class/interface/PlayerExplore.lua')
-            or not nativeAt(p.runStep,'/engine/interface/PlayerRun.lua')
-            or not nativeAt(p.enoughEnergy,'/engine/Actor.lua') then
+        if type(p.autoExplore)~='function' or type(p.runStep)~='function'
+            or type(p.enoughEnergy)~='function' then
             return {ok=false,code='auto_explore_unavailable',energy_spent=0}
         end
         if (g.zone and g.zone.no_autoexplore) or (g.level and g.level.no_autoexplore) then

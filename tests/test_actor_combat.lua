@@ -1,13 +1,11 @@
--- Bounded computed actor combat read (ActorCombat).
+-- Bounded computed actor combat read (ActorCombat), no-strict-audit (v1.6).
+--
+-- A replaced-but-usable getter IS used; a missing/erroring/non-finite getter is
+-- "unknown". Provenance is advisory (recorded, never a gate).
 local root=(arg[0]:match('^(.*)/tests/[^/]+$') or 'game/addons/tome-mcp-bridge')
 package.path=root..'/overload/?.lua;'..package.path
 local ActorCombat=require 'mod.mcp_bridge.ActorCombat'
 local Compat=require 'mod.mcp_bridge.NativeCompatibility'
--- SAFE-01 unit isolation: the registry digest/identity audit is covered by
--- tests/test_native_compatibility.lua; here the mock getters are not real
--- files, so admit them and keep testing the value extraction.
-Compat.registerDependency=function() return true end
-Compat.dependency=function(id,fn) return fn end
 local count=0
 local function check(v,m) count=count+1;assert(v,m) end
 local COMBAT='/mod/class/interface/Combat.lua'
@@ -30,7 +28,7 @@ end
 
 local c=ActorCombat.computed(actor)
 check(c and c.computed==true,'computed block present and labelled')
-check(c.stats.str==40 and c.stats.mag==50 and c.stats.lck==45,'effective stats from the audited getStat')
+check(c.stats.str==40 and c.stats.mag==50 and c.stats.lck==45,'effective stats from the live getStat')
 check(c.speeds.global==1.2 and c.speeds.movement==1.05 and c.speeds.attack==0.9
     and c.speeds.spell==1.1 and c.speeds.mind==1.0,'global/movement/attack/spell/mind speeds')
 check(c.crit.physical==22 and c.crit.spell==15 and c.crit.mind==10,'physical/spell/mind crit chance')
@@ -59,17 +57,48 @@ for field in pairs(Schema.COMPUTED_FIELDS) do
 end
 check(unresolved==0,'every computed enum id resolves on an all-native actor')
 
--- Fail closed: an overridden getter is neither trusted nor called into the block.
+-- NO-AUDIT: a replaced-but-usable getter IS consumed (no identity/digest gate).
 actor.combatArmor=function() return 999 end
 local c2=ActorCombat.computed(actor)
-check(c2.defense.armor==nil,'an overridden getter is not trusted')
+check(c2.defense.armor==999,'a replaced-but-usable getter is consumed, not gated')
 local listed=false
 for _,name in ipairs(c2.unknown) do if name=='combatArmor' then listed=true end end
-check(listed,'an overridden getter is listed in unknown')
+check(not listed,'a usable replaced getter is not reported unknown')
 
--- Fail closed: a getter that errors is unknown, not fatal.
+-- Fail closed on unusable values only: erroring / nil / non-finite / missing.
 actor.combatDamage=fnFrom(COMBAT,'function(self) error("boom") end')
 local c3=ActorCombat.computed(actor)
 check(c3.offense.damage==nil,'an erroring getter yields unknown instead of aborting the read')
+local listedDamage=false
+for _,name in ipairs(c3.unknown) do if name=='combatDamage' then listedDamage=true end end
+check(listedDamage,'an erroring getter is listed in unknown')
+
+actor.combatAttack=function() return nil end
+local c4=ActorCombat.computed(actor)
+check(c4.offense.accuracy==nil,'a nil-returning getter yields unknown')
+
+actor.combatAPR=function() return 0/0 end
+local c5=ActorCombat.computed(actor)
+check(c5.offense.apr==nil,'a non-finite getter yields unknown')
+
+actor.combatDefense=nil
+local c6=ActorCombat.computed(actor)
+check(c6.defense.defense==nil,'a missing getter yields unknown')
+
+-- A replaced-but-usable getStat is consumed too.
+actor.getStat=fnFrom(STATS,'function(self,stat) return 77 end')
+local c7=ActorCombat.computed(actor)
+check(c7.stats.str==77 and c7.stats.lck==77,'a replaced-but-usable getStat is consumed')
+
+-- Diagnostic provenance: it is reported, never a decision.
+Compat.resetDependencies()
+local fresh={combat={},getStat=function() return 1 end,combatArmor=function() return 2 end}
+ActorCombat.computed(fresh)
+local provenance=Compat.dependencySummary()
+local reported=false
+for id,entry in pairs(provenance) do
+    if id:find('^computed%.') and entry.advisory~=nil then reported=true end
+end
+check(reported,'computed getters carry advisory provenance records')
 
 print('Actor combat: '..count..' checks passed')

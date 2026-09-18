@@ -139,7 +139,12 @@ result=Actions.execute(g,{type='change_level'})
 check(result.ok and result.pending and not result.level_changed and #g.dialogs==1,'native confirmation remains pending and untouched')
 check(Actions.execute(g,{type='change_level'}).code=='player_busy','cannot issue another stair action through a dialog')
 g,p=stairs{change_level=1};g.key.virtuals.CHANGE_LEVEL=function() error('external override') end
-check(Actions.execute(g,{type='change_level'}).code=='change_level_unavailable','overridden native stair command rejected')
+-- NO-AUDIT: a replaced-but-present stair handler is used (not identity-gated);
+-- its error surfaces as an uncertain native execution error.
+result=Actions.execute(g,{type='change_level'})
+check(not result.ok and result.code=='execution_error','a replaced stair command is used and its error surfaced')
+g,p=stairs{change_level=1};g.key.virtuals.CHANGE_LEVEL=nil
+check(Actions.execute(g,{type='change_level'}).code=='change_level_unavailable','a missing native stair command is unavailable')
 g,p=stairs{change_level=1};g.changeLevel=function() error('native generation error') end
 result=Actions.execute(g,{type='change_level'})
 check(not result.ok and result.code=='execution_error' and result.uncertain

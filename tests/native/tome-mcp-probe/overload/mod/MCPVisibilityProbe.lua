@@ -23,7 +23,7 @@ function M.run(emit)
     zone.wilderness=true;zone.wilderness_see_radius=4;fov();Observer.reset()
     check(Compat.matches('playerFOV',p.playerFOV) and Compat.matches('computeFOV',p.computeFOV)
         and Compat.matches('map.applyLite',map.applyLite) and Compat.matches('map.cleanFOV',map.cleanFOV),
-        'wilderness_perception_entrypoints_pass_full_source_audit')
+        'wilderness_perception_entrypoints_are_present_for_direct_use')
     local world=snap();local matches,seen=true,0
     for _,c in ipairs(world.map.cells) do
         local i=c.x+c.y*map.w
@@ -40,10 +40,17 @@ function M.run(emit)
     for _,c in ipairs(blind.map.cells) do if c.known or c.visible then none=false end end
     check(none,'native_wilderness_blind_projection_does_not_learn_terrain')
     p.blind=old_blind
-    local old_method=rawget(p,'computeFOV');p.computeFOV=function() error('modified perception must not be invoked') end
-    Observer.reset();local modified=snap()
-    check(not cell(modified,p.x,p.y).known,'native_world_modified_perception_fails_closed')
-    p.computeFOV=old_method
+    -- NO-AUDIT: a replaced-but-present perception entrypoint is used as a normal
+    -- entry (the wilderness branch proceeds); a MISSING/non-function one is
+    -- unavailable. `computeFOV` is a class method, so restore by deleting the
+    -- instance shadow.
+    p.computeFOV=function() end
+    Observer.reset();local replaced=snap()
+    check(cell(replaced,p.x,p.y).known,'native_world_replaced_perception_entrypoint_is_used')
+    p.computeFOV=false
+    Observer.reset();local missing=snap()
+    check(not cell(missing,p.x,p.y).known,'native_world_missing_perception_entrypoint_is_unavailable')
+    rawset(p,'computeFOV',nil)
     zone.wilderness=old_wild;zone.wilderness_see_radius=old_radius
     -- Genuine native ESP only marks the actor's cell; it does not reveal floor.
     local old_esp=p.esp_all;p.esp_all=1;p:resetCanSeeCache()

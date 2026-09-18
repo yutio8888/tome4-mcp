@@ -14,14 +14,12 @@ local function number(n) return finite(n) and n or nil end
 local function active(v) return v~=nil and v~=false and v~=0 end
 local function grid(t, map, x, y) return t and t[x+y*map.w] end
 local function wildernessVision(g,p,map)
-    -- The audited wilderness branch skips ESP/detection and applies light only
-    -- to native FOV cells. Never substitute has_seens/remembers/all_lited here:
-    -- they also include old knowledge and cells outside current perception.
+    -- The wilderness branch skips ESP/detection and applies light only to native
+    -- FOV cells (NO-AUDIT): the live FOV/cache entries are used directly; only a
+    -- missing/non-function entry is unavailable.
     return g.zone and g.zone.wilderness==true
-        and Compat.matches('playerFOV',p.playerFOV)
-        and Compat.matches('computeFOV',p.computeFOV)
-        and Compat.matches('map.applyLite',map.applyLite)
-        and Compat.matches('map.cleanFOV',map.cleanFOV)
+        and type(p.playerFOV)=='function' and type(p.computeFOV)=='function'
+        and type(map.applyLite)=='function' and type(map.cleanFOV)=='function'
 end
 local function native(fn,suffix)
     if type(fn)~='function' then return false end

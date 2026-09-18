@@ -26,15 +26,12 @@ end
 local function finite(value) return type(value)=='number' and value==value and value>-math.huge and value<math.huge end
 local function stringId(value) return type(value)=='string' and #value>0 and #value<=256 and not value:find('%z') end
 local function coordinate(value) return type(value)=='number' and value%1==0 and value>=0 and value<=2147483647 end
-local function native(fn, suffix)
-    if type(fn) ~= 'function' then return false end
-    local info = debug.getinfo(fn, 'S')
-    return info and type(info.source) == 'string' and info.source:sub(1, 1) == '@'
-        and info.source:sub(-#suffix) == suffix
-end
+-- Statistical audit of an attack entry (NO-AUDIT): the only structural
+-- requirement is a callable action + target with no post_action override. A
+-- replaced-but-usable action/target is used; provenance is advisory.
 local function auditAttack(player)
     local t=player.talents_def and player.talents_def[player.T_ATTACK or 'T_ATTACK']
-    if not t or not native(t.action,attack_spec.source) or not native(t.target,attack_spec.source)
+    if type(t)~='table' or type(t.action)~='function' or type(t.target)~='function'
         or t.post_action~=nil then return nil,'attack_modified' end
     return attack_spec
 end
@@ -142,7 +139,7 @@ end
 local function changeLevel(g)
     if blockedInteraction(g) then return {ok=false,code='player_busy',energy_spent=0} end
     local handler=g.key and g.key.virtuals and g.key.virtuals.CHANGE_LEVEL
-    if not native(handler,'/mod/class/Game.lua') then return {ok=false,code='change_level_unavailable',energy_spent=0} end
+    if type(handler)~='function' then return {ok=false,code='change_level_unavailable',energy_spent=0} end
     local p,previous_level,previous_zone=g.player,g.level,g.zone
     local before=p.energy.value
     -- This is the exact callback invoked by the native key command. It checks

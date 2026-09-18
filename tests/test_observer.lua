@@ -32,16 +32,26 @@ local p={uid=1,name='Hero',__is_actor=true,player=true,x=2,y=2,level=1,exp=7,exp
     energy={value=1000},getExpChart=actorlevel.getExpChart,exp_chart=tome_exp,
     stats_def={},stats={},inc_stats={},talents={},talents_def={},tmp={},tempeffect_def={},
     inven={},inven_def={},can_see_cache={},open_door=true,
-    getStat=forbidden,combatAttack=forbidden,combatPhysicalpower=forbidden,getName=forbidden}
+    -- The wilderness FOV path calls these live entries (no-strict-audit).
+    playerFOV=function() end,computeFOV=function() end,
+    -- The character-sheet computed view calls these live getters directly.
+    -- Usable stubs are consumed (no-strict-audit); genuinely off-limits
+    -- callbacks remain forbidden.
+    getStat=function(self,s) return 10 end,combatArmor=function() return 5 end,
+    getName=forbidden}
 for i,name in ipairs{'str','dex','mag','wil','cun','con','lck'} do
     p.stats_def[name]={id=i};p.stats[i]=10+i;p.inc_stats[i]=i
 end
 local enemy={uid=2,name='Visible enemy',type='giant',subtype='troll',__is_actor=true,x=3,y=2,level=9,rank=3,life=20,max_life=40,
     global_speed=1.1,movement_speed=0.8,combat_atk=14,combat_def=12,combat_dam=30,resists={FIRE=25,all=5},
+    -- The computed character-sheet view calls these live getters directly
+    -- (no-strict-audit); give usable values so the read is exercised.
+    combatAttack=function() return 14 end,combatPhysicalpower=function() return 20 end,
     tmp={SLOW={dur=4}},tempeffect_def={SLOW={desc='Slowed',status='detrimental',type='physical'}},
-    tooltip=forbidden,combatAttack=forbidden,combatPhysicalpower=forbidden}
+    tooltip=forbidden}
 local hidden={uid=3,name='Hidden secret enemy',__is_actor=true,x=4,y=2,level=99,life=100,max_life=100}
-local map={w=5,h=5,ACTOR=3,TERRAIN=1,map={},seens={},infovs={},lites={}}
+local map={w=5,h=5,ACTOR=3,TERRAIN=1,map={},seens={},infovs={},lites={},
+    applyLite=function() end,cleanFOV=function() end}
 for y=0,4 do for x=0,4 do
     local index=x+y*5
     map.map[index]={[1]={name='grass',display='.',block_move=gridclass.block_move}}
@@ -146,19 +156,18 @@ Observer.reset()
 check(not Observer.capture(g,meta,2).map.cells[1].known,'session reset drops old map memory')
 map.seens[0]=true
 
--- A wilderness observation must use the reviewed no-store FOV path. The
--- checksum/identity registration itself is also exercised in native acceptance.
+-- A wilderness observation uses the reviewed no-store FOV path. Under the
+-- no-strict-audit principle the live FOV/cache getters are called directly; a
+-- replaced (but usable) entry does not make the terrain invisible.
 local Compat=require 'mod.mcp_bridge.NativeCompatibility'
 local original_matches=Compat.matches
-local admitted={playerFOV=true,computeFOV=true,['map.applyLite']=true,['map.cleanFOV']=true}
-Compat.matches=function(name) return admitted[name]==true end
 g.zone.wilderness=true;Observer.reset()
 map.infovs={};map.seens={[0]=0.6,[12]=1};map.has_seens={[1]=true};map.remembers={[1]=true};map.lites[1]=true
 map.map[0][1]={name='Visible world entrance',display='>',change_zone='private-destination',block_move=gridclass.block_move}
 map.map[1][1]={name='UNDISCOVERED WORLD ENTRANCE',display='>',change_zone='private-destination',block_move=gridclass.block_move}
 snapshot=Observer.capture(g,meta,2)
 check(snapshot.map.cells[1].visible and snapshot.map.cells[1].is_exit and snapshot.map.cells[1].blocked==false,
-    'audited world applyLite terrain and entrance visible without infovs')
+    'world applyLite terrain and entrance visible without infovs')
 check(snapshot.map.cells[13].visible and snapshot.map.cells[13].known,'world terrain beneath player is known')
 check(not snapshot.map.cells[2].known and not Json.encode(snapshot):find('UNDISCOVERED WORLD ENTRANCE',1,true)
     and not Json.encode(snapshot):find('private-destination',1,true),'remembered and lit world cells do not disclose unseen entrance or destination')
@@ -169,11 +178,12 @@ check(snapshot.map.cells[1].known and not snapshot.map.cells[1].visible and snap
 Observer.reset();map.seens[0]=0
 check(not Observer.capture(g,meta,2).map.cells[1].known,'zero visibility and session reset cannot reveal world terrain')
 map.seens[0]=1
-for name in pairs(admitted) do
-    admitted[name]=false;Observer.reset()
-    check(not Observer.capture(g,meta,2).map.cells[1].known,'modified wilderness entrypoint fails closed: '..name)
-    admitted[name]=true
-end
+-- A replaced FOV/cache entrypoint is used as a normal entry, not gated.
+local savedFOV=p.playerFOV
+p.playerFOV=function() end;Observer.reset()
+check(Observer.capture(g,meta,2).map.cells[1].known,
+    'a replaced wilderness entrypoint is used, not gated (no-strict-audit)')
+p.playerFOV=savedFOV
 p.blind=1;Observer.reset()
 check(not Observer.capture(g,meta,2).map.cells[1].known,'blind world observer cannot learn terrain')
 p.blind=nil;g.zone.wilderness=nil;Observer.reset()

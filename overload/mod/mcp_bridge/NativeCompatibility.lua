@@ -1,59 +1,116 @@
--- GPL-3.0-or-later. Compatibility concerns native entrypoints, never talent IDs.
+-- GPL-3.0-or-later. Native-entrypoint compatibility: DIAGNOSTIC ONLY.
+--
+-- NO-AUDIT principle (AGENTS.md, design §8.3, factory design §1/§3.1): Lua is
+-- dynamic, so any addon may replace any function at runtime. The project neither
+-- guarantees nor needs to guarantee that a runtime entry is the pristine native
+-- implementation, and is not responsible for other plugins' broken
+-- implementations. Callers therefore use the game's actual functions as normal
+-- entrypoints.
+--
+-- This module keeps two independent concerns:
+--   * STRUCTURAL availability (`matches`, `available`, `check`): does the
+--     entrypoint exist / is it callable / is the bridge's own instrumentation in
+--     the expected shape? This is what callers may branch on.
+--   * ADVISORY provenance (`identity`, `diagnostic`, `dependencySummary`,
+--     `closureSummary`, `providerSummary`, `summary`): the recorded source path,
+--     whole-file digest, declaration line, captured-native wrapper chain and
+--     dependency closure. These are reported for offline review/telemetry and
+--     NEVER gate a decision: a digest/identity mismatch does not make a function
+--     unavailable, and a replaced-but-usable function is still returned for use.
 local M={}
 local entries={}
-local function audited(fn,path,digest)
-    local info=type(fn)=='function' and debug.getinfo(fn,'S')
-    local ok=info and info.source=='@'..path
-    if ok then
+
+-- Advisory provenance computation only: never raises, never blocks.
+local function provenance(fn,path,digest)
+    local info=type(fn)=='function' and debug.getinfo(fn,'S') or nil
+    local source_ok=info~=nil and info.source=='@'..path
+    local digest_ok=false
+    if source_ok then
         local read_ok,data=pcall(function() return fs.readAll(path) end)
-        local hash_ok,hash=pcall(function() return require('md5').sumhexa(data or '') end)
-        ok=read_ok and hash_ok and hash==digest
+        if read_ok and type(data)=='string' then
+            local hash_ok,hash=pcall(function() return require('md5').sumhexa(data) end)
+            digest_ok=hash_ok and hash==digest
+        end
     end
-    return ok==true
+    return {source_ok=source_ok==true,digest_ok=digest_ok==true,
+        advisory=(source_ok and digest_ok)~=true}
 end
 
 function M.register(name,fn,previous,path,digest,wrapper)
-    -- The released companion's Game wrapper stops its controller and then
-    -- delegates to a captured native method. Audit both complete files and
-    -- the captured function; unknown wrappers still fail closed.
-    if wrapper and audited(previous,wrapper.path,wrapper.digest) then
-        for index=1,32 do
-            local key,value=debug.getupvalue(previous,index)
-            if not key then break end
-            if key==wrapper.upvalue then previous=value;break end
+    local record={fn=fn,path=path,name=name}
+    -- The released companion's Game wrapper delegates to a captured native
+    -- method. Resolving that chain is advisory only.
+    local resolved=previous
+    local wrapper_ok=nil
+    if wrapper then
+        local wp=provenance(previous,wrapper.path,wrapper.digest)
+        wrapper_ok=wp.advisory==false
+        if wrapper_ok then
+            for index=1,32 do
+                local key,value=debug.getupvalue(previous,index)
+                if not key then break end
+                if key==wrapper.upvalue then resolved=value;break end
+            end
         end
     end
-    local ok=audited(previous,path,digest)
-    entries[name]={fn=fn,ok=ok,reason=ok and nil or 'native_entrypoint_modified',path=path}
+    record.previous=resolved
+    record.wrapper_ok=wrapper_ok
+    local p=provenance(resolved,path,digest)
+    record.source_ok=p.source_ok
+    record.digest_ok=p.digest_ok
+    if type(fn)~='function' then
+        record.structural_ok=false
+        record.reason='entrypoint_missing'
+    else
+        record.structural_ok=true
+    end
+    entries[name]=record
+    return record.structural_ok
 end
 
+-- Structural availability: the entrypoint exists and is a function. This is what
+-- callers branch on; identity/digest are advisory telemetry.
 function M.matches(name,fn)
-    local entry=entries[name]
-    return entry and entry.ok and entry.fn==fn or false
+    return type(fn)=='function'
 end
 
+function M.available(name)
+    local entry=entries[name]
+    return entry~=nil and type(entry.fn)=='function'
+end
+
+-- Advisory identity: is `fn` the exact object originally registered under
+-- `name`? Reported, never a gate.
+function M.identity(name,fn)
+    local entry=entries[name]
+    local same=entry~=nil and entry.fn==fn
+    return {advisory=true,name=name,same_object=same==true,
+        registered=entry~=nil,source_ok=entry and entry.source_ok,
+        digest_ok=entry and entry.digest_ok,path=entry and entry.path}
+end
+
+-- Structural readiness for a native action: the execution seams must be present
+-- and callable, and the target must not be force-locked. Identity/digest are not
+-- consulted.
 function M.check(g)
-    if not g or not g.player or not M.matches('useTalent',g.player.useTalent) then
+    if not g or not g.player or type(g.player.useTalent)~='function' then
         return nil,'talent_lifecycle_unavailable'
     end
-    if not M.matches('targetGetForPlayer',g.targetGetForPlayer)
-        or not M.matches('targetMode',g.targetMode) then return nil,'target_provider_unavailable' end
-    if not M.matches('playerGetTarget',g.player.getTarget) then return nil,'player_target_rules_modified' end
-    if not M.matches('playerUseEnergy',g.player.useEnergy) then return nil,'native_energy_tracking_unavailable' end
+    if type(g.targetGetForPlayer)~='function' or type(g.targetMode)~='function' then
+        return nil,'target_provider_unavailable'
+    end
+    if type(g.player.getTarget)~='function' then return nil,'player_target_rules_modified' end
+    if type(g.player.useEnergy)~='function' then return nil,'native_energy_tracking_unavailable' end
     if not M.available('turnBasedTick') then return nil,'native_scheduler_unavailable' end
     if g.target and g.target.forced then return nil,'native_target_forced' end
     return true
 end
 
-function M.available(name) return entries[name] and entries[name].ok or false end
-
--- Read-only dependency registry (spec QRY-02). Query helpers such as a cost
--- factor or an attribute getter are registered once with their intended
--- provider id and source. A later replacement of the same key fails closed:
--- the query field becomes unknown and the replacement is never called.
--- File-digest unification with the entrypoint audit above is M4 (CMP-01/03).
+-- Read-only helper registry (spec QRY-02), DIAGNOSTIC provenance only. A helper
+-- is recorded once with its intended provider id and source, but the live
+-- function is always returned for use; a replaced-but-usable helper is used and
+-- only an unusable/missing one is unavailable.
 local dependencies={}
--- A line of a source text, 1-indexed; nil when out of range.
 local function lineAt(text, line)
     if type(line)~='number' or line<1 then return nil end
     local n=0
@@ -62,62 +119,55 @@ local function lineAt(text, line)
         if n==line then return value end
     end
 end
--- A read-only dependency must come from the audited file (source path + full
--- file digest) and, when a declaration is given, be defined on the expected
--- line of that file. A runtime function that merely reuses the source tag is
--- rejected, so a first-seen override is never trusted (spec QRY-02, F1).
-local function auditedMethod(fn,path,digest,declaration)
-    local info=type(fn)=='function' and debug.getinfo(fn,'S')
-    if not info or info.source~='@'..path then return false,'dependency_source_unverified' end
-    local read_ok,data=pcall(function() return fs.readAll(path) end)
-    if not read_ok or type(data)~='string' then return false,'dependency_source_unreadable' end
-    local hash_ok,hash=pcall(function() return require('md5').sumhexa(data) end)
-    if not hash_ok or hash~=digest then return false,'dependency_source_modified' end
-    if declaration then
-        local source_line=lineAt(data,info.linedefined)
-        if not source_line or not source_line:find(declaration,1,true) then
-            return false,'dependency_body_unverified'
+-- Advisory method provenance: source path + full-file digest + declaration line.
+-- Never blocks. A nil/absent path means the caller supplied no provenance, so the
+-- record is simply marked advisory.
+local function methodProvenance(fn,path,digest,declaration)
+    local info=type(fn)=='function' and debug.getinfo(fn,'S') or nil
+    local source_ok=info~=nil and type(path)=='string' and info.source=='@'..path
+    local digest_ok,declaration_ok=false,false
+    if source_ok and type(digest)=='string' and #digest>0 then
+        local read_ok,data=pcall(function() return fs.readAll(path) end)
+        if read_ok and type(data)=='string' then
+            local hash_ok,hash=pcall(function() return require('md5').sumhexa(data) end)
+            digest_ok=hash_ok and hash==digest
+            if declaration then
+                local source_line=lineAt(data,info.linedefined)
+                declaration_ok=source_line~=nil and source_line:find(declaration,1,true)~=nil
+            end
         end
     end
-    return true
+    local advisory=type(path)~='string' or source_ok~=true or digest_ok~=true
+        or (declaration~=nil and declaration_ok~=true)
+    return {source_ok=source_ok==true,digest_ok=digest_ok==true,
+        declaration_ok=declaration_ok,advisory=advisory}
 end
 function M.registerDependency(id,domain,fn,path,purpose,digest,declaration,depends_on)
     if type(fn)~='function' then
-        dependencies[id]={ok=false,reason='dependency_missing',domain=domain,path=path,depends_on=depends_on or {}}
+        dependencies[id]={ok=false,structural_ok=false,reason='dependency_missing',
+            domain=domain,path=path,depends_on=depends_on or {}}
         return false
     end
     local existing=dependencies[id]
-    if existing and existing.fn and existing.fn~=fn then
-        dependencies[id]={fn=fn,ok=false,reason='dependency_replaced',domain=domain,path=path,depends_on=depends_on or {}}
-        return false
-    end
-    -- No digest means the dependency was not audited: fail closed instead of
-    -- marking an arbitrary current function as trusted.
-    local ok,reason=false,'dependency_not_audited'
-    if type(digest)=='string' and #digest>0 then
-        ok,reason=auditedMethod(fn,path,digest,declaration)
-    end
-    dependencies[id]={fn=fn,ok=ok,reason=ok and nil or reason,domain=domain,path=path,purpose=purpose,depends_on=depends_on or {}}
-    return ok
+    local p=methodProvenance(fn,path,digest,declaration)
+    dependencies[id]={fn=fn,ok=true,structural_ok=true,domain=domain,path=path,purpose=purpose,
+        depends_on=depends_on or {},source_ok=p.source_ok,digest_ok=p.digest_ok,
+        declaration_ok=p.declaration_ok,advisory=p.advisory,
+        replaced=existing~=nil and existing.fn~=nil and existing.fn~=fn or nil}
+    -- Return the live function: provenance is advisory, never a gate.
+    return fn
 end
+-- Return the live function for use. Provenance is advisory; only a non-function
+-- (or an unknown id) is unavailable.
 function M.dependency(id,fn)
     if type(fn)~='function' then return nil,'dependency_not_registered' end
     local entry=dependencies[id]
-    if not entry or not entry.ok then return nil,entry and entry.reason or 'dependency_not_registered' end
-    if fn~=entry.fn then
-        entry.ok=false;entry.reason='dependency_replaced'
-        return nil,'dependency_replaced'
+    if entry then
+        entry.fn=fn
+        entry.ok=true
+        entry.structural_ok=true
     end
-    -- Indirect closure: a transitive dependency that is missing or replaced
-    -- makes this query field unknown instead of silently trusting it.
-    for _,dep in ipairs(entry.depends_on or {}) do
-        local child=dependencies[dep]
-        if not child or not child.ok then
-            entry.ok=false;entry.reason='dependency_closure_broken'
-            return nil,'dependency_closure_broken'
-        end
-    end
-    return fn,entry.reason
+    return fn
 end
 function M.hasDependency(id) return dependencies[id]~=nil end
 function M.resetDependencies() dependencies={} end
@@ -141,26 +191,36 @@ function M.dependencySummary()
     local out={}
     for id,entry in pairs(dependencies) do
         out[id]={ok=entry.ok==true,reason=entry.reason,domain=entry.domain,
-            path=entry.path,purpose=entry.purpose}
+            path=entry.path,purpose=entry.purpose,
+            source_ok=entry.source_ok,digest_ok=entry.digest_ok,
+            declaration_ok=entry.declaration_ok,advisory=entry.advisory==true}
     end
     return out
 end
 function M.alias(name,fn,parent,previous)
     local entry=entries[parent]
-    entries[name]={fn=fn,ok=entry and entry.ok and previous==entry.fn or false}
+    entries[name]={fn=fn,structural_ok=type(fn)=='function',
+        parent=parent,path=entry and entry.path}
 end
 local domainFor
 function M.providerSummary()
     local out={}
     for name,entry in pairs(entries) do
-        out[#out+1]={provider_id=name,domain=domainFor(name),state=entry.ok and 'verified' or 'unverified',
+        local state=type(entry.fn)=='function' and 'present'
+            or 'unavailable'
+        out[#out+1]={provider_id=name,domain=domainFor(name),state=state,
             reason=entry.reason,source=entry.path,
-            effect=entry.ok and nil or (name..' capability unavailable')}
+            source_ok=entry.source_ok,digest_ok=entry.digest_ok,
+            advisory=entry.advisory==true,
+            effect=type(entry.fn)=='function' and nil or (name..' capability unavailable')}
     end
     for name,entry in pairs(dependencies) do
         out[#out+1]={provider_id=name,domain=entry.domain or domainFor(name),
-            state=entry.ok and 'verified' or 'unverified',reason=entry.reason,source=entry.path,
-            effect=entry.ok and nil or (name..' query field becomes unknown')}
+            state=type(entry.fn)=='function' and 'present' or 'unavailable',
+            reason=entry.reason,source=entry.path,
+            source_ok=entry.source_ok,digest_ok=entry.digest_ok,
+            advisory=entry.advisory==true,
+            effect=type(entry.fn)=='function' and nil or (name..' query field becomes unknown')}
     end
     table.sort(out,function(a,b) return a.provider_id<b.provider_id end)
     return out,true
@@ -184,7 +244,7 @@ function domainFor(name)
 end
 function M.summary()
     local providers=select(1,M.providerSummary())
-    return {scope='runtime audit: full file summary and function identity for entrypoints; source, digest, definition line, identity and indirect dependency closure for query dependencies',
+    return {scope='diagnostic-only compatibility record: structural availability plus advisory source/digest/declaration/wrapper provenance and dependency closure; nothing here gates a decision',
         capture_complete=true,providers=providers,dependencies=M.dependencySummary(),closures=M.closureSummary()}
 end
 return M
