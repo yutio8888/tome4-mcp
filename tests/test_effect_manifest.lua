@@ -171,7 +171,41 @@ do
         'Phase Door TL4+ is admitted after the S2 ordered queue')
     check(Manifest.entry('T_PHASE_DOOR').movement.variants~=nil,
         'Phase Door still declares its state-variant matrix')
-    check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupported')
+check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupported')
+    -- S2-R3-01 rev5: the officially-decided multi-prompt unsupported set, each
+    -- with its own typed reason.
+    for _,talent in ipairs({'T_MERGE','T_STONE','T_CURSED_BOLT','T_WORMHOLE',
+        'T_EARTHEN_MISSILES','T_DWARVEN_HALF_EARTHEN_MISSILES'}) do
+        local u=unsupportedEntry(talent)
+        check(u~=nil and u.missing and u.reason and u.scope,
+            talent..' has a structured unsupported entry')
+    end
+    check(unsupportedEntry('T_MERGE').missing=='signature_not_distinguishable'
+        and unsupportedEntry('T_STONE').missing=='signature_not_distinguishable',
+        'Merge and Stone are the signature-not-distinguishable typed reason')
+    check(unsupportedEntry('T_CURSED_BOLT').missing=='dynamic_prompt_count',
+        'Cursed Bolt is the dynamic-prompt-count typed reason')
+    check(unsupportedEntry('T_WORMHOLE').missing=='cross_prompt_postcondition',
+        'Wormhole is the cross-prompt-postcondition typed reason')
+    check(unsupportedEntry('T_EARTHEN_MISSILES').missing=='same_shape_equivalent'
+        and unsupportedEntry('T_DWARVEN_HALF_EARTHEN_MISSILES').missing=='same_shape_equivalent',
+        'Earthen Missiles variants are the same-shape-equivalent typed reason')
+    -- Vault (techniques/agility.lua) is the presence-semantics two-entry
+    -- admission: both prompts are hit-shaped and differ only by nolock presence.
+    local vault=Manifest.entry('T_VAULT')
+    check(vault~=nil and vault.kind=='movement','Vault (agility) is admitted')
+    check(vault.movement and #vault.movement.request_sequence==2
+        and vault.movement.request_sequence[1].request=='actor'
+        and vault.movement.request_sequence[2].request=='grid',
+        'Vault declares the two-entry actor-then-landing program')
+    check(vault.movement.request_sequence[1].observed.cursor_type=='hit'
+        and vault.movement.request_sequence[1].observed.nolock==nil
+        and vault.movement.request_sequence[2].observed.cursor_type=='hit'
+        and vault.movement.request_sequence[2].observed.nolock==true,
+        'Vault\'s two prompts are distinguished by nolock presence (not value)')
+    local vaultSeqs=Manifest.requestSequences(vault)
+    check(#vaultSeqs==1 and vaultSeqs[1][1]=='actor' and vaultSeqs[1][2]=='grid',
+        'Vault declares the actor,grid request sequence')
     local step=unsupportedEntry('T_DIMENSIONAL_STEP')
     check(step~=nil and step.missing=='moving_or_swapping_another_actor',
         'Dimensional Step TL5 is the swap capability gap')

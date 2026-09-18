@@ -273,6 +273,31 @@ M.ENTRIES={
             builder_shape='beam',
             landing_proof='forces the exact requested grid after launch/blocked/projection checks'}),
         components={},conformance={builder=true}},
+    -- Vault (techniques/agility.lua:83-121, T_VAULT) is a genuine TWO-prompt
+    -- program whose prompts BOTH raise type='hit' and differ ONLY by nolock
+    -- presence: prompt 1 (the `target()` builder) is the vaulted actor (hit
+    -- WITHOUT nolock), prompt 2 ({type='hit',nolock=true,range=t.getDist}) is
+    -- the leap landing grid. Only the PRESENCE-EXPLICIT match rule
+    -- (S2-R3-01 rev5: a declared flag must be present-and-equal, an undeclared
+    -- one must not be raised) distinguishes the two positions, so this is an
+    -- S2 `request_then_landing` ordered program. The caster is relocated; the
+    -- vaulted actor is not. The native moves an actor-occupied requested
+    -- landing to a free adjacent grid (`util.findFreeGrid(x,y,1)`), so the
+    -- landing is a bounded native choice around the requested grid.
+    -- (T_SKIRMISHER_VAULT above is a DIFFERENT talent: the acrobatics Vault,
+    -- a genuine single-prompt beam landing — not re-modelled.)
+    T_VAULT={kind='movement',target='grid',resource='stamina',
+        movement=movementAdapter('request_then_landing',{
+            request_sequence={
+                {index=1,request='actor',subject='actor',
+                    observed={cursor_type='hit'}},
+                {index=2,request='grid',subject='self',value_source='target_plan',
+                    observed={cursor_type='hit',nolock=true}}},
+            delivery='leap',traverses=true,relocates_other=false,
+            landing='bounded_alternatives',center='requested_grid',radius=1,min_radius=0,
+            range={getter='getDist'},
+            landing_proof='prompt 1 is the vaulted actor (hit without nolock); prompt 2 is the leap landing grid (hit+nolock, range=getDist); an actor-occupied requested landing falls back to findFreeGrid(x,y,1)'}),
+        components={},conformance={builder=true}},
     -- Dimensional Step: below effective TL5 the native action is always the
     -- self-only `teleportRandom(x,y,0)` branch. At TL5 it swaps only when the
     -- requested grid holds an actor; a player-known empty grid still runs the
@@ -393,6 +418,21 @@ M.UNSUPPORTED={
         reason='requested-grid movement with an alternate landing and radius effect; movement/effect composition is a later slice'},
     {talent='T_DISPLACEMENT_SHIELD',scope='any',missing='source_reviewed_effect_adapter',
         reason='actor-target shield that does not relocate the player; effect adapter not source-reviewed'},
+    -- S2-R3-01 rev5: the officially-decided multi-prompt unsupported set. Each
+    -- entry carries its own typed reason (never a strategy judgement); the
+    -- survey of every official 1.7.6 multi-prompt talent backs the disposition.
+    {talent='T_MERGE',scope='any',missing='signature_not_distinguishable',
+        reason='two hit prompts separated only by first_target/start_x/source_actor (cursed/advanced-shadowmancy.lua:43-46); start_x/source_actor are outside the curated allowlist and first_target is raised nondeterministically elsewhere'},
+    {talent='T_STONE',scope='any',missing='signature_not_distinguishable',
+        reason='two hit prompts separated only by first_target/start_x/source_actor (cursed/advanced-shadowmancy.lua:80-83); start_x/source_actor are outside the curated allowlist and first_target is raised nondeterministically elsewhere'},
+    {talent='T_CURSED_BOLT',scope='any',missing='dynamic_prompt_count',
+        reason='a getTarget inside a per-shadow loop (cursed/advanced-shadowmancy.lua:245); the prompt count is runtime-dynamic, so no fixed ordered program can be curated'},
+    {talent='T_WORMHOLE',scope='any',missing='cross_prompt_postcondition',
+        reason='the entrance prompt is a simple_dir_request direction step and the entrance/exit pair is coupled by native trap-placement and distance>=2 postconditions the per-request guard cannot verify (chronomancy/spacetime-weaving.lua:145,153)'},
+    {talent='T_EARTHEN_MISSILES',scope='any',missing='same_shape_equivalent',
+        reason='three same-shape bolt prompts whose order is semantically irrelevant (spells/stone.lua:39-54); the third is level-dependent, so the program is not a fixed order'},
+    {talent='T_DWARVEN_HALF_EARTHEN_MISSILES',scope='any',missing='same_shape_equivalent',
+        reason='three same-shape bolt prompts whose order is semantically irrelevant (gifts/dwarven-nature.lua:35-50); the third is level-dependent (TL5)'},
     {talent='*',scope='any',missing='moving_or_swapping_another_actor',
         reason='typed multi-actor destination/effect semantics are not implemented'},
 }

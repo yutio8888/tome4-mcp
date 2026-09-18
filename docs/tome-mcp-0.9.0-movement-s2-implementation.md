@@ -70,33 +70,47 @@ signature** per entry:
   per-request guard inputs and vary with talent level) and closures
   (`block_path`).
 
-Matching is `typ.type == observed.cursor_type` **and**, for every declared field, the
-matching constraint above. **Signature semantics (normative, S2-R3-01): the
-signature is a partial predicate.** A declared boolean flag constrains
-`(typ[flag]==true)==value` — a declared `false` matches an absent observed field
-("not truthy") exactly as it matches an explicit `false`; a declared string or
-`default_target` is an equality constraint; every **undeclared field is a wildcard**
-the matcher ignores (they are guard inputs, not identity). Because of the wildcards,
-two syntactically different signatures can still both match one prompt, so every
-published sequence's build rule is pairwise **MUTUAL EXCLUSIVITY**, not record
-inequality: for each pair of N≥2 entries at least one field must be declared by BOTH
-signatures with constraints that cannot both hold for one observed spec (a shared
-flag declared `true` vs `false`, or different strings on a shared
-`cursor_type`/`first_target`/`msg`; `default_target` only admits `'self'` and never
-discriminates). A declared value on a field the other signature omits is NOT a
-discriminator, so `{cursor_type='hit'}` vs `{cursor_type='hit',nowarning=true}` and
-`{cursor_type='hit'}` vs `{cursor_type='hit',nolock=false}` are both refused at build
-time — `movement_adapter_invalid` (detail `request_signature_ambiguous`, with the
-colliding indices) — and the executor's runtime carrier re-checks the same rule for
-directly submitted sequences (`invalid_sequence`). This is a **drift check on
-recorded fields, never an identity/closure audit** of the live object (a replaced
-live entry is called as-is; §7.1/AGENTS.md). Every published sequence **must** carry
-a signature on every entry. This is a plugin-completeness boundary, not a strategy
-judgement. Both Phase Door TL4/TL5+ descriptors carry their real, source-verified
-signatures (actor
+Matching is `typ.type == observed.cursor_type` **and**, for every allowlisted field,
+the matching constraint above. **Signature semantics (normative, S2-R3-01 rev5):
+the signature is PRESENCE-EXPLICIT, not a wildcard predicate.**
+
+- A DECLARED boolean flag must be PRESENT in the observed spec and equal:
+  `{cursor_type='hit'}` does not match a prompt that raises `nolock`; a declared
+  `nolock=false` requires the key present with value `false`, distinct from absence.
+  This is what makes Vault (techniques/agility.lua:113,119) executable: its two
+  prompts BOTH raise type='hit' and differ ONLY by nolock presence, so the two-entry
+  program `hit`-without-nolock → `hit`+nolock is cleanly distinguishable (and is
+  admitted; `T_VAULT` is declared in `EffectManifest`).
+- An UNDECLARED boolean flag must NOT be raised by the observed spec.
+- A declared string (`first_target`/`msg`) or `default_target='self'` must be present
+  and equal when declared; when the signature omits them the observed value is
+  **ignored** — real flows raise them nondeterministically (Phase Door's
+  `first_target` is rng.percent-driven, conveyance.lua:85), so they are never
+  required-absent and never discriminate by absence.
+- Observed fields outside the allowlist (range/radius/closures) are ignored (guard
+  inputs, not identity).
+
+The **normative runtime gate is the executor's EXACTLY-ONE rule**: for each raised
+prompt, the set of declared entries whose signature matches it must be exactly the
+arrival position; zero matches, several matches, or a match at another index are a
+typed deviation (`unexpected_target_request` with expected/observed index, observed
+shape and matched indexes) that pauses and hands the live prompt back. The build-time
+checks keep only what is decidable by inspection: every published entry must carry a
+signature, and for N≥2 no entry's signature may **SUBSUME** another's (identical flag
+constraint sets, the subsumer declaring no additional strings, equal values) — a
+subsumed entry can never be the unique match of any prompt, so the descriptor is
+`movement_adapter_invalid` (detail `request_signature_ambiguous`, with the colliding
+indices). There is NO carrier-level pairwise rejection: a directly submitted
+overlapping sequence is caught at runtime by the exactly-one gate. This is a **drift
+check on recorded fields, never an identity/closure audit** of the live object (a
+replaced live entry is called as-is; §7.1/AGENTS.md). Every published sequence
+**must** carry a signature on every entry. This is a plugin-completeness boundary,
+not a strategy judgement. Both Phase Door TL4/TL5+ descriptors carry their real,
+source-verified signatures (actor
 `{cursor_type='hit',friendlyblock=false,nowarning=true,default_target='self'}`,
-landing `{cursor_type='ball',nolock=true,pass_terrain=true,nowarning=true}`), which
-are mutually exclusive on `cursor_type`.
+landing `{cursor_type='ball',nolock=true,pass_terrain=true,nowarning=true}`), and
+`T_VAULT` (techniques/agility.lua) is admitted as the two-entry
+hit-without-nolock → hit+nolock program.
 
 ## 2. Phase Door matrix (TL4 / TL5+)
 
@@ -148,20 +162,24 @@ k-th declared entry's decided value.
   (a still-live prompt is neither answered nor cancelled). A spec the bridge
   cannot **read** as a signature (`typ` not a table, or `typ.type` not a string)
   is `movement_request_kind_unknown` with `observed_shape=nil`, also handed back.
-  Because published sequences carry pairwise MUTUALLY EXCLUSIVE signatures (§1.1:
-  partial predicates with wildcard semantics), a reordered native flow can never
-  receive the k-th declared answer **for a published descriptor** — an out-of-order
-  prompt provably fails the arrival entry's signature match before any value is
-  built; what this check cannot observe is the native body's internal consumption of
-  an already-given answer, which stays bounded by the per-request native guard, the
-  native rejection and the declared postcondition check. After any live handback the
-  wrapper stops answering: the remaining prompts of the invocation go to the player,
-  and the settle check neither overwrites the recorded deviation nor reports the
-  remaining entries as missing.
-- **Runtime carrier rule (S2-R3-01).** `Actions.validate`/`normalizeSequence`
-  re-checks pairwise mutual exclusivity on a directly submitted `action.sequence`
-  (overlapping pair → `invalid_sequence`), so the build-time invariant cannot be
-  bypassed through the command path.
+  The deviation additionally carries `matched_indexes` (the declared positions whose
+  signature matched the prompt; empty for a zero-match, two or more for an ambiguous
+  declaration, a single other index for a reorder). Because published positions are
+  distinguishable by construction under the presence-explicit matching (§1.1), a
+  reordered native flow can never receive the k-th declared answer **for a published
+  descriptor**; what this check cannot observe is the native body's internal
+  consumption of an already-given answer, which stays bounded by the per-request
+  native guard, the native rejection and the declared postcondition check. After any
+  live handback the wrapper stops answering: the remaining prompts of the invocation
+  go to the player, and the settle check neither overwrites the recorded deviation
+  nor reports the remaining entries as missing.
+- **Runtime EXACTLY-ONE gate (S2-R3-01 rev5, normative).** The executor computes the
+  set of declared entries whose curated observed signature matches each raised
+  prompt; the prompt is answered only when that set is exactly the arrival position.
+  There is NO carrier-level pairwise rejection in `Actions.normalizeSequence`: even a
+  directly submitted overlapping/identical sequence is caught here (ambiguous →
+  several matches → handback), so the invariant cannot be bypassed through the
+  command path.
 - Every request keeps the **native per-request range/self-warning guard**
   (`allowed(typ,x,y)`), evaluated against that request's own spec, so a value
   legal for the grid prompt but not the actor prompt stays refused. A guard
@@ -259,6 +277,29 @@ releases the lease and stops the run, exactly like the existing safety pauses.
 auto-combat reasons/fields carried through existing plumbing; the protocol
 registry (`protocol/v4/vectors/error-codes.json`, 75 codes) and `ErrorRegistry`
 are untouched.
+
+### 4.1 Officially-unsupported multi-prompt talents (S2-R3-01 rev5)
+
+From the full survey of the official 1.7.6 talents (259 `data/talents/**` files,
+action-block parse), the multi-prompt talents and their dispositions. Each is
+published as a structured `EffectManifest.UNSUPPORTED` entry with its own typed
+reason — a capability boundary, never a strategy judgement:
+
+| Talent | Typed reason | Why (file:line) |
+| --- | --- | --- |
+| `T_PHASE_DOOR` | — (supported) | two-entry: `hit`+`default_target=self` (conveyance.lua:79) then `ball`+`nolock` (:106); distinguishable by cursor type |
+| `T_VAULT` | — (supported, two-entry) | `hit`-without-nolock (agility.lua:113) then `hit`+`nolock` (:119); distinguishable ONLY by nolock presence, which the presence-explicit rule makes sound |
+| `T_MERGE`, `T_STONE` | `signature_not_distinguishable` | both prompts share `type='hit'`, separated only by `first_target`/`start_x`/`source_actor` (cursed/advanced-shadowmancy.lua:43-46,80-83); `start_x`/`source_actor` are outside the curated allowlist and `first_target` is raised nondeterministically elsewhere |
+| `T_CURSED_BOLT` | `dynamic_prompt_count` | a `getTarget` inside a per-shadow loop (cursed/advanced-shadowmancy.lua:245); the prompt count is runtime-dynamic |
+| `T_WORMHOLE` | `cross_prompt_postcondition` | the entrance prompt is a `simple_dir_request` direction step and the entrance/exit pair is coupled by native trap-placement and `distance>=2` postconditions the per-request guard cannot verify (chronomancy/spacetime-weaving.lua:145,153) |
+| `T_EARTHEN_MISSILES`, `T_DWARVEN_HALF_EARTHEN_MISSILES` | `same_shape_equivalent` | three same-shape `bolt` prompts whose order is semantically irrelevant; the third is level-dependent (spells/stone.lua:39-54; gifts/dwarven-nature.lua:35-50) — not a fixed order |
+
+Note: the talent called "Stone Shards" in the survey is the dwarven
+"Earthen Missiles" (`T_DWARVEN_HALF_EARTHEN_MISSILES`,
+gifts/dwarven-nature.lua:21); there is no talent of that name in 1.7.6.
+`T_SKIRMISHER_VAULT` (techniques/acrobatics.lua:29) is a DIFFERENT talent — the
+acrobatics Vault, a genuine single-prompt `beam` landing — and is correctly
+modelled single-prompt; it is not re-modelled.
 
 ## 5. Planner, annotations and dry run
 

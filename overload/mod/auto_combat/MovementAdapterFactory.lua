@@ -132,10 +132,10 @@ end
 -- `observed` is the per-entry **curated observed signature** (S2 rev3): the
 -- closed allowlist of static discriminators the reviewed flow raises at this
 -- position. A published sequence must carry a signature on every entry; for
--- N≥2 the signatures must be pairwise MUTUALLY EXCLUSIVE (partial predicates
--- with wildcard semantics; see `signaturesDisjoint`), else the program's
--- reorder is unobservable (the plugin's own undecidability) and the descriptor
--- is `movement_adapter_invalid`/`request_signature_ambiguous`.
+-- N≥2 no entry's signature may SUBSUME another's (presence-explicit match
+-- semantics; see `signatureSubsumes`), else the subsumed entry can never be
+-- uniquely matched and the descriptor is
+-- `movement_adapter_invalid`/`request_signature_ambiguous`.
 -- Returns a fresh array of normalised entries (no shared reference with the
 -- caller's declaration).
 local SEQUENCE_KEYS={index=true,request=true,subject=true,value_source=true,
@@ -185,39 +185,51 @@ local function normalizeObserved(observed,index)
     end
     return copy
 end
--- S2-R3-01 (normative wildcard semantics). A curated observed signature is a
--- PARTIAL predicate over the observed prompt spec, not a complete record:
+-- S2-R3-01 rev5 (presence-explicit semantics, normative). A curated observed
+-- signature is a record of the allowlisted static discriminators the reviewed
+-- native flow raises at this position; matching is PRESENCE-EXPLICIT, not
+-- wildcard-based:
 --   * `cursor_type` is always declared and constrains `typ.type` by equality;
---   * a declared boolean flag constrains `(typ[flag]==true)==value`, so a
---     declared `true` requires the flag truthy and a declared `false` requires
---     it NOT truthy (an absent observed field reads as "not truthy");
---   * a declared string (`first_target`/`msg`) or `default_target='self'`
---     constrains the observed value by equality;
---   * every UNDECLARED field is a wildcard (the runtime matcher ignores it).
--- Because of the wildcards, two syntactically different signature records can
--- still both match one observed spec. The build rule is therefore pairwise
--- MUTUAL EXCLUSIVITY, never record inequality: for every pair of entries in an
--- N>=2 sequence at least one field must be declared by BOTH signatures with
--- constraints that cannot both hold for one observed spec. Within the closed
--- vocabulary this means a shared flag declared `true` by one side and `false`
--- by the other, or different strings on a shared `cursor_type`/`first_target`/
--- `msg`. (`default_target` only admits 'self', so it never discriminates.)
--- A declared value on a field the other signature omits is NOT discriminating:
--- absence is a wildcard, and the matcher treats "absent" and "not true"
--- identically, so declaring `false` adds no constraint beyond absence. This
--- refuses, for example, `{cursor_type='hit'}` vs `{cursor_type='hit',
--- nowarning=true}` (a `hit,nowarning=true` prompt matches both) and
--- `{cursor_type='hit'}` vs `{cursor_type='hit',nolock=false}` (the same
--- `{type='hit'}` spec matches both). Two prompts whose predicates provably
--- cannot both match one observed spec are the only admissible pair; anything
--- else makes the program's reorder unobservable (the plugin's own
--- undecidability) and the descriptor is
--- `movement_adapter_invalid`/`request_signature_ambiguous`.
-local function signaturesDisjoint(a,b)
-    for key,value in pairs(a) do
-        if b[key]~=nil and value~=b[key] then return true,key end
+--   * a declared boolean flag must be PRESENT in the observed spec and EQUAL
+--     (so `{cursor_type='hit'}` is distinguishable from
+--     `{cursor_type='hit',nolock=true}`, and a declared `nolock=false` is a real
+--     constraint distinct from absence — Vault's two prompts differ exactly by
+--     nolock presence);
+--   * a declared string (`first_target`/`msg`) or `default_target='self'` must
+--     be present and equal when the signature declares it; when the signature
+--     OMITS them, the observed spec's value is ignored — real flows raise them
+--     nondeterministically (Phase Door's `first_target` is rng.percent-driven,
+--     conveyance.lua:85), so they are never required-absent;
+--   * an observed spec may not raise an allowlisted field the entry does not
+--     declare beyond the string/default_target exception above (no wildcard).
+-- The build-time ambiguity rule (decidable by inspection): for every pair of
+-- entries in an N≥2 sequence, one signature must not SUBSUME the other — i.e.
+-- one entry's match set must not contain the other's (equal flag constraint
+-- sets and the subsumer declaring no additional strings). A subsumed entry can
+-- never be the unique match of any prompt, so the descriptor is
+-- `movement_adapter_invalid`/`request_signature_ambiguous`. The normative
+-- runtime safety net is the executor's EXACTLY-ONE rule (`Actions.lua`): a
+-- raised prompt may be answered only when exactly one declared entry — the
+-- arrival position — matches it; zero matches, several matches, or a match at
+-- another index are typed deviations that pause and hand the live prompt back.
+local function signatureSubsumes(a,b)
+    -- b's match set ⊆ a's: the flag constraint sets must be IDENTICAL (a
+    -- declared flag is present-and-equal, an undeclared one required-absent, so
+    -- any flag difference makes the sets disjoint, not nested), and every
+    -- string/default_target a declares must also be declared by b with the same
+    -- value.
+    if a.cursor_type~=b.cursor_type then return false end
+    for flag in pairs(OBSERVED_SIGNATURE_FLAGS) do
+        if (a[flag]~=nil)~=(b[flag]~=nil) then return false end
+        if a[flag]~=nil and a[flag]~=b[flag] then return false end
     end
-    return false,nil
+    for key in pairs(OBSERVED_SIGNATURE_STRINGS) do
+        if a[key]~=nil and (b[key]==nil or b[key]~=a[key]) then return false end
+    end
+    if a.default_target~=nil and (b.default_target==nil or b.default_target~=a.default_target) then
+        return false
+    end
+    return true
 end
 function M.normalizeRequestSequence(list)
     local ok,maxKey=validateArray(list,1)
@@ -270,16 +282,18 @@ function M.normalizeRequestSequence(list)
         if entry.optional==true then copy.optional=true end
         out[i]=copy
     end
-    -- S2-R3-01: for N≥2 the curated signatures must be pairwise MUTUALLY
-    -- EXCLUSIVE, not merely unequal as records (partial predicates with
-    -- wildcards; see `signaturesDisjoint`). Two prompts whose predicates can
-    -- both match one observed spec make their reorder undetectable, so the
+    -- S2-R3-01 rev5: for N≥2 no entry's curated signature may SUBSUME another's
+    -- (presence-explicit match semantics; see `signatureSubsumes`): a subsumed
+    -- entry can never be the unique match of any raised prompt, so the
     -- descriptor is refused at build time (a plugin-completeness boundary,
-    -- never a strategy judgement).
+    -- never a strategy judgement). Pairs that are merely distinguishable under
+    -- presence semantics (Vault's hit-without-nolock vs hit+nolock) are
+    -- admitted; the runtime EXACTLY-ONE gate is the normative safety net.
     if maxKey>=2 then
         for i=1,maxKey-1 do
             for j=i+1,maxKey do
-                if not signaturesDisjoint(out[i].observed,out[j].observed) then
+                if signatureSubsumes(out[i].observed,out[j].observed)
+                    or signatureSubsumes(out[j].observed,out[i].observed) then
                     return nil,{detail='request_signature_ambiguous',
                         indexes={i,j},signature=out[i].observed.cursor_type}
                 end

@@ -91,36 +91,46 @@ end
 -- and `default_target='self'`. Dynamic numerics (`range`/`radius`) and closures
 -- are never signature fields (they are the per-request guard inputs). This is a
 -- drift check on recorded fields, never an identity audit of a live object.
--- S2-R3-01 (normative wildcard semantics): the signature is a PARTIAL
--- predicate. `cursor_type` is always an equality constraint; a declared flag
--- constrains `(typ[flag]==true)==value` (a declared `false` matches an absent
--- observed field — "not truthy" — exactly as it matches an explicit `false`);
--- a declared string/`default_target` is an equality constraint; every
--- UNDECLARED field is a wildcard the matcher ignores. The build rule that keeps
--- a published sequence's reorder observable is pairwise MUTUAL EXCLUSIVITY
--- (see `signaturesDisjoint` below and the factory), not record inequality.
+-- S2-R3-01 rev5 (presence-explicit semantics, normative): the signature is a
+-- record, not a wildcard predicate.
+--   * `cursor_type` is always an equality constraint;
+--   * a DECLARED boolean flag must be PRESENT in the observed spec and equal
+--     (`{cursor_type='hit'}` does not match a prompt that raises `nolock`; a
+--     declared `nolock=false` requires the key present with value `false`,
+--     distinct from absence — Vault's two prompts differ exactly by nolock
+--     presence);
+--   * an UNDECLARED boolean flag must NOT be raised by the observed spec;
+--   * a declared string/`default_target` must be present and equal; when the
+--     signature omits them the observed value is IGNORED — real flows raise
+--     them nondeterministically (Phase Door's `first_target` is
+--     rng.percent-driven, conveyance.lua:85), so they are never required-absent.
+-- The normative runtime gate is the executor's EXACTLY-ONE rule: a raised
+-- prompt may be answered only when exactly one declared entry — the arrival
+-- position — matches it; zero matches, several matches, or a match at another
+-- index are typed deviations that pause and hand the live prompt back.
 local OBSERVED_FLAGS={nolock=true,pass_terrain=true,friendlyblock=true,
     nowarning=true,immediate_keys=true,no_restrict=true}
 local OBSERVED_STRINGS={first_target=true,msg=true}
--- S2-R3-01: two signatures are mutually exclusive iff at least one field is
--- declared by BOTH with constraints that cannot both hold for one observed
--- spec (see the factory `signaturesDisjoint` for the normative wildcard
--- semantics). Runtime mirror of the build-time rule, so a directly submitted
--- `action.sequence` can never publish overlapping partial predicates either.
-local function signaturesDisjoint(a,b)
-    for key,value in pairs(a) do
-        if b[key]~=nil and value~=b[key] then return true,key end
-    end
-    return false,nil
-end
+-- S2-R3-01 rev5: the runtime EXACTLY-ONE rule is the normative gate, so there
+-- is no build-time exclusivity proof here: a published descriptor's factory
+-- validation rejects only subsuming declarations, and the executor refuses to
+-- answer any prompt that does not match EXACTLY the arrival entry (zero
+-- matches, several matches, or a match at another index are typed handbacks).
 local function observedMatchesSignature(typ,entry,caster)
     local signature=entry and entry.observed
     if type(signature)~='table' or type(signature.cursor_type)~='string' then return false end
     if type(typ)~='table' or type(typ.type)~='string' then return false end
     if typ.type~=signature.cursor_type then return false end
+    -- Presence-explicit flags: declared -> present-and-equal; undeclared -> the
+    -- observed spec must NOT raise the field.
     for flag in pairs(OBSERVED_FLAGS) do
-        if signature[flag]~=nil and (typ[flag]==true)~=signature[flag] then return false end
+        if signature[flag]~=nil then
+            if typ[flag]~=signature[flag] then return false end
+        elseif typ[flag]~=nil then return false end
     end
+    -- Strings/default_target: declared -> present-and-equal; undeclared ->
+-- ignored (real flows raise them nondeterministically, so they are never
+    -- required-absent and never discriminate by absence).
     for key in pairs(OBSERVED_STRINGS) do
         if signature[key]~=nil and typ[key]~=signature[key] then return false end
     end
@@ -186,20 +196,10 @@ function M.normalizeSequence(list)
         end
         out[i]=copy
     end
-    -- S2-R3-01: pairwise mutual exclusivity on the runtime carrier too (the
-    -- factory enforces it at build time for published descriptors; a directly
-    -- submitted sequence must satisfy the same invariant). An overlapping pair
-    -- would let a reordered prompt consume the wrong k-th answer before any
-    -- deviation is noticed, so it is refused here.
-    if maxKey>=2 then
-        for i=1,maxKey-1 do
-            for j=i+1,maxKey do
-                if not signaturesDisjoint(out[i].observed,out[j].observed) then
-                    return nil,'invalid_sequence'
-                end
-            end
-        end
-    end
+    -- S2-R3-01 rev5: no carrier-level pairwise check — the runtime EXACTLY-ONE
+    -- gate is the normative rule and subsumes it: even a directly submitted
+    -- overlapping/identical signature pair can never be answered ambiguously,
+    -- because a prompt is only answered when exactly the arrival entry matches.
     return out
 end
 -- Statistical audit of an attack entry (NO-AUDIT): the only structural
@@ -655,23 +655,32 @@ function M.execute(g, action, target, meta, command)
                                 yielded=true
                                 return original(self,typ,...)
                             end
-                            -- S2 rev3: the observed prompt is matched against the
-                            -- declared entry's CURATED OBSERVED SIGNATURE before
-                            -- any answer is built. Geometry alone is never used as
-                            -- actor/grid evidence; the observed signature is a
-                            -- curated drift check on recorded fields. A mismatch
-                            -- (including a reordered flow, whose out-of-order
-                            -- prompt cannot match the entry curated for its
-                            -- arrival position) is never a blind answer of the
-                            -- k-th declared value: the live prompt is handed back.
+                            -- S2-R3-01 rev5: the normative runtime EXACTLY-ONE
+                            -- gate. Compute the set of declared entries whose
+                            -- curated observed signature matches this raised
+                            -- prompt. The prompt may be answered ONLY when that
+                            -- set is exactly the arrival position: zero matches
+                            -- (extra/drifted prompt), several matches
+                            -- (ambiguous declaration), or a match at another
+                            -- index (reordered flow) are typed deviations — the
+                            -- live prompt is handed back, never a blind answer
+                            -- of the k-th declared value. Geometry alone is
+                            -- never used as actor/grid evidence.
                             if not observableSpec(typ) then
                                 requestKindUnknown(observed,entry.request,nil)
                                 yielded=true
                                 return original(self,typ,...)
                             end
-                            if not observedMatchesSignature(typ,entry,p) then
+                            local matched_indexes={}
+                            for i=1,#queue do
+                                if observedMatchesSignature(typ,queue[i],p) then
+                                    matched_indexes[#matched_indexes+1]=i
+                                end
+                            end
+                            if #matched_indexes~=1 or matched_indexes[1]~=observed then
                                 deviate(observed,entry.request,nil,
-                                    {observed_shape=typ.type,handback=true})
+                                    {observed_shape=typ.type,handback=true,
+                                        matched_indexes=matched_indexes})
                                 yielded=true
                                 return original(self,typ,...)
                             end

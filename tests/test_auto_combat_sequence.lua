@@ -158,69 +158,72 @@ do
         {target_requests={'actor','grid'}})
     check(length==nil and lengErr.detail=='request_sequence_length_mismatch',
         'a target_requests length disagreement is rejected')
-    -- S2 rev3: for N>=2 the curated signatures must be pairwise mutually
-    -- exclusive, else the program's reorder is unobservable
-    -- (movement_adapter_invalid).
+    -- S2-R3-01 rev5: for N>=2 no entry's signature may SUBSUME another's
+    -- (presence-explicit semantics). Identical records are the trivial case.
     local ambiguous,ambErr=seq({{index=1,request='actor',subject='self',observed=ACTOR_SIG},
         {index=2,request='grid',subject='self',observed=ACTOR_SIG}})
     check(ambiguous==nil and ambErr.reason=='movement_adapter_invalid'
         and ambErr.detail=='request_signature_ambiguous'
         and ambErr.indexes and ambErr.indexes[1]==1 and ambErr.indexes[2]==2,
         'identical signatures on N>=2 are movement_adapter_invalid/request_signature_ambiguous')
-    -- S2-R3-01 bypass 1 (wildcard overlap): signatures are PARTIAL predicates;
-    -- a declared value on a field the other signature omits is NOT a shared
-    -- discriminator (absence is a wildcard), so a hit,nowarning=true prompt
-    -- would match both entries and could consume the wrong k-th answer.
-    local overlap,overlapErr=seq({{index=1,request='actor',subject='self',
-            observed={cursor_type='hit'}},
-        {index=2,request='grid',subject='self',observed={cursor_type='hit',nowarning=true}}})
-    check(overlap==nil and overlapErr.reason=='movement_adapter_invalid'
-        and overlapErr.detail=='request_signature_ambiguous'
-        and overlapErr.indexes[1]==1 and overlapErr.indexes[2]==2,
-        'a wildcard-overlapping pair (declared value vs omitted field) is rejected')
-    -- S2-R3-01 bypass 2 (nil vs false): a declared `false` flag is the same
-    -- constraint as an omitted field under the matcher ((typ[flag]==true)==false),
-    -- so this pair is also not mutually exclusive and is rejected.
-    local nilFalse,nilFalseErr=seq({{index=1,request='actor',subject='self',
-            observed={cursor_type='hit'}},
-        {index=2,request='grid',subject='self',observed={cursor_type='hit',nolock=false}}})
-    check(nilFalse==nil and nilFalseErr.detail=='request_signature_ambiguous',
-        'a nil-vs-false pair (absence reads as not-true) is not mutually exclusive and is rejected')
-    -- Truly exclusive pairs are admitted: a shared discriminator constrained by
-    -- BOTH signatures to incompatible values provably cannot match one prompt.
-    local exclusive=assert(seq({{index=1,request='actor',subject='self',
+    -- Strict subsumption: under presence semantics an entry whose declared
+    -- field-set strictly contains the other's (equal values on the shared
+    -- fields, identical flag constraint sets) is ALWAYS-TRUE-redundant — every
+    -- prompt matching the subsumed entry also matches the subsumer, so the
+    -- subsumed entry can never be uniquely matched. Rejected at build time.
+    local subsume,subsumeErr=seq({{index=1,request='actor',subject='self',
             observed={cursor_type='hit',nolock=true}},
+        {index=2,request='grid',subject='self',
+            observed={cursor_type='hit',nolock=true,first_target='friend'}}})
+    check(subsume==nil and subsumeErr.reason=='movement_adapter_invalid'
+        and subsumeErr.detail=='request_signature_ambiguous'
+        and subsumeErr.indexes[1]==1 and subsumeErr.indexes[2]==2,
+        'a strictly subsuming signature pair (more specific entry is redundant) is rejected')
+    -- The former wildcard-overlap pair is now PROVABLY SAFE under presence
+    -- semantics: a declared flag is present-and-equal and an undeclared flag
+    -- must NOT be raised, so no constructed spec matches both entries.
+    local overlap=assert(seq({{index=1,request='actor',subject='self',
+            observed={cursor_type='hit'}},
+        {index=2,request='grid',subject='self',observed={cursor_type='hit',nowarning=true}}}))
+    check(#overlap.request_sequence==2,
+        'presence semantics distinguishes a declared flag from its absence (overlap pair admitted)')
+    -- The nil-vs-false pair is likewise safe: a declared `false` requires the
+    -- key PRESENT with value `false`, which absence does not satisfy.
+    local nilFalse=assert(seq({{index=1,request='actor',subject='self',
+            observed={cursor_type='hit'}},
         {index=2,request='grid',subject='self',observed={cursor_type='hit',nolock=false}}}))
-    check(#exclusive.request_sequence==2,
-        'a shared flag declared true by one entry and false by the other is mutually exclusive')
-    local exclusiveStrings=assert(seq({{index=1,request='actor',subject='self',
-            observed={cursor_type='hit',first_target='a'}},
-        {index=2,request='grid',subject='self',observed={cursor_type='hit',first_target='b'}}}))
-    check(#exclusiveStrings.request_sequence==2,
-        'a shared string field declared to two different values is mutually exclusive')
-    -- The Phase Door shape pair stays admitted: differing cursor_type values
-    -- are themselves incompatible constraints on a field both entries declare.
+    check(#nilFalse.request_sequence==2,
+        'a declared false flag is a real presence constraint (nil-vs-false pair admitted)')
+    -- Vault's own shape (techniques/agility.lua:113,119): both prompts are
+    -- `hit`-shaped and differ ONLY by nolock presence — cleanly distinguishable
+    -- under presence semantics and admitted as a two-entry program.
+    local vaultPair=assert(seq({{index=1,request='actor',subject='actor',
+            observed={cursor_type='hit'}},
+        {index=2,request='grid',subject='self',value_source='target_plan',
+            observed={cursor_type='hit',nolock=true}}}))
+    check(#vaultPair.request_sequence==2,
+        'Vault-style hit-without-nolock vs hit+nolock is admitted (presence semantics)')
+    -- Distinguishable-by-different-declared-discriminators pairs stay admitted.
     local distinct=assert(seq({{index=1,request='actor',subject='self',observed=ACTOR_SIG},
-        {index=2,request='grid',subject='self',observed=GRID_SIG}}))
+        {index=2,request='grid',subject='self',observed={cursor_type='hit',nolock=true}}}))
     check(#distinct.request_sequence==2,
-        'entries whose cursor_type differs are mutually exclusive')
+        'entries differing by declared discriminators are accepted as distinct')
+    -- The Phase Door shape pair stays admitted: differing cursor_type values
+    -- are incompatible constraints on a field both entries declare.
+    local phaseDoor=assert(seq({{index=1,request='actor',subject='self',observed=ACTOR_SIG},
+        {index=2,request='grid',subject='self',observed=GRID_SIG}}))
+    check(#phaseDoor.request_sequence==2,
+        'entries whose cursor_type differs are admitted')
     -- A template with a sequence but no curated target_requests derives the list.
     check(valid.target_requests~=nil and #valid.target_requests==2,
         'the capability list is derived when omitted')
-    -- S2-R3-01: the runtime carrier (Actions.validate -> normalizeSequence)
-    -- enforces the same pairwise mutual exclusivity for a directly submitted
-    -- `action.sequence`, so the overlap can never reach the queue through the
-    -- command path either (existing `invalid_sequence` code, no new error).
-    local direct,directErr=Actions.validate({type='use_talent',talent_id='T_SEQ',
+    -- S2-R3-01 rev5: the runtime carrier carries NO pairwise rejection — the
+    -- runtime EXACTLY-ONE gate is the normative rule and subsumes it.
+    local direct=Actions.validate({type='use_talent',talent_id='T_SEQ',
         sequence={{kind='self',request='actor',observed={cursor_type='hit'}},
             {kind='grid',x=3,y=3,request='grid',observed={cursor_type='hit',nolock=false}}}})
-    check(direct==nil and directErr=='invalid_sequence',
-        'a directly submitted overlapping signature pair is invalid_sequence')
-    local directExclusive,directExclusiveErr=Actions.validate({type='use_talent',talent_id='T_SEQ',
-        sequence={{kind='self',request='actor',observed={cursor_type='hit',nolock=true}},
-            {kind='grid',x=3,y=3,request='grid',observed={cursor_type='hit',nolock=false}}}})
-    check(directExclusive~=nil and directExclusiveErr==nil,
-        'a directly submitted mutually exclusive pair stays valid')
+    check(direct~=nil,
+        'a presence-distinguishable directly submitted pair stays valid')
 end
 
 -- 2. Planner lowering: one plan per declared entry, in order ------------------
@@ -373,15 +376,31 @@ do
         provider,movement,{x=2,y=2}))
     -- A grid-semantics prompt may legitimately be raised with the `hit` shape
     -- (Dimensional Step does exactly this); a curated signature saying so must
-    -- be accepted. Undeclared observed fields (range/radius) are ignored.
+    -- be accepted. Presence-explicit semantics: the signature must declare
+    -- every allowlisted discriminator the prompt raises (nowarning=true here);
+    -- non-allowlisted observed fields (range/radius) are ignored.
     local seen={}
     local def={prompts={{type='hit',range=10,nowarning=true}},
         on_answer=function(self,answers) seen=answers;return true end}
     local result,command=runQueue(def,
         {type='use_talent',talent_id='T_SEQ',
-            sequence={{kind='grid',request='grid',x=5,y=3,observed={cursor_type='hit'}}}})
+            sequence={{kind='grid',request='grid',x=5,y=3,observed={cursor_type='hit',nowarning=true}}}})
     check(result.ok and seen[1] and seen[1].x==5 and seen[1].y==3,
         'a legal grid-via-hit request is accepted when the curated signature says so')
+    -- Presence-explicit negative: the same prompt with an allowlisted flag the
+    -- signature does NOT declare (nolock raised, undeclared) is a mismatch —
+    -- the prompt is handed back, never answered blindly.
+    local seen2={}
+    local def2={prompts={{type='hit',range=10,nowarning=true,nolock=true}},
+        on_answer=function(self,answers) seen2=answers;return true end}
+    local result2=runQueue(def2,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=5,y=3,
+                observed={cursor_type='hit',nowarning=true}}}})
+    check(not result2.ok and result2.code=='unexpected_target_request'
+        and result2.sequence_deviation.handed_back==true
+        and seen2[1] and seen2[1].x==99,
+        'an allowlisted flag raised but undeclared by the signature is a zero-match handback')
 end
 
 -- 4. Per-request native guard: a value legal for one prompt is refused for
@@ -662,6 +681,67 @@ do
                 observed={cursor_type='ball',nowarning=true}}}})
     check(result.ok and seen[1] and seen[1].x==1 and seen[1].y==1,
         'a legal actor-semantics-via-ball request is accepted when the curated signature says so')
+end
+
+-- 9g. Vault (techniques/agility.lua:113,119): the two prompts BOTH raise
+-- type='hit' and differ ONLY by nolock presence — the presence-explicit
+-- presence rule is what makes the two-entry program executable. The second
+-- prompt must be answered with its OWN decided value (the policy's landing
+-- coordinate), not the actor prompt's value.
+do
+    local seen={}
+    local def={prompts={{type='hit',range=10},
+            {type='hit',nolock=true,range=5}},
+        on_answer=function(self,answers) seen=answers;return true end}
+    local result,command=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='actor',request='actor',target_id='a1',
+                    observed={cursor_type='hit'}},
+                {kind='grid',request='grid',x=6,y=2,
+                    observed={cursor_type='hit',nolock=true}}}},
+        {x=3,y=2})
+    check(result.ok,'the Vault-style two-entry hit program settles in one submission')
+    check(seen[1] and seen[1].x==3 and seen[1].y==2 and seen[1].entity~=nil
+        and seen[2] and seen[2].x==6 and seen[2].y==2 and seen[2].entity==nil,
+        'the second (nolock) prompt is answered with its own decided coordinate, not the actor value')
+    local seq=command and command.target_sequence
+    check(seq and #seq==2 and seq[1].shape=='hit' and seq[2].shape=='hit'
+        and seq[1].answer.x==3 and seq[2].answer.x==6,
+        'the observed sequence records both same-shape prompts and their distinct answers')
+end
+
+-- 10a. Exactly-one violations (S2-R3-01 rev5): an ambiguous declaration (two
+-- identical signatures in a directly submitted sequence — the carrier no
+-- longer rejects records pairwise) makes BOTH entries match the first prompt;
+-- the prompt is handed back with the matched indexes, never answered.
+do
+    local seen={}
+    local def={prompts={{type='hit',range=10,nowarning=true}},
+        on_answer=function(self,answers) seen=answers;return true end}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+                {kind='grid',request='grid',x=5,y=3,observed=ACTOR_SIG}}})
+    check(not result.ok and result.code=='unexpected_target_request'
+        and result.sequence_deviation.handed_back==true
+        and result.sequence_deviation.matched_indexes
+        and result.sequence_deviation.matched_indexes[1]==1
+        and result.sequence_deviation.matched_indexes[2]==2,
+        'an ambiguous declaration (two entries matching one prompt) hands the prompt back')
+    check(seen[1] and seen[1].x==99,
+        'the ambiguous prompt was never answered with either declared value')
+    -- Zero-match: the raised prompt matches NO declared entry (extra/drifted).
+    local seen2={}
+    local def2={prompts={{type='cone',range=10,nowarning=true}},
+        on_answer=function(self,answers) seen2=answers;return true end}
+    local result2=runQueue(def2,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG}}})
+    check(not result2.ok and result2.code=='unexpected_target_request'
+        and result2.sequence_deviation.matched_indexes and #result2.sequence_deviation.matched_indexes==0,
+        'a zero-match prompt (matches no declared entry) is a typed handback')
+    check(seen2[1] and seen2[1].x==99,
+        'the zero-match prompt was never answered')
 end
 
 -- 10. Validation: the internal sequence field is closed ----------------------

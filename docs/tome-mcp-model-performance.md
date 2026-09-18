@@ -83,7 +83,7 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 29 | S2 rev2 修 REV-01..07 | **B**（Dev）/ **Sol**（Review，复用复核自身） | 同 #28（复核自身发现） | FAIL（**do_not_merge**） | 0 | 2 | 0 | 0 | 2 |
 | 30 | S2 契约修订（Investigation B）+ 应用事故修复 | B（Investigation）/ — | — | BLOCKED→已修复（Dev A 正确拒绝实施） | 0 | 0 | 0 | 0 | 0 |
 | 31 | S2 rev3 按修订契约实现（记录在 main 分支账本 c62c31e） | A（Dev）/ **Sol**（Review，复用复核自身） | 同 #29（复核自身发现） | FAIL（**do_not_merge**） | 0 | 1 | 2 | 0 | 3 |
-| 32 | S2 rev4 修 R3-01..03（本轮，Dev B） | **B**（Dev）/ —（待新 Sol 复审） | 全新 Sol 评审（本轮尚无） | 待评审 | 0 | 0 | 0 | 0 | 3 |
+| 32 | S2 rev4 修 R3-01..03（Dev B，先按 wildcard 语义交付，后按协调者 carry-over 改为 presence-explicit + 运行期 exactly-one） | **B**（Dev）/ —（待新 Sol 复审） | 全新 Sol 评审 | 待评审（carry-over: R3-02/R3-03 已验收保留） | 0 | 0 | 0 | 0 | 3 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
