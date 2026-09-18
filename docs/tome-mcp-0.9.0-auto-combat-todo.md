@@ -386,3 +386,13 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
       the preset/adapter authoring radar (author policies against talents whose requests share the
       decided target).
 
+61. **S1 Rush 复测新发现（报告 sha256
+    `298c1cbf66bd4975cfde36213d3c24ce64ef2ff1395a43ac1881196900ecdd1c`；P0 已验证关闭）。**
+    - **P2-1（移动健壮性，已派修复）**：`approach`/`toward` 的确定落点被**原生拒绝**后，插件不尝试
+      次优可行相邻格，直接 `stopped reason=no_available_action`——即使存在可行相邻步
+      （实测 seq 38/57：玩家 (57,6) 朝 troll (58,4)，直线落点 (57,5) 为树被拒，而 (58,6)/(56,6)/(57,7)
+      可行）。对照：`rush` 被拒后会正确恢复（seq 34/93）。修法：approach 落点被原生拒绝时，按已声明的
+      接受条件尝试备选相邻格（复用 bounded 备选枚举），全部不可行才 `no_available_action`。
+    - **P3-2（denied 详情）**：手动 `use_talent` 处于冷却时返回 `native_rejected`，但结构化信息里
+      没有"还需 N 回合"之类的冷却字段（只在玩家日志里）。建议在 denied 详情带 cooldown 字段。
+
