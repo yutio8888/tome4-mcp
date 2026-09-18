@@ -1,7 +1,7 @@
 # ToME MCP 0.9.0 — P3 follow-ups 清尾（#60-N2 / #63-P3-b / #63-P3-c / #64-RR-1）
 
-日期：2026-09-18。Branch `fix/p3-followups`，off `main@d780865`（worktree `.../tome-mcp-bridge-p3`）。
-Role `[Dev]`（model A，该序列上次为 B）。merge=no。`allow_auto_combat_execution` 保持 `false`；
+日期：2026-09-18。Branch `fix/p3-followups`，基线 `main@9624b62a6ee4422d2d6d2e5e596a911eb3fe1caf`（当前 main HEAD，即本分支唯一 parent / merge-base；早期记录中的 `main@d780865` 为 rebase 前的历史出处，不作为基线），工作树 `.../tome-mcp-bridge-p3`；冻结评审树 `.../tome-mcp-bridge-p3rev`。
+Role `[Dev]`（model A，该序列上次为 B；后续仅文档修正轮 DOC-V4-01/DOC-PROVENANCE-01 由 Dev model B 完成，仍只触及 `docs/`）。merge=no。`allow_auto_combat_execution` 保持 `false`；
 **无游戏核心改动，无生产代码改动**（本分支只触及 `tests/` 与 `docs/`）。
 
 来源：四条既有、非阻塞的 P3 gate（TODO #60-N2、#63-P3-b、#63-P3-c、#64/RR-1）。本文件逐条记录
@@ -80,9 +80,9 @@ root_probe:close()
 | 字段 | emit 点 |
 | --- | --- |
 | `observe.auto_combat.last_native_abort`（`code='native_timeout'`/`reason`/`cancelled`/`action?`/`talent?`/`target?`/`elapsed_ticks?`/`elapsed_frames?`） | `Runtime.lua:2074-2077`（写入 `s.auto_timeout`），`Runtime.lua:209`（`last_native_abort=s.auto_timeout or Json.null`） |
-| `observe.auto_combat.pending_interaction`（条件键，`interaction` 同形） | `Runtime.lua:222-224`（仅当 `s.auto_invocation` 仍有 live 原生请求） |
-| policy 事件 `action`、`elapsed_ticks`、`elapsed_frames` | `PolicyLog.lua:75/80-81`；生产写入 `AutoCombatService.lua:368-378`（notify），`AutoCombat.lua:296-299`（`native_aborted`） |
-| policy 事件 `native_result`、`landing`、`missing`、`hint`、`native_message` | `PolicyLog.lua:73/77-79`；`AutoCombatService.lua:374/377`；`AutoCombat.lua:280-287`（`movement_retry`）、`AutoCombat.lua:255-269`（`denied` 详情） |
+| `observe.auto_combat.pending_interaction`（条件键，`interaction` 同形） | `Runtime.lua:221-223`（仅当 `s.auto_invocation` 仍有 live 原生请求） |
+| policy 事件 `action`、`elapsed_ticks`、`elapsed_frames` | `PolicyLog.lua:74/80-81`；生产写入 `AutoCombatService.lua:368-378`（notify），`AutoCombat.lua:294-299`（`native_aborted`） |
+| policy 事件 `native_result`、`landing`、`missing`、`hint`、`native_message` | `PolicyLog.lua:73/77-79`；`AutoCombatService.lua:374/377`；`AutoCombat.lua:278-285`（`movement_retry`）、`AutoCombat.lua:255-269`（`denied` 详情） |
 
 文档改动：新增 **§4.9 `auto_combat`（自动战斗摘要）**、**§6.1.1 policy 事件**表，并显式声明
 **请求侧 schema 未变**（`protocol/v4/requests.schema.json` 与 `server/` 的严格请求模型无新字段；

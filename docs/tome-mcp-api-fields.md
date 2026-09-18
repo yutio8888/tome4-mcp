@@ -25,7 +25,8 @@
 | `control_token` | string\|null | 控制租约；observe 模式为 null |
 | `revision` | int | 当前版本计数 |
 | `mode` | `control`\|`observe` | 连接模式 |
-| `protocol_version` | 3 | 协议版本（固定） |
+| `protocol_version` | 4 | 协议版本（固定）（`Runtime.lua:1626`） |
+| `history` | object | 命令账本摘要：`{last_accepted_seq, evicted_through_seq, retained_count, next_command_id, dedup_scope}`（`Runtime.lua:1626`；形状见 `CommandLedger.lua:56-63`） |
 | `capabilities` | object | 见 §3 |
 | `snapshot` | object | 同 `tome.observe`（§4） |
 
@@ -33,29 +34,31 @@
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `protocol` | int | 3 |
-| `actions` | string[] | 可用动作：`move`、`wait`、`attack`、`use_talent`、`change_level`、`rest`、`spend_stat`、`learn_talent`、`learn_category`、`unlearn_talent`、`pickup`、`equip`、`unequip`、`set_sustain`、`use_item` |
+| `protocol` | int | 4（`Runtime.lua:1627`） |
+| `actions` | string[] | 可用动作（发射顺序）：`move`、`wait`、`attack`、`use_talent`、`set_sustain`、`use_item`、`change_level`、`rest`、`auto_explore`、`spend_stat`、`learn_talent`、`learn_category`、`unlearn_talent`、`pickup`、`equip`、`unequip`（`Runtime.lua:1628-1629`） |
 | `connection_modes` | string[] | `["control","observe"]` |
 | `talents` | string[] | 当前可尝试原生的技能 ID（mode 允许的已学技能） |
 | `talent_execution` | string | `native_interactive` \| `legacy_adapters` |
 | `interactions` | string[]? |`target.grid`、`target.direction`、`dialog.confirm`、`dialog.choice`、`dialog.notice`、`inventory.select` |
-| `native_tasks` | string[]? |`["task.rest"]` |
+| `native_tasks` | string[]? |`["task.rest","task.auto_explore"]`（`Runtime.lua:1633`） |
 | `multi_step` | true? | |
 | `unknown_interaction` | string? |`manual_handoff` |
 | `limits` | object? |`{responses_per_command, options_per_page}` |
 | `native_compatibility` | object? |`{compatible, reason, providers}` |
-| `talent_query` | true? | v3 |
-| `talent_prefill` | string[]? | v3：`["actor","position"]` |
+| `talent_query` | true? | 自 v3 引入，v4 继续发射（`Runtime.lua:1636`） |
+| `talent_prefill` | string[]? | 自 v3 引入，v4 继续发射：`["actor","position"]`（`Runtime.lua:1636`） |
 | `observation` | string | `player` |
 | `max_radius` | int | 12 |
-| `max_commands` | int | 命令历史上限 |
+| `max_retained_commands` | int | 命令保留上限（= `M.MAX_RETAINED_COMMANDS`，256；`Runtime.lua:1637`、`Runtime.lua:43`） |
+| `action_support` | object | 每个动作的 `{implementation, scope, ...}` 摘要（如 `use_talent` 附 `interaction_coverage='runtime_checked'`，`unlearn_talent` 为 `implementation='limited'`）（`Runtime.lua:1638-1655`） |
+| `auto_combat` | object | 自动战斗能力摘要：`available`、`execution`（= `settings.allow_auto_combat_execution`，默认 `false`）、`source`、`baseline`、`actions[]`、`native_activities[]`、`destination_selectors[]`、`destination_accept{...}`、`modes{...}`、`unsupported`、`adapter_version`、`predicates[]`、`selectors[]`、`computed_fields[]`、`policy_ops[]`（`Runtime.lua:1657-1677`） |
 | `max_rest_turns` | int | 1000 |
 | `compact_responses` | bool | 支持 `include_map=false` |
 | `event_cursor` | bool | 支持 `events_after` |
 | `inventory_read` | bool | |
 | `ground_items_read` | bool | |
 | `progression_read` | bool | |
-| `inspect_kinds` | string[] | `["actor","talent","progression","item"]` |
+| `inspect_kinds` | string[] | `["actor","character","talent","progression","item","compatibility"]`（`Runtime.lua:1656`） |
 
 ## 4. `tome.observe` / 快照 `snapshot`
 
@@ -65,6 +68,7 @@
 | --- | --- | --- |
 | `session_id` | string | |
 | `level_instance_id` | string | 场景实例；换层后变化 |
+| `history` | object | 命令账本摘要（§2 同形；`Runtime.lua:182`、`CommandLedger.lua:56-63`） |
 | `revision` | int | |
 | `phase` | `ready`\|`settling`\|`needs_input`\|`terminal`\|`unavailable` | 运行阶段 |
 | `control_source` | `remote`\|`battle_companion`\|`manual` | 当前控制来源 |
@@ -149,12 +153,13 @@
 `paused`/`waiting_native`）、`actions`、`paused_reason`、`generation`、`last_decisions`、
 `last_native_abort`。
 
-条件出现的键：
+`last_native_abort` 是**稳定键**（见上列固定键；任何中止前为 `null`，不是缺键），不在条件键之列。
+
+条件出现的键（仅 `pending_interaction` 一个）：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `last_native_abort` | object\|null | 执行器最近一次**有界原生中止**（`native_timeout`）的已声明记录；在任何中止前为 null。仅由执行器写入，不作状态推测，见下 |
-| `pending_interaction` | object? | **仅在**自动战斗的 native invocation 仍存活且向引擎提出了一个执行器无法回答的请求时出现；形状与 `interaction`（§6）相同，用于透明预览中止前会发生的交互 |
+| `pending_interaction` | object? | **发射条件（以代码为准）**：存在存活的 auto-combat invocation（`s.auto_invocation` 非空）且 `Interactions.current` 在其上返回一个待答交互（`Runtime.lua:221-223`）；发射测试**不含**"该请求可否被回答"的判定。代码注释（`Runtime.lua:213-220`）说明其意图：executor 通常经权威目标下折自行解决，此处只是中止前的透明预览/回退。形状与 `interaction`（§6）相同 |
 
 `last_native_abort`：`code='native_timeout'`、`reason`、`cancelled`、`action?`、`talent?`、`target?`、
 `elapsed_ticks?`、`elapsed_frames?`。`reason` 例如 `authoritative_target_cancelled`（executor 已用
@@ -174,7 +179,7 @@
 
 ### 5.2 `kind="talent"`
 
-= §4.4 + v3 的 `query`：
+= §4.4 + query（自 v3 引入，v4 继续发射）：
 
 | 字段 | 说明 |
 | --- | --- |
@@ -230,7 +235,7 @@
 `response_receipt`：`{response_id, interaction_id, state(queued/applied/rejected), code?}`。
 
 `interaction`：`interaction_id`、`sequence`、`kind`、`revision`、`prompt?`、`text?`、`answer_types[]`、`consumed`、`native_ui?`；
-目标类另有 `origin{x,y}`、`range?`、`radius?`、`candidate_actor_ids[]`、`candidates_truncated?`；
+目标类另有 `origin{x,y}`、`range?`、`radius?`、`shape?`、`selffire?`（目标请求时直接透传 `h.shape`/`h.selffire`，`Interactions.lua:399-400`）、`candidate_actor_ids[]`、`candidates_truncated?`；
 非目标类另有 `options[{option_id,label,disabled}]`、`options_offset`、`options_total`、`options_next?`。
 
 `native_task`：`task_id`、`kind`、`status`、`turns_executed`、`native_max_turns?`、`automation_max_turns`、`stop_reason?`、`native_message?`。
@@ -252,13 +257,13 @@
 `target`、`generation`、`policy_hash`（在可能时）。客户可见的自动战斗事件（`kind`）包括
 `acted`、`denied`、`paused`、`stopped`、`movement_retry`、`native_aborted`、`scene_changed`。
 
-下列字段按事件类型出现，均为**有界且类型守卫**（敌意策略无法撑大 ring）：
+下列字段按事件类型出现。**并非所有字段都逐字段有界/类型守卫**：ring 自身有计数上限（超过 `limit` 移除最旧，`PolicyLog.lua:90`），但部分字段是 `PolicyLog.add` 直接透传（无逐字段类型守卫，见下），单事件内的这些字段取值大小取决于事件来源本身，而非投影守卫。
 
 | 字段 | 类型 | 出现于 | 说明 |
 | --- | --- | --- | --- |
-| `action` | string? | `native_aborted`、`movement_retry` | 被中止/重试的动作类型（如 `move`、`use_talent`） |
-| `elapsed_ticks`、`elapsed_frames` | int? | `native_aborted` | 有界中止前已过去的**世界 tick 数 / 引擎帧数**（与 `observe.auto_combat.last_native_abort` 同源） |
-| `native_result` | string? | `acted`、`movement_retry` | 原生结算状态/拒绝码（如 `ok`、`blocked`） |
+| `action` | string? | `native_aborted`、`movement_retry` | 被中止/重试的动作类型（如 `move`、`use_talent`）；**直接透传**，无类型守卫（`PolicyLog.lua:74`） |
+| `elapsed_ticks`、`elapsed_frames` | int? | `native_aborted` | 有界中止（`native_timeout`）前已过去的**世界 tick 数 / 引擎帧数**（与 `observe.auto_combat.last_native_abort` 同源）；**直接透传**，无类型守卫（`PolicyLog.lua:80-81`） |
+| `native_result` | string? | `acted`、`movement_retry` | 原生结算状态/拒绝码（如 `ok`、`blocked`）；**直接透传**，无类型守卫（`PolicyLog.lua:73`） |
 | `landing` | string?（≤ 64 字节） | `movement_retry` | 被原生拒绝的确定性落点（`x,y`）；非字符串被丢弃，超长截断 |
 | `missing` | object[]?（≤ 8） | `denied` | 结构化未满足条目，如 `{kind='cooldown',talent,remaining,required=0}`；字段白名单投影（`kind`/`talent`/`remaining`/`required`/`stat`/`special`/`level`） |
 | `hint` | string?（≤ 256） | `denied` | 人类可读提示（`reason` 仍为权威）；冷却拒绝附带 `talent on cooldown; wait for the listed turns before retrying` |
@@ -266,8 +271,7 @@
 
 `denied` 的 `missing`/`hint`/`native_message` 与 `tome.act` 命令路径（§6）**同一证据**：先经生产的
 `Runtime.mapAutoCombatOutcome` 透传，再由 `AutoCombat:deny` 放入 notify 事件，最后由 `PolicyLog.add`
-做有界投影。其它有界键（`movement`、`risk`、`rule_results`、`rejections`、`resources_before`/
-`resources_after`、`tick`/`revision`/`level_instance_id`）含义与原字段一致。
+做有界投影。经 `PolicyLog.add` **有界投影**的键：`landing`（≤ 64）、`missing`（≤ 8、白名单投影）、`hint`（≤ 256）、`native_message`（≤ 512）（`PolicyLog.lua:77-79`）、`movement`、`risk`（`boundedObject`，`PolicyLog.lua:82`）、`rule_results`（≤ 32）、`rejections`（≤ 8）（`PolicyLog.lua:84`）。**直接透传**（无逐字段类型守卫）的键：`action`、`native_result`、`elapsed_ticks`、`elapsed_frames`、`tick`、`revision`、`level_instance_id`（`PolicyLog.lua:72-83`）、`resources_before`、`resources_after`、`generation`、`policy_hash`（`PolicyLog.lua:85-86`），以及公共键 `kind`/`reason`/`rule`/`talent`/`target`（`PolicyLog.lua:72-73`）——含义与原字段一致，仅受 ring 计数上限约束（`PolicyLog.lua:90`）。
 
 > **请求侧 schema 未变。** 上述只是**客户端可见的返回字段**：`protocol/v4/requests.schema.json` 与
 > `server/` 的严格请求模型（`PolicyArgs` 等）**没有新增字段**，`tome.policy`/`tome.policy_log` 的入参
