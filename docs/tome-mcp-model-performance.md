@@ -80,15 +80,27 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 26 | anor fix2 定向回归（Test，协调者提前终止） | **A** | 无（测试任务） | **PASS**（D-1/R-1 核心通过；未覆盖项已声明） | 0 | 0 | 0 | 0 | 0 |
 | 27 | P3 门禁清尾（#60-N2/#63-P3-b/-c/#64） | A→**B**（Dev）/ **Sol**（Review，复用复核自身） | 首轮全新 Sol；修正轮复用 | **PASS**（终审 **MERGE**，0 findings） | 0 | 0 | 0 | 2 | 2 |
 | 28 | S2 有序 prompt-响应队列（实现） | A（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | FAIL（**do_not_merge**） | 0 | 2 | 4 | 1 | 7 |
+| 29 | S2 rev2 修 REV-01..07 | **B**（Dev）/ **Sol**（Review，复用复核自身） | 同 #28（复核自身发现） | FAIL（**do_not_merge**） | 0 | 2 | 0 | 0 | 2 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**28**（全部已判定）。
-- **PASS 10**（#4、#14、#17、#19、#20、#21、#22、#25、#26、#27）、**FAIL 18**、PARTIAL 0 →
-  **通过率 10/28 = 35.7%**。
-- Issue 合计：**76**（P0 1 / P1 29 / P2 25 / P3 21）；平均每 loop 2.71。
+- Loop 总数：**29**（全部已判定）。
+- **PASS 10**、**FAIL 19**、PARTIAL 0 → **通过率 10/29 = 34.5%**。
+- Issue 合计：**78**（P0 1 / P1 31 / P2 25 / P3 21）；平均每 loop 2.69。
+- **#29（S2 rev2，Dev B / Sol 复用复核）do_not_merge**：Sol 判定 **REV-02/03/04/06/07 PASS、S1 移动
+  回归 PASS**，但 **REV-01 与 REV-05 仍 FAIL**，且两项都是**契约层面**而非单纯实现 bug：
+  **S2-R2-01**：**光标几何不是 actor/grid 的可靠判别器**（引擎把 `hit` 定义为"命中单个格"，
+  Dimensional Step 就用 `hit` 表达**网格**请求；`setSpot` 对任何几何都会填充 `target.entity`），
+  因而**误拒合法组合、误放行其它组合**，且**同 kind 的连续请求被乱序时无法观测**却仍返回
+  `action_complete`（与"任何乱序都不会收到错值"的规范声明矛盾）；**S2-R2-02**：**异步交还**未接入
+  状态机——deviation 在 `native_pending` 提前返回之后才附加，controller 只见 `native_pending` 并进入
+  `waiting_native`，`reapAutoInvocation` 丢弃 `root.sequence_deviation`，于是安全暂停路径/租约释放都
+  走不到、规则可能被重提交；且 `deviate()` 在提示**仍然存活**时就设 `target_cancelled`，超时兜底因此
+  跳过 `cancelTarget`，可能留下**无人拥有的原生目标 UI**。已派 **[Investigation]（模型 B）** 修订契约
+  （几何不可靠 → 事后条件校验 / 策展签名 / 混合；异步交还的字段与调用点；真正 yield 的 source+dist 探针
+  义务），再据此动实现。
 - **#28（S2 首轮实现，Dev A / 全新 Sol 评审）do_not_merge**：Sol 抓到 **2 个 P1**——
   **S2-REV-01**：队列**盲序应答**（`resolveQueued` 只比对声明条目、从不分类**原生**请求的 kind/顺序），
   实测"声明 `actor,grid` 而原生先抛 grid 形状再抛 actor 形状"仍返回 `action_complete, deviation=nil`；
