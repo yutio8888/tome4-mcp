@@ -40,6 +40,15 @@ local AUTO_NO_ENEMY_MODES=sortedKeys(PolicySchema.NO_ENEMY_MODES)
 local AUTO_LOW_HP_MODES=sortedKeys(PolicySchema.LOW_HP_MODES)
 local AUTO_COMPUTED_FIELDS=sortedKeys(PolicySchema.COMPUTED_FIELDS)
 local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304,MAX_RECENT_SNAPSHOTS=16,SNAPSHOT_BYTE_BUDGET=4194304}
+-- P0: the auto-combat executor may never wait unbounded on a native invocation.
+-- A live auto invocation that does not settle within this bound (elapsed game
+-- ticks / wall time / observed frames) is aborted with the typed `native_timeout`:
+-- its native targeting UI is cancelled, the invocation/root released and the
+-- lease handed back. The bound only covers "the native call never settles"; it
+-- does not distinguish strategies and never aborts a settling native task.
+M.AUTO_NATIVE_TIMEOUT_MS=15000
+M.AUTO_NATIVE_TIMEOUT_TICKS=200
+M.AUTO_NATIVE_TIMEOUT_FRAMES=600
 local state, serial
 serial=0
 local function now()
@@ -193,10 +202,24 @@ local function snapshot(s,radius,options)
         actions=(run and run.actions) or 0,
         paused_reason=((run and run.state=='paused') and run.reason) or Json.null,
         generation=(run and run.generation) or Json.null,
-        last_decisions=(ac and ac.last_decisions) or Json.array{}}
+        last_decisions=(ac and ac.last_decisions) or Json.array{},
+        -- P0/F4: the most recent bounded native-abort the executor performed
+        -- (typed `native_timeout`). Stable key, null before any abort.
+        last_native_abort=s.auto_timeout or Json.null}
     if s.session_root then
         local h=Interactions.current(s.session_root)
         if h then result.interaction=Interactions.describe(s.session_root,m) end
+    end
+    -- P0: while an auto-combat invocation is live, surface any native request it
+    -- raised using the same describe shape as the manual slot (kind/shape/range/
+    -- answer_types). The executor normally resolves these through the
+    -- authoritative target lowering; this transparent fallback lets a caller see
+    -- a request shape the executor cannot answer before the bounded abort fires.
+    -- It is scoped inside `auto_combat` because the auto invocation is not the
+    -- remote command slot (a plain `tome.respond` is not routed into it).
+    if s.auto_invocation then
+        local h=Interactions.current(s.auto_invocation)
+        if h then result.auto_combat.pending_interaction=Interactions.describe(s.auto_invocation,m) end
     end
     result.events=Journal.capture(s.game,options and options.events_after)
     -- observe.sections: keep identity/metadata plus the requested domains only.
@@ -1342,8 +1365,14 @@ buildAutoCombatHost=function(s,policy,opts)
             if plan and plan.kind=='grid' then
                 action.x,action.y=plan.x,plan.y
                 -- Grid lowering: answer every native target request with the
-                -- requested coordinate (no entity).
-                action.force_grid=true
+                -- requested coordinate (no entity). `authoritative_target` makes
+                -- the decided coordinate answer every native request for this
+                -- invocation, so a talent that asks for a target more than once
+                -- (before and inside its action) cannot open an unanswerable UI.
+                -- The bridge wrapper (not the engine `force_target` field, which
+                -- is installed inside native `prepareUse`) evaluates the native
+                -- range/self-warning guard for each request.
+                action.authoritative_target=true
             elseif plan and (plan.kind=='none' or plan.kind=='self' or plan.kind=='native_random') then
                 -- A no-target request (self/none/random) must not prefill an
                 -- actor the policy did not ask for.
@@ -1351,11 +1380,20 @@ buildAutoCombatHost=function(s,policy,opts)
                 if not target then return {status='rejected',code='target_lost',energy_spent=false} end
                 action.target_id=attempt.bound_target
                 -- Single actor-target lowering: answer every native target
-                -- request with the bound actor (the engine force_target path),
-                -- not only the first pre-filled prompt.
-                action.force_actor=true
+                -- request with the bound actor, not only the first pre-filled
+                -- prompt. The native range/self-warning guard is re-evaluated for
+                -- each request; a genuinely invalid request is answered as a
+                -- native target cancel (typed reason), never bypassed.
+                action.authoritative_target=true
             elseif target then
+                -- An auto-slot actor-target talent without an explicit movement
+                -- plan: the decided actor is authoritative for every native
+                -- target request of this invocation. The auto slot cannot
+                -- answer a native targeting UI (P0 Rush deadlock), so it drives
+                -- the same wrapper the grid/actor plans use instead of the
+                -- one-shot prefill used by remote commands.
                 action.target_id=attempt.bound_target
+                action.authoritative_target=true
             end
         elseif attempt.action=='set_sustain' then
             action={type='set_sustain',talent_id=attempt.talent,enabled=true}
@@ -1368,7 +1406,8 @@ buildAutoCombatHost=function(s,policy,opts)
         local refusal=safetyGuard(attempt)
         if refusal then return {status='rejected',code=refusal.reason,energy_spent=false} end
         local command={command_id='auto-combat',status='auto_combat',auto_combat=true,
-            interactions={},responses={},consumed_interactions={},interaction_sequence=0}
+            interactions={},responses={},consumed_interactions={},interaction_sequence=0,
+            rule=attempt.rule,action=action}
         local ok,root,result=pcall(Tracker.startAction,g,command,function()
             return Actions.execute(g,action,target,meta(s),command)
         end)
@@ -1982,6 +2021,74 @@ local function reapAutoInvocation(s)
     s.auto_invocation=nil
     bump(s)
 end
+-- P0: bounded abort of an auto-slot native invocation that never settled. The
+-- executor cannot answer a native targeting UI, so an unresolved auto request
+-- must end with a typed `native_timeout`: cancel the UI, release the invocation
+-- and any pending native task, restore control to the player and record a typed
+-- policy-log event (F4) with the action/talent/target and elapsed ticks/frames.
+-- Only a leaf invocation is aborted; a live multi-turn native activity (rest /
+-- auto_explore) is legitimate settling, not a stall.
+local function abortAutoInvocation(s,started,elapsed)
+    local root=s.auto_invocation
+    if not root then return end
+    if NativeTasks.current(root) then return end
+    local command=root.command or {}
+    local cancelled,reason
+    if command.target_cancelled then
+        -- The executor's authoritative prefill already answered the native
+        -- request with a cancel; the native body is unwinding, not stalled.
+        cancelled=true;reason='authoritative_target_cancelled'
+    else
+        local target=Interactions.current(root)
+        if target and target.target then
+            cancelled,reason=Interactions.cancelTarget(root)
+        else
+            -- A non-target native request the executor cannot answer (for
+            -- example a dialog). Close it through its own handler if possible.
+            cancelled,reason=Interactions.dismissTop(s.game)
+        end
+    end
+    elapsed=elapsed or {}
+    local info={code='native_timeout',rule=command.rule,action=command.action and command.action.type,
+        talent=command.action and command.action.talent_id,target=command.action and command.action.target_id,
+        elapsed_ticks=elapsed.ticks,elapsed_frames=elapsed.frames}
+    NativeTasks.release(root);Interactions.release(root);Tracker.release(root)
+    Interactions.clearTargets(root)
+    root.invocation=nil
+    if s.auto_invocation==root then s.auto_invocation=nil end
+    s.auto_invocation_started=nil;s.auto_invocation_frames=nil
+    AutoCombat.nativeAbort(s.auto_combat,info)
+    s.auto_timeout={code='native_timeout',reason=reason,cancelled=cancelled==true,
+        action=info.action,talent=info.talent,target=info.target,
+        elapsed_ticks=info.elapsed_ticks,elapsed_frames=info.elapsed_frames}
+    bump(s)
+end
+-- Frame bookkeeping for the bounded abort. Returns true when the live auto
+-- invocation exceeded the bound and was aborted this frame.
+local function guardAutoInvocation(s)
+    local root=s.auto_invocation
+    if not root then s.auto_invocation_started=nil;s.auto_invocation_frames=nil;return false end
+    -- A live multi-turn native task (rest / auto_explore) is legitimate
+    -- settling, not a stalled leaf call: restart the bound and never abort it.
+    if NativeTasks.current(root) then
+        s.auto_invocation_started=nil;s.auto_invocation_frames=nil
+        return false
+    end
+    s.auto_invocation_frames=(s.auto_invocation_frames or 0)+1
+    local started=s.auto_invocation_started
+    if not started then
+        started={tick=s.game and s.game.turn or 0,ms=now(),frames=s.auto_invocation_frames}
+        s.auto_invocation_started=started
+    end
+    local elapsed={ticks=(s.game and s.game.turn or 0)-started.tick,
+        ms=now()-started.ms,frames=s.auto_invocation_frames-started.frames}
+    if elapsed.ticks>=M.AUTO_NATIVE_TIMEOUT_TICKS or elapsed.ms>=M.AUTO_NATIVE_TIMEOUT_MS
+        or elapsed.frames>=M.AUTO_NATIVE_TIMEOUT_FRAMES then
+        abortAutoInvocation(s,started,elapsed)
+        return true
+    end
+    return false
+end
 function M.onFrame(g)
     if core and core.display and core.display.redrawingForSavefileScreenshot
         and core.display.redrawingForSavefileScreenshot() then return end
@@ -1989,7 +2096,7 @@ function M.onFrame(g)
     if s.pumping or s.tick_depth>0 then return end
     s.pumping=true
     local ok,err=pcall(function()
-        sync(s);Input.attach(g);Journal.update(g);settle(s);reapAutoInvocation(s);start(s)
+        sync(s);Input.attach(g);Journal.update(g);settle(s);reapAutoInvocation(s);guardAutoInvocation(s);start(s)
         -- A live auto-combat activity owns the next turns; stop it if the run
         -- ended or lost the lease, then drop finished activities.
         local auto=s.auto_combat

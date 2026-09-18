@@ -196,6 +196,24 @@ function M:deny(id,reason,detail)
     end
 end
 
+-- F4/P0: an auto-slot native invocation the executor had to abort (it did not
+-- settle within the executor's bound, so it would otherwise stay invisible in
+-- `waiting_native`/`settling`) is a real controller event. It is recorded in the
+-- bounded decision ring and (through notify) written to the policy log with the
+-- action, talent, target and elapsed ticks/frames. This never mutates the native
+-- game; the executor owns the cancellation.
+function M:nativeAborted(info)
+    info=info or {}
+    local entry={kind='native_aborted',reason=info.code or 'native_timeout',
+        rule=info.rule,action=info.action,talent=info.talent,target=info.target,
+        elapsed_ticks=info.elapsed_ticks,elapsed_frames=info.elapsed_frames,
+        generation=info.generation or self.generation}
+    if info.rule then self.rejections[#self.rejections+1]={rule=info.rule,reason=entry.reason} end
+    self:record(entry)
+    if self.notify then self.notify(entry) end
+    return entry
+end
+
 -- Return the highest-priority declared sustain that should be enabled now, or
 -- nil. A sustain is only attempted when the host can tell us it is off and the
 -- talent is not known to be missing.

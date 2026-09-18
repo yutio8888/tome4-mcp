@@ -988,4 +988,114 @@ do
         'the error envelope carries category/acceptance_scope/recovery (INT-02)')
     check(bad.error.uncertain==false or bad.error.uncertain==true,'the error envelope carries uncertain')
 end
+-- P0/F4: the auto-combat executor never waits unbounded on a native invocation.
+-- A live auto invocation that does not settle within the bound is aborted with a
+-- typed `native_timeout`: the native targeting UI is cancelled, the invocation
+-- released, control restored and a typed policy-log event recorded with the
+-- action/talent/target and elapsed ticks.
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=true
+    g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+    p.x,p.y=2,2;enemy.x,enemy.y=3,2;enemy.reaction=-1
+    g.level.map.map[12][3]=p;g.level.map.map[13][3]=enemy
+    -- A native target request the auto slot cannot answer: simulate a native
+    -- body that suspends itself on an unanswerable popup (the pre-fix Rush
+    -- path). The production host still maps the real native_pending outcome.
+    -- This is a leaf call (no native task), so the bounded abort applies.
+    local Tracker=require 'mod.mcp_bridge.InvocationTracker'
+    local Interactions=require 'mod.mcp_bridge.Interactions'
+    local ActionsMod=require 'mod.mcp_bridge.Actions'
+    local realExecute=ActionsMod.execute
+    ActionsMod.execute=function(game,action,target,metadata,cmd)
+        Tracker.start(game,cmd,function()
+            return Tracker.call(game.player,'T_RUSH',function()
+                local body=Tracker.createBody(function()
+                    local d={key={receiveKey=function() end},mouse={receiveMouse=function() end}}
+                    Interactions.openDialog(d,'dialog.confirm','Unanswerable','Pick',
+                        {{label='Close',apply=function() game.dialogs={};game:onUnregisterDialog(d) end}},
+                        function() game.dialogs={};game:onUnregisterDialog(d) end)
+                    game.dialogs={d};game:onRegisterDialog(d)
+                    coroutine.yield()
+                    return true
+                end)
+                assert(coroutine.resume(body))
+            end)
+        end)
+        return {ok=true,code='native_pending',energy_spent=0}
+    end
+    local set=Runtime.autoCombatHandle(g,'set_draft',{policy={schema='tome-auto-combat/v1',
+        id='p1',name='unit',limits={max_actions_per_tick=1},safety={min_hp_pct=35},
+        targeting={default='nearest_hostile'},
+        rules={{id='rush',priority=1,when={always={}},
+            ['then']={action='use_talent',talent='T_RUSH',target='nearest_hostile'}}}}})
+    Runtime.autoCombatHandle(g,'approve',{})
+    Runtime.autoCombatHandle(g,'activate',{})
+    Runtime.setAutoCombatExecution(g,true)
+    local started=Runtime.autoCombatHandle(g,'start',{})
+    check(started.ok,'the auto-combat run starts')
+    -- The pump only drives the controller after a native tick boundary.
+    ready()
+    -- Pump a frame: the run requests one native invocation. A native body that
+    -- suspends itself yields `native_pending`; the controller transitions to
+    -- `waiting_native` because the invocation is unresolved.
+    local ok_pump=pcall(Runtime.onFrame,g)
+    check(ok_pump,'the pump does not raise on a stalled native invocation')
+    local ac_status=Runtime.autoCombatStatus(g)
+    check(ac_status.run and (ac_status.run.state=='waiting_native'
+        or ac_status.run.state=='settling' or ac_status.run.state=='running'),
+        'the controller is live while the native call is pending')
+    -- The invocation is stalled; no additional native request is submitted.
+    local before_attempts=ac_status.run.attempts
+    for i=1,5 do pcall(Runtime.onFrame,g) end
+    ac_status=Runtime.autoCombatStatus(g)
+    check(ac_status.run.attempts==before_attempts,'a pending invocation is never resubmitted')
+    check(observe().phase=='settling',
+        'the unanswerable native request stalls the session in settling')
+    -- P0: the auto request is surfaced with the manual slot's interaction shape
+    -- so a caller can answer it before the bounded abort fires.
+    local pending=observe().auto_combat.pending_interaction
+    check(pending and pending.kind=='dialog.confirm',
+        'an auto-slot native request is surfaced as an answerable interaction')
+    -- Exceed the frame bound: the executor aborts typed. Stop pumping the moment
+    -- the abort appears so the stopped run is still observable.
+    local after
+    for i=1,Runtime.AUTO_NATIVE_TIMEOUT_FRAMES+5 do
+        pcall(Runtime.onFrame,g)
+        -- `settle` is the frame's invocation-completion step; pump it too so a
+        -- native body that finishes synchronously is reaped before the bound.
+        pcall(ready)
+        after=observe().auto_combat
+        -- `Json.null` is a truthy sentinel; test the typed code explicitly.
+        if after.last_native_abort and after.last_native_abort.code then break end
+    end
+    check(after.last_native_abort and after.last_native_abort.code=='native_timeout',
+        'the stalled invocation is aborted with a typed native_timeout')
+    check(after.last_native_abort.action=='use_talent' and after.last_native_abort.talent=='T_RUSH',
+        'the abort event carries the action, talent and target')
+    check((after.last_native_abort.elapsed_frames or 0)>0
+        and ((after.last_native_abort.elapsed_frames or 0)>=Runtime.AUTO_NATIVE_TIMEOUT_FRAMES
+            or (after.last_native_abort.elapsed_ticks or 0)>=Runtime.AUTO_NATIVE_TIMEOUT_TICKS),
+        'the abort event carries the elapsed ticks/frames that hit the bound')
+    check(after.state=='stopped' and after.last_decisions~=nil,
+        'the aborted run is stopped and the decision ring is available')
+    local policy_status=Runtime.autoCombatStatus(g)
+    check(policy_status.control_owner=='manual',
+        'the abort hands control back to the player (F1: lease released)')
+    -- The controller was released by the abort; the typed event is the durable
+    -- record (the service log), and the terminal state is observable through it.
+    local events=Runtime.autoCombatHandle(g,'log',{limit=16}).events
+    local aborted=false
+    for _,e in ipairs(events or {}) do if e.kind=='native_aborted' and e.reason=='native_timeout' then aborted=true end end
+    check(aborted,'the abort is recorded as a typed policy-log event (F4)')
+    -- Control is restored: the session is usable for a remote action again.
+    reconnect()
+    check(Runtime.autoCombatStatus(g).control_owner=='manual',
+        'the abort releases the auto-combat lease (F1)')
+    g.dialogs={}
+    check(observe().phase=='ready',
+        'control is restored to a ready session after the auto-combat native abort')
+    ActionsMod.execute=realExecute
+    Runtime.setAutoCombatExecution(g,false)
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+end
 print('Runtime: '..count..' checks passed')

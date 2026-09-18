@@ -110,6 +110,15 @@ function M.validate(action)
             if type(action.force_grid)~='boolean' then return nil,'invalid_force_grid' end
             a.force_grid,allowed.force_grid=action.force_grid,true
         end
+        -- Internal auto-combat field: the decided target answers EVERY native
+        -- target request of this invocation (not only the first pre-filled
+        -- prompt), so a talent whose message/action path asks for a target more
+        -- than once cannot open an unanswerable native UI. The native
+        -- range/self-warning guards are still evaluated per request.
+        if action.authoritative_target~=nil then
+            if type(action.authoritative_target)~='boolean' then return nil,'invalid_authoritative_target' end
+            a.authoritative_target,allowed.authoritative_target=action.authoritative_target,true
+        end
         local has_actor,has_position=action.target_id~=nil,action.x~=nil or action.y~=nil
         if has_actor and has_position then return nil,'conflicting_target' end
         if has_actor then
@@ -161,8 +170,9 @@ function M.execute(g, action, target, meta, command)
     local normalized,invalid=M.validate(action)
     if not normalized then return {ok=false,code=invalid,energy_spent=0} end
     action=normalized
-    -- Each command records its own native target geometry; clear any previous run.
-    if type(command)=='table' then command.target_geometry=nil end
+    -- Each command records its own native target geometry and target-cancel
+    -- marker; clear any previous run.
+    if type(command)=='table' then command.target_geometry=nil;command.target_cancelled=nil end
     if Progression.isAction(action.type) then return Progression.execute(g,action) end
     if Items.isAction(action.type) then return Items.execute(g,action,meta) end
     if action.type=='rest' then return {ok=false,code='runtime_managed_action',energy_spent=0} end
@@ -225,29 +235,36 @@ function M.execute(g, action, target, meta, command)
             local root,result
             if resolve then
                 root,result=Tracker.start(g,assert(command),function()
-                    -- Prefill the first native getTarget once, then hand control
-                    -- back to the native targeting code for any later request.
+                    -- `authoritative_target` (internal auto-combat lowering): the
+                    -- decided target answers EVERY native getTarget request for
+                    -- the whole invocation. A talent whose message path calls
+                    -- getTarget before its action (Rush's `useTalentMessage`)
+                    -- would otherwise consume the single one-shot prefill and
+                    -- then open the real native targeting UI, which the
+                    -- auto-combat slot cannot answer (P0 deadlock). Without the
+                    -- flag the legacy one-shot prefill is preserved for remote
+                    -- commands, whose later prompts are answerable interactions.
                     local prior=rawget(p,'getTarget')
                     local original=p.getTarget
                     if type(original)~='function' then return run() end
+                    local authoritative=action.authoritative_target==true
                     local consumed=false
                     local function allowed(typ,x,y)
                         local map=g.level and g.level.map
-                        if not map or not finite(x) or not finite(y) then return false end
-                        if x<0 or y<0 or x>=map.w or y>=map.h then return false end
+                        if not map or not finite(x) or not finite(y) then return false,'invalid_target' end
+                        if x<0 or y<0 or x>=map.w or y>=map.h then return false,'target_out_of_bounds' end
                         if type(typ)=='table' then
-                            -- Preserve the native range guard for the first request.
+                            -- Preserve the native range guard.
                             if finite(typ.range) and finite(p.x) and finite(p.y)
-                                and Distance.grid(p.x,p.y,x,y)>typ.range then return false end
+                                and Distance.grid(p.x,p.y,x,y)>typ.range then return false,'target_out_of_range' end
                             -- Let the native UI raise its own self-target warning.
-                            if x==p.x and y==p.y and typ.nowarning~=true and typ.talent~=nil then return false end
+                            if x==p.x and y==p.y and typ.nowarning~=true and typ.talent~=nil then
+                                return false,'self_target_warning'
+                            end
                         end
                         return true
                     end
                     p.getTarget=function(self,typ,...)
-                        if consumed then return original(self,typ,...) end
-                        consumed=true
-                        rawset(p,'getTarget',prior)
                         -- Record the native target geometry once, for the agent
                         -- (beam/ball radius/self-fire). This is the spec the
                         -- native talent itself built, not a speculative run.
@@ -264,14 +281,28 @@ function M.execute(g, action, target, meta, command)
                                 piercing=typ.type=='beam' or nil,damage_scope=scope,
                                 residual_area_radius=residual}
                         end
+                        if consumed and not authoritative then return original(self,typ,...) end
+                        consumed=true
+                        if not authoritative then rawset(p,'getTarget',prior) end
                         local x,y,entity=resolve()
-                        if allowed(typ,x,y) then return x,y,entity end
+                        local ok,reason=allowed(typ,x,y)
+                        if ok then return x,y,entity end
+                        if authoritative then
+                            -- A genuinely invalid target for this native request
+                            -- is answered as a native target cancel (nil
+                            -- coordinates). The native flow treats it as a
+                            -- normal rejection; the executor slot never opens an
+                            -- unanswerable targeting UI and never bypasses the
+                            -- guard. The typed reason is surfaced by the caller.
+                            if command then command.target_cancelled=reason end
+                            return nil
+                        end
                         -- Out of bounds/range or a native self-warning: fall back
                         -- to the real target request instead of bypassing it.
                         return original(self,typ,...)
                     end
                     local ok,value=pcall(run)
-                    if not consumed then rawset(p,'getTarget',prior) end
+                    if authoritative or not consumed then rawset(p,'getTarget',prior) end
                     if not ok then error(value,0) end
                     return value
                 end)
@@ -296,6 +327,11 @@ function M.execute(g, action, target, meta, command)
     local success = ret and true or false
     local result={ok=success,code=success and 'action_complete' or 'native_rejected',energy_spent=spent}
     if type(ret)=='boolean' then result.native_return=ret end
+    -- An authoritative prefill that refused a genuinely invalid target request
+    -- reports the typed guard reason instead of a generic native rejection.
+    if command and command.target_cancelled and not success then
+        result.code=command.target_cancelled
+    end
     -- A move that neither changed position nor spent energy was blocked by
     -- terrain; report it distinctly instead of a silent success.
     if success and action.type=='move' and spent==0 and p.x==before_x and p.y==before_y then
