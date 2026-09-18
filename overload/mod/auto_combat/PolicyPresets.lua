@@ -8,9 +8,14 @@ M.PRESETS={
     anorithil_p1a={
         schema='tome-auto-combat/v1',id='anorithil-p1a',name='Anorithil (P1a pilot)',
         limits={max_actions_per_tick=2},
-        safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=true,
+        -- D-3 (round anor-reg-01): a group fight must not park on every new
+        -- wandering enemy entering sight (12 pauses in one Trollmire fight
+        -- left the character standing and taking hits). `on_new_enemy` is the
+        -- canonical mode field; `safety.pause_on_new_enemy` is kept coherent
+        -- with it (the legacy boolean still maps for older policies).
+        safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=false,
             pause_on_unknown_safety=true,max_selffire_risk=0},
-        mode={on_no_enemy='stop',on_low_hp='emergency_only'},
+        mode={on_no_enemy='stop',on_low_hp='emergency_only',on_new_enemy='continue'},
         targeting={default='nearest_hostile'},
         sustains={
             {talent='T_CHANT_OF_FORTRESS',priority=20,min_resource_pct=20},

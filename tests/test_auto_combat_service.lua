@@ -689,4 +689,215 @@ do
     -- only the native result, so a client can reconstruct the blocked cell.
     check(found.landing=='4,2','the movement_retry event keeps the refused landing (N1)')
 end
+
+do
+    -- D-1 (P1, round anor-reg-01): an emergency action natively refused on
+    -- cooldown must not livelock through the service. The run keeps acting (each
+    -- action advances the world tick so the native cooldown recovers) and the
+    -- emergency action is used again; there is no repeated deny -> pause loop.
+    local cooldown=3
+    local heal_used=false
+    local host={phase=function() return 'ready' end,opportunity_id=function() return 1 end,
+        snapshot=function(selector) return {hp_pct=30,enemy_count=1,binding_selector=selector} end,
+        enemy_ids=function() return {} end,notify=function() end,
+        request=function(attempt)
+            if attempt.rule=='heal' then
+                if cooldown>0 then
+                    return {status='rejected',code='native_rejected',energy_spent=false,
+                        missing={{kind='cooldown',talent='T_HEALING_LIGHT',remaining=cooldown,required=0}},
+                        native_message='Healing Light is still on cooldown for '..cooldown..' turns.'}
+                end
+                heal_used=true
+                return {status='ok',energy_spent=1000}
+            end
+            cooldown=math.max(0,cooldown-1)
+            return {status='ok',energy_spent=1000}
+        end}
+    local p=policy({limits={max_actions_per_tick=2},mode={on_low_hp='emergency_only'},rules={
+        {id='heal',priority=100,emergency=true,when={always={}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
+        {id='attack',priority=40,when={always={}},
+            ['then']={action='attack',target='nearest_hostile'}}}})
+    local svc=Service.new{host_factory=function() return host end}
+    local d=Service.handle(svc,'set_draft',{policy=p})
+    Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{})
+    Service.handle(svc,'start',{})
+    local acted,paused=0,0
+    for _=1,6 do
+        local stepped=Service.step(svc)
+        if stepped.ok then
+            if stepped.step.action=='acted' then acted=acted+1
+            elseif stepped.step.action=='paused' then paused=paused+1 end
+        end
+        svc.controller.host.opportunity_id=function() return (svc.controller.opportunity_id or 1)+1 end
+    end
+    check(acted>=3,'the service keeps acting while the emergency action is on cooldown (D-1)')
+    check(paused==0,'no emergency-deny pause loop in the service (D-1)')
+    check(heal_used,'the emergency action is used again once the cooldown recovered (D-1)')
+end
+
+do
+    -- R-1 (P1, round anor-reg-01 fix2): the schema-valid max_actions_per_tick=1
+    -- boundary (also the assistant-import default). A settled no-energy reject
+    -- must not consume the only budget slot: the same opportunity falls through
+    -- to the fallback, the world keeps ticking and the cooldown recovers. The
+    -- old contract paused budget_exhausted with the lease held — a frozen loop.
+    local cooldown=3
+    local heal_used=false
+    local host={phase=function() return 'ready' end,opportunity_id=function() return 1 end,
+        snapshot=function(selector) return {hp_pct=30,enemy_count=1,binding_selector=selector} end,
+        enemy_ids=function() return {} end,notify=function() end,
+        request=function(attempt)
+            if attempt.rule=='heal' then
+                if cooldown>0 then
+                    return {status='rejected',code='native_rejected',energy_spent=false,
+                        missing={{kind='cooldown',talent='T_HEALING_LIGHT',remaining=cooldown,required=0}}}
+                end
+                heal_used=true
+                return {status='ok',energy_spent=1000}
+            end
+            cooldown=math.max(0,cooldown-1)
+            return {status='ok',energy_spent=1000}
+        end}
+    local p=policy({limits={max_actions_per_tick=1},mode={on_low_hp='emergency_only'},rules={
+        {id='heal',priority=100,emergency=true,when={always={}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
+        {id='wait',priority=40,when={always={}},['then']={action='wait'}}}})
+    local svc=Service.new{host_factory=function() return host end}
+    local d=Service.handle(svc,'set_draft',{policy=p})
+    Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{})
+    Service.handle(svc,'start',{})
+    local acted,paused=0,0
+    for _=1,6 do
+        local stepped=Service.step(svc)
+        if stepped.ok then
+            if stepped.step.action=='acted' then acted=acted+1
+            elseif stepped.step.action=='paused' then paused=paused+1 end
+        end
+        svc.controller.host.opportunity_id=function() return (svc.controller.opportunity_id or 1)+1 end
+    end
+    check(acted>=3,'the limit-1 service run falls through and keeps acting (R-1)')
+    check(paused==0,'no budget_exhausted pause loop at the limit-1 boundary (R-1)')
+    check(heal_used,'the limit-1 emergency action is used again once the cooldown recovered (R-1)')
+    check(svc.arbiter.owner=='auto_combat','the lease is retained while the run keeps acting (R-1)')
+end
+
+do
+    -- R-1: with nothing applicable after a settled reject, the run stops with
+    -- the typed refusal and the lease is released — no held-lease frozen loop,
+    -- and `resume` cannot replay the same rejected action.
+    local host={phase=function() return 'ready' end,opportunity_id=function() return 1 end,
+        snapshot=function(selector) return {hp_pct=30,enemy_count=1,binding_selector=selector} end,
+        enemy_ids=function() return {} end,notify=function() end,
+        request=function(attempt)
+            return {status='rejected',code='native_rejected',energy_spent=false,
+                missing={{kind='cooldown',talent='T_HEALING_LIGHT',remaining=7,required=0}}}
+        end}
+    local p=policy({limits={max_actions_per_tick=1},mode={on_low_hp='emergency_only'},rules={
+        {id='heal',priority=100,emergency=true,when={always={}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}}}})
+    local svc=Service.new{host_factory=function() return host end}
+    local d=Service.handle(svc,'set_draft',{policy=p})
+    Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{})
+    Service.handle(svc,'start',{})
+    local stepped=Service.step(svc)
+    check(stepped.ok and stepped.step.action=='stopped' and stepped.step.reason=='action_denied',
+        'the refusal terminal stops with the typed reason, never budget_exhausted (R-1)')
+    check(svc.arbiter.owner=='manual' and svc.controller.state=='stopped',
+        'the refusal stop releases the lease instead of freezing it (R-1)')
+    local resumed=Service.handle(svc,'resume',{})
+    check(not resumed.ok and resumed.error.code=='not_running',
+        'resume cannot replay the rejected action on a handed-back run (R-1)')
+    check(Service.handle(svc,'start',{}).ok,'start re-acquires after the refusal handoff (R-1)')
+end
+
+do
+    -- R-1: budget_exhausted keeps its honest meaning — it fires only after max
+    -- completed (charged) actions in one opportunity, and because charged
+    -- actions advanced the world, that pause retains the lease (no frozen loop:
+    -- time passed, so resume makes progress).
+    local host=fakeHost()  -- opportunity_id fixed at 1: a repeated opportunity
+    local p=policy({limits={max_actions_per_tick=1}})
+    local svc=Service.new{host_factory=function() return host end}
+    local d=Service.handle(svc,'set_draft',{policy=p})
+    Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{})
+    Service.handle(svc,'start',{})
+    local first=Service.step(svc)
+    check(first.ok and first.step.action=='acted','the first charged action completes')
+    local second=Service.step(svc)
+    check(second.ok and second.step.action=='paused' and second.step.reason=='budget_exhausted',
+        'the limit-1 budget pauses after the completed action (honest budget_exhausted)')
+    check(svc.arbiter.owner=='auto_combat',
+        'a charged-action budget pause retains the lease (the world advanced)')
+end
+
+do
+    -- D-2: the auto denied policy-log event carries the structured cooldown
+    -- detail and the native message (bounded, type-guarded).
+    local host={phase=function() return 'ready' end,opportunity_id=function() return 1 end,
+        snapshot=function(selector) return {hp_pct=30,enemy_count=1,binding_selector=selector} end,
+        enemy_ids=function() return {} end,notify=function() end,
+        request=function(attempt)
+            return {status='rejected',code='native_rejected',energy_spent=false,
+                missing={{kind='cooldown',talent='T_HEALING_LIGHT',remaining=7,required=0}},
+                hint='talent on cooldown; wait for the listed turns before retrying',
+                native_message='Healing Light is still on cooldown for 7 turns.'}
+        end}
+    local p=policy({limits={max_actions_per_tick=1},mode={on_low_hp='emergency_only'},rules={
+        {id='heal',priority=100,emergency=true,when={always={}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}}}})
+    local svc=Service.new{host_factory=function() return host end}
+    local d=Service.handle(svc,'set_draft',{policy=p})
+    Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{})
+    Service.handle(svc,'start',{})
+    Service.step(svc)
+    local log=Service.handle(svc,'log',{limit=16})
+    local denied
+    for _,event in ipairs(log.events or {}) do
+        if event.kind=='denied' then denied=event end
+    end
+    check(denied and denied.reason=='native_rejected','the denied event is logged (D-2)')
+    check(denied.missing and denied.missing[1] and denied.missing[1].kind=='cooldown'
+        and denied.missing[1].remaining==7 and denied.missing[1].talent=='T_HEALING_LIGHT',
+        'the policy log carries the structured cooldown missing (D-2)')
+    check(denied.native_message=='Healing Light is still on cooldown for 7 turns.',
+        'the policy log carries the native message (D-2)')
+    check(denied.hint=='talent on cooldown; wait for the listed turns before retrying',
+        'the policy log carries the hint (D-2)')
+    -- A hostile/non-string landing cannot grow the ring (P3-c).
+    local Log=require 'mod.auto_combat.PolicyLog'
+    local ring=Log.new(4)
+    Log.add(ring,{kind='movement_retry',landing={huge='table'}})
+    check(Log.tail(ring,1)[1].landing==nil,'a non-string landing is dropped by PolicyLog (P3-c)')
+    Log.add(ring,{kind='denied',missing='not-a-table'})
+    check(Log.tail(ring,1)[1].missing==nil,'a non-table missing is dropped by PolicyLog (D-2)')
+end
+
+do
+    -- D-4: the status log tail is coherent - the ring extent and the returned
+    -- window are both reported so a bounded tail can never be mistaken for the
+    -- whole ring.
+    local svc=Service.new()
+    local Log=require 'mod.auto_combat.PolicyLog'
+    for i=1,94 do
+        Log.add(svc.log,{kind='acted',rule='r'..i,generation=1})
+    end
+    local status=Service.handle(svc,'status',{})
+    check(status.log.count==94 and status.log.first_seq==1 and status.log.last_seq==94,
+        'the ring extent is reported')
+    check(status.log.window and status.log.window.count==32 and status.log.window.last_seq==94,
+        'the status log window reports the bounded tail actually available (D-4)')
+    check(status.log.window.first_seq==63,
+        'the window first_seq matches the oldest returned event, not the ring (D-4)')
+    local log=Service.handle(svc,'log',{limit=5})
+    check(log.events[1].seq==94 and log.events[#log.events].seq==90,
+        'log returns the newest-first bounded tail')
+    check(log.status.window and log.status.window.first_seq==90 and log.status.window.last_seq==94,
+        'the log status window describes the returned events (D-4)')
+end
 print('Auto-combat service: '..checks..' checks passed')

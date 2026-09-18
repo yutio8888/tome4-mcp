@@ -364,7 +364,10 @@ do
     check(step.action=='acted' and step.rule=='kite',
         'a native-rejected deterministic landing is retried with an alternative and acts (P2-1)')
     check(h.moved=='58,6','the character moves to a feasible alternative landing, not the refused tree cell')
-    check(#h.requests==2 and c.attempts==2,'the fallback stays within the per-tick budget')
+    -- R-1: the refused retry produced no native action, so it does not consume
+    -- the action budget; only the completed move counts.
+    check(#h.requests==2 and c.attempts==1,
+        'the refused retry does not consume the per-tick budget (R-1)')
     check(h.excludes[1] and next(h.excludes[1])==nil,'the first plan gets no excluded coordinates')
     check(h.excludes[2] and h.excludes[2]['57,5']==true,'the refused coordinate is excluded on retry')
     local sawRetry=false
@@ -399,8 +402,11 @@ do
 end
 
 do
-    -- P2-1 budget bound: a provider that keeps offering feasible-but-refused
-    -- landings can never exceed max_actions_per_tick native attempts.
+    -- R-1 budget bound: a provider that keeps offering feasible-but-refused
+    -- landings is bounded by the rule-loop cap (every retry excludes the
+    -- refused coordinate), and because no charged action happened the run
+    -- stops (releasing the lease) instead of pausing with the lease held over
+    -- a frozen world.
     local h=host()
     h.requests={}
     h.seen={}
@@ -416,9 +422,10 @@ do
     local c=AutoCombat.new(policy({limits={max_actions_per_tick=1}}),h,{strict=false})
     c:start()
     local step=c:step()
-    check(step.action=='paused' and step.reason=='budget_exhausted',
-        'a repeatedly refused deterministic landing is bounded by the per-tick budget')
-    check(#h.requests==1,'the attempt budget is never exceeded by fallback selection')
+    check(step.action=='stopped' and step.reason=='rule_loop_limit',
+        'repeatedly refused landings are bounded by the rule loop and hand off (R-1)')
+    check(#h.requests==8,'the refused landing retries stay bounded by the rule-loop cap')
+    check(c.attempts==0,'no charged action is attributed to the refused retries')
 end
 
 do

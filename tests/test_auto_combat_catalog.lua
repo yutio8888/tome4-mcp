@@ -97,6 +97,26 @@ do
     check(retry.kind=='movement_retry' and retry.landing=='4,2'
         and retry.native_result=='blocked' and retry.action=='move',
         'PolicyLog keeps the refused landing on a movement_retry entry (N1)')
+    -- P3-c: a non-string landing cannot grow the ring.
+    PolicyLog.add(log,{kind='movement_retry',landing={nested='table'}})
+    check(PolicyLog.tail(log,1)[1].landing==nil,'PolicyLog drops a non-string landing (P3-c)')
+    -- D-2: a native refusal's structured cooldown detail stays client-visible
+    -- and bounded, so the auto denied event matches the command path.
+    PolicyLog.add(log,{kind='denied',rule='heal',reason='native_rejected',
+        missing={{kind='cooldown',talent='T_HEALING_LIGHT',remaining=7,required=0}},
+        native_message='Healing Light is still on cooldown for 7 turns.',
+        hint='talent on cooldown; wait for the listed turns before retrying'})
+    local deniedEntry=PolicyLog.tail(log,1)[1]
+    check(deniedEntry.missing and deniedEntry.missing[1].kind=='cooldown'
+        and deniedEntry.missing[1].remaining==7 and deniedEntry.missing[1].talent=='T_HEALING_LIGHT',
+        'PolicyLog keeps the structured cooldown missing on a denied entry (D-2)')
+    check(deniedEntry.native_message=='Healing Light is still on cooldown for 7 turns.'
+        and type(deniedEntry.hint)=='string',
+        'PolicyLog keeps the native message and hint on a denied entry (D-2)')
+    -- A hostile missing value cannot grow the ring or leak arbitrary keys.
+    PolicyLog.add(log,{kind='denied',rule='x',missing={{kind='cooldown',evil=os.time}}})
+    local cleaned=PolicyLog.tail(log,1)[1].missing
+    check(cleaned and cleaned[1].evil==nil,'PolicyLog projects only declared missing fields (D-2)')
     -- A hostile deep/wide table cannot grow the entry unbounded.
     local deep={}
     local cursor=deep

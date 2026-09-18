@@ -30,6 +30,21 @@ do
         'already_in_desired_state is not an instant action')
     check(Runtime.mapAutoCombatOutcome({ok=false,code='native_rejected',energy_spent=0},'use_talent',false).status=='rejected',
         'a native rejection maps to rejected')
+    -- D-2: the structured refusal detail is preserved through the production
+    -- mapping so the auto policy log carries the same evidence as tome.act.
+    local detailed=Runtime.mapAutoCombatOutcome({ok=false,code='native_rejected',energy_spent=0,
+        missing={{kind='cooldown',talent='T_HEALING_LIGHT',remaining=7,required=0}},
+        hint='talent on cooldown; wait for the listed turns before retrying',
+        native_message='Healing Light is still on cooldown for 7 turns.'},'use_talent',false)
+    check(detailed.status=='rejected' and detailed.missing and detailed.missing[1].kind=='cooldown'
+        and detailed.missing[1].remaining==7,
+        'the production mapping preserves the structured cooldown missing (D-2)')
+    check(detailed.native_message=='Healing Light is still on cooldown for 7 turns.'
+        and type(detailed.hint)=='string',
+        'the production mapping preserves the native message and hint (D-2)')
+    check(Runtime.mapAutoCombatOutcome({ok=false,code='native_rejected',energy_spent=0},
+        'use_talent',false).missing==nil,
+        'a refusal without structured detail adds no missing field (D-2)')
     -- MOV-2: a real scene transition must reach the controller so it can
     -- pause/reset and require an explicit start.
     local change=Runtime.mapAutoCombatOutcome({ok=true,code='level_changed',energy_spent=0,level_changed=true},

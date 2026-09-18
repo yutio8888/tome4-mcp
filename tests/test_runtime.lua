@@ -488,9 +488,14 @@ do
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=true
     Runtime.reset(g);g:display()
     local h2=request('connect',{token='unit-test-token'}).result
+    -- R-1 note: this pump fixture uses a `wait` rule so the production executor
+    -- completes a real charged action on this headless fixture and the pump
+    -- keeps the auto-combat lease. (An action the fixture cannot execute is a
+    -- settled no-energy reject under the resolved R-1 contract: the run stops
+    -- honestly and releases the lease instead of pausing with the lease held.)
     local pl={schema='tome-auto-combat/v1',id='p1',name='unit',limits={max_actions_per_tick=1},
         safety={min_hp_pct=35},targeting={default='nearest_hostile'},
-        rules={{id='attack',priority=1,when={always={}},['then']={action='attack',target='nearest_hostile'}}}}
+        rules={{id='wait',priority=1,when={always={}},['then']={action='wait'}}}}
     request('policy',{session_id=h2.session_id,policy_op='set_draft',policy=pl})
     local ap=request('policy',{session_id=h2.session_id,policy_op='approve'}).result
     request('policy',{session_id=h2.session_id,policy_op='activate',expected_hash=ap.approved_hash})
@@ -502,6 +507,7 @@ do
     check(pump_ok,'the auto-combat pump does not raise')
     local ps=request('policy',{session_id=h2.session_id,policy_op='status'}).result
     check(ps and ps.control_owner=='auto_combat','the pump keeps the auto-combat lease')
+    ready()  -- the charged wait spent the fixture energy; return to a ready boundary
     -- Owner exclusivity: a remote act is refused while auto-combat owns the
     -- lease, and reconnecting control takes it back atomically.
     for k,v in pairs(h2) do hello[k]=v end
@@ -514,6 +520,10 @@ do
     reconnect()
     local taken=request('policy',{session_id=hello.session_id,policy_op='status'}).result
     check(taken and taken.control_owner=='manual','reconnecting control takes the auto-combat lease')
+    -- The charged wait spent the fixture energy again; after the reconnect the
+    -- run loses the lease (control_lost) on the next pump, so this boundary
+    -- stays ready for the remote act.
+    ready()
     local allowed=act('auto-allowed',{type='wait'})
     check(allowed.result and allowed.result.status=='queued','after reconnect the remote can act again')
     g:tick();ready()

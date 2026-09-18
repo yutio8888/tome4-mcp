@@ -38,6 +38,7 @@ local AUTO_SELECTORS=sortedKeys(PolicySchema.SELECTORS)
 local AUTO_DESTINATION_SELECTORS=sortedKeys(PolicySchema.DESTINATION_SELECTORS)
 local AUTO_NO_ENEMY_MODES=sortedKeys(PolicySchema.NO_ENEMY_MODES)
 local AUTO_LOW_HP_MODES=sortedKeys(PolicySchema.LOW_HP_MODES)
+local AUTO_NEW_ENEMY_MODES=sortedKeys(PolicySchema.NEW_ENEMY_MODES)
 local AUTO_COMPUTED_FIELDS=sortedKeys(PolicySchema.COMPUTED_FIELDS)
 local M={MAX_RETAINED_COMMANDS=256,COMMAND_RECEIPT_BYTES=4194304,MAX_RECENT_SNAPSHOTS=16,SNAPSHOT_BYTE_BUDGET=4194304}
 -- P0: the auto-combat executor may never wait unbounded on a native invocation.
@@ -1232,9 +1233,18 @@ function M.mapAutoCombatOutcome(result,action,noEnergy)
     -- MFT-REV-06: scene-change evidence is independent of the success status.
     -- An uncertain exception may still have started/completed a level change;
     -- carry `level_changed` so the controller resets and requires a restart.
+    --
+    -- D-2: the structured refusal detail the command path already returns
+    -- (`missing`/`hint`) and the native message are preserved (bounded, typed)
+    -- so the auto policy log carries the same evidence as `tome.act`.
     local function scene(mapped)
         if result.level_changed then mapped.level_changed=true end
         if result.pending then mapped.pending=true end
+        if type(result.missing)=='table' and #result.missing>0 then mapped.missing=result.missing end
+        if type(result.hint)=='string' and #result.hint>0 then mapped.hint=result.hint end
+        if type(result.native_message)=='string' and #result.native_message>0 then
+            mapped.native_message=result.native_message
+        end
         return mapped
     end
     if result.uncertain then
@@ -1656,7 +1666,8 @@ local function dispatch(s,request)
                         hazard={'known_safe','avoid_known','any'},
                         landing={'deterministic','allow_random'}},
                     modes={on_no_enemy=Json.array(AUTO_NO_ENEMY_MODES),
-                        on_low_hp=Json.array(AUTO_LOW_HP_MODES)},
+                        on_low_hp=Json.array(AUTO_LOW_HP_MODES),
+                        on_new_enemy=Json.array(AUTO_NEW_ENEMY_MODES)},
                     unsupported=EffectManifest.UNSUPPORTED,
                     adapter_version=AdapterCatalog.VERSION,
                     predicates=Json.array(AUTO_PREDICATES),

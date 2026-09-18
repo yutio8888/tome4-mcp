@@ -95,8 +95,10 @@ end
 
 -- Strict mode pauses once for a newly visible hostile set. On start/resume the
 -- current set is confirmed, so the same enemies do not re-trigger; later new
--- enemies still do.
-function M:checkEnemies()
+-- enemies still do. D-3: `on_new_enemy='continue'` keeps the target set current
+-- and lets the policy keep acting (a group fight must not park on every
+-- wandering enemy that enters sight); the pause is the conservative default.
+function M:checkEnemies(mode)
     if not self.strict or not (self.host and self.host.enemy_ids) then return nil end
     local ids=self.host.enemy_ids()
     if type(ids)~='table' then return nil end
@@ -108,6 +110,7 @@ function M:checkEnemies()
     for _,id in ipairs(ids) do
         if not self.known_enemies[id] then
             for _,other in ipairs(ids) do self.known_enemies[other]=true end
+            if mode=='continue' then return nil end
             return 'new_enemy'
         end
     end
@@ -186,14 +189,45 @@ end
 -- set of known keys are carried; nested tables are shallow-copied with a cap.
 local DETAIL_KEYS={'measurement','threshold','risk','unknown','provenance','phase','component',
     'landing','visible','remembered','known_passable','known_hazard','confidence','reasons',
-    'selector','talent','scope','missing','requests','friendlies','selffire','friendlyfire'}
+    'selector','talent','scope','missing','native_message','hint','requests','friendlies','selffire','friendlyfire'}
+-- D-2: the structured `missing` array (for example the native cooldown entry
+-- `{kind='cooldown',talent,remaining,required=0}`) is an array of small objects,
+-- so the generic scalar-only table projection above would drop it. Project the
+-- declared entry fields explicitly, bounded and type-guarded.
+local MISSING_KINDS={cooldown=true,stat=true,level=true,talent=true,special=true}
+local MISSING_KEYS={'kind','talent','remaining','required','stat','special','level'}
+local function boundedMissing(value)
+    if type(value)~='table' then return nil end
+    local out={}
+    for index=1,math.min(#value,8) do
+        local entry=value[index]
+        if type(entry)=='table' then
+            local copy={}
+            for _,key in ipairs(MISSING_KEYS) do
+                local item=entry[key]
+                if type(item)=='string' and #item<=128 then copy[key]=item
+                elseif type(item)=='number' and item==item then copy[key]=item end
+            end
+            if copy.kind==nil or MISSING_KINDS[copy.kind] then out[index]=copy end
+        end
+    end
+    if #out==0 then return nil end
+    return out
+end
+M.boundedMissing=boundedMissing
 local function boundedDetail(detail)
     if type(detail)~='table' then return nil end
     local out={}
     for _,key in ipairs(DETAIL_KEYS) do
         local value=detail[key]
         if value~=nil then
-            if type(value)=='table' then
+            if key=='missing' then
+                local missing=boundedMissing(value)
+                if missing then out[key]=missing end
+            elseif type(value)=='string' then
+                local limit=key=='native_message' and 512 or 256
+                out[key]=#value<=limit and value or value:sub(1,limit)
+            elseif type(value)=='table' then
                 local copy={}
                 local count=0
                 for k,v in pairs(value) do
@@ -207,6 +241,7 @@ local function boundedDetail(detail)
             end
         end
     end
+    if next(out)==nil then return nil end
     return out
 end
 M.boundedDetail=boundedDetail
@@ -219,7 +254,16 @@ function M:deny(id,reason,detail)
     self.rejections[#self.rejections+1]=entry
     self:record({kind='denied',rule=id,reason=reason,detail=entry.detail})
     if self.notify then
-        self.notify({kind='denied',reason=reason,rule=id,detail=entry.detail,generation=self.generation})
+        self.notify({kind='denied',reason=reason,rule=id,detail=entry.detail,
+            -- D-2: the structured refusal detail (native cooldown `missing`,
+            -- `native_message`, `hint`) is surfaced next to the deny so the
+            -- client-visible policy log carries the same detail the command
+            -- path already returns. `movement_retry` keeps its own `landing`.
+            missing=entry.detail and entry.detail.missing or nil,
+            native_message=entry.detail and entry.detail.native_message or nil,
+            hint=entry.detail and entry.detail.hint or nil,
+            landing=entry.detail and entry.detail.landing or nil,
+            generation=self.generation})
     end
 end
 
@@ -334,10 +378,18 @@ end
 function M:step()
     if self.state~='running' then return {action='noop',state=self.state} end
     local generation=self.generation
-    local reason=self:checkEnemies()
-    if reason then return self:pause(reason) end
     local default_selector=self.policy.targeting and self.policy.targeting.default
     local pre=self:context(default_selector)
+    -- v1.6 scheduling mode: the policy chooses no-enemy, low-HP and new-enemy
+    -- behaviour. The executor no longer imposes a global flee pause or a fixed
+    -- emergency layer; `emergency` is a scheduling label selected by
+    -- `emergency_only`.
+    local sched=Evaluator.scheduling(self.policy,pre.hp_pct)
+    -- D-3: `on_new_enemy` is a preset/mode choice, so the new-enemy check runs
+    -- after the mode is resolved. `continue` refreshes the known set in place
+    -- (inside checkEnemies) and lets the same opportunity act.
+    local newEnemy=self:checkEnemies(sched.on_new_enemy)
+    if newEnemy then return self:pause(newEnemy) end
     -- AC-05: an unavailable health threshold is an executor-level unknown-safety
     -- boundary before any rule/layer evaluation (never fail open).
     local minHp=self.policy.safety and self.policy.safety.min_hp_pct
@@ -347,10 +399,6 @@ function M:step()
         paused.detail='hp_pct'
         return paused
     end
-    -- v1.6 scheduling mode: the policy chooses no-enemy and low-HP behaviour.
-    -- The executor no longer imposes a global flee pause or a fixed emergency
-    -- layer; `emergency` is a scheduling label selected by `emergency_only`.
-    local sched=Evaluator.scheduling(self.policy,pre.hp_pct)
     local critical=sched.low_hp
     -- AC-04: sustain maintenance is a normal-layer combat optimization; it runs
     -- before the rule loop only in the normal layer, and only with a visible
@@ -359,10 +407,16 @@ function M:step()
     if sched.layer=='normal' and (pre.enemy_count or 0)>0 then
         local sustain=self:sustainStep()
         if sustain then
-            self.attempts=self.attempts+1
             local outcome=(self.host and self.host.request and self.host.request({
                 rule='sustain:'..sustain.talent,action='set_sustain',talent=sustain.talent,
                 target='self',generation=generation})) or {}
+            -- R-1 (round anor-reg-01 fix2): the action budget counts native
+            -- submissions that took effect (a completed action or a charged
+            -- attempt). A settled refusal that produced no native action and
+            -- spent no energy does not consume it.
+            if outcome.status=='ok' or outcome.energy_spent==true then
+                self.attempts=self.attempts+1
+            end
             if outcome.status=='native_pending' then
                 self.state='waiting_native'; self.reason='native_pending'
                 return {action='wait_native',rule='sustain:'..sustain.talent,state=self.state,generation=generation}
@@ -397,6 +451,21 @@ function M:step()
             return rc
         end})
         if decision.decision=='pause' then
+            -- R-1 (round anor-reg-01 fix2): the emergency-refusal terminal (a
+            -- settled reject left nothing applicable in this opportunity) must
+            -- not pause with the lease held: nothing was submitted, the world
+            -- is frozen and no cooldown could ever decay, so every resume would
+            -- replay the same rejected action. That is the same integrity exit
+            -- as the no-rule hold: stop the run with the typed refusal reason
+            -- and let the service release the lease. The reason stays honest
+            -- (`action_denied`), and `start` re-acquires explicitly.
+            if decision.reason=='action_denied' and decision.fallback then
+                self:record({kind='stopped',reason=decision.reason,rule=decision.rule})
+                self:stop(decision.reason)
+                return {action='stopped',reason=decision.reason,rule=decision.rule,
+                    results=decision.results,rejections=self.rejections,
+                    state=self.state,generation=self.generation}
+            end
             self:record({kind='paused',reason=decision.reason,rule=decision.rule})
             local paused=self:pause(decision.reason)
             paused.results=decision.results; paused.rejections=self.rejections
@@ -488,19 +557,36 @@ function M:step()
                 return paused
             end
             if guard and guard.action=='reject' then
-                -- A guard rejection is a real pre-execution attempt (frozen
-                -- budget contract): count it, then try the next candidate.
-                self.attempts=self.attempts+1
+                -- R-1 (round anor-reg-01 fix2): a guard rejection is a
+                -- pre-execution refusal: it never reaches the native executor,
+                -- produces no native action and must not consume the action
+                -- budget (with max_actions_per_tick=1 a consumed budget would
+                -- freeze the fall-through and livelock a held lease). Deny the
+                -- rule and try the next candidate; the per-opportunity work
+                -- stays bounded by the denied-rule set and the rule-loop cap.
                 self:deny(decision.rule,guard.reason or 'safety_rejected',guard.detail)
             else
             local guard_detail=guard and guard.detail
-            self.attempts=self.attempts+1
             local outcome=(self.host and self.host.request and self.host.request({
                 rule=decision.rule,action=decision.action,talent=decision.talent,
                 emergency=decision.emergency==true,
                 max_turns=decision.max_turns,direction=decision.direction,
                 destination=decision.destination,target_plan=decision.target_plan,plan=plan,
                 target=decision.target,bound_target=bound.bound_target,generation=generation})) or {}
+            -- R-1 (round anor-reg-01 fix2): the action budget counts native
+            -- submissions that took effect (a completed action or a charged
+            -- attempt). A settled refusal that produced no native action and
+            -- spent no energy does not consume it, so the same-opportunity
+            -- fall-through stays available even at max_actions_per_tick=1. The
+            -- opportunity stays bounded without the budget: every refused rule
+            -- is denied for the rest of the opportunity (movement retries are
+            -- bounded by the excluded-landing set) and the rule loop below is
+            -- hard-capped. budget_exhausted therefore always means "this
+            -- opportunity already completed max charged actions", never "the
+            -- cause was a refusal".
+            if outcome.status=='ok' or outcome.energy_spent==true then
+                self.attempts=self.attempts+1
+            end
             -- MFT-REV-06: a scene transition is scene-boundary evidence,
             -- independent of the outcome status. Any started/completed
             -- transition stops/resets the run and requires an explicit start on
@@ -536,11 +622,12 @@ function M:step()
                 -- Explicitly rejected and no energy spent. For a deterministic
                 -- movement landing this is a native collision/refusal of one
                 -- coordinate: exclude it and re-plan the same selector/anchor
-                -- so an acceptable alternative is tried (P2-1). The attempt was
-                -- already counted, so the per-tick budget still bounds the
-                -- fallback. Every other action keeps the frozen behavior: do
-                -- not retry as-is in this opportunity, but another rule may
-                -- still be valid.
+                -- so an acceptable alternative is tried (P2-1). No native
+                -- action was produced, so the attempt does not consume the
+                -- budget (R-1); the retries are bounded by the excluded-landing
+                -- set and the rule-loop cap. Every other action keeps the
+                -- frozen behavior: do not retry as-is in this opportunity, but
+                -- another rule may still be valid.
                 local key=self.landingKey(plan)
                 if key and not self.rejected_landings[key] then
                     self.rejected_landings[key]=true
@@ -548,7 +635,10 @@ function M:step()
                         action=decision.action,landing=key,code=outcome.code,
                         generation=generation})
                 else
-                    self:deny(decision.rule,'native_rejected')
+                    -- D-2: carry the typed refusal detail (native cooldown
+                    -- `missing`, `hint`, `native_message`) into the policy log.
+                    self:deny(decision.rule,'native_rejected',
+                        {missing=outcome.missing,hint=outcome.hint,native_message=outcome.native_message,landing=key})
                 end
             else
                 return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')
@@ -556,6 +646,17 @@ function M:step()
             end
             end
         end
+    end
+    -- R-1 (round anor-reg-01 fix2): the rule-loop cap is the bound that replaced
+    -- attempt counting for refusals. Exhaustion without any charged action means
+    -- the world is frozen and the run cannot progress: stop (release the lease)
+    -- instead of pausing with the lease held. With charged actions the world
+    -- advances on its own, so the ordinary pause keeps its meaning.
+    if self.attempts==0 then
+        self:record({kind='stopped',reason='rule_loop_limit'})
+        self:stop('rule_loop_limit')
+        return {action='stopped',reason='rule_loop_limit',rejections=self.rejections,
+            state=self.state,generation=self.generation}
     end
     return self:pause('rule_loop_limit')
 end

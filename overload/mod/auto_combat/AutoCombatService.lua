@@ -67,7 +67,9 @@ function M.status(svc)
         status.run=svc.controller:status()
         status.last_decisions=svc.controller:recentDecisions(5)
     end
-    status.log=Log.status(svc.log)
+    -- D-4: `status.log` reports the retained ring plus a coherent window
+    -- summary of the same bounded tail a `log` call would return.
+    status.log=Log.status(svc.log,Log.tail(svc.log,32))
     return ok(status)
 end
 
@@ -143,8 +145,16 @@ function M.dryRun(svc,args)
     -- calls request()/execute() or commits anything.
     local maxActions=(policy.limits and policy.limits.max_actions_per_tick) or 1
     local maxInstant=(policy.limits and policy.limits.max_instant_per_tick) or 3
+    -- R-1 (round anor-reg-01 fix2) mirror: a dry run executes nothing, so no
+    -- budget is ever consumed; refusals (planner/guard/rebind) deny the rule
+    -- instead of counting against max_actions_per_tick. The controller-side
+    -- charged-action semantics are mirrored by the bounded loop below: if the
+    -- candidates never resolve, the mirror reports the controller's typed
+    -- rule_loop_limit boundary instead of pretending an action would be
+    -- submitted past the cap.
     local denied={}
     local attempts=0
+    local resolved=false
     -- MFT-REV-05(a): the instant cap is a distinct per-opportunity counter that
     -- advances only after a successful instant action, not the total attempt
     -- counter. A rejected candidate never consumes an instant slot.
@@ -236,11 +246,11 @@ function M.dryRun(svc,args)
                     break
                 end
                 if guard and guard.action=='reject' then
-                    attempts=attempts+1
                     denied[d.rule]=true
                     trace[#trace+1]={rule=d.rule,reason=guard.reason,risk=guard.detail}
                 else
                     -- This is the action live execution would next submit.
+                    resolved=true
                     decision=d
                     bound_target,target_distance=bt,td
                     -- Keep the default binding selector unless a non-default
@@ -254,11 +264,21 @@ function M.dryRun(svc,args)
             end
         end
         if attempts>=maxActions then
+            -- Unreachable while a dry run consumes no budget (see above); kept
+            -- as a defensive mirror of the evaluator's charged-action check.
             decision={decision='pause',reason='budget_exhausted',rule=decision.rule,
                 results=decision.results,layer=decision.layer}
             loop_paused=true
             break
         end
+    end
+    -- R-1 mirror: the live controller's rule loop is hard-capped; when the
+    -- candidates never resolve within it, live stops (or pauses) with the typed
+    -- `rule_loop_limit` boundary instead of submitting again. Report the same.
+    if not resolved and decision.decision=='act' then
+        decision={decision='pause',reason='rule_loop_limit',rule=decision.rule,
+            results=decision.results,layer=decision.layer}
+        loop_paused=true
     end
     -- A planner/guard fall-through selection keeps the same binding metadata.
     if decision.decision=='act' and binding==nil then
@@ -352,6 +372,9 @@ function M.start(svc)
             -- and the underlying native result (for example `blocked`) so the
             -- refusal stays auditable in the client-visible policy log/replay.
             landing=event.landing,native_result=event.code,
+            -- D-2: a native refusal's structured cooldown/requirement detail
+            -- reaches the policy log (bounded, type-guarded in PolicyLog).
+            missing=event.missing,hint=event.hint,native_message=event.native_message,
             policy_hash=Schema.hash(svc.store.running)}))
     end})
     local started=svc.controller:start()
@@ -474,7 +497,11 @@ function M.step(svc)
 end
 
 function M.log(svc,limit)
-    return ok({events=Log.tail(svc.log,limit or 32),status=Log.status(svc.log)})
+    -- D-4: the returned window keeps its own coherent first_seq/last_seq so a
+    -- caller can never mistake the ring's oldest sequence for the oldest
+    -- returned event.
+    local events=Log.tail(svc.log,limit or 32)
+    return ok({events=events,status=Log.status(svc.log,events)})
 end
 -- Replay/export the §10 decision trace: an ascending, cursor-paged slice plus a
 -- header describing the run's policy/state context. This is a decision trace,
@@ -503,7 +530,7 @@ function M.replay(svc,args)
     local next_seq=after
     if entries[#entries] then next_seq=entries[#entries].seq end
     return ok({replay=true,executed=false,side_effects='none',header=header,
-        entries=entries,next_seq=next_seq,status=Log.status(svc.log)})
+        entries=entries,next_seq=next_seq,status=Log.status(svc.log,entries)})
 end
 
 -- Built-in presets and import/export -----------------------------------------

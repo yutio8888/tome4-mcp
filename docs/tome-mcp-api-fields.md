@@ -211,6 +211,21 @@
 
 `native_task`：`task_id`、`kind`、`status`、`turns_executed`、`native_max_turns?`、`automation_max_turns`、`stop_reason?`、`native_message?`。
 
+## 6.1 `tome.policy` / `tome.policy_log`（自动战斗）
+
+`policy_log` 的 `status.log`（及 `policy status`）报**保留 ring** 的 `count`/`first_seq`/`last_seq`/
+`total`/`limit`，以及**实际返回窗口**的 `window={count,first_seq,last_seq}` 与 `semantics` 说明
+（早期条目通过 `tome.policy` `replay` 游标分页读取）。`window.first_seq`/`last_seq` 是**返回事件中最旧/
+最新的 seq**，与返回顺序无关：`log.events` 为最新优先的有界 tail，`replay` 为旧→新的分页追踪，二者
+报出一致的窗口（`first_seq <= last_seq`）。`total` 是累计写入的事件数，ring 淘汰后可以大于 `count`。
+
+`status`：`mode` 含已校验的调度值 `on_no_enemy`、`on_low_hp`、`on_new_enemy='pause'|'continue'`
+（`on_new_enemy` 由 preset/mode 选择，非插件级门禁）。
+
+policy 决策事件的 `denied` 条目可携带原生拒绝的结构化详情：`missing`（如
+`[{kind='cooldown',talent,remaining,required=0}]`）、`hint`、`native_message`，与 `tome.act` 命令路径
+一致（有界且类型守卫）。
+
 ## 7. `tome.stop`
 
 `stopped: true`、`snapshot`（§4）。
