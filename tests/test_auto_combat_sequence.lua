@@ -192,6 +192,16 @@ do
     check(other==nil and otherErr.reason=='unsupported_movement_variant'
         and otherErr.missing=='moving_or_swapping_another_actor',
         'a self-subject program bound to another actor is the typed S4 gap')
+    -- S2-REV-04: `none` is not a native prompt, so a direct planner call with a
+    -- `none` program entry fails closed instead of lowering an entry the
+    -- executor would reject (the factory already rejects it at declaration).
+    local noneEntry,noneEntryErr=Planner.planSequence({talent='T_X',target='self',
+        target_plan={{request='none'}}},
+        provider,{request_sequence={{index=1,request='none',subject='self'}},
+            landing='random'},{x=2,y=2})
+    check(noneEntry==nil and noneEntryErr.reason=='movement_adapter_invalid'
+        and noneEntryErr.detail=='bad_request_kind',
+        'a none program entry is movement_adapter_invalid, not an executable plan')
 end
 
 -- 3. Executor queue: in-order answers, distinct values, recorded sequence -----
@@ -335,6 +345,10 @@ do
     check(result.sequence_deviation.exhausted==true
         and result.sequence_deviation.observed.index==3,
         'an extra prompt reports the exhausted sequence and observed index 3')
+    -- S2-REV-01: the extra prompt's OBSERVED shape is classified and reported,
+    -- not a synthetic placeholder.
+    check(result.sequence_deviation.observed.request=='grid',
+        'the extra prompt reports the observed actor/grid kind')
 end
 
 -- 8. Wrong-kind decided value pauses typed (never a wrong answer) -------------
@@ -352,6 +366,59 @@ do
 end
 
 -- 9. Unevaluable value pauses with movement_request_value_unknown -------------
+
+-- 9b. S2-REV-01: a reordered NATIVE flow. The declared program is actor-then-
+-- grid, but the native body raises a grid-shaped prompt (ball) first and an
+-- actor-shaped prompt (hit) second. Every observed prompt is classified from
+-- its cursor spec and matched against the declared entry at that index, so the
+-- reordered flow is `unexpected_target_request` (never `action_complete`) and
+-- the k-th declared value is never blindly answered to the wrong prompt.
+do
+    local seen={}
+    local def={prompts={{type='ball',range=14,radius=1,nowarning=true},
+            {type='hit',range=10,nowarning=true}},
+        on_answer=function(self,answers)
+            seen=answers
+            -- The native body completes with whatever the player answered.
+            return true
+        end}
+    local result,command=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor'},{kind='grid',request='grid',x=5,y=3}}})
+    check(not result.ok and result.code=='unexpected_target_request',
+        'a reordered native flow is the typed unexpected_target_request, not action_complete')
+    local deviation=result.sequence_deviation
+    check(deviation and deviation.expected.index==1 and deviation.expected.request=='actor'
+        and deviation.observed.index==1 and deviation.observed.request=='grid'
+        and deviation.skippable==false,
+        'the reorder deviation reports the declared actor entry vs the observed grid prompt')
+    -- The queue never answered: both prompts were handed to the real native
+    -- target request (the metatable seam), so the declared self/grid values are
+    -- absent from the native flow and no wrong target was supplied.
+    check(seen[1] and seen[1].x==99 and seen[1].y==99 and seen[1].entity==nil,
+        'the first (grid-shaped) prompt was handed back to the player, unanswered by the queue')
+    check(seen[2] and seen[2].x==99 and seen[2].entity==nil,
+        'the second (actor-shaped) prompt was handed back to the player as well')
+    check(command.target_sequence and #command.target_sequence==2,
+        'both observed prompts are still recorded for evidence')
+end
+
+-- 9c. A native cursor spec that cannot be classified unambiguously is never
+-- answered blindly: it is a typed deviation with the live interaction handed
+-- back (the declared kind stays curated; the cursor type is only a guard).
+do
+    local def={prompts={{type='exotic_cursor_shape',range=10,nowarning=true}},
+        on_answer=function() return true end}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor'}}})
+    check(not result.ok and result.code=='movement_request_kind_unknown',
+        'an unclassifiable native request shape is a typed deviation, never a blind answer')
+    local deviation=result.sequence_deviation
+    check(deviation and deviation.expected.request=='actor'
+        and deviation.observed_shape=='exotic_cursor_shape' and deviation.skippable==false,
+        'the kind-unknown deviation reports the observed native shape')
+end
 do
     local def={prompts={{type='hit',range=10,nowarning=true}},
         on_answer=function() return true end}
@@ -375,6 +442,11 @@ do
         sequence={{kind='grid'}}}),'a grid sequence entry needs a coordinate')
     check(not Actions.validate({type='use_talent',talent_id='T_A',
         sequence={{kind='self',bogus=1}}}),'an unknown sequence field is rejected')
+    -- S2-REV-04: `none` is not a native prompt; it cannot form an executable
+    -- ordered program (the factory rejects it at declaration time too).
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='self',request='none'}}}),
+        'a none request is not a sequence prompt (invalid_sequence)')
     local normalized=Actions.validate({type='use_talent',talent_id='T_A',
         sequence={{kind='self'},{kind='grid',x=3,y=4}}})
     check(normalized and normalized.authoritative_target==true,

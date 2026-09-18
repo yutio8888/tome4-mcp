@@ -266,6 +266,46 @@ do
         'an unknown phase_door_force_precise read fails closed (movement_variant_unknown)')
 end
 
+-- 3b. S2-REV-02: the landing envelope applies to every scanned selector that
+-- can lower to a request_then_landing step. A Phase-Door-shaped adapter
+-- (landing='random', radius 1, LOS fallback radius 12) must report the RANDOM
+-- landing annotation (with radius/fallback) through the away/toward/
+-- preferred_distance scan, and a deterministic policy must be able to reject it
+-- on its own terms. A random landing stays an annotation, never a plugin
+-- refusal.
+do
+    local movement={target_requests={'grid'},landing='random',radius=1,min_radius=0,
+        fallback_center='self',fallback_radius=12,range=10}
+    local scanProvider=provider({x=2,y=2},{},{bound_target={x=6,y=2}})
+    for _,selector in ipairs({'away','toward','preferred_distance'}) do
+        local request={selector=selector,anchor='bound_target',distance=3,accept=accept()}
+        if selector~='preferred_distance' then request.distance=nil end
+        local plan=Planner.planTalent(request,scanProvider,nil,movement,{x=2,y=2})
+        check(plan and plan.kind=='grid',selector..' still plans a scanned landing step')
+        local landing=plan.annotation.landing
+        check(landing.kind=='random' and landing.radius==1 and landing.min_radius==0
+            and landing.center.x==plan.x and landing.center.y==plan.y,
+            selector..' annotates the declared random landing envelope, not a deterministic cell')
+        check(landing.fallback and landing.fallback.kind=='random'
+            and landing.fallback.center.x==2 and landing.fallback.center.y==2
+            and landing.fallback.radius==12,
+            selector..' annotates the LOS-fallback branch (caster-centred, radius 12)')
+        check(plan.annotation.confidence=='source_random',
+            selector..' reports the source landing classification as confidence')
+    end
+    -- A deterministic policy rejects the random landing on its own terms: no
+    -- candidate is selected (a plugin veto would look the same in shape but is
+    -- emitted by the POLICY's accept object, not by the planner).
+    local strict=Planner.planTalent({selector='away',anchor='bound_target',
+        accept=accept({landing='deterministic'})},scanProvider,nil,movement,{x=2,y=2})
+    check(strict==nil,'a deterministic policy rejects the random away landing (S2-REV-02)')
+    -- With an exact landing the scanned cell stays deterministic.
+    local exact=Planner.planTalent({selector='away',anchor='bound_target',accept=accept()},
+        scanProvider,nil,{target_requests={'grid'},landing='exact',range=10},{x=2,y=2})
+    check(exact and exact.annotation.landing.kind=='deterministic',
+        'an exact adapter keeps the deterministic scanned landing')
+end
+
 -- 4. Production controller wiring: a plain step reaches the executor ----------
 local function policy(overrides)
     local p={schema='tome-auto-combat/v1',id='p1',name='p1',

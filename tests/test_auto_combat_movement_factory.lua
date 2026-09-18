@@ -484,4 +484,51 @@ do
     Drift.reset()
 end
 
+-- S2-REV-03/REV-04: a closed dense `target_requests`, and prompt kinds that
+-- can actually execute ------------------------------------------------------
+do
+    -- `target_requests` is caller-supplied only on `request_then_landing` (the
+    -- other templates pin it as a fixed invariant); the malformed declarations
+    -- must be rejected at build time instead of being silently truncated.
+    local function program(params)
+        local merged={delivery='teleport',landing='random',center='self',
+            traverses=false,relocates_other=false,
+            request_sequence={{index=1,request='actor',subject='self'}}}
+        for k,v in pairs(params or {}) do merged[k]=v end
+        return Factory.expand('request_then_landing',merged)
+    end
+    local function badRequests(err,cause)
+        return err~=nil and err.reason=='movement_adapter_invalid'
+            and err.detail=='bad_target_requests' and err.cause==cause
+    end
+    -- S2-REV-03: the three falsified forms are all rejected at build time.
+    local hole,holeErr=program({target_requests={[1]='actor',[3]='grid'}})
+    check(hole==nil and badRequests(holeErr,'hole'),
+        'a hole in target_requests is movement_adapter_invalid (S2-REV-03)')
+    local frac,fracErr=program({target_requests={[1]='actor',[1.5]='grid'}})
+    check(frac==nil and badRequests(fracErr,'non_integer_key'),
+        'a non-integer target_requests key is movement_adapter_invalid (S2-REV-03)')
+    local unknownKey,unknownKeyErr=program({target_requests={[1]='actor',oops='grid'}})
+    check(unknownKey==nil and badRequests(unknownKeyErr,'non_integer_key'),
+        'an unknown target_requests key is movement_adapter_invalid (S2-REV-03)')
+    -- A dense list still expands (and its entries are not re-ordered).
+    local dense=assert(program({target_requests={'actor'}}))
+    check(#dense.target_requests==1 and dense.target_requests[1]=='actor',
+        'a dense target_requests list is accepted unchanged')
+    -- S2-REV-04: `none` is not a native prompt. A sequence that declares it is
+    -- movement_adapter_invalid at declaration time (it would otherwise pass the
+    -- descriptor and fail executor lowering with invalid_sequence).
+    local none,noneErr=Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='none',subject='self'}},
+        delivery='teleport',landing='random',center='self',traverses=false,
+        relocates_other=false})
+    check(none==nil and noneErr~=nil and noneErr.reason=='movement_adapter_invalid'
+        and noneErr.detail=='bad_request_kind',
+        'a none program entry is rejected at declaration time (S2-REV-04)')
+    -- The no-prompt descriptor vocabulary keeps `none` for its single-request
+    -- `target_requests` use (the N=1 leaf needs no queue).
+    check(Factory.TARGET_REQUESTS.none==true,
+        'none stays a target_requests value for single-request descriptors')
+end
+
 print('Movement adapter factory: '..checks..' checks passed')

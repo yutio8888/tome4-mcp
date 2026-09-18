@@ -192,6 +192,36 @@ end
 
 -- Plan a talent destination. `movement` is the manifest's movement adapter (or
 -- nil, which is a capability gap for the native-landing selectors).
+-- S2-REV-02: apply the declared landing envelope (kind/radius/min_radius and
+-- the LOS-fallback branch) to a resolved candidate cell's annotation, so
+-- `destination.accept.landing` sees the TRUE native landing shape. Every
+-- selector that can lower to a `request_then_landing` step must call this
+-- BEFORE policy acceptance: a `bounded_alternatives`/`random` adapter does not
+-- land on the scanned cell, so a deterministic annotation would misreport a
+-- random landing. `exact` (a single source-proven landing) stays
+-- deterministic; a random landing stays an ANNOTATION the policy decides on,
+-- never a plugin refusal.
+local function applyLandingEnvelope(annotation,movement,origin,x,y)
+    if type(movement)~='table' or movement.landing=='exact' or movement.landing==nil then
+        return annotation
+    end
+    local landing={kind=movement.landing=='random' and 'random' or 'bounded',
+        center={x=x,y=y}}
+    if finite(movement.radius) then landing.radius=movement.radius end
+    if finite(movement.min_radius) then landing.min_radius=movement.min_radius end
+    if movement.fallback_center then
+        local fcenter=movement.fallback_center=='self' and {x=origin.x,y=origin.y} or {x=x,y=y}
+        landing.fallback={kind='random',center=fcenter}
+        if finite(movement.fallback_radius) then landing.fallback.radius=movement.fallback_radius end
+        annotation.reasons[#annotation.reasons+1]='los_fallback_envelope'
+    end
+    annotation.landing=landing
+    annotation.confidence='source_'..tostring(movement.landing)
+    annotation.reasons[#annotation.reasons+1]='native_random_landing'
+    annotation.reasons[#annotation.reasons+1]='hidden_occupancy_not_inspected'
+    return annotation
+end
+
 function M.planTalent(request,provider,bound,movement,origin,exclude)
     origin=origin or (provider.origin and provider.origin())
     if not origin then return nil,{reason='origin_unavailable'} end
@@ -261,28 +291,10 @@ function M.planTalent(request,provider,bound,movement,origin,exclude)
         if annotation.in_bounds==false then
             return nil,{reason='destination_out_of_bounds',x=x,y=y,annotation=annotation}
         end
-        -- S1 factory: a grid request is not automatically a deterministic
-        -- landing. A `bounded_alternatives`/`random` adapter (Blink, Dimensional
-        -- Step, Phase Door precise-grid) chooses the actual endpoint natively, so
-        -- the annotation must report the declared envelope before policy
-        -- acceptance. `exact` stays deterministic.
+        -- S2-REV-02: the annotation must report the declared envelope before
+        -- policy acceptance. `exact` stays deterministic.
         annotation.selector=request.selector
-        if movement and movement.landing~='exact' then
-            local landing={kind=movement.landing=='random' and 'random' or 'bounded',
-                center={x=x,y=y}}
-            if finite(movement.radius) then landing.radius=movement.radius end
-            if finite(movement.min_radius) then landing.min_radius=movement.min_radius end
-            if movement.fallback_center then
-                local fcenter=movement.fallback_center=='self' and {x=origin.x,y=origin.y} or {x=x,y=y}
-                landing.fallback={kind='random',center=fcenter}
-                if finite(movement.fallback_radius) then landing.fallback.radius=movement.fallback_radius end
-                annotation.reasons[#annotation.reasons+1]='los_fallback_envelope'
-            end
-            annotation.landing=landing
-            annotation.confidence='source_'..tostring(movement.landing)
-            annotation.reasons[#annotation.reasons+1]='native_random_landing'
-            annotation.reasons[#annotation.reasons+1]='hidden_occupancy_not_inspected'
-        end
+        annotation=applyLandingEnvelope(annotation,movement,origin,x,y)
         local ok,reason=M.accepts(request.accept,annotation)
         if not ok then return nil,{reason=reason,annotation=annotation} end
         -- A previously natively-rejected exact grid request is never
@@ -326,6 +338,11 @@ function M.planTalent(request,provider,bound,movement,origin,exclude)
                     else candidate_ok=false; occupancy_uncertain=true end
                 end
                 local annotation=M.annotate(x,y,provider)
+                -- S2-REV-02: the envelope is applied BEFORE acceptance so the
+                -- policy decides on the true native landing shape; a
+                -- deterministic policy rejects a random landing on its own
+                -- terms and the candidate is simply not selected.
+                annotation=applyLandingEnvelope(annotation,movement,origin,x,y)
                 if candidate_ok and annotation.in_bounds and not excluded(exclude,x,y) then
                     local ok=M.accepts(request.accept,annotation)
                     if ok then
@@ -359,13 +376,24 @@ end
 
 -- Build the annotation for a no-explicit-endpoint native request (self/actor
 -- landing derived by native code) from the manifest's movement classification.
-local function nativeLandingAnnotation(movement,anchor)
+-- S2-REV-02: the LOS-fallback branch is part of the declared envelope, so it
+-- is reported here too (the sequence per-step annotations share this builder).
+local function nativeLandingAnnotation(movement,anchor,origin)
     movement=movement or {}
     if movement.landing=='random' then
         local bounds={kind='random',source='native'}
         if finite(movement.radius) then bounds.radius=movement.radius end
         if finite(movement.min_radius) then bounds.min_radius=movement.min_radius end
         if finite(movement.range) then bounds.range=movement.range end
+        if movement.fallback_center then
+            local fcenter=(movement.fallback_center=='self' and type(origin)=='table')
+                and {x=origin.x,y=origin.y}
+                or (type(anchor)=='table' and {x=anchor.x,y=anchor.y} or nil)
+            if fcenter then
+                bounds.fallback={kind='random',center=fcenter}
+                if finite(movement.fallback_radius) then bounds.fallback.radius=movement.fallback_radius end
+            end
+        end
         return {landing=bounds,visible=false,remembered=false,
             known_passable='unknown',known_hazard='unknown',
             confidence='source_pinned_random',
@@ -418,6 +446,13 @@ local function planSequenceEntry(entry,step,attempt,provider,movement,origin)
     -- policy may reasonably put the accept object on the landing step only).
     local accept=(type(step.destination)=='table') and step.destination.accept or nil
     if accept==nil and type(attempt.destination)=='table' then accept=attempt.destination.accept end
+    -- S2-REV-04: a program entry is a real native prompt (`actor`/`grid`/`self`);
+    -- the factory rejects `none` at declaration time, and a direct planner call
+    -- with one fails closed here instead of lowering an unexecutable entry.
+    if entry.request~='actor' and entry.request~='grid' and entry.request~='self' then
+        return nil,{reason='movement_adapter_invalid',detail='bad_request_kind',
+            request=tostring(entry.request)}
+    end
     if entry.request=='grid' then
         -- A grid prompt is answered either from the step's own policy target
         -- (`value_source='target_plan'`) or, when the descriptor curates
@@ -434,7 +469,7 @@ local function planSequenceEntry(entry,step,attempt,provider,movement,origin)
                 return nil,{reason='movement_request_value_unknown',
                     dependency=entry.subject=='self' and 'self' or 'bound_actor'}
             end
-            local annotation=nativeLandingAnnotation(movement,anchor)
+            local annotation=nativeLandingAnnotation(movement,anchor,origin)
             local ok,reason=M.accepts(accept or {visibility='any',passability='native',
                 hazard='any',landing='allow_random'},annotation)
             if not ok then return nil,{reason=reason,annotation=annotation} end
@@ -453,17 +488,8 @@ local function planSequenceEntry(entry,step,attempt,provider,movement,origin)
         if entry.optional==true then planned.value.optional=true end
         return planned
     end
-    if entry.request=='none' then
-        local annotation=nativeLandingAnnotation(movement,nil)
-        local ok,reason=M.accepts(accept or {visibility='any',passability='native',
-            hazard='any',landing='allow_random'},annotation)
-        if not ok then return nil,{reason=reason,annotation=annotation} end
-        local value={kind='none',request='none'}
-        if entry.optional==true then value.optional=true end
-        return {kind='none',annotation=annotation,value=value}
-    end
     if entry.request=='self' then
-        local annotation=nativeLandingAnnotation(movement,{x=origin.x,y=origin.y})
+        local annotation=nativeLandingAnnotation(movement,{x=origin.x,y=origin.y},origin)
         annotation.landing.kind=(movement.landing=='exact' or movement.landing==nil)
             and 'deterministic' or annotation.landing.kind
         annotation.confidence='self_request'
@@ -509,7 +535,7 @@ local function planSequenceEntry(entry,step,attempt,provider,movement,origin)
     if not anchor then
         return nil,{reason='anchor_unavailable',selector=effective or 'bound_target'}
     end
-    local annotation=nativeLandingAnnotation(movement,anchor)
+    local annotation=nativeLandingAnnotation(movement,anchor,origin)
     local ok,reason=M.accepts(accept or {visibility='any',passability='native',
         hazard='any',landing='allow_random'},annotation)
     if not ok then return nil,{reason=reason,annotation=annotation} end
@@ -582,14 +608,14 @@ local function planFromTargetPlan(attempt,provider,movement,origin)
         return M.planTalent(step.destination,provider,attempt.bound_target,movement,origin,attempt.exclude)
     end
     if request=='none' then
-        local annotation=nativeLandingAnnotation(movement,nil)
+        local annotation=nativeLandingAnnotation(movement,nil,origin)
         local _,err=acceptAnnotation(annotation,{visibility='any',passability='native',
             hazard='any',landing='allow_random'})
         if err then return nil,err end
         return {kind='none',annotation=annotation}
     end
     if request=='self' then
-        local annotation=nativeLandingAnnotation(movement,{x=origin.x,y=origin.y})
+        local annotation=nativeLandingAnnotation(movement,{x=origin.x,y=origin.y},origin)
         annotation.landing.kind=(movement.landing=='exact' or movement.landing==nil)
             and 'deterministic' or annotation.landing.kind
         annotation.confidence='self_request'
@@ -619,7 +645,7 @@ local function planFromTargetPlan(attempt,provider,movement,origin)
         if not anchor then
             return nil,{reason='anchor_unavailable',selector=effective or 'bound_target'}
         end
-        local annotation=nativeLandingAnnotation(movement,anchor)
+        local annotation=nativeLandingAnnotation(movement,anchor,origin)
         local _,err=acceptAnnotation(annotation,{visibility='any',passability='native',
             hazard='any',landing='allow_random'})
         if err then return nil,err end

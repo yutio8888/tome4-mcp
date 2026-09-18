@@ -57,12 +57,6 @@ M.CENTERS={self=true,actor=true,requested_grid=true}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 
-local function copyArray(src)
-    local out={}
-    for i=1,#src do out[i]=src[i] end
-    return out
-end
-
 local function shallowCopy(src)
     local out={}
     for key,value in pairs(src) do
@@ -118,6 +112,19 @@ end
 
 M.validateArray=validateArray
 
+-- S2-REV-03: a declared `target_requests` is a closed dense `1..n` array. The
+-- legacy `copyArray` silently truncated holes/non-array/unknown keys to length
+-- 1, so a malformed declaration was accepted and its length/kind cross-check
+-- against `request_sequence` bypassed. Validate BEFORE copying; any malformed
+-- form is `movement_adapter_invalid` at build time.
+local function copyTargetRequests(src)
+    local ok,countOrCause=validateArray(src,1)
+    if not ok then return nil,{detail='bad_target_requests',cause=countOrCause} end
+    local out={}
+    for i=1,countOrCause do out[i]=src[i] end
+    return out
+end
+
 -- Normalise and validate one `request_sequence` (S2 §4.4). The record is closed:
 -- `index` must equal the array position (a hole/gap/reorder is invalid), the
 -- prompt kind and subject binding come from the closed vocabularies, `optional`
@@ -142,6 +149,14 @@ function M.normalizeRequestSequence(list)
         if entry.index~=i then return nil,{detail='request_index_mismatch',index=i} end
         if not M.TARGET_REQUESTS[entry.request] then
             return nil,{detail='bad_request_kind',index=i}
+        end
+        -- S2-REV-04: a sequence entry is a real native prompt. `none` (no
+        -- prompt at all) stays a `target_requests` value for single-request
+        -- descriptors such as `self_random_teleport`; as a program entry it
+        -- would be accepted at build time and then fail executor lowering
+        -- (`invalid_sequence`), so it is rejected here at declaration time.
+        if entry.request=='none' then
+            return nil,{detail='bad_request_kind',index=i,reason_text='none is not a native prompt; it cannot form an ordered program'}
         end
         if not M.REQUEST_SUBJECTS[entry.subject] then
             return nil,{detail='bad_subject',index=i}
@@ -319,13 +334,26 @@ function M.expand(template,params)
     end
     local out={}
     for key,value in pairs(spec.fixed) do
-        if key=='target_requests' then out.target_requests=copyArray(value) else out[key]=value end
+        if key=='target_requests' then out.target_requests=value else out[key]=value end
     end
     for key,value in pairs(spec.defaults or {}) do
         if out[key]==nil then out[key]=value end
     end
     for key,value in pairs(params) do
-        if key=='target_requests' then out.target_requests=copyArray(value) else out[key]=value end
+        if key=='target_requests' then out.target_requests=value else out[key]=value end
+    end
+    -- S2-REV-03: a declared `target_requests` (fixed or caller-supplied) must be
+    -- a closed dense `1..n` array; a hole, non-array or unknown key is
+    -- `movement_adapter_invalid` at build time instead of being silently
+    -- truncated by `#`.
+    if out.target_requests~=nil then
+        local requests,reqErr=copyTargetRequests(out.target_requests)
+        if not requests then
+            local err={reason=M.REASON_INVALID,template=template}
+            for key,value in pairs(reqErr) do err[key]=value end
+            return nil,err
+        end
+        out.target_requests=requests
     end
     -- S2: a `request_sequence` is normalised and cross-checked against the
     -- static capability list. A hole, gap, reorder, bad kind/subject/value
@@ -352,7 +380,7 @@ function M.expand(template,params)
             end
         end
         out.request_sequence=sequence
-        out.target_requests=copyArray(kinds)
+        out.target_requests=kinds
     end
     if not checkEnum(out.delivery,M.DELIVERIES) then
         return nil,{reason=M.REASON_INVALID,detail='bad_delivery',template=template,value=out.delivery}
@@ -590,7 +618,12 @@ function M.resolveVariant(movement,talent,reads)
     local descriptor=matched.movement
     local out={}
     for key,value in pairs(descriptor) do
-        if key=='target_requests' then out.target_requests=copyArray(value)
+        if key=='target_requests' then
+            -- Curated dense list; copy 1..# defensively (build-time validation
+            -- happens in `M.expand`).
+            local requests={}
+            for i=1,#value do requests[i]=value[i] end
+            out.target_requests=requests
         elseif key=='request_sequence' then
             local sequence={}
             for i=1,#value do

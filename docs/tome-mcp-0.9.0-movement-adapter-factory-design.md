@@ -213,7 +213,8 @@ distinguish them. Dynamic numerics (`range`, `radius`) are never signature field
 
 - `index` is explicit and must equal the array position; a hole, gap or reorder is
   `movement_adapter_invalid`. `request_sequence` and `target_requests` must agree in
-  length and kind (a mismatch is `movement_adapter_invalid`), so every existing consumer
+  length and kind (a mismatch is `movement_adapter_invalid`), and a declared
+  `target_requests` must be a closed dense `1..n` array, so every existing consumer
   of `target_requests` — `EffectManifest.requestSequences`, the static policy validator
   and the capability summary — keeps working unchanged
   (`overload/mod/auto_combat/EffectManifest.lua:363-384,485-566`).

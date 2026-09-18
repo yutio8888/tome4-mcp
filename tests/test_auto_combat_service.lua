@@ -186,6 +186,38 @@ do
         'no_emergency_action also hands control back')
 end
 
+-- S2-REV-05: a typed queue deviation (unexpected_target_request — the live
+-- native prompt was handed to the real targeting UI — and
+-- movement_request_value_unknown — the prompt was cancelled) is a
+-- player-handoff pause: the controller pauses, never resubmits, and the
+-- service releases the auto-combat lease instead of keeping it.
+do
+    for _,reason in ipairs({'unexpected_target_request','movement_request_value_unknown'}) do
+        local svc=Service.new({host_factory=fakeHost})
+        local d=Service.handle(svc,'set_draft',{policy=policy()})
+        local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+        Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
+        Service.handle(svc,'start',{})
+        local requests=0
+        svc.controller.host.request=function()
+            requests=requests+1
+            return {status='uncertain',code=reason,
+                sequence_deviation={reason=reason,
+                    expected={index=1,request='actor'},
+                    observed={index=1,request='grid'},skippable=false}}
+        end
+        local stepped=Service.step(svc)
+        check(stepped.ok and stepped.step.action=='paused' and stepped.step.reason==reason,
+            reason..' pauses the controller with its typed reason')
+        check(stepped.handoff==true and svc.arbiter.owner=='manual'
+            and svc.controller.state=='stopped',
+            reason..' releases the auto-combat lease to the player (S2-REV-05)')
+        check(requests==1,'the deviation is never resubmitted')
+        check(Service.handle(svc,'resume',{}).error.code=='not_running',
+            reason..' hands the interaction back; resume cannot loop the pause')
+    end
+end
+
 do
     -- #46c: an explicit stop records the run boundary in the decision log.
     local svc=Service.new({host_factory=fakeHost})

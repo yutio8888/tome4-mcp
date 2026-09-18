@@ -19,7 +19,16 @@ M.SOURCE='auto_combat'
 -- Option A (round-3 follow-up): the two safety pauses hand control back to the
 -- player immediately. The run stops and the lease returns to `manual`, so a
 -- remote action needs no reconnect and `resume` cannot loop-pause.
-M.SAFETY_PAUSES={flee_below_hp_pct=true,no_emergency_action=true}
+-- S2-REV-05: the ordered-queue typed deviations are the same handoff class —
+-- after `unexpected_target_request` (the live native prompt was handed to the
+-- real targeting UI) or `movement_request_value_unknown`/
+-- `movement_request_kind_unknown` (the prompt was cancelled so the plugin could
+-- not answer with a wrong value), the auto-combat lease is released and the
+-- player owns the interaction. Without this the service would keep the lease
+-- while the live interaction is no longer the plugin's to answer.
+M.SAFETY_PAUSES={flee_below_hp_pct=true,no_emergency_action=true,
+    unexpected_target_request=true,movement_request_value_unknown=true,
+    movement_request_kind_unknown=true}
 
 function M.new(options)
     options=options or {}

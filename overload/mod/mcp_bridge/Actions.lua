@@ -33,13 +33,46 @@ local function coordinate(value) return type(value)=='number' and value%1==0 and
 -- actor); `request` is the declared prompt kind it answers, kept for the
 -- expected/observed deviation report.
 local SEQUENCE_KINDS={grid=true,self=true,actor=true}
-local SEQUENCE_REQUESTS={grid=true,self=true,actor=true,none=true}
+-- A sequence entry is a real native prompt; `none` (no prompt at all) is a
+-- `target_requests` value for single-request descriptors and is not a prompt
+-- the queue can answer, so it is not part of the program vocabulary.
+local SEQUENCE_REQUESTS={grid=true,self=true,actor=true}
 -- The decided-value kind admissible for each declared prompt kind: an `actor`
 -- prompt may be answered with the caster (`self`) or the bound actor; a `grid`
--- prompt only with coordinates (no entity); a `self`/`none` prompt with the
--- caster cell.
+-- prompt only with coordinates (no entity); a `self` prompt with the caster
+-- cell.
 local SEQUENCE_VALUE_KINDS={actor={self=true,actor=true},grid={grid=true},
-    self={self=true},none={self=true}}
+    self={self=true}}
+-- S2-REV-01: classify the OBSERVED native request from the cursor spec the
+-- engine actually supplies. The engine's targeting vocabulary
+-- (`engine.Target.types_def` + the `hit` sentinel, `engines/default/engine/
+-- Target.lua:614,680`) splits prompts into actor-locked shapes (the targeting
+-- UI binds an actor entity and the answer carries one) and area shapes (the
+-- projection is centred on the chosen grid). `hit`/`bolt` are the
+-- `requires_target` shapes; everything with a projection geometry is a grid
+-- shape. Any other/absent shape cannot be classified unambiguously: the plugin
+-- must never answer a prompt it cannot identify, so that is a typed deviation
+-- (never a blind answer, and the declared kind stays curated — the observed
+-- shape is used only for this match and the per-request native guard).
+local NATIVE_ACTOR_SHAPES={hit=true,bolt=true}
+local NATIVE_GRID_SHAPES={ball=true,cone=true,beam=true,widebeam=true,
+    wall=true,triangle=true}
+local function classifyObservedRequest(typ)
+    if type(typ)~='table' or type(typ.type)~='string' then return nil end
+    if NATIVE_ACTOR_SHAPES[typ.type] then return 'actor' end
+    if NATIVE_GRID_SHAPES[typ.type] then return 'grid' end
+    return nil
+end
+-- An observed actor-shaped prompt may legitimately answer a declared `actor`
+-- entry or the caster-bound `self` entry (both are answered with an actor
+-- entity); a grid-shaped prompt only answers a declared `grid` entry.
+local function observedMatchesEntry(observedKind,entry)
+    if observedKind=='grid' then return entry.request=='grid' end
+    if observedKind=='actor' then
+        return entry.request=='actor' or entry.request=='self'
+    end
+    return false
+end
 M.SEQUENCE_VALUE_KINDS=SEQUENCE_VALUE_KINDS
 function M.normalizeSequence(list)
     if type(list)~='table' then return nil,'invalid_sequence' end
@@ -324,17 +357,29 @@ function M.execute(g, action, target, meta, command)
                     if type(original)~='function' then return run() end
                     local authoritative=action.authoritative_target==true
                     -- S2 ordered prompt-response queue: the k-th observed native
-                    -- request is answered with the k-th declared decided value.
-                    -- The queue lives inside this one submission; it never
-                    -- resubmits the talent. A deviation (extra/reordered/
-                    -- wrong-kind/missing prompt, or an unevaluable value) is a
-                    -- typed failure recorded on the command, answered as a native
-                    -- cancel so the native body unwinds and no unanswerable UI
-                    -- opens, and surfaced to the caller.
+                    -- request is classified against the k-th declared entry and
+                    -- answered with that entry's decided value. The queue lives
+                    -- inside this one submission; it never resubmits the talent.
+                    -- A deviation (extra/reordered/wrong-kind/missing prompt, or
+                    -- an unevaluable value) is a typed failure recorded on the
+                    -- command and surfaced to the caller: a LIVE prompt is
+                    -- handed to the real native targeting UI for the player to
+                    -- answer (S2-REV-05), an unevaluable value is cancelled so
+                    -- the native body unwinds without a wrong answer.
                     local queue=(type(action.sequence)=='table' and #action.sequence>0)
                         and action.sequence or nil
                     local consumed=false
                     local observed=0
+                    local yielded=false
+                    -- S2-REV-05: once a typed deviation is recorded on a LIVE
+                    -- prompt, the queue stops answering: the wrapper falls
+                    -- through to the real native target request so the player
+                    -- answers the interaction themselves (design §6.1 "hand the
+                    -- live interaction back if safely possible"; the engine
+                    -- implementation is `targetGetForPlayer`'s exclusive target
+                    -- mode, `GameTargeting.lua:299`). Every later prompt of this
+                    -- invocation goes to the player too; the controller pauses
+                    -- and the service releases the auto-combat lease.
                     if queue and command then command.target_sequence={} end
                     local function recordGeometry(typ)
                         if command and type(typ)=='table' and not command.target_geometry then
@@ -374,9 +419,11 @@ function M.execute(g, action, target, meta, command)
                         end
                         return true
                     end
-                    -- Record a typed queue deviation once, answer the native
-                    -- request with a cancel (nil), and let native unwinding
-                    -- settle the body. Returns nil so the caller can return it.
+                    -- Record a typed queue deviation once. For a LIVE prompt the
+                    -- caller hands the interaction back to the real native
+                    -- targeting UI; for an already-settled flow (missing prompt
+                    -- at return time) there is nothing to hand back and the
+                    -- pause surfaces directly.
                     local function deviate(expectedIndex,expectedRequest,observedRequest,extra)
                         if command and not command.sequence_deviation then
                             command.sequence_deviation={reason='unexpected_target_request',
@@ -405,6 +452,39 @@ function M.execute(g, action, target, meta, command)
                             command.target_cancelled=command.target_cancelled or 'movement_request_value_unknown'
                         end
                         return nil
+                    end
+                    -- S2-REV-01: the observed cursor spec could not be
+                    -- classified into a known actor/grid shape. The plugin cannot
+                    -- prove what the native flow is asking, so it must never
+                    -- answer blindly (design §6.1: never infer the declared kind
+                    -- from the cursor shape, and never answer an unidentified
+                    -- prompt). The live prompt is handed to the player; the
+                    -- executor pauses with the typed reason.
+                    local function requestKindUnknown(index,request,shape)
+                        if command and not command.sequence_deviation then
+                            command.sequence_deviation={reason='movement_request_kind_unknown',
+                                expected={index=index,request=request},
+                                observed={index=index,request=nil},
+                                observed_shape=type(shape)=='string' and shape or nil,
+                                skippable=false}
+                            command.target_cancelled=command.target_cancelled or 'movement_request_kind_unknown'
+                        end
+                        return nil
+                    end
+                    -- S2-REV-06: record the value actually answered for this
+                    -- observed request (bounded: coordinates, the actor uid and
+                    -- a short name), so the native evidence distinguishes the
+                    -- per-prompt answers and not only their geometries.
+                    local function recordAnswer(index,x,y,entity)
+                        if command and command.target_sequence then
+                            local entry=command.target_sequence[index]
+                            if entry then
+                                entry.answer={x=x,y=y,
+                                    uid=(type(entity)=='table' and finite(entity.uid)) and entity.uid or nil,
+                                    name=(type(entity)=='table' and type(entity.getName)=='function')
+                                        and Details.text(entity:getName(),64) or nil}
+                            end
+                        end
                     end
                     local function resolveQueued()
                         local index=observed
@@ -450,20 +530,59 @@ function M.execute(g, action, target, meta, command)
                         recordGeometry(typ)
                         if consumed and not authoritative then return original(self,typ,...) end
                         if queue then
-                            observed=observed+1
-                            local entry=queue[observed]
-                            -- Order is the primary key: the k-th observed native
-                            -- request must be the k-th declared prompt kind. The
-                            -- declared kind is curated; the observed cursor spec
-                            -- is used only for this request's own native guard.
-                            if entry==nil then
-                                return deviate(nil,nil,'sequence_exhausted',{exhausted=true,count=#queue})
+                            if yielded then
+                                -- S2-REV-05: the queue already handed this live
+                                -- interaction back to the player; it never
+                                -- answers another prompt of this invocation.
+                                return original(self,typ,...)
                             end
                             consumed=true
+                            observed=observed+1
+                            local entry=queue[observed]
+                            if entry==nil then
+                                -- An extra prompt past the declared sequence:
+                                -- record the shape the native flow actually
+                                -- raised, then hand the live prompt back.
+                                deviate(observed,nil,classifyObservedRequest(typ),
+                                    {exhausted=true,count=#queue})
+                                yielded=true
+                                return original(self,typ,...)
+                            end
+                            -- S2-REV-01: the observed native request must be
+                            -- classified (actor/grid shape from the cursor spec)
+                            -- and matched against the declared entry at this
+                            -- index BEFORE any answer is built. The declared kind
+                            -- is curated; the observed shape is used only for
+                            -- this match and the per-request native guard. An
+                            -- unclassifiable shape or a mismatch is a typed
+                            -- deviation with the live interaction handed back,
+                            -- never a blind answer of the k-th declared value.
+                            local observedKind=classifyObservedRequest(typ)
+                            if observedKind==nil then
+                                requestKindUnknown(observed,entry.request,
+                                    type(typ)=='table' and typ.type or nil)
+                                yielded=true
+                                return original(self,typ,...)
+                            end
+                            if not observedMatchesEntry(observedKind,entry) then
+                                deviate(observed,entry.request,observedKind)
+                                yielded=true
+                                return original(self,typ,...)
+                            end
                             local x,y,entity=resolveQueued()
-                            if x==nil then return nil end
+                            if x==nil then
+                                -- A decided value that cannot be evaluated is
+                                -- the plugin's own uncomputability boundary: the
+                                -- prompt is cancelled (there is no value to hand
+                                -- the player either) and the typed pause below
+                                -- releases control and the lease.
+                                return nil
+                            end
                             local ok,reason=allowed(typ,x,y)
-                            if ok then return x,y,entity end
+                            if ok then
+                                recordAnswer(observed,x,y,entity)
+                                return x,y,entity
+                            end
                             -- A value refused by this request's own native guard is
                             -- the existing native target-cancel path with its
                             -- typed reason (never a bypass).
@@ -497,7 +616,13 @@ function M.execute(g, action, target, meta, command)
                     -- trailing `optional` entry is a settled native outcome
                     -- reported with `reduced=true`, not an error. A skipped
                     -- optional that was in fact raised leaves no marker.
-                    if queue and command then
+                    -- S2-REV-01/05: a deviation already recorded on a live
+                    -- prompt (or a handed-back interaction) is authoritative —
+                    -- after a handback the player owns the prompts, so the
+                    -- settle check neither overwrites it nor reports the
+                    -- remaining entries as missing.
+                    if queue and command and not command.sequence_deviation
+                        and not yielded then
                         local answeredSeq=observed
                         if answeredSeq<#queue then
                             local missing=queue[answeredSeq+1]

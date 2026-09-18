@@ -65,7 +65,7 @@ M.EXPECTED={
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
     ['movement-fallback']={'blocked_landing','alternative_planned','fallback_moved'},
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
-    ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced'},
+    ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
     ['solo-pump']={},
@@ -1672,8 +1672,16 @@ local function movementSequenceChecks()
         {status=outcome and outcome.status,code=outcome and outcome.code,count=seq and #seq})
     signals[#signals+1]=(settled and ordered) and 'sd_two_requests_ordered' or 'sd_two_requests_missing'
     -- The two recorded requests are distinguishable (the landing prompt carries
-    -- a radius) and both answers were consumed (the native body settled).
+    -- a radius) and, S2-REV-06, the RECORDED ANSWER VALUES are observed and
+    -- distinct: the actor prompt was answered with the caster cell/player uid,
+    -- the landing prompt with its own distinct coordinate and no entity.
+    local answers=ordered and seq[1].answer and seq[2].answer or nil
     local distinct=ordered and seq[2].radius==1 and seq[1].radius==nil
+        and answers
+        and seq[1].answer.x==p.x and seq[1].answer.y==p.y
+        and seq[1].answer.uid==p.uid
+        and seq[2].answer.x==p.x+3 and seq[2].answer.y==p.y
+        and seq[2].answer.uid==nil
     check('movement-sequence:distinct-values',settled and distinct,
         {first=seq and seq[1],second=seq and seq[2]})
     signals[#signals+1]=(settled and distinct) and 'sd_distinct_values' or 'sd_distinct_missing'
@@ -1721,6 +1729,77 @@ local function movementSequenceChecks()
             deviation=outcome3 and outcome3.sequence_deviation})
     signals[#signals+1]=reduced and 'sd_missing_optional_reduced' or 'sd_missing_optional_missing'
     restore3()
+    -- (g) S2-REV-01: a REORDERED native program. The declared sequence is
+    -- actor-then-grid but the native body raises a grid-shaped prompt (ball)
+    -- first and an actor-shaped prompt (hit) second. Every observed prompt is
+    -- classified from its cursor spec and matched against the declared entry at
+    -- that index, so the flow is `unexpected_target_request` and the live
+    -- prompts are handed to the player — the queue never answers the k-th
+    -- declared value blindly.
+    local pR=game.player
+    local entryR=assert(require('mod.auto_combat.MovementAdapterFactory').expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self'},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                landing_from='envelope'}},
+        delivery='teleport',landing='random',center='requested_grid',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10}))
+    -- Simulate the player who answers the handed-back prompts themselves: the
+    -- stub records every spec it was asked and answers its own coordinate, so
+    -- the queue's declared values are provably absent from the native flow.
+    local asked={}
+    local saved_getTarget_R=rawget(pR,'getTarget')
+    rawset(pR,'getTarget',function(self,typ,...)
+        asked[#asked+1]=type(typ)=='table' and typ.type or tostring(typ)
+        return pR.x+1,pR.y,nil
+    end)
+    pR.talents=pR.talents or {}
+    pR.talents_def=pR.talents_def or {}
+    pR.talents['T_MCP_SEQ_R']=1
+    pR.talents_def['T_MCP_SEQ_R']={id='T_MCP_SEQ_R',name='MCP reorder probe',
+        mode='activated',type={'spell/conveyance',1},cooldown=0,mana=0,
+        action=function(self)
+            -- REVERSED relative to the declared actor-then-grid program.
+            local gx,gy=self:getTarget({type='ball',range=10,radius=1,nowarning=true,
+                nolock=true,pass_terrain=true})
+            if not gx then return nil end
+            local ax,ay=self:getTarget({type='hit',range=10,nowarning=true})
+            if not ax then return nil end
+            return true
+        end}
+    local saved_entry_R=EffectManifest.ENTRIES['T_MCP_SEQ_R']
+    EffectManifest.ENTRIES['T_MCP_SEQ_R']={kind='movement',target='self',resource='mana',
+        movement=entryR,components={},conformance={builder=false}}
+    local polR=policy({{id='seq',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_SEQ_R',target='self'}}})
+    local hostR=Runtime.buildAutoCombatHostFor(game,polR,{drift=function() return true end})
+    pR.x,pR.y=before.x,before.y
+    local planR=hostR.plan({action='use_talent',talent='T_MCP_SEQ_R',target='self',
+        target_plan=planArgs.target_plan,destination=dest})
+    local outcomeR
+    forceReady()
+    if pR.talents_cd then pR.talents_cd['T_MCP_SEQ_R']=0 end
+    if planR and planR.plan then
+        outcomeR=hostR.request({action='use_talent',talent='T_MCP_SEQ_R',plan=planR.plan,rule='seq'})
+    end
+    local devR=outcomeR and outcomeR.sequence_deviation
+    local reorderRefused=outcomeR and outcomeR.status~='ok'
+        and outcomeR.code=='unexpected_target_request'
+        and devR and devR.expected.index==1 and devR.expected.request=='actor'
+        and devR.observed.index==1 and devR.observed.request=='grid'
+        and devR.skippable==false
+        and asked[1]=='ball' and asked[2]=='hit' and #asked==2
+        and outcomeR.target_sequence and outcomeR.target_sequence[1].answer==nil
+    check('movement-sequence:reorder-refused',reorderRefused,
+        {status=outcomeR and outcomeR.status,code=outcomeR and outcomeR.code,
+            deviation=devR,asked=asked,
+            answers=outcomeR and outcomeR.target_sequence})
+    signals[#signals+1]=reorderRefused and 'sd_reorder_refused' or 'sd_reorder_missing'
+    -- Restore the reorder fixture.
+    EffectManifest.ENTRIES['T_MCP_SEQ_R']=saved_entry_R
+    if pR.talents then pR.talents['T_MCP_SEQ_R']=nil end
+    if pR.talents_def then pR.talents_def['T_MCP_SEQ_R']=nil end
+    if pR.talents_cd then pR.talents_cd['T_MCP_SEQ_R']=nil end
+    if saved_getTarget_R==nil then rawset(pR,'getTarget',nil) else rawset(pR,'getTarget',saved_getTarget_R) end
     -- Restore the native seams and the player's previous position/energy so the
     -- later asynchronous stages drive the real production entries.
     restoreSeams()
