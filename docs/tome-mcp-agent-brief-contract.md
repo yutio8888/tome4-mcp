@@ -57,6 +57,11 @@ The following is a proposed format, not an implemented schema or validator. Angl
 - Target artifact: <path+sha256 or not applicable>; engine/harness/config=<pins>.
 - Permissions: read=<...>; write=<exact paths>; git=<none|branch/commit/push/PR>;
   processes=<none|named isolated probes>; merge=no; shared game lifecycle=no.
+- Teardown (mandatory for the dispatcher): as soon as a Test/native round's report lands, reap
+  its session with `harness/console/reap-session.sh <session>` (whole process group +
+  FIFO removal; evidence files kept); `--stop` first if the scene must be preserved for
+  evidence, then reap. Run `--list` before dispatching the next agent and confirm nothing is
+  still burning CPU (a forgotten headless session costs 200-360% CPU each).
 - Ownership/dependencies: <named writer + paths; prerequisite result/commit>.
 - Stop/report on: wrong baseline/artifact/session, unresolved contract conflict,
   inability to gather required evidence, or a requested action outside this role.
