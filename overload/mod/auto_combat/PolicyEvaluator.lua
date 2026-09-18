@@ -155,7 +155,23 @@ end
 -- v1.6 scheduling mode resolution. This is pure data: the plugin applies the
 -- policy's chosen mode instead of a built-in tactical layer. Missing mode keeps
 -- the conservative legacy behaviour (`stop` on no enemy, `emergency_only`
--- below the HP threshold) so an un-migrated policy is never silently widened.
+-- below the HP threshold, `pause` on a new enemy) so an un-migrated policy is
+-- never silently widened.
+--
+-- D-3: `on_new_enemy` is an ordinary preset/mode choice. `continue` keeps the
+-- visible target set current without parking the run; `pause` is the legacy
+-- conservative default. The legacy boolean `safety.pause_on_new_enemy=false`
+-- still maps to `continue` so an older policy keeps its authored meaning.
+function M.newEnemyMode(policy)
+    local mode=policy.mode or {}
+    local safety=policy.safety or {}
+    local value=mode.on_new_enemy
+    if value==nil then
+        value=safety.pause_on_new_enemy==false and 'continue' or 'pause'
+    end
+    return value
+end
+
 function M.scheduling(policy,hp_pct)
     local mode=policy.mode or {}
     local safety=policy.safety or {}
@@ -163,6 +179,7 @@ function M.scheduling(policy,hp_pct)
     local flee=safety.flee_below_hp_pct
     local onLowHp=mode.on_low_hp or 'emergency_only'
     local onNoEnemy=mode.on_no_enemy or 'stop'
+    local onNewEnemy=M.newEnemyMode(policy)
     local belowFlee=type(hp_pct)=='number' and flee~=nil and hp_pct<flee
     local lowHp=type(hp_pct)=='number' and minHp~=nil and hp_pct<minHp
     local layer='normal'
@@ -173,7 +190,7 @@ function M.scheduling(policy,hp_pct)
     elseif lowHp and onLowHp=='emergency_only' then
         layer='emergency'
     end
-    return {on_low_hp=onLowHp,on_no_enemy=onNoEnemy,low_hp=lowHp,
+    return {on_low_hp=onLowHp,on_no_enemy=onNoEnemy,on_new_enemy=onNewEnemy,low_hp=lowHp,
         below_flee=belowFlee,layer=layer,pause_reason=pauseReason}
 end
 
@@ -276,6 +293,51 @@ function M.evaluate(policy,ctx,opts)
         end
     end
     if sched.layer=='emergency' then
+        -- D-1 (P1, round anor-reg-01): an emergency rule that matched in this
+        -- opportunity but was refused (denied) must not park the run. A pause
+        -- here freezes the world (the player still holds full energy), so a
+        -- native cooldown would never decay and every restart would repeat the
+        -- same deny -> pause forever. Continue the same opportunity over the
+        -- remaining normal rules: falling through is ordinary policy
+        -- evaluation, not a plugin-level strategy restriction. Only when
+        -- nothing at all is applicable is the typed reason the refusal
+        -- (`action_denied`), never `no_emergency_action`.
+        local refusedRule
+        for _,row in ipairs(results) do
+            if row.emergency and row.result=='denied' then
+                refusedRule=refusedRule or row.rule
+            end
+        end
+        if refusedRule then
+            local fallback={}
+            for _,rule in ipairs(policy.rules or {}) do
+                if rule.enabled~=false and rule.emergency~=true then fallback[#fallback+1]=rule end
+            end
+            table.sort(fallback,function(a,b)
+                if a.priority~=b.priority then return a.priority>b.priority end
+                return a.id<b.id
+            end)
+            for _,rule in ipairs(fallback) do
+                if ctx.denied and ctx.denied[rule.id] then
+                    results[#results+1]={rule=rule.id,result='denied',emergency=false,fallback=true}
+                else
+                    local rule_ctx=ctx_for(rule)
+                    local value=M.evalCondition(rule.when,rule_ctx)
+                    results[#results+1]={rule=rule.id,result=value,emergency=false,fallback=true}
+                    if value==TRUE then
+                        local target=rule['then'].target or default_selector
+                        if target==nil then target=actorStepSelector(rule['then']) end
+                        return {decision='act',rule=rule.id,action=rule['then'].action,
+                            talent=rule['then'].talent,max_turns=rule['then'].max_turns,
+                            direction=rule['then'].direction,destination=rule['then'].destination,
+                            target_plan=rule['then'].target_plan,target=target,critical=true,
+                            emergency=false,fallback=true,results=results,layer=layer}
+                    end
+                end
+            end
+            return {decision='pause',reason='action_denied',critical=true,rule=refusedRule,
+                results=results,layer=layer,fallback=true}
+        end
         return {decision='pause',reason=sched.below_flee and 'flee_below_hp_pct' or 'no_emergency_action',
             critical=true,rule=unknownRule and unknownRule.id,results=results,layer=layer}
     end

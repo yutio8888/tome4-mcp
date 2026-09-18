@@ -39,11 +39,45 @@ local function boundedObject(value,depth)
     return out
 end
 
+local function boundedString(value,limit)
+    if type(value)~='string' then return nil end
+    if #value<=limit then return value end
+    return value:sub(1,limit)
+end
+
+-- D-2: bounded projection of the structured `missing` array carried by a native
+-- refusal, so the client-visible policy log has the same cooldown detail the
+-- command path returns.
+local function boundedMissing(value)
+    if type(value)~='table' then return nil end
+    local out={}
+    for index=1,math.min(#value,8) do
+        local entry=value[index]
+        if type(entry)=='table' then
+            local copy={}
+            for _,key in ipairs{'kind','talent','remaining','required','stat','special','level'} do
+                local item=entry[key]
+                if type(item)=='string' and #item<=128 then copy[key]=item
+                elseif type(item)=='number' and item==item then copy[key]=item end
+            end
+            if next(copy)~=nil then out[index]=copy end
+        end
+    end
+    if #out==0 then return nil end
+    return out
+end
+
 function M.add(log,event)
     if type(event)~='table' then return nil end
     local entry={seq=log.next_seq,kind=event.kind or 'event',reason=event.reason,
         rule=event.rule,talent=event.talent,target=event.target,native_result=event.native_result,
-        action=event.action,landing=event.landing,elapsed_ticks=event.elapsed_ticks,
+        action=event.action,
+        -- P3-c: `landing` is only ever a bounded string produced by the movement
+        -- retry path; guard the type so a hostile policy cannot grow the ring.
+        landing=boundedString(event.landing,64),
+        missing=boundedMissing(event.missing),hint=boundedString(event.hint,256),
+        native_message=boundedString(event.native_message,512),
+        elapsed_ticks=event.elapsed_ticks,
         elapsed_frames=event.elapsed_frames,
         movement=boundedObject(event.movement,0),risk=boundedObject(event.risk,0),
         tick=event.tick,revision=event.revision,level_instance_id=event.level_instance_id,
@@ -84,9 +118,26 @@ function M.slice(log,after_seq,limit)
     return out
 end
 
-function M.status(log)
-    return {count=#log.entries,limit=log.limit,total=log.total,
+-- Ring extent plus the exact window metadata for a returned tail/slice. The
+-- caller-supplied `limit` bounds the returned events, so the ring extent
+-- (`first_seq`/`last_seq`/`total`) and the returned window can legitimately
+-- differ. `window` makes that difference explicit instead of letting a client
+-- mistake the ring's oldest sequence for the oldest returned event (round
+-- anor-reg-01 D-4).
+function M.window(entries)
+    entries=entries or {}
+    return {count=#entries,
+        first_seq=entries[#entries] and entries[#entries].seq,
+        last_seq=entries[1] and entries[1].seq}
+end
+
+function M.status(log,entries)
+    local status={count=#log.entries,limit=log.limit,total=log.total,
         first_seq=log.entries[1] and log.entries[1].seq,
-        last_seq=log.entries[#log.entries] and log.entries[#log.entries].seq}
+        last_seq=log.entries[#log.entries] and log.entries[#log.entries].seq,
+        semantics='first_seq/last_seq/count/total describe the retained ring; '
+            ..'the returned window is window.* (bounded by the request limit)'}
+    if entries~=nil then status.window=M.window(entries) end
+    return status
 end
 return M

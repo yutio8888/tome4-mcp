@@ -47,7 +47,7 @@ M.EXPECTED={
     ['start-when-ready']={'schedule_pump'},
     ['pause-resume']={'paused','schedule_pump'},
     ['native-pending']={'wait_native','wait_native','wait_native','acted'},
-    ['critical']={'no_emergency_action'},
+    ['critical']={'fallthrough','heal_recovered','action_denied'},
     ['strict-resume']={'new_enemy','new_enemy'},
     ['rest-policy']={'wait_native','stopped'},
     ['explore-policy']={'wait_native','stopped'},
@@ -177,27 +177,95 @@ local function nativePending()
     return compare('native-pending',{r1.action,r2.action,r3.action,r4.action})
 end
 
--- 4: below min_hp_pct only emergency rules may run; an unavailable emergency
--- action pauses and the normal rule is never submitted.
+-- 4: below min_hp_pct only emergency rules may run. D-1 (P1, round
+-- anor-reg-01): an emergency action the native engine refuses (here: the
+-- production `native_rejected` + cooldown `missing` shape, on cooldown) must
+-- not park the run. It falls through to the next applicable normal rule so
+-- ticks keep advancing and the cooldown recovers; the emergency action is used
+-- again on a later opportunity. When no fallback is applicable the typed reason
+-- is action_denied, never no_emergency_action.
 local function criticalState()
     forceReady()
     local p=game.player
-    -- 30%: below min_hp_pct (35) but above flee_below_hp_pct (25), so the
-    -- emergency layer is exercised without the distinct flee pause.
+    if not p:knowTalent('T_HEALING_LIGHT') then p:learnTalent('T_HEALING_LIGHT',true) end
     p.life=p.max_life*0.3
-    local pol=policy({HEAL,ATTACK},{max_actions_per_tick=2})
-    local host,attempts=recordingHost(pol,{phase=function() return 'ready' end})
+    local saved_cd=p.talents_cd and p.talents_cd.T_HEALING_LIGHT
+    local signals={}
+    local oid=1
+    local function forceCooldown()
+        if p.talents_cd then p.talents_cd.T_HEALING_LIGHT=10 end
+    end
+    -- The production `Actions.execute` refusal shape for a talent whose own
+    -- cooldown is still running; the fallback (wait) goes through the real
+    -- native executor.
+    local function cooldownRefusal()
+        return {status='rejected',code='native_rejected',energy_spent=false,
+            missing={{kind='cooldown',talent='T_HEALING_LIGHT',remaining=10,required=0}},
+            hint='talent on cooldown; wait for the listed turns before retrying',
+            native_message='Healing Light is still on cooldown for 10 turns.'}
+    end
+    local function healRefused()
+        return p.talents_cd and (p.talents_cd.T_HEALING_LIGHT or 0)>0
+    end
+    -- (a) the refused emergency falls through to the wait rule, which runs
+    -- natively and spends the turn (advancing the world tick/cooldown).
+    forceCooldown()
+    local pol=policy({HEAL,WAIT},{max_actions_per_tick=3})
+    local host,attempts=recordingHost(pol,{phase=function() return 'ready' end,
+        opportunity_id=function() return oid end,
+        request=function(attempt,real_request)
+            if attempt.rule=='heal' and healRefused() then return cooldownRefusal() end
+            return real_request(attempt)
+        end})
+    local notified={}
+    host.notify=function(event) notified[#notified+1]=event end
     local c=AutoCombat.new(pol,host,{strict=false})
     c:start()
     local result=c:onOpportunity()
-    local normal=0
+    local healAttempts=0
     for _,attempt in ipairs(attempts) do
-        if attempt.action=='attack' or attempt.action=='wait' then normal=normal+1 end
+        if attempt.rule=='heal' then healAttempts=healAttempts+1 end
     end
-    check('critical:no-normal-output',normal==0 and result.reason=='no_emergency_action',
-        {normal=normal,reason=result.reason,attempts=attempts})
+    local fell=result.action=='acted' and result.rule=='wait' and healAttempts>=1
+    check('critical:fallthrough',fell,
+        {action=result.action,reason=result.reason,rule=result.rule,heal_attempts=healAttempts,attempts=attempts})
+    signals[#signals+1]=fell and 'fallthrough' or 'no_fallthrough'
+    -- D-2 (production notify path): the deny event carries the structured
+    -- cooldown detail and the native message.
+    local denyEvent
+    for _,event in ipairs(notified) do if event.kind=='denied' then denyEvent=event end end
+    check('critical:denied-detail',denyEvent and denyEvent.missing and denyEvent.missing[1]
+        and denyEvent.missing[1].kind=='cooldown' and denyEvent.native_message~=nil,
+        {deny=denyEvent})
+    -- (b) once the cooldown clears, the emergency action is used again.
+    if p.talents_cd then p.talents_cd.T_HEALING_LIGHT=0 end
+    p.life=p.max_life*0.3
+    forceReady()
+    oid=oid+1
+    local result2=c:onOpportunity()
+    local healActed=result2.action=='acted' and result2.rule=='heal'
+    check('critical:heal-recovered',healActed,{action=result2.action,rule=result2.rule,reason=result2.reason,
+        outcome=result2.outcome})
+    signals[#signals+1]=healActed and 'heal_recovered' or 'heal_not_recovered'
+    -- (c) no applicable fallback: the typed reason is the refusal.
+    forceCooldown()
+    p.life=p.max_life*0.3
+    forceReady()
+    local onlyHeal=policy({HEAL},{max_actions_per_tick=3})
+    local oid2=1
+    local host2,attempts2=recordingHost(onlyHeal,{phase=function() return 'ready' end,
+        opportunity_id=function() return oid2 end,
+        request=function() return cooldownRefusal() end})
+    local c2=AutoCombat.new(onlyHeal,host2,{strict=false})
+    c2:start()
+    local result3=c2:onOpportunity()
+    local typed=result3.action=='paused' and result3.reason=='action_denied'
+    check('critical:action-denied',typed,
+        {action=result3.action,reason=result3.reason,attempts=attempts2})
+    signals[#signals+1]=typed and 'action_denied' or 'wrong_reason'
+    if p.talents_cd then p.talents_cd.T_HEALING_LIGHT=saved_cd end
     p.life=p.max_life
-    return compare('critical',{result.action=='paused' and result.reason or result.action})
+    return compare('critical',signals)
 end
 
 -- 5: strict mode confirms the visible set on start/resume, then pauses again for

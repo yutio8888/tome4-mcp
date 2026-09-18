@@ -25,6 +25,13 @@ do
         if rule.id=='recover' then recover=rule end
     end
     check(recover and recover['then'].action=='wait','the pilot preset has an explicit wait recovery rule')
+    -- D-3: the pilot preset chooses the non-parking new-enemy mode so a group
+    -- fight keeps acting instead of pausing on every wandering enemy.
+    local preset=Presets.get('anorithil_p1a')
+    check(preset.mode and preset.mode.on_new_enemy=='continue',
+        'the anorithil preset continues on a new enemy (D-3)')
+    check(preset.safety.pause_on_new_enemy==false,
+        'the legacy new-enemy boolean stays coherent with the mode (D-3)')
 end
 do
     local edit=Presets.copy('anorithil_p1a')

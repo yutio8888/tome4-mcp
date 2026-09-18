@@ -19,6 +19,29 @@
 > `docs/tome-mcp-auto-combat-plugin-design.md` §8.3（及 §0.1/§1.2/§5.3/§5.4）。下方各节在相关处已加
 > **局部 supersession 注解**；未加注解的普通功能/协议验收仍有效。
 
+## 0.9.0：Anorithil 回归轮 D-1（P1 活锁）+ D-2/D-3/D-4（`fix/emergency-deny-livelock`，off `main@3fe98ed`，dev 待评审）
+
+日期：2026-09-18。来源：实机报告 `tmp/mcp-play-support/agent-ham-anor-reg-01-report.md`
+（sha256 `7efc9512567671c61b9a1536ae00cdfa67fd29ee0e6cbc4e5f722e8073e4b21d`）。PR #18/#19/#20 合并后
+**无 P0 回归**（68/68 native ok、0 timeout/abort、Moonlight Ray 原生目标请求均即时结算）。
+修复说明见 [docs/tome-mcp-0.9.0-anor-reg-01-feedback.md](docs/tome-mcp-0.9.0-anor-reg-01-feedback.md)，
+证据见 [docs/tome-mcp-0.9.0-anor-reg-01-todo.md](docs/tome-mcp-0.9.0-anor-reg-01-todo.md)。
+
+| finding | 结果 | 修复与回归证据 |
+| --- | --- | --- |
+| D-1（P1 emergency-deny 暂停活锁） | **PASS** | emergency 规则**本机会命中但被原生拒绝**时，继续评估同机会的 normal 规则（fall-through，不是插件级限制），使世界 tick 推进、冷却自然恢复；确实无可用规则时用 typed 原因 `action_denied`（不再 `no_emergency_action`）。单测 `test_auto_combat_policy.lua`、`test_auto_combat_controller.lua`（无停摆 + CD 恢复后再次使用）、`test_auto_combat_service.lua`（端到端无 pause loop）；原生探针 `critical:fallthrough`/`heal-recovered`/`action-denied`。before/after 复现：`tmp/anor-livelock-evidence/repro-prefix.out`（pause）vs `repro-fixed.out`（act melee） |
+| D-2（P2 auto denied 缺结构化详情） | **PASS** | 生产映射 `Runtime.mapAutoCombatOutcome` 透传 `missing`/`hint`/`native_message`；`AutoCombat:deny` 把它们放入 notify 事件；service notify 写入 policy log；`PolicyLog.add` 新增有界字段白名单 + `landing`/`missing` 类型守卫（评审 P3-c）。单测 `test_auto_combat_execution.lua`、`test_auto_combat_catalog.lua`、`test_auto_combat_controller.lua`、`test_auto_combat_service.lua`；原生探针 `critical:denied-detail` |
+| D-3（P2 new_enemy 暂停风暴） | **PASS** | `PolicySchema` 新增校验过的 `mode.on_new_enemy='pause'|'continue'`（默认 `pause`）；legacy `safety.pause_on_new_enemy=false↔continue`；anorithil preset 设 `continue`；editor/capability 同步。单测 4 处 |
+| D-4（P3 status 尾部一致性） | **PASS** | `PolicyLog.status(log,entries)` 增加 `window={count,first_seq,last_seq}` + `semantics`，描述**实际返回窗口**，与 ring extent 区分；early 条目用 `replay` 游标分页。单测 `test_auto_combat_service.lua` |
+
+**证据**（`tmp/anor-livelock-evidence/`）：Lua 41/41（`lua-suite.log`
+`57176b039127da0dc1f43198b505e2e81525b65677a9d0c68e3afd59f0b49dd9`）、Python 39 OK
+（`python-tests.log` `a9e6f742893f0c7ad5042db4cdcd6c6bf67d343f563afc50d84698bca929a44e`）、三个 `--check`
+退 0（`generator-checks.log` `e8a37d60d7488e5dcb7acbcd37ff6e97208df9a08ab6f25bef3902b20cc50bc8`）、
+auto-combat 探针 source `anor-live-src-05` 与 dist `anor-live-dist-01` 各 **126/126**、原生验收 source
+`anor-live-accept-src-01` 与 dist `anor-live-accept-dist-01` 各 **101/101**。dist `tome-mcp-bridge.teaa`
+sha256 `e4bc4cb53c0cb051cafca6e600096c7fac780497f96d773ca1cb17a08da73955`。
+
 ## 0.9.0：P2-1 移动备选落点（`fix/approach-alternative-landing`，off `main@c4b40bc`，dev 待评审）
 
 日期：2026-09-18。来源：S1 Rush 复测报告 `tmp/mcp-play-support/agent-ham-s1rush2-report.md`

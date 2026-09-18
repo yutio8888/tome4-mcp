@@ -95,8 +95,10 @@ end
 
 -- Strict mode pauses once for a newly visible hostile set. On start/resume the
 -- current set is confirmed, so the same enemies do not re-trigger; later new
--- enemies still do.
-function M:checkEnemies()
+-- enemies still do. D-3: `on_new_enemy='continue'` keeps the target set current
+-- and lets the policy keep acting (a group fight must not park on every
+-- wandering enemy that enters sight); the pause is the conservative default.
+function M:checkEnemies(mode)
     if not self.strict or not (self.host and self.host.enemy_ids) then return nil end
     local ids=self.host.enemy_ids()
     if type(ids)~='table' then return nil end
@@ -108,6 +110,7 @@ function M:checkEnemies()
     for _,id in ipairs(ids) do
         if not self.known_enemies[id] then
             for _,other in ipairs(ids) do self.known_enemies[other]=true end
+            if mode=='continue' then return nil end
             return 'new_enemy'
         end
     end
@@ -186,14 +189,45 @@ end
 -- set of known keys are carried; nested tables are shallow-copied with a cap.
 local DETAIL_KEYS={'measurement','threshold','risk','unknown','provenance','phase','component',
     'landing','visible','remembered','known_passable','known_hazard','confidence','reasons',
-    'selector','talent','scope','missing','requests','friendlies','selffire','friendlyfire'}
+    'selector','talent','scope','missing','native_message','hint','requests','friendlies','selffire','friendlyfire'}
+-- D-2: the structured `missing` array (for example the native cooldown entry
+-- `{kind='cooldown',talent,remaining,required=0}`) is an array of small objects,
+-- so the generic scalar-only table projection above would drop it. Project the
+-- declared entry fields explicitly, bounded and type-guarded.
+local MISSING_KINDS={cooldown=true,stat=true,level=true,talent=true,special=true}
+local MISSING_KEYS={'kind','talent','remaining','required','stat','special','level'}
+local function boundedMissing(value)
+    if type(value)~='table' then return nil end
+    local out={}
+    for index=1,math.min(#value,8) do
+        local entry=value[index]
+        if type(entry)=='table' then
+            local copy={}
+            for _,key in ipairs(MISSING_KEYS) do
+                local item=entry[key]
+                if type(item)=='string' and #item<=128 then copy[key]=item
+                elseif type(item)=='number' and item==item then copy[key]=item end
+            end
+            if copy.kind==nil or MISSING_KINDS[copy.kind] then out[index]=copy end
+        end
+    end
+    if #out==0 then return nil end
+    return out
+end
+M.boundedMissing=boundedMissing
 local function boundedDetail(detail)
     if type(detail)~='table' then return nil end
     local out={}
     for _,key in ipairs(DETAIL_KEYS) do
         local value=detail[key]
         if value~=nil then
-            if type(value)=='table' then
+            if key=='missing' then
+                local missing=boundedMissing(value)
+                if missing then out[key]=missing end
+            elseif type(value)=='string' then
+                local limit=key=='native_message' and 512 or 256
+                out[key]=#value<=limit and value or value:sub(1,limit)
+            elseif type(value)=='table' then
                 local copy={}
                 local count=0
                 for k,v in pairs(value) do
@@ -207,6 +241,7 @@ local function boundedDetail(detail)
             end
         end
     end
+    if next(out)==nil then return nil end
     return out
 end
 M.boundedDetail=boundedDetail
@@ -219,7 +254,16 @@ function M:deny(id,reason,detail)
     self.rejections[#self.rejections+1]=entry
     self:record({kind='denied',rule=id,reason=reason,detail=entry.detail})
     if self.notify then
-        self.notify({kind='denied',reason=reason,rule=id,detail=entry.detail,generation=self.generation})
+        self.notify({kind='denied',reason=reason,rule=id,detail=entry.detail,
+            -- D-2: the structured refusal detail (native cooldown `missing`,
+            -- `native_message`, `hint`) is surfaced next to the deny so the
+            -- client-visible policy log carries the same detail the command
+            -- path already returns. `movement_retry` keeps its own `landing`.
+            missing=entry.detail and entry.detail.missing or nil,
+            native_message=entry.detail and entry.detail.native_message or nil,
+            hint=entry.detail and entry.detail.hint or nil,
+            landing=entry.detail and entry.detail.landing or nil,
+            generation=self.generation})
     end
 end
 
@@ -334,10 +378,18 @@ end
 function M:step()
     if self.state~='running' then return {action='noop',state=self.state} end
     local generation=self.generation
-    local reason=self:checkEnemies()
-    if reason then return self:pause(reason) end
     local default_selector=self.policy.targeting and self.policy.targeting.default
     local pre=self:context(default_selector)
+    -- v1.6 scheduling mode: the policy chooses no-enemy, low-HP and new-enemy
+    -- behaviour. The executor no longer imposes a global flee pause or a fixed
+    -- emergency layer; `emergency` is a scheduling label selected by
+    -- `emergency_only`.
+    local sched=Evaluator.scheduling(self.policy,pre.hp_pct)
+    -- D-3: `on_new_enemy` is a preset/mode choice, so the new-enemy check runs
+    -- after the mode is resolved. `continue` refreshes the known set in place
+    -- (inside checkEnemies) and lets the same opportunity act.
+    local newEnemy=self:checkEnemies(sched.on_new_enemy)
+    if newEnemy then return self:pause(newEnemy) end
     -- AC-05: an unavailable health threshold is an executor-level unknown-safety
     -- boundary before any rule/layer evaluation (never fail open).
     local minHp=self.policy.safety and self.policy.safety.min_hp_pct
@@ -347,10 +399,6 @@ function M:step()
         paused.detail='hp_pct'
         return paused
     end
-    -- v1.6 scheduling mode: the policy chooses no-enemy and low-HP behaviour.
-    -- The executor no longer imposes a global flee pause or a fixed emergency
-    -- layer; `emergency` is a scheduling label selected by `emergency_only`.
-    local sched=Evaluator.scheduling(self.policy,pre.hp_pct)
     local critical=sched.low_hp
     -- AC-04: sustain maintenance is a normal-layer combat optimization; it runs
     -- before the rule loop only in the normal layer, and only with a visible
@@ -548,7 +596,10 @@ function M:step()
                         action=decision.action,landing=key,code=outcome.code,
                         generation=generation})
                 else
-                    self:deny(decision.rule,'native_rejected')
+                    -- D-2: carry the typed refusal detail (native cooldown
+                    -- `missing`, `hint`, `native_message`) into the policy log.
+                    self:deny(decision.rule,'native_rejected',
+                        {missing=outcome.missing,hint=outcome.hint,native_message=outcome.native_message,landing=key})
                 end
             else
                 return self:pause(outcome.status=='rejected' and 'action_denied' or 'action_uncertain')

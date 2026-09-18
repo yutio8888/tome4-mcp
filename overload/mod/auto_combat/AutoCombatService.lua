@@ -67,7 +67,9 @@ function M.status(svc)
         status.run=svc.controller:status()
         status.last_decisions=svc.controller:recentDecisions(5)
     end
-    status.log=Log.status(svc.log)
+    -- D-4: `status.log` reports the retained ring plus a coherent window
+    -- summary of the same bounded tail a `log` call would return.
+    status.log=Log.status(svc.log,Log.tail(svc.log,32))
     return ok(status)
 end
 
@@ -352,6 +354,9 @@ function M.start(svc)
             -- and the underlying native result (for example `blocked`) so the
             -- refusal stays auditable in the client-visible policy log/replay.
             landing=event.landing,native_result=event.code,
+            -- D-2: a native refusal's structured cooldown/requirement detail
+            -- reaches the policy log (bounded, type-guarded in PolicyLog).
+            missing=event.missing,hint=event.hint,native_message=event.native_message,
             policy_hash=Schema.hash(svc.store.running)}))
     end})
     local started=svc.controller:start()
@@ -474,7 +479,11 @@ function M.step(svc)
 end
 
 function M.log(svc,limit)
-    return ok({events=Log.tail(svc.log,limit or 32),status=Log.status(svc.log)})
+    -- D-4: the returned window keeps its own coherent first_seq/last_seq so a
+    -- caller can never mistake the ring's oldest sequence for the oldest
+    -- returned event.
+    local events=Log.tail(svc.log,limit or 32)
+    return ok({events=events,status=Log.status(svc.log,events)})
 end
 -- Replay/export the §10 decision trace: an ascending, cursor-paged slice plus a
 -- header describing the run's policy/state context. This is a decision trace,
@@ -503,7 +512,7 @@ function M.replay(svc,args)
     local next_seq=after
     if entries[#entries] then next_seq=entries[#entries].seq end
     return ok({replay=true,executed=false,side_effects='none',header=header,
-        entries=entries,next_seq=next_seq,status=Log.status(svc.log)})
+        entries=entries,next_seq=next_seq,status=Log.status(svc.log,entries)})
 end
 
 -- Built-in presets and import/export -----------------------------------------

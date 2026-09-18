@@ -487,4 +487,68 @@ do
     check(Schema.validate(ok),'valid logging and tie_break are accepted')
 end
 
+-- D-1 (P1, round anor-reg-01 live regression): an emergency rule that matched
+-- this opportunity but was refused must fall through to the remaining normal
+-- rules instead of parking. A pause would freeze the world (full player energy),
+-- so a native cooldown would never decay and every restart would repeat the
+-- deny -> pause sequence forever.
+do
+    local policy=basePolicy()
+    policy.mode={on_low_hp='emergency_only'}
+    policy.rules={
+        {id='heal',priority=100,emergency=true,when={always={}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
+        {id='melee',priority=50,when={always={}},
+            ['then']={action='use_talent',talent='T_MOONLIGHT_RAY',target='nearest_hostile'}},
+    }
+    local denied={heal=true}
+    local decision=Evaluator.evaluate(policy,ctx({hp_pct=30,denied=denied}))
+    check(decision.decision=='act' and decision.rule=='melee' and decision.fallback==true,
+        'a refused emergency action falls through to the next applicable rule (D-1)')
+    check(decision.emergency==false and decision.critical==true,
+        'a fall-through action stays in the critical layer without being an emergency rule')
+    local sawDenied,sawFallback=false,false
+    for _,row in ipairs(decision.results) do
+        if row.rule=='heal' and row.result=='denied' then sawDenied=true end
+        if row.rule=='melee' and row.fallback then sawFallback=true end
+    end
+    check(sawDenied and sawFallback,'the decision trace records the refusal and the fall-through rule')
+    -- When nothing at all is applicable the reason is the typed refusal
+    -- (`action_denied`), never `no_emergency_action`.
+    local onlyHeal=basePolicy()
+    onlyHeal.mode={on_low_hp='emergency_only'}
+    onlyHeal.rules={
+        {id='heal',priority=100,emergency=true,when={always={}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
+    }
+    local stuck=Evaluator.evaluate(onlyHeal,ctx({hp_pct=30,denied={heal=true}}))
+    check(stuck.decision=='pause' and stuck.reason=='action_denied' and stuck.rule=='heal',
+        'a refused emergency action with no applicable fallback pauses action_denied (D-1)')
+    -- An emergency rule that never matched at all keeps the declared reason.
+    local unmatched=basePolicy()
+    unmatched.mode={on_low_hp='emergency_only'}
+    unmatched.rules={
+        {id='heal',priority=100,emergency=true,when={hp_pct={lt=5}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
+    }
+    local none=Evaluator.evaluate(unmatched,ctx({hp_pct=30}))
+    check(none.decision=='pause' and none.reason=='no_emergency_action',
+        'an emergency layer with nothing matching keeps no_emergency_action')
+end
+
+-- D-3: `on_new_enemy` is a validated mode value and the legacy boolean maps.
+do
+    local p=basePolicy();p.mode={on_new_enemy='continue'}
+    check(Schema.validate(p),'on_new_enemy=continue is a valid mode value')
+    p.mode={on_new_enemy='resume_continue'}
+    check(not Schema.validate(p),'an unknown on_new_enemy mode value is rejected')
+    check(Evaluator.newEnemyMode({mode={on_new_enemy='continue'}})=='continue',
+        'the explicit mode wins')
+    check(Evaluator.newEnemyMode({safety={pause_on_new_enemy=false}})=='continue',
+        'the legacy boolean maps false -> continue')
+    check(Evaluator.newEnemyMode({safety={pause_on_new_enemy=true}})=='pause',
+        'the legacy boolean maps true -> pause')
+    check(Evaluator.newEnemyMode({})=='pause','the conservative default is pause')
+end
+
 print('Auto-combat policy: '..checks..' checks passed')

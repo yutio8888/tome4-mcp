@@ -398,6 +398,131 @@ do
     check(c:onOpportunity().reason=='new_enemy','a later new hostile still pauses after resume')
 end
 
+-- D-3: `on_new_enemy='continue'` updates the visible target set without parking
+-- the run (a group fight must not freeze on every wandering enemy).
+do
+    local host=makeHost(); host.enemies={'a'}
+    local p=policy({mode={on_new_enemy='continue'}})
+    local c=AutoCombat.new(p,host,{strict=true})
+    c:start()
+    check(c:onOpportunity().action=='acted','the initial visible set acts')
+    host.enemies={'a','b'}
+    local step=c:onOpportunity()
+    check(step.action=='acted','a new hostile does not pause under on_new_enemy=continue (D-3)')
+    check(c.known_enemies['b']==true,'the visible target set is refreshed in place')
+    -- The legacy boolean is coherent with the explicit mode.
+    local legacy=policy({safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=false}})
+    local host2=makeHost(); host2.enemies={'a'}
+    local c2=AutoCombat.new(legacy,host2,{strict=true})
+    c2:start(); c2:onOpportunity()
+    host2.enemies={'a','b'}
+    check(c2:onOpportunity().action=='acted',
+        'safety.pause_on_new_enemy=false maps to continue (D-3)')
+end
+
+-- D-1 (P1, round anor-reg-01 live regression): an emergency action natively
+-- refused on cooldown must not park the run. The run keeps acting, the
+-- cooldown is observed to recover, and the emergency action is used again.
+do
+    local host=makeHost()
+    host.snap={hp_pct=30,enemy_count=1}
+    local cooldown=3
+    local heal_attempts=0
+    host.request=function(attempt)
+        host.requests[#host.requests+1]=attempt
+        if attempt.rule=='heal' then
+            heal_attempts=heal_attempts+1
+            if cooldown>0 then
+                return {status='rejected',code='native_rejected',energy_spent=false,
+                    missing={{kind='cooldown',talent='T_HEALING_LIGHT',remaining=cooldown,required=0}},
+                    native_message='Healing Light is still on cooldown for '..cooldown..' turns.'}
+            end
+            return {status='ok'}
+        end
+        -- The fall-through action spends the turn: time passes, so the native
+        -- cooldown decays (exactly what a pause would prevent).
+        cooldown=math.max(0,cooldown-1)
+        return {status='ok'}
+    end
+    local p=policy({mode={on_low_hp='emergency_only'},limits={max_actions_per_tick=2},rules={
+        {id='heal',priority=100,emergency=true,when={always={}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
+        {id='attack',priority=40,when={always={}},
+            ['then']={action='attack',target='nearest_hostile'}}}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    local acted,parked,usedHeal=0,0,false
+    for _=1,6 do
+        local step=c:onOpportunity()
+        if step.action=='acted' then
+            acted=acted+1
+            if step.rule=='heal' then usedHeal=true end
+        elseif step.action=='paused' then parked=parked+1 end
+        host.oid=host.oid+1
+    end
+    check(acted>=3,'the run keeps acting while the emergency action is on cooldown (D-1)')
+    check(parked==0,'a refused emergency action never parks while a fallback exists (D-1)')
+    check(usedHeal,'after the cooldown recovers the emergency action is used again (D-1)')
+    check(heal_attempts>=2,'the emergency action is retried once the cooldown recovered (D-1)')
+end
+
+do
+    -- D-1: when genuinely nothing is applicable after an emergency refusal, the
+    -- typed reason is the refusal (`action_denied`), never `no_emergency_action`.
+    local host=makeHost()
+    host.snap={hp_pct=30,enemy_count=1}
+    host.request=function(attempt)
+        host.requests[#host.requests+1]=attempt
+        return {status='rejected',code='native_rejected',energy_spent=false}
+    end
+    local p=policy({mode={on_low_hp='emergency_only'},limits={max_actions_per_tick=4},rules={
+        {id='heal',priority=100,emergency=true,when={always={}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
+        {id='unreachable',priority=40,when={enemy_count={ge=99}},
+            ['then']={action='attack',target='nearest_hostile'}}}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='paused' and step.reason=='action_denied',
+        'a refused emergency action with no applicable fallback pauses action_denied (D-1)')
+    local sawRefusal=false
+    for _,row in ipairs(step.results or {}) do
+        if row.rule=='heal' and row.result=='denied' then sawRefusal=true end
+    end
+    check(sawRefusal,'the refusal is recorded in the decision trace')
+end
+
+do
+    -- D-2: a native refusal's structured detail (cooldown `missing`,
+    -- `native_message`, `hint`) reaches the notify callback (policy log), the
+    -- same detail the command path already returns.
+    local host=makeHost()
+    host.snap={hp_pct=30,enemy_count=1}
+    host.request=function(attempt)
+        host.requests[#host.requests+1]=attempt
+        return {status='rejected',code='native_rejected',energy_spent=false,
+            missing={{kind='cooldown',talent='T_HEALING_LIGHT',remaining=7,required=0}},
+            hint='talent on cooldown; wait for the listed turns before retrying',
+            native_message='Healing Light is still on cooldown for 7 turns.'}
+    end
+    local p=policy({mode={on_low_hp='emergency_only'},limits={max_actions_per_tick=1},rules={
+        {id='heal',priority=100,emergency=true,when={always={}},
+            ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}}}})
+    local c=AutoCombat.new(p,host)
+    local notified
+    c.notify=function(event) if event.kind=='denied' then notified=event end end
+    c:start()
+    c:onOpportunity()
+    check(notified and notified.rule=='heal' and notified.reason=='native_rejected',
+        'the auto denied event is emitted (D-2)')
+    check(notified.missing and notified.missing[1] and notified.missing[1].kind=='cooldown'
+        and notified.missing[1].remaining==7 and notified.missing[1].talent=='T_HEALING_LIGHT',
+        'the auto denied event carries the structured cooldown missing (D-2)')
+    check(notified.native_message=='Healing Light is still on cooldown for 7 turns.',
+        'the auto denied event carries the native message (D-2)')
+    check(type(notified.hint)=='string','the auto denied event carries the hint (D-2)')
+end
+
 do
     -- Declared sustains are enabled before offensive rules; unknown desired
     -- state and unknown talents are skipped, not paused.

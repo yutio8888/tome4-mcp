@@ -84,6 +84,16 @@ local function ruleOf(policy,id)
     return nil
 end
 
+-- D-3: the canonical new-enemy choice is the mode field. The editor exposes
+-- one boolean and keeps the legacy `safety.pause_on_new_enemy` coherent.
+local function newEnemyPause(policy)
+    local mode=(policy and policy.mode) or {}
+    local safety=(policy and policy.safety) or {}
+    if mode.on_new_enemy~=nil then return mode.on_new_enemy=='pause' end
+    return safety.pause_on_new_enemy~=false
+end
+M.newEnemyPause=newEnemyPause
+
 -- Field descriptor: {id,group,rule,label,kind,value,min,max}. `kind` is
 -- 'integer' | 'number' | 'boolean'. Rules are listed after the global fields.
 function M.fields(policy)
@@ -97,8 +107,8 @@ function M.fields(policy)
             kind='number',value=safety.min_hp_pct,min=0,max=100},
         {id='safety.flee_below_hp_pct',group='safety',label='Flee below HP %',
             kind='number',value=safety.flee_below_hp_pct,min=0,max=100},
-        {id='safety.pause_on_new_enemy',group='safety',label='Pause on new enemy',
-            kind='boolean',value=safety.pause_on_new_enemy==true},
+        {id='mode.on_new_enemy',group='mode',label='Pause on new enemy',
+            kind='boolean',value=newEnemyPause(policy)},
         {id='safety.pause_on_unknown_safety',group='safety',label='Pause on unknown safety',
             kind='boolean',value=safety.pause_on_unknown_safety~=false},
     }
@@ -114,6 +124,7 @@ end
 local function fieldKind(field)
     if field.group=='limits' then return 'limits',field.id:match('%.([%w_]+)$') end
     if field.group=='safety' then return 'safety',field.id:match('%.([%w_]+)$') end
+    if field.group=='mode' then return 'mode',field.id:match('%.([%w_]+)$') end
     if field.group=='rule' then return 'rule',field.rule,field.id:match('%.([%w_]+)$') end
     return nil
 end
@@ -129,7 +140,16 @@ function M.toggle(policy,field_id)
     local updated=M.clone(policy)
     local scope=fieldKind(field)
     if scope=='limits' then return nil,{code='read_only',field=field_id} end
-    if scope=='safety' then
+    if scope=='mode' then
+        local key=field.id:match('%.([%w_]+)$')
+        updated.mode=updated.mode or {}
+        local pause=not field.value
+        updated.mode[key]=pause and 'pause' or 'continue'
+        if key=='on_new_enemy' then
+            updated.safety=updated.safety or {}
+            updated.safety.pause_on_new_enemy=pause
+        end
+    elseif scope=='safety' then
         local key=field.id:match('%.([%w_]+)$')
         updated.safety=updated.safety or {}
         updated.safety[key]=not field.value

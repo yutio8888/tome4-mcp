@@ -93,8 +93,10 @@ do
     check(original.rules[1].enabled==nil,'toggle never mutates the source policy')
     local back=Model.toggle(toggled,'rules.heal.enabled')
     check(back.rules[1].enabled==true,'toggle flips a rule back on')
-    local safety=Model.toggle(original,'safety.pause_on_new_enemy')
-    check(safety.safety.pause_on_new_enemy==false,'toggle flips a safety boolean')
+    local safety=Model.toggle(original,'mode.on_new_enemy')
+    check(safety.mode.on_new_enemy=='pause','toggle flips the new-enemy mode field (D-3)')
+    check(safety.safety.pause_on_new_enemy==true,
+        'toggling the new-enemy mode keeps the legacy safety boolean coherent')
 
     local _,err=Model.toggle(original,'safety.min_hp_pct')
     check(err and err.code=='not_boolean','toggling a numeric field is refused')
