@@ -17,10 +17,24 @@
 | **A** | `pi` / `commandcode/deepseek/deepseek-v4.1-flash` | high | **已实测通过**（需在 pi 的 `enabledModels` 中启用） |
 | **B** | `pi` / `opencode-go/glm-5.3-flash` | high | **已实测通过**（B 是 **pi 的 `opencode-go` 供应商**模型，不是 paseo 的 `opencode` provider） |
 
-**轮换规则**：按 loop 交替 A → B → A → B …，保证使用频率均等。
-**上下文窗口**：两者均为 1M 窗口；已在 `~/.pi/agent/settings.json` 设
-`compaction={enabled:true,reserveTokens:400000,keepRecentTokens:20000}`。pi 的自动压缩阈值
-= `contextWindow - reserveTokens` = **1,000,000 − 400,000 = 600,000**，即**有效 600K 窗口 + 自动压缩**。
+## 角色分工（协调者定稿）
+| 角色 | 模型 | 说明 |
+| --- | --- | --- |
+| **Dev / Test（执行）** | **A ↔ B 逐 loop 交替** | A=`commandcode/deepseek/deepseek-v4.1-flash`，B=`opencode-go/glm-5.3-flash` |
+| **Review（复核）** | **固定 GPT-5.6 Sol（Codex）** | `pi` / **`openai-codex/gpt-5.6-sol`**，thinking high；**不再**用 A/B 做评审 |
+
+轮换规则：**执行**侧按 loop 交替 A → B → A → B …；**评审侧恒为 Sol**，且每个新任务用**全新** Review
+agent（仅"复核上一轮自身发现"时可复用同一 Review agent）。
+
+## 上下文窗口与自动压缩（2026-09-18 定稿，已实测）
+- 全局：`~/.pi/agent/settings.json` → `compaction={enabled:true,keepRecentTokens:20000}`（`reserveTokens`
+  用默认 **16384**）。pi 的阈值公式为 `contextWindow − reserveTokens`。
+- **A、B 的 600K**：在 `~/.pi/agent/models-store.json` 把 `opencode-go/deepseek-v4.1-flash` 与
+  `opencode-go/glm-5.3-flash` 的 `contextWindow` 设为 **616384** → 阈值 = 616384 − 16384 =
+  **600,000**，即**在 600K 触发自动压缩**。A 另补 `commandcode` 供应商条目（同一 `contextWindow`）。
+- **Sol 保持其真实窗口 272,000**（Codex），阈值 ≈ 255.6K——**不可**套用 400K 预留（会产生负阈值）。
+- 实测：`openai-codex/gpt-5.6-sol`、`commandcode/deepseek/deepseek-v4.1-flash`、
+  `opencode-go/glm-5.3-flash` 均以 `--provider pi` 启动并正常应答。
 已在 `~/.pi/agent/settings.json` 的 `enabledModels` 加入 `opencode-go/glm-5.3-flash`；两个模型均已用
 paseo 试跑确认可启动并返回。
 **启用点的实测命令**：A = `--provider pi --model commandcode/deepseek/deepseek-v4.1-flash --thinking high`；
@@ -56,7 +70,7 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
-## 汇总（截至当前，模型 A / A′；B 尚未用于任何 loop）
+## 汇总（截至当前）
 - Loop 总数：**23**（全部已判定）。
 - **PASS 7**（#4、#14、#17、#19、#20、#21、#22）、**FAIL 16**、PARTIAL 0 →
   **通过率 7/23 = 30.4%**。
