@@ -386,21 +386,91 @@ it remains annotated and is evaluated by `destination.accept`. An unresolvable
 envelope is different: the executor cannot check the final postcondition, so the
 adapter is unavailable before commit.
 
-Mixed movement/effect talents need two production changes before their templates
-can be executable:
+Mixed movement/effect talents are executable when the closed composition model below
+(S3) is in place. Normative, in force as of the S3 slice:
 
-1. `AutoCombatGuard` must skip only component-free movement, or introduce an
-   explicit `movement_effect` composition path; the current unconditional skip is
-   at `overload/mod/auto_combat/AutoCombatGuard.lua:188-192`.
-2. Effect component centers must be able to name `actual_landing`, and the guard
-   must conservatively union footprints over every possible pre-commit landing.
-   Giant Leap moves first and projects its radius-one effect around the resulting
-   player position (`game/modules/tome/data/talents/uber/str.lua:41-71`).
+### 5.1 Mixed movement/effect composition (S3)
 
-If that union or its player-known friendly occupancy cannot be evaluated, the
-effect side fails closed. Known risk is still compared with the policy threshold;
-it is not a global tactical veto
-(`docs/tome-mcp-auto-combat-plugin-design.md:268-283,407-415`).
+A mixed movement talent is a manifest movement entry whose `components` array is
+**non-empty**. No new field is introduced for the effect list: the entry keeps its
+S1/S2 movement descriptor (`movement=movementAdapter(...)`) and carries its effect
+components in the same closed component record vocabulary the hostile entries use
+(`overload/mod/auto_combat/EffectManifest.lua:62-355`).
+
+**Closed component vocabulary for `kind='movement'` entries** (normative narrowing):
+
+- `components` contains only effect components — phases `instant`/`projectile`/
+  `secondary`/`ground`. No `cursor` components (cursor/landing geometry is the
+  movement descriptor's, via the factory and `resolveBuilder`).
+- A single-target pre-move melee strike is declared `phase='melee'`,
+  `delivery='attackTarget'`, `shape='hit'`, `center='target'` with no filters,
+  exactly like the admitted melee entries (T_ATTACK,
+  `overload/mod/auto_combat/EffectManifest.lua:118-123`). It is risk-exempt
+  (`EffectRisk.lua:47-49,63`) but is **declared and recorded** — never invisible.
+- A multi-actor effect anchored to the landing must use `delivery='project'` with
+  explicit `selffire`/`friendlyfire`; `delivery='attackTarget'` is forbidden for
+  such components because that delivery is risk-exempt and would hide the AoE.
+
+**Two closed vocabulary additions** (internal guard/factory vocabulary only; no
+protocol field and no policy field changes):
+
+1. `center='actual_landing'` — the effect center is the mover's **actual** post-settle
+   cell. Admitted only with `shape='hit'` or `shape='ball'` and a finite radius (or
+   `{from='target'}` from the live builder); any other shape with this center is
+   `movement_adapter_invalid` at build time (the plugin's own completeness boundary).
+2. `when.kind='landing_adjacent'` with `anchor='actor'` — a guard condition vocabulary
+   (distinct from the factory's variant-axis `validateWhen`): the component is active
+   only when the mover's final cell is at distance 1 (`Distance.grid`) from the named
+   anchor. Pre-commit it is resolved conservatively against the landing candidate set;
+   an indeterminate resolution keeps the branch in the union
+   (`AutoCombatGuard.lua:30-46` pattern).
+
+**Landing candidate set (the `actual_landing` quantifier).** The guard quantifies the
+effect over every cell the mover can actually occupy at settle:
+
+- With `attempt.plan` (the normal path; all three guard call sites carry it):
+  `plan.kind='grid'` + `landing.kind='deterministic'` → the single cell;
+  `landing.kind='bounded'`/`'random'` → the circle (`Distance.grid`) around
+  `landing.center` with `landing.radius`. `min_radius` is deliberately ignored for the
+  union (including the inner ring is a conservative superset). A `sequence` plan uses
+  its last step's landing annotation
+  (`overload/mod/auto_combat/MovementPlanner.lua:580-604`). A missing/unreadable
+  landing annotation is incalculable → fail closed (plugin-own), detail
+  `reason='landing_envelope_unavailable'`.
+- Without `attempt.plan`: the candidate set is derived from the descriptor envelope —
+  `center='actor'` → the circle around the bound actor; `center='self'` → around the
+  caster; `center='requested_grid'` → incalculable without a plan → fail closed
+  (plugin-own, new internal reason `movement_plan_unavailable`).
+- Cell knowledge for the unknown-occupancy rule is the same player-known `ctx.known`
+  read the guard already uses (`AutoCombatGuard.lua:132-140`); no hidden state is read.
+
+**Union and membership (normative).** For `center='actual_landing'` components the
+pre-commit footprint union is computed analytically from the candidate envelope, not by
+per-cell expansion: `shape='hit'` → the candidate set itself; `shape='ball'` radius `r`
+→ the circle around the envelope center with radius `envelope_radius + r` (for the
+audited distance metric this contains every per-candidate native projection; it is a
+conservative superset). Expansion goes through the existing `EffectFootprint.expand`
+backends (`overload/mod/auto_combat/EffectFootprint.lua:290-300`), so a native expansion
+failure is unknown membership, never a silent model downgrade. For
+`center='actual_landing'` components self-membership is evaluated as `candidates ∩
+union ≠ ∅` (conservatively `true` when either side is unknown) instead of containment at
+the mover's **current** cell — the mover will have moved (`AutoCombatGuard.lua:117`
+tests the current cell and must not be used for these components). Friendly membership
+counts allies inside the union; unseen grids inside it are unknown occupancy and fail
+closed (`:123-140`, unchanged). The live builder's instant-geometry override
+(`AutoCombatGuard.lua:283-293`) is **not** applied to movement entries' effect
+components: their geometry is the curated record plus the live radius getter
+(`{from='target'}`); the builder is consumed only by planning (`resolveBuilder`) and by
+the per-request native guard at answer time.
+
+**Guard dispatch (normative).** The unconditional movement skip
+(`overload/mod/auto_combat/AutoCombatGuard.lua:185-187`) becomes:
+
+```lua
+if entry.kind=='movement' then
+    if #(entry.components or {})==0 then return nil end  -- pure movement, unchanged
+    -- mixed entry: fall through to the composition path
+elseif entry.target~='hostile' then return nil end
 
 ## 6. Fail-closed and policy-annotation rules
 
@@ -431,10 +501,12 @@ at `overload/mod/auto_combat/MovementPlanner.lua:514-519` and the variant-branch
 reason at `:395-401 [baseline citation]`. If the dispatcher prefers minimal normative
 churn, leave the row as is; the correction is not load-bearing.
 
-| Landing kind/center/bounds cannot be proved | `movement_landing_envelope_unknown` | Disable this action before commit. |
-| Actual mover or endpoint falls outside the resolved descriptor after commit | `movement_postcondition_mismatch`, `uncertain=true` | Pause the executor; this is a real postcondition failure, not normal randomness. |
+| Landing kind/center/bounds cannot be proved | `movement_landing_envelope_unknown` | Disable this action before commit. (In the implemented factory this surfaces as `movement_derivation_unknown` from the envelope getter/`resolveBuilder` reads, `overload/mod/auto_combat/MovementAdapterFactory.lua:551-596`.) |
+| Actual mover or endpoint falls outside the resolved descriptor after commit | `movement_postcondition_mismatch`, `uncertain=true` | **Implemented in S3 for mixed movement entries** (the first real implementation of this row; extending it to exact S1 movers is a follow-up). The host checks the settled player position against the declared landing envelope after the native body settles, and the controller pauses with this reason; a curated fizzle-with-success branch (`movement_postcondition.fizzle_keeps_position=true`, e.g. Shadowstep's fizzle, `cunning/shadow-magic.lua:139`) is a settled outcome, not a mismatch. Internal pause reason — not a `protocol/v4` code (the S2 precedent: `unexpected_target_request` also rides the pause/detail surface). |
 | Template needs to move/swap another actor but the typed capability is absent | `moving_or_swapping_another_actor` | Publish as unsupported capability. |
-| Mixed effect footprint cannot be computed | existing effect-footprint unknown/rejection with component detail | Disable this action only. |
+| Mixed effect footprint cannot be computed (native expansion failure, unseen-grid occupancy, unreadable radius, missing landing annotation) | existing `selffire_risk` with `unknown=true` + component detail (`phase`, `component`, `provenance`, `footprint_backend`) | Disable this action only; `EffectRisk` unknown dominance (`EffectRisk.lua:34-44,95-101`) and the fail-closed branch (`AutoCombatGuard.lua:315-340`) are unchanged. |
+| A mixed entry reaches the guard with no plan and an undecidable candidate set (`center='requested_grid'` without a plan) | new internal reason `movement_plan_unavailable` | Disable this action only; plugin-completeness boundary, never a strategy refusal. |
+| A component's target/geometry does not match the curated declaration (non-`hit`/`ball` shape with `center='actual_landing'`, unknown key, envelope/`request_sequence` disagreement) | build-time `movement_adapter_invalid` | Never publish the adapter (`MovementAdapterFactory.lua:223-355` closed-record checks); at runtime a drifted builder/getter remains `movement_derivation_unknown`/`adapter_builder_failed`, never a gate. |
 
 Once request program, semantic coverage, and landing envelope are established,
 `visible=false`, `passable='unknown'`, `hazard='unknown'`, and a native-random
@@ -523,8 +595,9 @@ frozen read policy (`docs/tome-mcp-auto-combat-plugin-design.md:365-373,424-443`
 | `T_SKIRMISHER_VAULT` | `grid_move_exact` with `delivery='leap'`, `traverses=false`; builder supplies live beam/range. The action adds a launch-target check, rejects blocked/unprojectable landing, and moves exactly to the requested grid (`game/modules/tome/data/talents/techniques/acrobatics.lua:27-56,61-117`). | The adjacent visible launch-actor prerequisite is action-local; exact native rejection behavior and the post-move Directed Speed effect stay manual. | **Supportable with the factory**. Native prerequisite failure is a normal rejection, not a new strategy gate. |
 | `T_DIMENSIONAL_STEP`, effective TL below 5 | `grid_move_bounded` with `delivery='teleport'`, radius 5 and live builder range. The non-swap branch calls `teleportRandom(x,y,0)` (`game/modules/tome/data/talents/chronomancy/spacetime-weaving.lua:22-46,73-84`). | Effective-level variant, requested-grid occupancy semantics, helper coverage, teleport callbacks/postcondition. | **Supportable for a source-proven non-swap variant**. If occupant status needed to choose the branch is player-unknown, return `movement_variant_unknown`; do not inspect a hidden actor. |
 | `T_DIMENSIONAL_STEP`, TL5 actor target | `swap` candidate. The action may remove the target, teleport the caster, move the target to the old caster cell, or restore it on failure after resistance/hit checks (`game/modules/tome/data/talents/chronomancy/spacetime-weaving.lua:48-72`). | Both actor identities, probability/resistance branch, removal/restoration atomicity, two endpoints, effects, and postconditions. | **Remain unsupported** as `moving_or_swapping_another_actor` until typed two-actor execution and verification exist. |
-| `T_SHADOWSTEP` | `actor_anchor_teleport`; builder supplies range/cursor. Leaf: `{'actor'}`, `teleport`, `bounded_alternatives`, `actor`, radius 5, no traversal/other relocation. The action requires a visible actor, uses precise teleport fallback, and attacks only when final adjacency is one (`game/modules/tome/data/talents/cunning/shadow-magic.lua:109-149`). | Radius-helper proof; attack/damage/daze components; conditional final-adjacency branch; component footprint from actual landing. | **Remain unsupported until movement/effect composition is implemented**; then it becomes a compact template declaration. |
-| `T_GIANT_LEAP` | `grid_move_bounded` with `delivery='leap'`, radius 1, `traverses=false`. It uses the requested grid when empty and `findFreeGrid(...,1)` when occupied, then moves (`game/modules/tome/data/talents/uber/str.lua:20-59`). | Occupancy branch, `findFreeGrid` helper pin, radius-one weapon/daze effect centered on actual landing, and unioned pre-commit footprint (`game/modules/tome/data/talents/uber/str.lua:61-71`). | **Remain unsupported until movement/effect composition and `actual_landing` footprint unions exist**. |
+| `T_SHADOWSTEP` | `actor_anchor_teleport`; live builder supplies range/cursor (`{type="hit", range=getTalentRange, talent=t}`, `cunning/shadow-magic.lua:123`). Leaf: `{'actor'}`, `teleport`, `bounded_alternatives`, `actor`, radius 5, `min_radius=0`, no traversal/other relocation — `teleportRandom(x,y,0)` around the target cell is the precise path with the `findFreeGrid(x,y,5)` nearest-free fallback (`mod/class/Actor.lua:1644-1646,1659-1681`). | Entity/LOS pre-checks (`shadow-magic.lua:131-137`); the fizzle-with-success branch (`:139`, `return true`, no move); the two adjacency-conditional post-landing components (`:142-149` — `landing_adjacent` when-gate, single-target strike + daze on the anchor actor). | **S3-admitted** with the S3 composition model (§5.1): the effect components are declared, guarded (`landing_adjacent` condition resolved against the candidate envelope), and their post-settle evidence observed; no `actual_landing` component is needed (the effect targets the anchor actor only). |
+| `T_GIANT_LEAP` | `grid_move_bounded` with `delivery='leap'`, `traverses=false`, radius 1 (landing alternatives), `builder_shape='ball'`, `no_energy`. Empty requested grid lands exactly; occupied falls back to `findFreeGrid(x,y,1)` nearest-free (`uber/str.lua:47-50`). | Occupancy-branch annotation; the radius-one weapon/daze component `center='actual_landing'`, `radius={from='target'}`, `selffire=0` (explicit `str.lua:39` + body exclusion `:65`), `friendlyfire=100` (unfiltered projection `:63-71`); unioned pre-commit footprint = `circle(requested, 1+1)`; `movement_postcondition` (success always moves — `:49,52` return falsy, no fizzle branch); the uber damage requirement stays a native pre-check (`:23-30`). | **S3 second admission** — the first real `actual_landing` union and the self-exclusion annotation (landing on the player's own tile is normal; `selffire=0` ⇒ no self risk, allies within the union are the measured friendly risk). |
+| `T_VAULT` (agility) | `request_then_landing` (S2 §4.4) with the ordered two-prompt program: prompt 1 the attacked actor (`{cursor_type='hit'}`, entity required, range 1 fixed, `agility.lua:92-93,113-115`), prompt 2 the landing grid (`{cursor_type='hit', nolock=true, range=getDist}`, `:118-121`, `value_source='target_plan'`); landing `bounded_alternatives` radius 1 around the requested grid (`findFreeGrid(x,y,1)` fallback `:123-126`, `block_move` refusal `:128`), `traverses=false` (direct `self:move` `:149-150`), `relocates_other=false`; `range={getter='getDist'}` for the landing envelope (`:105`) and **no `builder_shape`** (the first prompt's fixed `range=1` must not overwrite the landing bound; `conformance={builder=false}`, the Phase Door pattern). | The pre-move strike/daze components (`phase='melee'` strike like T_ATTACK; daze as a `secondary` `hit` on the prompt target, `:137-147`); the TL5 free-block self branch (`:156-159`) as postcondition metadata; the subject='actor' binding that keeps the strike on the policy's hostile-bound actor. | **S3 third admission** — closes the S2-R4-01 reservation (`movement_effect_composition_required`): the sequence is distinguishable (presence-explicit `hit` vs `hit`+`nolock`), the effect is declared and guarded, and the actor prompt can no longer be bound to `self` with the effect invisible. |
 | `T_DISPLACEMENT_SHIELD` | No movement template. It selects an actor and installs a damage-transfer shield; it does not relocate the player when activated (`game/modules/tome/data/talents/spells/conveyance.lua:286-321`). | Delayed damage redirection, target lifecycle, chance, capacity, duration, and effect semantics. | **Remain a source-reviewed effect-adapter task**, outside this factory. |
 | Phase Door, effective TL below 4 and no precise attribute | `self_random_teleport`; `{'none'}`, `teleport`, `random`, `self`, radius from live `t.getRange`, default native minimum 0, no traversal/other relocation. The native call uses `target:teleportRandom(x,y,range)` (`game/modules/tome/data/talents/spells/conveyance.lua:74-78,104-107,146-148`). | Exact variant condition, dynamic range getter, helper coverage, final envelope/postcondition. | **Already conceptually supported, but the current fixed `radius=6,min_radius=1` should be replaced or proven for every admitted state** (`overload/mod/auto_combat/EffectManifest.lua:246-255`). |
 | Phase Door, precise attribute below TL4 | `request_then_landing` resolved to `{'grid'}` with subject self; landing is random around the requested grid with radius `getRadius`, with the source's LOS-dependent broad fallback (`game/modules/tome/data/talents/spells/conveyance.lua:71-72,104-147`). | Attribute predicate, both envelopes, LOS/fizzle branch, prompt table. | **Supportable after this state variant is declared**. Current level-only unsupported gating does not cover it. |
@@ -562,9 +635,17 @@ no-prompt leaf would be unsafe.
 7. Exercise exact, bounded, and random envelope containment. An endpoint outside
    the envelope must become `movement_postcondition_mismatch`; a valid random
    endpoint must not.
-8. Verify mixed component footprints are unioned over all possible landing cells
-   and centered on `actual_landing`; an unknowable footprint disables only that
-   action.
+8. Verify mixed component footprints are unioned over the landing candidate set and
+   centered on `actual_landing`: an exact landing yields a single-cell candidate set;
+   a bounded envelope yields the `circle(center, envelope+effect)` superset; `min_radius`
+   is ignored (superset assertion). An unknowable footprint (native expansion failure,
+   unseen-grid occupancy, missing landing annotation, unreadable radius) disables only
+   that action (`selffire_risk` with `unknown=true`, or `movement_plan_unavailable` when
+   the candidate set itself is undecidable). Assert `landing_adjacent` resolution: an
+   envelope containing distance-1 candidates keeps the component (conservative), a
+   provably non-adjacent envelope resolves it false, an indeterminate read keeps it.
+   Assert the melee-strike pattern (Vault) measures zero risk and is still declared, and
+   that Giant Leap's `selffire=0` self-exclusion is reported, not risk.
 9. Replace action, builder, getter, `teleportRandom`, and `findFreeGrid` objects
    with working replacements and mutate recorded file digests. Assert the adapter
    **still executes** (calls the live object) and that changed telemetry raises a
@@ -620,10 +701,23 @@ settle to a final postcondition:
 - Dimensional Step: below-TL5 empty-grid case lands within the precise-fallback
   envelope; TL5 swap probes separately assert both actors' final locations on
   success and restoration/no-move branches on resistance/fizzle.
-- Shadowstep: one actor response; final location is inside its envelope; attack
-  and daze occur only when the final adjacency condition holds.
-- Giant Leap: empty destination lands exactly; occupied destination stays within
-  radius one; damage/daze footprint is centered on the actual final landing.
+- Shadowstep: one actor response (the bound hostile); the final location is inside the
+  radius-5 envelope around the anchor's cell (or the fizzle branch with its
+  player-visible log line and no movement, `shadow-magic.lua:139`); the attack and daze
+  occur only when the final adjacency distance is exactly 1 (`:142-149`) — both the
+  fired and the not-fired case settle with the observed evidence; the pre-commit guard
+  detail shows the guarded `landing_adjacent` components rather than a skipped entry.
+- Giant Leap: empty destination lands exactly; occupied destination stays within radius
+  one; the weapon/daze footprint is centered on the actual final landing; daze is
+  observable on actors inside the radius-1 ball around the landing and never claimed on
+  the player (self excluded by source, `str.lua:39,65`); the pre-commit union
+  (`circle(requested, 2)`) contains the settled effect set.
+- Vault: two prompts answered in order (actor = the bound hostile adjacent to the
+  player, then the landing grid from the target plan); the strike + daze land on the
+  prompt target before the move (`agility.lua:137-147`); the landing is the requested
+  grid or a within-distance-1 alternative (`:123-128`); a shield-less setup and a
+  blocked landing reject without relocation (native pre-use/block_move outcomes, not
+  plugin refusals); the TL5 free-block branch is observed separately.
 - Phase Door: exercise every level/attribute request sequence, self versus other
   subject, controlled versus LOS-fizzle envelope, and actual mover identity.
 - Displacement Shield: verify no activation-time relocation and separately test
@@ -711,9 +805,13 @@ source makes the grid prompt depend on either TL5 or that attribute
 3. Whether TL5 Dimensional Step should admit a grid-only branch only when the
    requested cell is player-known empty, or wait entirely for the swap-capable
    descriptor. A hidden occupant must not be queried to answer this.
-4. Which self-only secondary effects require full effect-manifest components
-   versus postcondition-only metadata. Harmful/mixed effects cannot use the
-   current unconditional movement guard skip.
+4. **Decided for S3 (see §5.1).** Harmful/mixed effects carried by a movement talent are
+   full effect-manifest components on the movement entry (the guard's single source of
+   truth); purely self-beneficial post-move branches with no footprint risk (Vault's TL5
+   free Block, `techniques/agility.lua:156-159`) are curated postcondition metadata on
+   the entry (`movement_postcondition`), not risk components. The unconditional movement
+   guard skip now applies only to component-free movement entries
+   (`AutoCombatGuard.lua:185-187`).
 
 
 ## 13. Delivery slices (roadmap)
