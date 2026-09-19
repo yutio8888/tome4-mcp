@@ -307,10 +307,17 @@ end
 do
     local function planOf(grids)
         local values={}
+        local sequence={}
         for i,grid in ipairs(grids) do
             values[i]={kind='grid',request='grid',x=grid[1],y=grid[2],group='earthen_missiles'}
+            sequence[i]={index=i,request='grid',subject='self',value_source='target_plan',
+                observed={cursor_type='bolt'},group='earthen_missiles'}
         end
-        return {kind='sequence',values=values,annotation={landing={kind='deterministic'}}}
+        -- R2-APR2-01: the planner attaches the RESOLVED request sequence, and
+        -- the guard now requires it, so the fixture builds the realistic plan
+        -- (`MovementPlanner.planSequence`) instead of a sequence-less stub.
+        return {kind='sequence',values=values,request_sequence=sequence,
+            annotation={landing={kind='deterministic'}}}
     end
     local function stationaryAttempt(talent,grids)
         local a=attempt(talent)
@@ -431,6 +438,99 @@ do
             'a plan matching the resolved request-sequence length is measured normally')
         check(prechecks>0,'the matching plan did run its prechecks')
     end
+    -- R2-APR2-01: the SPARSE attached resolved sequence defeats a `#`-based
+    -- length check (Lua `#` reports 1 for keys {1,3}), so the guard MUST
+    -- dense-validate `plan.request_sequence` over ALL keys before using its
+    -- length. The reviewer's exact SPARSE_DECLARED_BYPASS case: one dense grid
+    -- plus an attached sequence at keys {1,3}.
+    do
+        local prechecks=0
+        local bypass=build{policy={safety={max_selffire_risk=0}},
+            player_fields={canProject=function() prechecks=prechecks+1;return true end}}
+        local bypassAttempt=attempt('T_EARTHEN_MISSILES')
+        bypassAttempt.plan={kind='sequence',
+            values={{kind='grid',request='grid',x=5,y=2,group='earthen_missiles'}},
+            request_sequence={[1]={index=1,request='grid'},[3]={index=3,request='grid'}}}
+        local bypassVerdict=bypass(bypassAttempt)
+        check(bypassVerdict and bypassVerdict.action=='reject'
+            and bypassVerdict.reason=='movement_plan_unavailable'
+            and bypassVerdict.detail.detail=='bad_plan_shape'
+            and bypassVerdict.detail.cause=='hole',
+            'a SPARSE attached request_sequence is rejected as bad_plan_shape/hole, never measured (R2-APR2-01)')
+        check(prechecks==0,'no precheck ran before the sparse attached sequence was rejected')
+    end
+    -- R2-APR2-01: an attached sequence at keys {1,3} with a matching-count
+    -- dense grid array (2 values) is still rejected, because the SEQUENCE shape
+    -- is invalid independently of any length comparison.
+    do
+        local prechecks=0
+        local hole=build{policy={safety={max_selffire_risk=0}},
+            player_fields={canProject=function() prechecks=prechecks+1;return true end}}
+        local holeAttempt=attempt('T_EARTHEN_MISSILES')
+        holeAttempt.plan={kind='sequence',
+            values={{kind='grid',request='grid',x=5,y=2,group='earthen_missiles'},
+                {kind='grid',request='grid',x=6,y=2,group='earthen_missiles'}},
+            request_sequence={[1]={index=1,request='grid'},[3]={index=3,request='grid'}}}
+        local holeVerdict=hole(holeAttempt)
+        check(holeVerdict and holeVerdict.action=='reject'
+            and holeVerdict.reason=='movement_plan_unavailable'
+            and holeVerdict.detail.detail=='bad_plan_shape'
+            and holeVerdict.detail.cause=='hole',
+            'a keys-{1,3} attached sequence is rejected (dense validation over ALL keys, R2-APR2-01)')
+        check(prechecks==0,'no precheck ran before the keys-{1,3} sequence was rejected')
+    end
+    -- R2-APR2-01: an ABSENT attached sequence is a typed rejection, not a
+    -- fallback that "matches any variant length". A one-grid plan with no
+    -- attached sequence can never be measured.
+    do
+        local prechecks=0
+        local absent=build{policy={safety={max_selffire_risk=0}},
+            player_fields={canProject=function() prechecks=prechecks+1;return true end}}
+        local absentAttempt=attempt('T_EARTHEN_MISSILES')
+        absentAttempt.plan={kind='sequence',
+            values={{kind='grid',request='grid',x=5,y=2,group='earthen_missiles'}}}
+        local absentVerdict=absent(absentAttempt)
+        check(absentVerdict and absentVerdict.action=='reject'
+            and absentVerdict.reason=='movement_plan_unavailable'
+            and absentVerdict.detail.detail=='plan_sequence_missing',
+            'an ABSENT attached request_sequence is rejected (never matches a variant length, R2-APR2-01)')
+        check(prechecks==0,'no precheck ran before the absent sequence was rejected')
+    end
+    -- R2-APR2-01: an attached sequence whose length is not a DECLARED executable
+    -- program length (Earthen Missiles declares 2 and 3) is rejected even though
+    -- it agrees with the plan length.
+    do
+        local prechecks=0
+        local invented=build{policy={safety={max_selffire_risk=0}},
+            player_fields={canProject=function() prechecks=prechecks+1;return true end}}
+        local inventedAttempt=attempt('T_EARTHEN_MISSILES')
+        inventedAttempt.plan={kind='sequence',
+            values={{kind='grid',request='grid',x=5,y=2,group='earthen_missiles'}},
+            request_sequence={{index=1,request='grid'}}}
+        local inventedVerdict=invented(inventedAttempt)
+        check(inventedVerdict and inventedVerdict.action=='reject'
+            and inventedVerdict.reason=='movement_plan_unavailable'
+            and inventedVerdict.detail.detail=='plan_sequence_length_mismatch',
+            'a caller-invented 1-entry program length is rejected (R2-APR2-01)')
+        check(prechecks==0,'no precheck ran before the invented-length sequence was rejected')
+    end
+    -- R2-APR2-01: an attached sequence with the right LENGTH but a wrong KIND
+    -- (declared 'actor' where the plan value is a grid) is rejected.
+    do
+        local prechecks=0
+        local wrongKind=build{policy={safety={max_selffire_risk=0}},
+            player_fields={canProject=function() prechecks=prechecks+1;return true end}}
+        local wrongKindAttempt=attempt('T_EARTHEN_MISSILES')
+        wrongKindAttempt.plan=planOf({{5,2},{6,2}})
+        wrongKindAttempt.plan.request_sequence[2].request='actor'
+        local wrongKindVerdict=wrongKind(wrongKindAttempt)
+        check(wrongKindVerdict and wrongKindVerdict.action=='reject'
+            and wrongKindVerdict.reason=='movement_plan_unavailable'
+            and wrongKindVerdict.detail.detail=='plan_sequence_kind_mismatch'
+            and wrongKindVerdict.detail.index==2,
+            'a kind-mismatching attached sequence entry is rejected entry-by-entry (R2-APR2-01)')
+        check(prechecks==0,'no precheck ran before the kind mismatch was rejected')
+    end
     -- A′ §6.5: EVERY component x grid footprint must expand. One unreadable
     -- expansion with another readable one (an ally standing in the readable
     -- footprint) must never be measured as a partial, complete union.
@@ -484,10 +584,14 @@ do
     local saved=Manifest.ENTRIES.T_MOONLIGHT_RAY
     local function planOf(grids)
         local values={}
+        local sequence={}
         for i,grid in ipairs(grids) do
             values[i]={kind='grid',request='grid',x=grid[1],y=grid[2]}
+            sequence[i]={index=i,request='grid'}
         end
-        return {kind='sequence',values=values,annotation={landing={kind='deterministic'}}}
+        -- R2-APR2-01: the planner-attached resolved sequence is required.
+        return {kind='sequence',values=values,request_sequence=sequence,
+            annotation={landing={kind='deterministic'}}}
     end
     -- (a) A MOVER leaf with a fabricated stationary[] boolean must be skipped.
     local mover=assert(Factory.expand('request_then_landing',{
@@ -589,6 +693,84 @@ do
         {x=0,y=0},{x=3,y=0},{type='ball',range=8,actorblock=false})
     check(actorSpec.actorblock==false,
         'a raised actorblock reaches the footprint input (R2-APR-04)')
+    -- R2-APR2-03: the REMAINING engine-consulted fields forward from a REAL
+    -- raised spec, including an explicit `false` (which the engine honours).
+    -- `force_max_range=true` is raised by real specs (spells/golem.lua:271-272
+    -- Eye Beam, spells/thaumaturgy.lua:234 Elemental Array) and extends line
+    -- stepping (ActorProject.lua:78,113-114); `block_path=false` is raised by
+    -- corruptions/shadowflame.lua:155-159 and disables the default blocker
+    -- (`if typ.block_path then` is false for `false`).
+    local golemSpec=Guard.footprintSpec({shape='beam',range=7,center='target'},
+        {x=0,y=0},{x=3,y=0},{type='beam',range=7,force_max_range=true,friendlyfire=false})
+    check(golemSpec.force_max_range==true,
+        'a real raised force_max_range reaches the footprint input (R2-APR2-03)')
+    local shadowSpec=Guard.footprintSpec({shape='ball',radius=20,center='target'},
+        {x=0,y=0},{x=3,y=0},{type='ball',range=20,radius=20,block_path=false,
+            block_radius=false,selffire=false})
+    check(shadowSpec.block_path==false and shadowSpec.block_radius==false,
+        'a real raised block_path=false/block_radius=false reaches the footprint input (R2-APR2-03)')
+    -- A raised CALLBACK form is forwarded verbatim (function identity preserved).
+    local callback=function() return true,false,false end
+    local callbackSpec=Guard.footprintSpec({shape='ball',radius=2,center='target'},
+        {x=0,y=0},{x=3,y=0},{type='ball',range=8,block_path=callback})
+    check(callbackSpec.block_path==callback,
+        'a raised block_path FUNCTION is forwarded verbatim (R2-APR2-03)')
+    -- min_range / grid_exclude / filter are all engine-consulted and forwarded.
+    local geometrySpec=Guard.footprintSpec({shape='ball',radius=2,center='target'},
+        {x=0,y=0},{x=3,y=0},{type='ball',range=8,min_range=3,
+            grid_exclude={[5]={[5]=true}},filter=function() return true end})
+    check(geometrySpec.min_range==3 and geometrySpec.grid_exclude~=nil
+        and type(geometrySpec.filter)=='function',
+        'raised min_range/grid_exclude/filter reach the footprint input (R2-APR2-03)')
+    -- The allowlist is closed: an unrelated raised key is NOT copied.
+    local closedSpec=Guard.footprintSpec({shape='ball',radius=2,center='target'},
+        {x=0,y=0},{x=3,y=0},{type='ball',range=8,arbitrary_key='x'})
+    check(closedSpec.arbitrary_key==nil,
+        'the forwarded allowlist is closed (an unrelated raised key is dropped)')
+    -- R2-APR2-03: a REAL raised `force_max_range` changes the MEASURED footprint
+    -- through the full guard path — not just the copied field. The injected
+    -- builder returns Eye Beam's real raised spec; the captured footprint input
+    -- must carry it to the native expander.
+    do
+        local saved=Manifest.ENTRIES.T_MOONLIGHT_RAY
+        local realExpand2=Footprint.expand
+        local specs={}
+        Footprint.expand=function(spec,opts)
+            specs[#specs+1]=spec
+            return realExpand2(spec,opts)
+        end
+        local eyeBeam=function()
+            -- Verbatim field set of Eye Beam's raised spec (golem.lua:271-272).
+            return {type='beam',range=7,force_max_range=true,friendlyfire=false}
+        end
+        Manifest.ENTRIES.T_MOONLIGHT_RAY={kind='attack',target='hostile',resource='negative',
+            range=7,cursor={shape='beam',range=7},
+            conformance={shape='beam',builder=true},
+            components={
+                {id='cursor',phase='cursor',delivery='project',shape='beam',range=7,center='target'},
+                {id='instant',phase='instant',delivery='project',shape='beam',range=7,center='target',
+                    selffire=100,friendlyfire=100}}}
+        local g=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=eyeBeam}}}
+        local okInjected,injectedVerdict=pcall(g,attempt('T_MOONLIGHT_RAY'))
+        Footprint.expand=realExpand2
+        Manifest.ENTRIES.T_MOONLIGHT_RAY=saved
+        local sawForce=false
+        for _,spec in ipairs(specs) do
+            if spec.force_max_range==true then sawForce=true end
+        end
+        check(okInjected and sawForce,
+            'Eye Beam\'s real raised force_max_range reaches the measured footprint path (R2-APR2-03)')
+    end
+    -- R2-APR2-03: the same allowlist rides the STATIONARY footprint input, so a
+    -- curated raised field reaches that path too. `stationaryProbeSpec` is
+    -- exercised via `STATIONARY_SPECS`; assert the shared copier is the one used
+    -- by injecting a real raised field into the stationary per-grid spec is
+    -- covered by the copyFootprintFlags unit assertions above.
+    local copied=Guard.copyFootprintFlags({shape='beam',range=7},
+        {force_max_range=true,block_path=false,friendlyfire=false,unrelated=true})
+    check(copied.force_max_range==true and copied.block_path==false
+        and copied.friendlyfire==false and copied.unrelated==nil,
+        'copyFootprintFlags is the single closed forwarder for both footprint paths (R2-APR2-03)')
 end
 
 print('Auto-combat guard: '..checks..' checks passed')

@@ -223,16 +223,17 @@ function M.normalizeSequence(list)
     -- because a prompt is only answered when exactly the arrival entry matches.
     -- A′ §6.3: group membership is DECLARED data, so the carrier is held to the
     -- same mechanical invariants the factory validated (>=2 members, one request
-    -- kind, exactly-equal signatures). This is what stops a hand-authored
-    -- carrier from forging or weakening membership. R2-APR-03: the carrier
-    -- re-validation uses the factory's validator in CARRIER mode — the same
-    -- shared group machinery, with the carrier-expressible subset enforced
-    -- (including CONTIGUITY, so an interleaved group the factory rejects is
-    -- refused here too). The stationary grid/value-source closure is a template
-    -- property expressed in the factory's build-time `delivery` vocabulary,
-    -- which the internal carrier does not carry; routing itself is gated by the
-    -- template-derived marker (R2-APR-02), not by the carrier. The
-    -- decided-value kind check (`SEQUENCE_VALUE_KINDS`) still applies per entry.
+    -- kind, exactly-equal signatures, CONTIGUOUS members). This is what stops a
+    -- hand-authored carrier from forging or weakening membership. R2-APR2-02: the
+    -- carrier re-validation uses the factory's validator with the SAME rules —
+    -- contiguity is enforced unconditionally at BOTH boundaries, so the carrier
+    -- can never ACCEPT a group shape the factory would refuse (the interleaved
+    -- generic group is now refused at build time too). The stationary
+    -- grid/value-source closure is a template property expressed in the factory's
+    -- build-time `delivery` vocabulary, which the internal carrier does not
+    -- carry; routing itself is gated by the template-derived marker (R2-APR-02),
+    -- not by the carrier. The decided-value kind check (`SEQUENCE_VALUE_KINDS`)
+    -- still applies per entry.
     local membership=Factory.groupMembership(out,{carrier=true})
     if not membership then return nil,'invalid_sequence' end
     return out
