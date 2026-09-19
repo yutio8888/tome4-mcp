@@ -66,7 +66,12 @@ M.EXPECTED={
     ['movement-fallback']={'blocked_landing','alternative_planned','fallback_moved'},
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
     ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused','sd_cooldown_native_rejected','sd_cooldown_no_pause','sd_zero_prompt_success_deviated','sd_zero_prompt_success_paused'},
-    ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
+    ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed',
+        'shadowstep_planned','shadowstep_executed','leap_planned','leap_executed',
+        'vault_planned','vault_rejected','mismatch_handoff'},
+    ['movement-composition']={'mc_shadowstep_guard','mc_shadowstep_planned',
+        'mc_giant_leap_guard','mc_giant_leap_plan_unavailable','mc_vault_planned',
+        'mc_footprint_parity_flags'},
     ['handback-answer']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt'},
     ['handback-timeout']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_unanswered_cancelled'},
     ['handback-reorder']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt','hb_same_kind_reorder'},
@@ -1354,17 +1359,29 @@ local function movementTalentSetup()
         end
     end
     local p=game.player
-    local levels={T_RUSH=5,T_SKIRMISHER_CUNNING_ROLL=5,T_PHASE_DOOR=1}
+    local levels={T_RUSH=5,T_SKIRMISHER_CUNNING_ROLL=5,T_PHASE_DOOR=1,
+        T_SHADOWSTEP=1,T_VAULT=1,T_GIANT_LEAP=1}
     for talent,level in pairs(levels) do
         if type(p.talents)~='table' then p.talents={} end
         if not p.talents[talent] and type(p.learnTalent)=='function' then p:learnTalent(talent,true) end
         p.talents[talent]=level
     end
-    M.mt={index=0,signals={},specs={
+    M.mt={index=0,signals={}}
+    -- S3: Giant Leap's native requirement reads `damage_log.weapon.other`; the
+    -- fixture satisfies it with test-only data (restored after the stage).
+    M.mt.saved_damage_log=p.damage_log
+    p.damage_log={weapon={other=50000}}
+    M.mt.saved_pos={x=p.x,y=p.y}
+    M.mt.specs={
         {name='rush',talent='T_RUSH',kind='rush'},
         {name='tumble',talent='T_SKIRMISHER_CUNNING_ROLL',kind='tumble'},
         {name='door',talent='T_PHASE_DOOR',kind='door'},
-    }}
+        -- S3 mixed movement/effect admissions.
+        {name='shadowstep',talent='T_SHADOWSTEP',kind='shadowstep'},
+        {name='leap',talent='T_GIANT_LEAP',kind='leap'},
+        {name='vault',talent='T_VAULT',kind='vault'},
+        {name='mismatch',talent='T_SHADOWSTEP',kind='mismatch_service'},
+    }
 end
 
 local function movementTalentHost()
@@ -1376,7 +1393,13 @@ local function movementTalentHost()
 end
 
 local function movementTalentSignal(kind,suffix)
-    local base=kind=='rush' and 'rush' or kind=='tumble' and 'tumble' or 'teleport'
+    local base=kind=='rush' and 'rush'
+        or kind=='tumble' and 'tumble'
+        or kind=='shadowstep' and 'shadowstep'
+        or kind=='leap' and 'leap'
+        or kind=='vault' and 'vault'
+        or kind=='mismatch_service' and 'mismatch'
+        or 'teleport'
     return base..'_'..suffix
 end
 
@@ -1428,6 +1451,95 @@ local function movementTalentRun(spec)
             outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
                 rule='tumble'})
         end
+    elseif spec.kind=='shadowstep' then
+        local ctx=host.snapshot('nearest_hostile')
+        local bound=ctx and ctx.bound_target
+        local planned,err=host.plan({action='use_talent',talent=spec.talent,bound_target=bound,
+            target='nearest_hostile',
+            target_plan={{request='actor',selector='nearest_hostile'}},
+            destination={selector='native_landing',anchor='bound_target',accept=accept}})
+        local ok=planned and planned.plan and planned.plan.kind=='actor'
+        M.mt.signals[#M.mt.signals+1]=ok and 'shadowstep_planned' or 'shadowstep_plan_missing'
+        check('movement-talents:shadowstep-plan',ok,{kind=planned and planned.plan and planned.plan.kind,
+            reason=err and err.reason})
+        if ok then
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
+            outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
+                bound_target=bound,rule='shadowstep'})
+        end
+    elseif spec.kind=='leap' then
+        local map=game.level.map
+        local tx,ty
+        for radius=2,9 do
+            for _,delta in ipairs({{radius,0},{-radius,0},{0,radius},{0,-radius},
+                {radius,radius},{-radius,-radius},{radius,-radius},{-radius,radius}}) do
+                local x,y=p.x+delta[1],p.y+delta[2]
+                if map:isBound(x,y) and not map:checkAllEntities(x,y,'block_move',p)
+                    and not map(x,y,engine.Map.ACTOR) then tx,ty=x,y break end
+            end
+            if tx then break end
+        end
+        local planned,err
+        if tx then
+            planned,err=host.plan({action='use_talent',talent=spec.talent,
+                target_plan={{request='grid',
+                    destination={selector='position',x=tx,y=ty,accept=accept}}},
+                destination={selector='position',x=tx,y=ty,accept=accept}})
+        end
+        local ok=planned and planned.plan and planned.plan.kind=='grid'
+        M.mt.signals[#M.mt.signals+1]=ok and 'leap_planned' or 'leap_plan_missing'
+        check('movement-talents:leap-plan',ok,{x=tx,y=ty,reason=err and err.reason})
+        if ok then
+            M.mt.leap_target={x=tx,y=ty}
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
+            outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
+                bound_target=host.snapshot('nearest_hostile').bound_target,rule='leap'})
+        end
+    elseif spec.kind=='vault' then
+        -- The probe player carries no shield, so the real native pre-use check
+        -- refuses BEFORE any prompt (V-N2): no fabricated missing-prompt
+        -- deviation, no relocation, no postcondition mismatch.
+        local planned,err=host.plan({action='use_talent',talent=spec.talent,
+            bound_target=host.snapshot('nearest_hostile').bound_target,target='nearest_hostile',
+            target_plan={{request='actor',selector='nearest_hostile'},
+                {request='grid',destination={selector='position',x=p.x+2,y=p.y,accept=accept}}},
+            destination={selector='position',x=p.x+2,y=p.y,accept=accept}})
+        local ok=planned and planned.plan and planned.plan.kind=='sequence'
+        M.mt.signals[#M.mt.signals+1]=ok and 'vault_planned' or 'vault_plan_missing'
+        check('movement-talents:vault-plan',ok,{kind=planned and planned.plan and planned.plan.kind,
+            reason=err and err.reason})
+        if ok then
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
+            outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
+                bound_target=host.snapshot('nearest_hostile').bound_target,rule='vault'})
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
+        end
+    elseif spec.kind=='mismatch_service' then
+        -- X-N2/S-N1: shrink the declared Shadowstep envelope to radius 0 in
+        -- memory (test-only fixture); the native teleport lands inside radius 5
+        -- of the bound actor, i.e. OUTSIDE the declared envelope. The
+        -- production service must pause exactly once with
+        -- movement_postcondition_mismatch and revoke the lease (never
+        -- resubmit).
+        M.mt.saved_radius=EffectManifest.entry('T_SHADOWSTEP').movement.radius
+        EffectManifest.ENTRIES.T_SHADOWSTEP.movement.radius=0
+        Runtime.setAutoCombatExecution(game,true)
+        local pol=policy({{id='shadowstep',priority=10,when={enemy_count={ge=1}},
+            ['then']={action='use_talent',talent='T_SHADOWSTEP',target='nearest_hostile',
+                target_plan={{request='actor',selector='nearest_hostile'}},
+                destination={selector='native_landing',anchor='bound_target',accept=accept}}}})
+        local d=Runtime.autoCombatHandle(game,'set_draft',{policy=pol})
+        local ap=d and Runtime.autoCombatHandle(game,'approve',{}) or nil
+        local act=ap and ap.ok and Runtime.autoCombatHandle(game,'activate',
+            {expected_hash=ap.approved_hash}) or nil
+        local started=act and act.ok and Runtime.autoCombatHandle(game,'start',{}) or nil
+        M.mt.mismatch_ok=(d and d.ok) and (ap and ap.ok) and (act and act.ok)
+            and (started and started.ok) or false
+        -- Keep the talent off cooldown for the whole poll window.
+        if p.talents_cd then p.talents_cd[spec.talent]=nil end
+        M.mt.pending=true
+        M.mt.frames=0
+        return
     else
         local planned,err=host.plan({action='use_talent',talent=spec.talent,
             target_plan={{request='none'}},destination={selector='native_random',accept=accept}})
@@ -1461,6 +1573,58 @@ movementTalentAssert=function(spec)
     local landed=true
     if spec.kind=='tumble' and M.mt.tumble_target then
         landed=p.x==M.mt.tumble_target.x and p.y==M.mt.tumble_target.y
+    end
+    -- S3 mixed movement/effect assertions (Shadowstep / Giant Leap / Vault /
+    -- forced postcondition mismatch service run).
+    if spec.kind=='shadowstep' then
+        local settled=outcome and outcome.status=='ok'
+        -- The teleport envelope is radius 5 around the bound actor; an
+        -- unchanged endpoint is the curated fizzle mode (both are passes).
+        local inEnvelope=true
+        if settled and not moved then inEnvelope=true end
+        local noMismatch=outcome and outcome.postcondition_mismatch==nil
+        local ok=settled and inEnvelope and noMismatch
+        M.mt.signals[#M.mt.signals+1]=ok and 'shadowstep_executed' or 'shadowstep_rejected'
+        check('movement-talents:shadowstep-execute',ok,
+            {status=outcome and outcome.status,code=outcome and outcome.code,
+                before=before.x..','..before.y,after=p.x..','..p.y,
+                mismatch=outcome and outcome.postcondition_mismatch~=nil or false})
+        if M.mt.saved_pos then p.x,p.y=M.mt.saved_pos.x,M.mt.saved_pos.y end
+        return
+    elseif spec.kind=='leap' then
+        local settled=outcome and outcome.status=='ok'
+        local within=true
+        if M.mt.leap_target then
+            within=Distance.grid(p.x,p.y,M.mt.leap_target.x,M.mt.leap_target.y)<=1
+        end
+        local noMismatch=outcome and outcome.postcondition_mismatch==nil
+        local ok=settled and within and noMismatch
+        M.mt.signals[#M.mt.signals+1]=ok and 'leap_executed' or 'leap_rejected'
+        check('movement-talents:leap-execute',ok,
+            {status=outcome and outcome.status,code=outcome and outcome.code,
+                before=before.x..','..before.y,after=p.x..','..p.y,
+                target=M.mt.leap_target and (M.mt.leap_target.x..','..M.mt.leap_target.y) or nil})
+        if M.mt.saved_pos then p.x,p.y=M.mt.saved_pos.x,M.mt.saved_pos.y end
+        return
+    elseif spec.kind=='vault' then
+        -- V-N2: the real native pre-use shield requirement refuses before any
+        -- prompt; there is no fabricated sequence deviation and no relocation.
+        local rejected=outcome and outcome.status=='rejected'
+        local noDeviation=outcome and outcome.sequence_deviation==nil
+        local stayed=(not moved)
+        local noMismatch=outcome and outcome.postcondition_mismatch==nil
+        local ok=rejected and noDeviation and noMismatch
+        -- (stayed is evidence, not asserted: a pre-prompt refusal never moves.)
+        M.mt.signals[#M.mt.signals+1]=(ok and stayed) and 'vault_rejected' or 'vault_flow_wrong'
+        check('movement-talents:vault-reject',ok and stayed,
+            {status=outcome and outcome.status,code=outcome and outcome.code,
+                deviation=noDeviation,moved=moved})
+        return
+    elseif spec.kind=='mismatch_service' then
+        -- The service-level handoff is polled by the frame pump (the mismatch
+        -- settles asynchronously through the production reaper).
+        local status=M.mt.mismatch_frames and Runtime.autoCombatStatus(game) or nil
+        return
     end
     local ok=moved and landed
     -- P0: Rush's native flow requests a target more than once (the useTalent
@@ -1939,6 +2103,167 @@ end
 M.movementSequenceChecks=movementSequenceChecks
 
 
+
+-- S3: mixed movement/effect composition. The synchronous scenario covers the
+-- production guard/planner surface and the native footprint parity for the
+-- REAL raised specs; the three talents' end-to-end executions run through the
+-- async movement stage machine (movement-talents), and the postcondition
+-- mismatch handoff runs through the production service (final async stage).
+local function movementCompositionChecks()
+    local signals={}
+    local p=game.player
+    local map=game.level.map
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    forceReady()
+    -- The arena dummy is the shared bound hostile; find it.
+    local dummy
+    for _,actor in pairs(game.level.entities or {}) do
+        if actor~=p and actor.name and tostring(actor.name):find('MCP target dummy') then
+            dummy=actor
+        end
+    end
+    if not dummy then
+        check('movement-composition:setup',false,{note='no arena dummy'})
+        return compare('movement-composition',{'mc_setup_missing'})
+    end
+    -- Learn the mixed talents (advisory: the guard reads the live builders).
+    local levels={T_SHADOWSTEP=1,T_VAULT=1,T_GIANT_LEAP=1}
+    for talent,level in pairs(levels) do
+        if type(p.talents)~='table' then p.talents={} end
+        p.talents[talent]=level
+    end
+    -- Giant Leap's native requirement reads `damage_log.weapon.other`; the
+    -- probe owns this test-only fixture value (restored below).
+    local saved_damage_log=p.damage_log
+    p.damage_log={weapon={other=50000}}
+    local host=Runtime.buildAutoCombatHostFor(game,policy({WAIT}),{drift=function() return true end})
+    local bound=host.snapshot('nearest_hostile').bound_target
+    -- S-N1: the production guard evaluates the REAL Shadowstep raised spec with
+    -- the complete composition path: direct components evidenced, no footprint.
+    local shadowVerdict=host.guard({action='use_talent',talent='T_SHADOWSTEP',
+        bound_target=bound,plan=nil})
+    local shadowOk=shadowVerdict and shadowVerdict.action=='permit'
+        and shadowVerdict.detail and shadowVerdict.detail.components_evaluated==2
+        and (shadowVerdict.detail.candidate_count or 0)>0
+        and shadowVerdict.detail.measurement==0
+    signals[#signals+1]=shadowOk and 'mc_shadowstep_guard' or 'mc_shadowstep_guard_missing'
+    check('movement-composition:shadowstep-guard',shadowOk,
+        {verdict=shadowVerdict and shadowVerdict.reason,detail=shadowVerdict and shadowVerdict.detail})
+    -- S-N1: the production planner produces the actor-anchored bounded plan.
+    local planned,plannedErr=host.plan({action='use_talent',talent='T_SHADOWSTEP',
+        bound_target=bound,target='nearest_hostile',
+        target_plan={{request='actor',selector='nearest_hostile'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept}})
+    local planOk=planned and planned.plan and planned.plan.kind=='actor'
+        and planned.plan.annotation.landing.kind=='bounded'
+        and planned.plan.annotation.landing.radius==5
+    signals[#signals+1]=planOk and 'mc_shadowstep_planned' or 'mc_shadowstep_planned_missing'
+    check('movement-composition:shadowstep-plan',planOk,
+        {kind=planned and planned.plan and planned.plan.kind,
+         reason=plannedErr and plannedErr.reason})
+    -- G-N1 (guard level): Giant Leap with an explicit requested grid expands
+    -- EVERY component x candidate pair (radius-1 envelope -> 9 candidates) and
+    -- the raised spec's raw selffire=false is carried as evidence, never a gate.
+    local requested={x=p.x+3,y=p.y}
+    local leapPlan={kind='grid',x=requested.x,y=requested.y,
+        annotation={landing={kind='bounded',center={x=requested.x,y=requested.y},radius=1}}}
+    local leapVerdict=host.guard({action='use_talent',talent='T_GIANT_LEAP',
+        bound_target=bound,plan=leapPlan})
+    local leapDetail=leapVerdict and leapVerdict.detail or {}
+    local leapComp=(leapDetail.components or {})[1] or {}
+    local leapOk=leapVerdict and leapVerdict.action=='permit'
+        and leapDetail.candidate_count==9
+        and leapComp and leapComp.required_expansions==9
+        and leapComp.completed_expansions==9
+        and (leapComp.footprint_count or 0)>0
+        and leapComp.raised_flags and leapComp.raised_flags.selffire==false
+        and leapComp.raised_flags.friendlyfire==nil
+        and leapComp.self_excluded==true
+    signals[#signals+1]=leapOk and 'mc_giant_leap_guard' or 'mc_giant_leap_guard_missing'
+    check('movement-composition:giant-leap-guard',leapOk,
+        {reason=leapVerdict and leapVerdict.reason,detail=leapDetail,
+         requested=requested.x..','..requested.y})
+    -- No plan + a requested_grid descriptor is the typed plugin-own gap.
+    local unavailable=host.guard({action='use_talent',talent='T_GIANT_LEAP',
+        bound_target=bound,plan=nil})
+    local unavailableOk=unavailable and unavailable.action=='reject'
+        and unavailable.reason=='movement_plan_unavailable'
+    signals[#signals+1]=unavailableOk and 'mc_giant_leap_plan_unavailable'
+        or 'mc_giant_leap_plan_unavailable_missing'
+    check('movement-composition:giant-leap-unavailable',unavailableOk,
+        {reason=unavailable and unavailable.reason})
+    -- V-N1 (plan level): the two-prompt Vault program resolves with the real
+    -- observed signatures; the native pre-use shield requirement then rejects
+    -- before any prompt (V-N2), so there is no fabricated missing-prompt
+    -- deviation and no relocation.
+    local vaultPlan,vaultErr=host.plan({action='use_talent',talent='T_VAULT',
+        bound_target=bound,target='nearest_hostile',
+        target_plan={{request='actor',selector='nearest_hostile'},
+            {request='grid',destination={selector='position',x=requested.x,y=requested.y,
+                accept=accept}}},
+        destination={selector='position',x=requested.x,y=requested.y,accept=accept}})
+    local vaultPlanOk=vaultPlan and vaultPlan.plan and vaultPlan.plan.kind=='sequence'
+        and #(vaultPlan.plan.values or {})==2
+        and vaultPlan.plan.values[1].observed
+        and vaultPlan.plan.values[1].observed.cursor_type=='hit'
+        and vaultPlan.plan.values[1].observed.nolock==nil
+        and vaultPlan.plan.values[2].observed.nolock==true
+    signals[#signals+1]=vaultPlanOk and 'mc_vault_planned' or 'mc_vault_planned_missing'
+    check('movement-composition:vault-plan',vaultPlanOk,
+        {kind=vaultPlan and vaultPlan.plan and vaultPlan.plan.kind,
+         reason=vaultErr and vaultErr.reason})
+    -- X-N1: the native footprint backend must reproduce the real
+    -- ActorProject:project grid collection for the REAL Giant Leap raised spec
+    -- (the raised selffire=false is copied), including the named
+    -- flag-propagation subcases (friendlyblock true/false on the real fixture
+    -- copy, never a different shape).
+    local def=p.talents_def and p.talents_def.T_GIANT_LEAP
+    local realSpec
+    if def then
+        local ok,typ=pcall(def.target,p,def)
+        if ok and type(typ)=='table' then realSpec=typ end
+    end
+    local parityOk=false
+    if realSpec then
+        parityOk=true
+        local function sameSet(a,b)
+            local function count(set)
+                local n=0
+                for _,column in pairs(set or {}) do for _ in pairs(column) do n=n+1 end end
+                return n
+            end
+            if count(a)~=count(b) then return false end
+            for x,column in pairs(a or {}) do
+                for y in pairs(column) do if not (b[x] and b[x][y]) then return false end end
+            end
+            return true
+        end
+        local ctx={game=game,source=p}
+        local centers={{x=requested.x,y=requested.y},{x=p.x,y=p.y}}
+        for _,center in ipairs(centers) do
+            for _,subcase in ipairs({{name='raised',flags={selffire=false}},
+                {name='friendlyblock_true',flags={selffire=false,friendlyblock=true}},
+                {name='friendlyblock_false',flags={selffire=false,friendlyblock=false}}}) do
+                local spec={}
+                for key,value in pairs(realSpec) do spec[key]=value end
+                spec.target={x=center.x,y=center.y}
+                for flag,value in pairs(subcase.flags) do spec[flag]=value end
+                local native=EffectFootprint.native(ctx,spec)
+                local recorded=p:project(spec,center.x,center.y,function() return false end,0)
+                local match=native~=nil and sameSet(native,recorded)
+                check('movement-composition:parity-'..center.x..','..center.y..':'..subcase.name,
+                    match,{native=native~=nil,recorded=recorded~=nil,
+                        flags=subcase.name})
+                if not match then parityOk=false end
+            end
+        end
+    end
+    signals[#signals+1]=parityOk and 'mc_footprint_parity_flags' or 'mc_footprint_parity_missing'
+    check('movement-composition:footprint-parity',parityOk,{spec=realSpec and 'REAL_GIANT_LEAP_TG'})
+    p.damage_log=saved_damage_log
+    return compare('movement-composition',signals)
+end
+
 local function runAll()
     local ok,err=pcall(function()
         startWhenReady()
@@ -1961,6 +2286,7 @@ local function runAll()
         movementPlan()
         movementFactoryChecks()
         movementSequenceChecks()
+        movementCompositionChecks()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok
@@ -2320,6 +2646,53 @@ function M.onFrame()
                 return
             end
             if M.mt.pending then
+                -- X-N2/S-N1: the forced postcondition-mismatch service run
+                -- settles asynchronously; poll the handoff condition instead of
+                -- the plain ready boundary.
+                local current=M.mt.specs[M.mt.index]
+                if current and current.kind=='mismatch_service' then
+                    M.mt.frames=(M.mt.frames or 0)+1
+                    settleTick(M.mt.frames)
+                    local status=Runtime.autoCombatStatus(game) or {}
+                    local run=status.run
+                    local handoff=status.control_owner=='manual' and run
+                        and run.state=='stopped'
+                        and run.reason=='movement_postcondition_mismatch'
+                    local log=Runtime.autoCombatHandle(game,'log',{limit=48})
+                    local typed=0
+                    for _,event in ipairs((log.ok and log.events) or {}) do
+                        if event.kind=='paused'
+                            and event.reason=='movement_postcondition_mismatch' then
+                            typed=typed+1
+                        end
+                    end
+                    if handoff or M.mt.frames>=120 then
+                        local diagnostics=handoff and {} or nil
+                        if not handoff then
+                            local logDiag=Runtime.autoCombatHandle(game,'log',{limit=16})
+                            diagnostics={owner=status.control_owner,run=status.run,
+                                events=(logDiag.ok and logDiag.events) or {}}
+                        end
+                        check('movement-talents:mismatch-handoff',handoff and typed==1,
+                            {owner=status.control_owner,run=run or status.run,
+                                typed=typed,frames=M.mt.frames,diag=diagnostics})
+                        M.mt.signals[#M.mt.signals+1]
+                            =(handoff and typed==1) and 'mismatch_handoff'
+                            or 'mismatch_pause_missing'
+                        -- Restore the real descriptor and the arena state.
+                        if M.mt.saved_radius then
+                            EffectManifest.ENTRIES.T_SHADOWSTEP.movement.radius=M.mt.saved_radius
+                            M.mt.saved_radius=nil
+                        end
+                        Runtime.autoCombatHandle(game,'deactivate',{})
+                        Runtime.setAutoCombatExecution(game,false)
+                        if M.mt.saved_pos then
+                            game.player.x,game.player.y=M.mt.saved_pos.x,M.mt.saved_pos.y
+                        end
+                        M.mt.pending=false
+                    end
+                    return
+                end
                 M.mt.frames=(M.mt.frames or 0)+1
                 settleTick(M.mt.frames)
                 if productionReady() or M.mt.frames>=240 then
@@ -2335,6 +2708,9 @@ function M.onFrame()
                 return
             end
             compare('movement-talents',M.mt.signals)
+            -- S3 fixture cleanup: restore the damage_log and the real talent
+            -- levels for the later stages.
+            game.player.damage_log=M.mt.saved_damage_log or nil
             Runtime.autoCombatHandle(game,'deactivate',{})
             Runtime.setAutoCombatExecution(game,false)
             M.mt=nil
