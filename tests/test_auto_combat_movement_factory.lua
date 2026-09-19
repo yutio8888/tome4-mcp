@@ -532,4 +532,103 @@ do
         'none stays a target_requests value for single-request descriptors')
 end
 
+-- S3 S-U1 (REAL_SHADOWSTEP_TG, cunning/shadow-magic.lua:123): the admitted
+-- mixed entry expands to the exact factory descriptor, two direct
+-- `attackTarget` components and the fizzle postcondition; the closed
+-- composition validator rejects unknown keys and illegal combinations at load.
+do
+    local Fixtures=assert(loadfile(root..'/tests/s3_real_specs.lua'))()
+    local entry=Manifest.entry('T_SHADOWSTEP')
+    local function shallowEntryCopy(src)
+        local out={}
+        for k,v in pairs(src) do out[k]=v end
+        return out
+    end
+    check(entry~=nil,'Shadowstep is admitted (S-U1)')
+    check(Factory.validateComposition(entry)==true,
+        'the published Shadowstep entry passes closed composition validation')
+    check(entry.kind=='movement' and entry.target=='hostile'
+        and entry.resource=='stamina','the entry is a hostile movement entry')
+    check(entry.movement.target_requests and entry.movement.target_requests[1]=='actor'
+        and entry.movement.delivery=='teleport' and entry.movement.landing=='bounded_alternatives'
+        and entry.movement.center=='actor' and entry.movement.traverses==false
+        and entry.movement.relocates_other==false
+        and entry.movement.radius==5 and entry.movement.min_radius==0,
+        'the movement half is the exact actor_anchor_teleport descriptor (radius 5, min 0)')
+    check(#entry.components==2,'the effect half declares exactly two components')
+    check(entry.components[1].id=='shadowstep_strike'
+        and entry.components[2].id=='shadowstep_daze',
+        'the components are shadowstep_strike then shadowstep_daze')
+    for _,component in ipairs(entry.components) do
+        check(component.phase=='secondary' and component.delivery=='attackTarget'
+            and component.shape=='hit' and component.center=='actor'
+            and component.when and component.when.kind=='landing_adjacent'
+            and component.when.anchor=='actor',
+            'each Shadowstep component is the exact direct record (landing_adjacent, actor)')
+        -- D2: a direct component declares no projection filters (ActorProject
+        -- never runs for delivery='attackTarget').
+        check(component.selffire==nil and component.friendlyfire==nil
+            and component.player_selffire==nil,
+            'a direct attackTarget component forbids the projection filter keys')
+    end
+    check(entry.movement_postcondition
+        and entry.movement_postcondition.mover=='self'
+        and entry.movement_postcondition.endpoint=='landing_envelope'
+        and entry.movement_postcondition.unchanged=='fizzle',
+        'the postcondition is {mover=self,endpoint=landing_envelope,unchanged=fizzle}')
+    check(entry.conformance~=nil and entry.conformance.builder==true
+        and entry.conformance.shape==nil,
+        'conformance is exactly {builder=true}')
+    check(Manifest.entry('T_SKIRMISHER_VAULT')
+        and #(Manifest.entry('T_SKIRMISHER_VAULT').components or {})==0,
+        'the acrobatics Vault stays component-free')
+    -- Closed validation: unknown entry key / sparse components / illegal
+    -- combinations are movement_adapter_invalid (never published).
+    local function invalid(entry)
+        local ok=Factory.validateComposition(entry)
+        return ok~=true
+    end
+    local base={kind='movement',target='hostile',resource='stamina',
+        movement={target_requests={'actor'},delivery='teleport'},
+        components={{id='shadowstep_strike',phase='secondary',delivery='attackTarget',
+            shape='hit',center='actor',when={kind='landing_adjacent',anchor='actor'}}},
+        movement_postcondition={mover='self',endpoint='landing_envelope',unchanged='fizzle'},
+        conformance={builder=true}}
+    local unknown=shallowEntryCopy(base);unknown.source_note='drift'
+    check(invalid(unknown),'an unknown entry key is rejected at load')
+    local sparse=shallowEntryCopy(base)
+    sparse.components={{[2]=base.components[1]}}
+    check(invalid(sparse),'a sparse components array is rejected at load')
+    local empty=shallowEntryCopy(base);empty.components={}
+    check(invalid(empty),'an empty components list is rejected at load')
+    local dup=shallowEntryCopy(base)
+    dup.components={base.components[1],base.components[1]}
+    check(invalid(dup),'a duplicate component id is rejected at load')
+    local badPost=shallowEntryCopy(base)
+    badPost.movement_postcondition={mover='self',endpoint='landing_envelope',
+        unchanged='teleported'}
+    check(invalid(badPost),'a bad postcondition mode is rejected at load')
+    local badConformance=shallowEntryCopy(base)
+    badConformance.conformance={builder=true,shape='hit'}
+    check(invalid(badConformance),'an unknown conformance key is rejected at load')
+    -- A mutated REAL fixture copy (named validation subcase): a direct
+    -- `attackTarget` component carrying projection filters would imply a filter
+    -- ActorProject never applies, so it is rejected at load.
+    local degraded=shallowEntryCopy(base)
+    degraded.components={{id='shadowstep_strike',phase='secondary',delivery='attackTarget',
+        shape='hit',center='actor',when={kind='landing_adjacent',anchor='actor'},
+        selffire=true}}
+    check(invalid(degraded),
+        'a direct attackTarget component carrying projection filters is rejected at load')
+    -- And the real Giant Leap component itself validates (used by its commit).
+    check(Factory.validateComponent({id='giant_leap_weapon_daze',phase='secondary',
+        delivery='project',shape='ball',center='actual_landing',radius={from='target'},
+        selffire=0,friendlyfire=100,
+        provenance={selffire='explicit',friendlyfire='target_default'}})==true,
+        'the Giant Leap actual_landing component record validates')
+    check(not Factory.validateComponent({id='bad',phase='secondary',delivery='project',
+        shape='cone',center='actual_landing',radius=1}),
+        'actual_landing + a non post-move-anchored shape (cone) is rejected at load')
+end
+
 print('Movement adapter factory: '..checks..' checks passed')

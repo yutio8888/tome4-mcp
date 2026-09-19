@@ -210,7 +210,15 @@ end
 local DETAIL_KEYS={'measurement','threshold','risk','unknown','provenance','phase','component',
     'landing','visible','remembered','known_passable','known_hazard','confidence','reasons',
     'selector','talent','scope','missing','native_message','hint','requests','friendlies','selffire','friendlyfire',
-    'reason','expected','observed','index','dependency','exhausted','count','request','skippable'}
+    'reason','expected','observed','index','dependency','exhausted','count','request','skippable',
+    -- S3 mixed movement/effect composition evidence (bounded scalar/small-record
+    -- fields; raw grid sets are never emitted).
+    'candidate_count','required_expansions','completed_expansions','footprint_count',
+    'condition','resolved_condition','self_excluded','raised_flags','footprint_backend',
+    'components_evaluated','endpoint','mover','unchanged',
+    -- S3: the per-component composition evidence array (projected by
+    -- `boundedComponents` below).
+    'components'}
 -- D-2: the structured `missing` array (for example the native cooldown entry
 -- `{kind='cooldown',talent,remaining,required=0}`) is an array of small objects,
 -- so the generic scalar-only table projection above would drop it. Project the
@@ -236,6 +244,43 @@ local function boundedMissing(value)
     return out
 end
 M.boundedMissing=boundedMissing
+
+-- S3 §2.6: a bounded per-component composition-evidence projection. Each record
+-- carries identity, resolved condition, expansion bookkeeping, backend and the
+-- raw raised projection flags (small scalar values only; never a grid set).
+local COMPONENT_EVIDENCE_KEYS={'id','phase','delivery','center','candidate_count',
+    'required_expansions','completed_expansions','footprint_count','condition',
+    'resolved_condition','self_excluded','raised_flags','footprint_backend'}
+local function boundedComponents(list)
+    if type(list)~='table' then return nil end
+    local out={}
+    for index=1,math.min(#list,16) do
+        local component=list[index]
+        if type(component)=='table' then
+            local copy={}
+            for _,key in ipairs(COMPONENT_EVIDENCE_KEYS) do
+                local value=component[key]
+                if type(value)=='string' and #value<=64 then copy[key]=value
+                elseif type(value)=='number' and value==value then copy[key]=value
+                elseif type(value)=='boolean' then copy[key]=value
+                elseif type(value)=='table' then
+                    local inner={}
+                    local count=0
+                    for k,v in pairs(value) do
+                        count=count+1
+                        if count>16 then break end
+                        if type(v)=='string' or type(v)=='number' or type(v)=='boolean' then inner[k]=v end
+                    end
+                    if next(inner)~=nil then copy[key]=inner end
+                end
+            end
+            if next(copy)~=nil then out[#out+1]=copy end
+        end
+    end
+    if #out==0 then return nil end
+    return out
+end
+M.boundedComponents=boundedComponents
 local function boundedDetail(detail)
     if type(detail)~='table' then return nil end
     local out={}
@@ -245,6 +290,9 @@ local function boundedDetail(detail)
             if key=='missing' then
                 local missing=boundedMissing(value)
                 if missing then out[key]=missing end
+            elseif key=='components' then
+                local projected=boundedComponents(value)
+                if projected then out[key]=projected end
             elseif type(value)=='string' then
                 local limit=key=='native_message' and 512 or 256
                 out[key]=#value<=limit and value or value:sub(1,limit)
@@ -608,6 +656,7 @@ function M:step()
             local guard=self.host and self.host.guard and self.host.guard({
                 rule=decision.rule,action=decision.action,talent=decision.talent,
                 target=decision.target,bound_target=bound.bound_target,
+                plan=plan,
                 emergency=decision.emergency==true})
             if guard and guard.action=='pause' then
                 self:record({kind='paused',reason=guard.reason,rule=decision.rule,
@@ -671,6 +720,28 @@ function M:step()
                 -- player/caller, so the caller can answer it via
                 -- respond/dismiss after the lease is released.
                 if outcome.handed_back then paused.handed_back=true end
+                paused.results=decision.results;paused.rejections=self.rejections
+                return paused
+            end
+            -- S3 §3.2 (Path 1): a settled movement-postcondition mismatch is
+            -- the same post-commit integrity class as the ordered-queue
+            -- deviation: checked immediately after `sequence_deviation` and
+            -- BEFORE the budget increment and the `native_pending` branch, so
+            -- the pause and the service's lease release are reachable and the
+            -- action is never resubmitted. Exactly one typed event.
+            if outcome.postcondition_mismatch then
+                local mismatch=outcome.postcondition_mismatch
+                local reason=mismatch.reason or 'movement_postcondition_mismatch'
+                local entry={kind='paused',reason=reason,rule=decision.rule,
+                    detail=boundedDetail(mismatch)}
+                self:record(entry)
+                if self.notify then self.notify(entry) end
+                if self.state~='paused' or self.reason~=reason then
+                    self.generation=self.generation+1
+                    self.state='paused'; self.reason=reason
+                end
+                local paused=self:pause(reason)
+                paused.detail=mismatch
                 paused.results=decision.results;paused.rejections=self.rejections
                 return paused
             end

@@ -30,7 +30,11 @@ M.SOURCE='auto_combat'
 -- while the live interaction is no longer the plugin's to answer.
 M.SAFETY_PAUSES={flee_below_hp_pct=true,no_emergency_action=true,
     unexpected_target_request=true,movement_request_value_unknown=true,
-    movement_request_kind_unknown=true}
+    movement_request_kind_unknown=true,
+    -- S3 §3.2: a settled movement-postcondition mismatch is an internal
+    -- safety-pause reason added beside the S2 reasons (never a protocol/v4
+    -- code); the run stops and the lease returns to the player.
+    movement_postcondition_mismatch=true}
 
 -- X-doubleprime: the controller and every hash consumer work from the store's
 -- private immutable snapshot records; no callback or caller ever receives the
@@ -310,7 +314,7 @@ function M.dryRun(svc,args)
                 trace[#trace+1]={rule=d.rule,reason=plan_fail,annotation=plan_fail_err}
             else
                 local guard=host.guard and host.guard({rule=d.rule,action=d.action,talent=d.talent,
-                    target=d.target,bound_target=bt,emergency=d.emergency==true})
+                    target=d.target,bound_target=bt,plan=plan,emergency=d.emergency==true})
                 if guard and guard.action=='pause' then
                     decision={decision='pause',reason=guard.reason,rule=d.rule,results=d.results,layer=d.layer}
                     risk_detail=guard.detail
@@ -595,6 +599,25 @@ function M.nativeDeviation(svc,deviation)
     local entry
     if svc.controller then
         entry=svc.controller:nativeDeviated(deviation)
+        svc.controller:pause(reason)
+        if svc.controller.state~='stopped' then svc.controller:stop(reason) end
+    end
+    if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,reason) end
+    return entry
+end
+
+-- S3 §3.2 (Path 2): deliver a settled movement-postcondition mismatch that was
+-- NOT delivered inside the submitting step (a `native_pending` root that
+-- settled later; `Runtime.reapAutoInvocation` evaluates the immutable
+-- expectation before release). Mirrors `nativeDeviation`: one typed event, the
+-- run stops, the lease revokes, and the action is never resubmitted.
+function M.nativePostconditionMismatch(svc,mismatch)
+    if not svc then return nil end
+    mismatch=mismatch or {}
+    local reason=mismatch.reason or 'movement_postcondition_mismatch'
+    local entry
+    if svc.controller then
+        entry=svc.controller:nativeDeviated(mismatch)
         svc.controller:pause(reason)
         if svc.controller.state~='stopped' then svc.controller:stop(reason) end
     end

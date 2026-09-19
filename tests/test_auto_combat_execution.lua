@@ -104,4 +104,53 @@ do
     Compat.matches,Compat.check=matches,check_compat
 end
 
+-- S3 S-U4/G-U7/V-U5 (runtime layer): the pure postcondition evaluation. The
+-- Shadowstep fizzle mode is a settled pass; an unchanged endpoint with
+-- `unchanged='mismatch'` (Giant Leap/Vault) is a mismatch; success inside the
+-- deterministic/bounded/random envelope passes; outside every declared
+-- primary/fallback envelope, a missing endpoint or a malformed expectation is a
+-- typed movement_postcondition_mismatch.
+do
+    local function checkPost(exp,endp,outcome)
+        local mismatch=Runtime.movementPostconditionMismatch(exp,endp)
+        if outcome==nil then
+            check(mismatch==nil,'expected the postcondition to pass: '..tostring(outcome))
+        else
+            check(mismatch~=nil and mismatch.reason=='movement_postcondition_mismatch'
+                and mismatch.uncertain==true and mismatch.outcome==outcome,
+                'expected mismatch '..tostring(outcome),mismatch and mismatch.outcome)
+        end
+        return mismatch
+    end
+    -- Shadowstep: unchanged endpoint + unchanged='fizzle' is a settled pass.
+    local shadowstep={talent='T_SHADOWSTEP',mover='self',unchanged='fizzle',
+        before={x=2,y=2},landing={kind='bounded',center={x=5,y=2},radius=5}}
+    checkPost(shadowstep,{x=2,y=2},nil)
+    checkPost(shadowstep,{x=5,y=2},nil)
+    checkPost(shadowstep,{x=5,y=7},nil)
+    checkPost(shadowstep,{x=20,y=2},'outside_landing_envelope')
+    -- Giant Leap: the requested-grid envelope is radius 1 around the request;
+    -- an unchanged endpoint is a mismatch.
+    local leap={talent='T_GIANT_LEAP',mover='self',unchanged='mismatch',
+        before={x=2,y=2},landing={kind='bounded',center={x=6,y=2},radius=1}}
+    checkPost(leap,{x=6,y=2},nil)
+    checkPost(leap,{x=7,y=3},nil)  -- distance grid <= 1
+    checkPost(leap,{x=2,y=2},'unchanged_endpoint')
+    checkPost(leap,{x=9,y=2},'outside_landing_envelope')
+    -- A deterministic envelope is a single cell.
+    local exact={talent='T_VAULT',mover='self',unchanged='mismatch',
+        before={x=2,y=2},landing={kind='deterministic',center={x=4,y=2},radius=0}}
+    checkPost(exact,{x=4,y=2},nil)
+    checkPost(exact,{x=4,y=3},'outside_landing_envelope')
+    -- A declared LOS fallback is part of the envelope.
+    local fallback={talent='T_VAULT',mover='self',unchanged='mismatch',
+        before={x=2,y=2},landing={kind='bounded',center={x=6,y=2},radius=1,
+            fallback={kind='random',center={x=2,y=2},radius=5}}}
+    checkPost(fallback,{x=4,y=4},nil)
+    checkPost(fallback,{x=20,y=20},'outside_landing_envelope')
+    -- Missing endpoint and malformed expectation fail closed.
+    checkPost(leap,{},'endpoint_missing')
+    checkPost({talent='T_VAULT',mover='self'},{x=4,y=2},'malformed_expectation')
+end
+
 print('Auto-combat execution: '..checks..' checks passed')
