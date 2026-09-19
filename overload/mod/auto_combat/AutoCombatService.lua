@@ -121,7 +121,14 @@ function M.validate(svc,policy)
 end
 
 local function findRule(policy,id)
-    for _,rule in ipairs(policy.rules or {}) do if rule.id==id then return rule end end
+    -- R2-APR4-02 (checklist A): a sparse rule list must not resolve an id from
+    -- its truncated prefix.
+    local dense,count=Json.denseArray(policy.rules or {},0)
+    if not dense then return nil end
+    for index=1,count do
+        local rule=policy.rules[index]
+        if rule.id==id then return rule end
+    end
     return nil
 end
 
@@ -631,9 +638,15 @@ function M.step(svc)
     -- the run and release the lease so a remote act needs no reconnect and
     -- `resume` refuses. The pause transition was already logged once by the
     -- controller notify callback during onOpportunity (no second event here).
+    -- R2-APR4-03 (checklist D): the run must land in the terminal `stopped`
+    -- state, but that normalisation is PART OF the same safety handoff the pause
+    -- already advanced the generation for — so it is `handoff`, not a second
+    -- `stop` transition. The mismatch reasons arrive already stopped and
+    -- deduplicate; `flee_below_hp_pct`/`no_emergency_action` arrive paused and
+    -- must not double the delta.
     if step.action=='paused' and M.SAFETY_PAUSES[step.reason] then
         if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,step.reason) end
-        svc.controller:stop(step.reason)
+        svc.controller:handoff(step.reason)
         return ok({step=step,state=svc.controller.state,generation=svc.controller.generation,handoff=true})
     end
     -- Pauses and denials are already logged by the controller notify callback,

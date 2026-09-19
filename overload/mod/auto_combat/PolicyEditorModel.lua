@@ -5,6 +5,7 @@
 -- availability rules (what can be pressed, and why not) are unit tested without
 -- the engine.
 local M={}
+local Json=require 'mod.mcp_bridge.Json'
 
 -- status: the AutoCombatService status payload (ok already stripped), plus an
 -- optional `run` block: {state,reason,generation,attempts}.
@@ -112,7 +113,11 @@ function M.fields(policy)
         {id='safety.pause_on_unknown_safety',group='safety',label='Pause on unknown safety',
             kind='boolean',value=safety.pause_on_unknown_safety~=false},
     }
-    for _,rule in ipairs(policy.rules or {}) do
+    -- R2-APR4-02 (checklist A): the editor lists caller-supplied rules; a sparse
+    -- list must not be truncated by `ipairs` into a smaller editable rule set.
+    local rulesDense,rulesCount=Json.denseArray(policy.rules or {},0)
+    for index=1,(rulesDense and rulesCount or 0) do
+        local rule=policy.rules[index]
         fields[#fields+1]={id='rules.'..rule.id..'.enabled',group='rule',rule=rule.id,
             label=rule.id,kind='boolean',value=rule.enabled~=false}
         fields[#fields+1]={id='rules.'..rule.id..'.priority',group='rule',rule=rule.id,

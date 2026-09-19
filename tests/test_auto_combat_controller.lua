@@ -272,6 +272,29 @@ do
 end
 
 do
+    -- R2-APR4-03 (checklist D): the ORDINARY safety pause is ONE externally
+    -- visible transition. `pause` performs it; the service's terminal
+    -- normalisation (`handoff`) must not advance the generation again.
+    local host=makeHost(); host.snap={hp_pct=10,enemy_count=1}
+    local p=policy({safety={min_hp_pct=35,flee_below_hp_pct=15}})
+    local c=AutoCombat.new(p,host)
+    c:start()
+    local before=c.generation
+    local step=c:onOpportunity()
+    check(step.generation==before+1 and c.generation==before+1,
+        'the ordinary safety pause advances the generation by exactly 1 (R2-APR4-03)')
+    check(c.state=='paused' and c.reason=='flee_below_hp_pct',
+        'the safety pause leaves the run paused for the service handoff (R2-APR4-03)')
+    local handoff=c:handoff('flee_below_hp_pct')
+    check(handoff.ok and c.state=='stopped' and c.reason=='flee_below_hp_pct',
+        'handoff normalises to the terminal safety state (R2-APR4-03)')
+    check(c.generation==before+1,
+        'handoff is part of the same transition and does not advance the generation (R2-APR4-03)')
+    check(c:handoff('flee_below_hp_pct').deduplicated==true and c.generation==before+1,
+        'a same-cause handoff replay is a no-op (R2-APR4-03)')
+end
+
+do
     -- Log dedupe: re-issuing the same pause is not a new transition and must
     -- not notify/log again (the old resume-at-low-HP loop appended one event
     -- per call and evicted the bounded decision log).

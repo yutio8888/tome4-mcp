@@ -17,6 +17,7 @@
 -- The module is static data plus pure derived helpers: it never calls the
 -- engine, a talent builder or RNG.
 local Sources=require 'mod.auto_combat.EffectManifestSources'
+local Json=require 'mod.mcp_bridge.Json'
 local Factory=require 'mod.auto_combat.MovementAdapterFactory'
 local M={}
 M.VERSION='tome-auto-combat-adapters/v2'
@@ -698,7 +699,29 @@ function M.actionSupported(action) return action~=nil and M.ACTIONS[action]~=nil
 
 function M.verify(policy)
     local errors={}
-    for index,rule in ipairs((policy and policy.rules) or {}) do
+    -- R2-APR4-01 (checklist A): `verify` is a separate public policy/manifest
+    -- boundary. The caller-supplied top-level rule and sustain arrays are
+    -- dense+closed validated BEFORE any `#`/`ipairs`, so a sparse list (valid
+    -- entries 1..n plus a hidden entry beyond the dense end) can never be
+    -- accepted/evaluated as its shorter prefix.
+    -- An absent array is simply empty (the schema owns the "rules required"
+    -- rule); a PRESENT but sparse list is this boundary's own typed fault.
+    local rulesDense,rulesCount=false,0
+    if policy~=nil and policy.rules~=nil then
+        rulesDense,rulesCount=Json.denseArray(policy.rules,0)
+        if not rulesDense then
+            errors[#errors+1]={path='rules',code='invalid_rules',cause=select(2,Json.denseArray(policy.rules,0))}
+        end
+    end
+    local sustainsDense,sustainsCount=false,0
+    if policy~=nil and policy.sustains~=nil then
+        sustainsDense,sustainsCount=Json.denseArray(policy.sustains,0)
+        if not sustainsDense then
+            errors[#errors+1]={path='sustains',code='invalid_sustains',cause=select(2,Json.denseArray(policy.sustains,0))}
+        end
+    end
+    for index=1,(rulesDense and rulesCount or 0) do
+        local rule=policy.rules[index]
         local action=rule['then'] and rule['then'].action
         local path='rules['..index..']'
         if action~=nil and not M.ACTIONS[action] then
@@ -711,10 +734,18 @@ function M.verify(policy)
             -- binding when the action/default selector is absent, so the
             -- self/hostile consistency check honours it.
             if selector==nil and type(rule['then'].target_plan)=='table' then
-                for _,step in ipairs(rule['then'].target_plan) do
-                    if step.request=='actor' and step.selector~=nil then
-                        selector=step.selector
-                        break
+                -- R2-APR4-01 (checklist A): the plan is caller-supplied policy
+                -- data; only a dense/closed list has a trustworthy actor step
+                -- (a sparse list must not resolve a selector out of its
+                -- `ipairs` prefix).
+                local planDense,planCount=Json.denseArray(rule['then'].target_plan,1)
+                if planDense then
+                    for stepIndex=1,planCount do
+                        local step=rule['then'].target_plan[stepIndex]
+                        if step.request=='actor' and step.selector~=nil then
+                            selector=step.selector
+                            break
+                        end
                     end
                 end
             end
@@ -737,46 +768,55 @@ function M.verify(policy)
             local plan=rule['then'].target_plan
             local movement=entry.kind=='movement' and entry.movement or nil
             if type(plan)=='table' then
-                local sequences=M.requestSequences(entry)
-                if movement==nil or #sequences==0 then
-                    errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_not_supported',
-                        talent=rule['then'].talent}
+                -- R2-APR4-01 (checklist A): the plan is caller-supplied, so it
+                -- is dense+closed validated over ALL keys BEFORE any `#`/
+                -- index read below. A malformed plan is its own typed shape
+                -- fault, never measured as a shorter complete plan.
+                local planDense,planCount=Json.denseArray(plan,1)
+                if not planDense then
+                    errors[#errors+1]={path=path..'.then.target_plan',code='invalid_target_plan'}
                 else
-                    -- A variant matrix may declare several executable request
-                    -- sequences; the static validator cannot read runtime state,
-                    -- so a plan is valid when it matches any declared sequence
-                    -- exactly (same length, same kinds, consistent selectors).
-                    local matched=false
-                    local selectorMismatch=nil
-                    for _,expected in ipairs(sequences) do
-                        if #plan==#expected then
-                            local stepOk=true
-                            local mismatch=nil
-                            for step=1,#plan do
-                                if plan[step].request~=expected[step] then stepOk=false break end
-                                if expected[step]=='actor' and plan[step].selector~=nil
-                                    and selector~=nil and plan[step].selector~=selector then
-                                    stepOk=false
-                                    mismatch={path=path..'.then.target_plan['..step..'].selector',
-                                        code='target_plan_selector_mismatch',
-                                        expected=selector,got=plan[step].selector}
-                                    break
+                    local sequences=M.requestSequences(entry)
+                    if movement==nil or #sequences==0 then
+                        errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_not_supported',
+                            talent=rule['then'].talent}
+                    else
+                        -- A variant matrix may declare several executable request
+                        -- sequences; the static validator cannot read runtime state,
+                        -- so a plan is valid when it matches any declared sequence
+                        -- exactly (same length, same kinds, consistent selectors).
+                        local matched=false
+                        local selectorMismatch=nil
+                        for _,expected in ipairs(sequences) do
+                            local expectedDense,expectedCount=Json.denseArray(expected,1)
+                            if expectedDense and planCount==expectedCount then
+                                local stepOk=true
+                                local mismatch=nil
+                                for step=1,planCount do
+                                    if plan[step].request~=expected[step] then stepOk=false break end
+                                    if expected[step]=='actor' and plan[step].selector~=nil
+                                        and selector~=nil and plan[step].selector~=selector then
+                                        stepOk=false
+                                        mismatch={path=path..'.then.target_plan['..step..'].selector',
+                                            code='target_plan_selector_mismatch',
+                                            expected=selector,got=plan[step].selector}
+                                        break
+                                    end
                                 end
+                                if stepOk then matched=true break end
+                                if mismatch and selectorMismatch==nil then selectorMismatch=mismatch end
                             end
-                            if stepOk then matched=true break end
-                            if mismatch and selectorMismatch==nil then selectorMismatch=mismatch end
                         end
-                    end
-                    if not matched then
-                        if selectorMismatch then
-                            errors[#errors+1]=selectorMismatch
-                        elseif #sequences==1 and #plan~=#sequences[1] then
-                            errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_mismatch',
-                                expected=table.concat(sequences[1],','),got=#plan}
-                        else
-                            errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_mismatch',
-                                expected=#sequences==1 and table.concat(sequences[1],',')
-                                    or 'one_of_declared_variants'}
+                        if not matched then
+                            if selectorMismatch then
+                                errors[#errors+1]=selectorMismatch
+                            elseif #sequences==1 then
+                                errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_mismatch',
+                                    expected=table.concat(sequences[1],','),got=planCount}
+                            else
+                                errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_mismatch',
+                                    expected='one_of_declared_variants'}
+                            end
                         end
                     end
                 end
@@ -785,7 +825,8 @@ function M.verify(policy)
             errors[#errors+1]={path=path,code='unsupported_talent',talent=rule['then'].talent}
         end
     end
-    for index,sustain in ipairs((policy and policy.sustains) or {}) do
+    for index=1,(sustainsDense and sustainsCount or 0) do
+        local sustain=policy.sustains[index]
         if not M.isSustain(sustain.talent) then
             errors[#errors+1]={path='sustains['..index..']',code='not_a_sustain',talent=sustain.talent}
         end

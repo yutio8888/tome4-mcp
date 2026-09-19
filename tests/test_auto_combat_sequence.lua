@@ -1291,7 +1291,6 @@ do
         'the annotation delivery stays empty for a non-template stationary enum')
 end
 
-print('Auto-combat ordered sequence: '..checks..' checks passed')
 Tracker.start,Compat.check,Compat.matches=realStart,realCheck,realMatches
 
 
@@ -1321,6 +1320,48 @@ do
         if error.code=='target_plan_mismatch' then mismatch=true end
     end
     check(ok==nil and mismatch,'a reversed plan is the existing target_plan_mismatch')
+    -- R2-APR4-01 (checklist A): `Manifest.verify` is a separate public boundary
+    -- and must dense-validate the plan BEFORE any `#`/`ipairs`, so a plan with
+    -- valid entries 1-2 plus a hidden entry 100 is NOT accepted as the complete
+    -- two-step program.
+    local sparsePlan=doorPolicy({[1]={request='actor',selector='self'},
+        [2]={request='grid',destination={selector='position',x=4,y=4,accept=accept}},
+        [100]={request='grid',destination={selector='position',x=9,y=9,accept=accept}}})
+    local sparseOk2,sparseErrors2=Manifest.verify(sparsePlan)
+    local sparseCode2,sparseCause2=nil,nil
+    for _,error in ipairs(sparseErrors2 or {}) do
+        if error.path=='rules[1].then.target_plan' then
+            sparseCode2=error.code;sparseCause2=error.cause
+        end
+    end
+    check(sparseOk2==nil and sparseCode2=='invalid_target_plan',
+        'a sparse target_plan with a hidden entry beyond the dense end is rejected (R2-APR4-01)')
+    -- A sparse plan whose `#` is 2 (hole at 3) would otherwise be measured as
+    -- the complete two-entry Phase Door program; the typed fault carries the
+    -- validator cause.
+    local holedPlan=doorPolicy({[1]={request='actor',selector='self'},
+        [2]={request='grid',destination={selector='position',x=4,y=4,accept=accept}},
+        [4]={request='grid',destination={selector='position',x=9,y=9,accept=accept}}})
+    local holedOk,holedErrors=Manifest.verify(holedPlan)
+    local holedCode=nil
+    for _,error in ipairs(holedErrors or {}) do
+        if error.path=='rules[1].then.target_plan' then holedCode=error.code end
+    end
+    check(holedOk==nil and holedCode=='invalid_target_plan',
+        'a holed target_plan is rejected by Manifest.verify, never measured as a prefix (R2-APR4-01)')
+    -- The top-level rules array is the same ingress class: a valid rule plus a
+    -- hidden rule beyond the dense end is not a one-rule policy.
+    local sparseRules=doorPolicy({{request='actor',selector='self'},
+        {request='grid',destination={selector='position',x=4,y=4,accept=accept}}})
+    sparseRules.rules[100]={id='hidden',priority=999,when={always={}},
+        ['then']={action='wait'}}
+    local sparseRulesOk,sparseRulesErrors=Manifest.verify(sparseRules)
+    local rulesCode=nil
+    for _,error in ipairs(sparseRulesErrors or {}) do
+        if error.path=='rules' then rulesCode=error.code end
+    end
+    check(sparseRulesOk==nil and rulesCode=='invalid_rules',
+        'a sparse top-level rules array is rejected by Manifest.verify (R2-APR4-01)')
 end
 
 -- 13. Dry run: read-only, non-executing, announced as a sequence.
@@ -1379,3 +1420,4 @@ do
         'planning a sequence never calls useTalent/teleportRandom')
 end
 
+print('Auto-combat ordered sequence: '..checks..' checks passed')

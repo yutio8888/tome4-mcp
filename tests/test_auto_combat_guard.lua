@@ -824,18 +824,81 @@ do
     local unknownUid=noUid(attempt('T_MOONLIGHT_RAY'))
     check(unknownUid and unknownUid.action=='reject' and unknownUid.detail.unknown==true,
         'an unreadable uid under a raised act_exclude fails closed (R2-APR3-01)')
-    -- A raised NON-TABLE act_exclude makes the engine admission undecidable
-    -- (the engine indexes it per actor): the membership is unknown and the
-    -- action fails closed (rejected, never silently permitted).
-    local badExcludeBuilder=function()
+    -- R2-APR3-01: the engine's exact admission is `typ.act_exclude and
+    -- typ.act_exclude[act.uid]` (ActorProject.lua:252-255). Under this Lua
+    -- runtime that means: nil/false = no exclusion; a table = uid lookup; a
+    -- STRING indexes to nil = NO EXCLUSION; a number/`true` makes the indexing
+    -- RAISE. The guard must mirror each case, not blanket-map every truthy
+    -- non-table to unknown (which EffectRisk turned into a KNOWN risk).
+    local function engineExcluded(value,uid)
+        local ok,result=pcall(function()
+            local typ={act_exclude=value}
+            local act={uid=uid}
+            return act and (typ.act_exclude and typ.act_exclude[act.uid]) or false
+        end)
+        if not ok then return nil end
+        return result and true or false
+    end
+    -- The table/`[uid]=false`/nil/`true` cases are compared against the engine
+    -- expression value-for-value via `M.actExcludeVerdict`.
+    check(Guard.actExcludeVerdict(nil,9)==engineExcluded(nil,9),
+        'nil act_exclude mirrors the engine (no exclusion)')
+    check(Guard.actExcludeVerdict(false,9)==engineExcluded(false,9),
+        'false act_exclude mirrors the engine (no exclusion)')
+    check(Guard.actExcludeVerdict({[9]=true},9)==engineExcluded({[9]=true},9),
+        'a table act_exclude mirrors the engine uid lookup (excluded)')
+    check(Guard.actExcludeVerdict({[9]=false},9)==engineExcluded({[9]=false},9),
+        'a table with [uid]=false mirrors the engine (not excluded)')
+    check(Guard.actExcludeVerdict({[8]=true},9)==engineExcluded({[8]=true},9),
+        'a table naming another uid mirrors the engine (not excluded)')
+    -- A string indexes without error and yields nil: native no-exclusion.
+    check(Guard.actExcludeVerdict('nope',9)==false and engineExcluded('nope',9)==false,
+        'a string act_exclude mirrors the engine: no exclusion (R2-APR3-01)')
+    check(Guard.malformedActExclude({act_exclude='nope'})==nil,
+        'a string act_exclude is not a malformed-unknown (R2-APR3-01)')
+    -- A number or `true` raises natively: the guard types it as unknown.
+    check(Guard.actExcludeVerdict(7,9)==nil and engineExcluded(7,9)==nil,
+        'a number act_exclude is undecidable (mirrors the native indexing error)')
+    check(Guard.actExcludeVerdict(true,9)==nil and engineExcluded(true,9)==nil,
+        'a true act_exclude is undecidable (mirrors the native indexing error)')
+    check(Guard.malformedActExclude({act_exclude=7})=='act_exclude'
+        and Guard.malformedActExclude({act_exclude=true})=='act_exclude',
+        'number/true act_exclude are typed malformed-unknown (R2-APR3-01)')
+
+    -- A STRING exclusion is native-faithful: the clear beam is NOT rejected as a
+    -- known 100% self-risk (the rev-4 defect), because native does not exclude.
+    local stringBuilder=function()
         return {type='beam',range=7,act_exclude='nope'}
     end
-    local badExclude=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=badExcludeBuilder}},
+    local stringGuard=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=stringBuilder}},
         allies={allyInLine}}
-    local unknownExclude=badExclude(attempt('T_MOONLIGHT_RAY'))
-    check(unknownExclude and unknownExclude.action=='reject'
-        and unknownExclude.reason=='selffire_risk',
-        'a non-table act_exclude keeps the membership unknown and fails closed (R2-APR3-01)')
+    local stringVerdict=stringGuard(attempt('T_MOONLIGHT_RAY'))
+    check(stringVerdict and stringVerdict.reason=='selffire_risk'
+        and stringVerdict.detail.risk=='friendly' and not stringVerdict.detail.unknown,
+        'a string act_exclude behaves exactly like native: only the real ally triggers (R2-APR3-01)')
+    local clearString=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=stringBuilder}},
+        allies={}}
+    check(clearString(attempt('T_MOONLIGHT_RAY'))==nil,
+        'a string act_exclude never fabricates a known 100% self-risk on a clear beam (R2-APR3-01)')
+
+    -- A NUMBER/`true` exclusion is a TYPED unknown -> fail closed, NOT a known
+    -- self/friendly risk (the rev-4 defect: unknown=false risk=self).
+    for _,value in ipairs({7,true}) do
+        local malformedBuilder=function()
+            return {type='beam',range=7,act_exclude=value}
+        end
+        local malformed=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=malformedBuilder}},
+            allies={allyInLine}}
+        local verdict=malformed(attempt('T_MOONLIGHT_RAY'))
+        check(verdict and verdict.action=='reject' and verdict.detail.unknown==true
+            and verdict.detail.reason=='malformed_act_exclude' and verdict.detail.field=='act_exclude'
+            and verdict.detail.measurement==nil,
+            'a number/true act_exclude is a typed unknown -> fail closed, never a known risk (R2-APR3-01)')
+        local clearMalformed=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=malformedBuilder}},
+            allies={}}
+        check(clearMalformed(attempt('T_MOONLIGHT_RAY')).detail.unknown==true,
+            'a number/true act_exclude fails closed even with an empty footprint (R2-APR3-01)')
+    end
     Manifest.ENTRIES.T_MOONLIGHT_RAY=savedEntry
 end
 
