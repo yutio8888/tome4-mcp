@@ -44,6 +44,29 @@ Giant Leap 解锁的 UNVERIFIED 项按方案 §5 处置：探针以 `damage_log.
 requirement 并经真实 live action 执行（未弱化生产需求检查）；每轮 `movement_postcondition_mismatch`
 的 P1 玩法由策略阈值决定，插件只报告。
 
+> **supersession 注解（Arm 2 修复轮，2026-09-19）**：上表「证据」行的 **197/197** 只覆盖了当时实现的检查；
+评审 `tmp/mcp-play-support/review-s3-arm2.md`（DO_NOT_MERGE）证明 R1/R2 的安全缺口、R4 的双 generation
+递进与 R5 的**遗漏原生准入行**，并且该轮把 Vault 无盾拒绝/Shadowstep 无条件 inEnvelope/从未观测
+Giant Leap 实际居中效果标成了 PASS。**本轮修复后的证据以下方 fix1 节为准**；本节的原生
+「三个混合天赋端到端」表述只对修复前实际运行的检查成立。
+
+## 0.9.0：S3 Arm 2 修复轮 fix1 —— 评审 R1–R5（`feat/s3-arm2`，off `5cb42e3`，dev 待评审）
+
+日期：2026-09-19。Role `[Dev]`（model B, rotation）。来源评审：`tmp/mcp-play-support/review-s3-arm2.md`
+（sha256 `612f433870cbd46f5bf6c13bf23dc0bf2e4162ad289a8446eda8510212b818ca`，verdict **DO_NOT_MERGE**，
+P1 2 / P2 3）。修复与解析后的契约见
+[docs/tome-mcp-0.9.0-s3-arm2-fix1-feedback.md](docs/tome-mcp-0.9.0-s3-arm2-fix1-feedback.md)。
+证据目录：`tmp/s3-arm2-fix1/`。
+
+| finding | 结果 | 修复与回归证据 |
+| --- | --- | --- |
+| R1（P1 畸形/稀疏落点输入被度量） | **PASS** | `AutoCombatGuard.landingCandidates`：grid plan 的 kind/坐标闭合校验；**无可读 `annotation.landing` 的 grid plan 不再被重分类为确定性单格**（reviewer SHORT_REAL_SPEC 行由 `permit nil 1 0` ⇒ `reject`，fail-closed `landing_envelope_unavailable`）；`annotation.landing` 作为闭合 record 校验（未知键/畸形 centre/与请求格不一致的 deterministic ⇒ unknown，绝不静默重锚）。`expandComplete`/membership 边界：`denseCells`（所有键稠密 `1..n`、无洞、无越界键、格点闭合）在**任何 `#`/`ipairs` 之前**执行，稀疏 `{[1]=..,[3]=..}` 由 calls=1 ⇒ **calls=0**（`candidates_not_dense`）；两遍法：先解析全部候选条件得到完整 required 计数（**独立于**早期展开失败：first-pair 失败仍报 `required=9 completed=0`）。回归：`test_auto_combat_guard.lua` reviewer 两行 + 稀疏候选 + 早失败计数 + malformed/disagreed landing |
+| R2（P1 raised 传输丢弃引擎字段） | **PASS** | `MovementAdapterFactory.RAISED_FLAG_KEYS` 扩为**全部引擎 consulted 字段**（原 7 个旗标 + `force_max_range`/`min_range`/`grid_exclude`/`filter`/`block_path`/`block_radius`/`requires_knowledge`/actor-delivery `act_exclude`）；guard 与 adapter **共用同一列表**；显式 `false` 原样保留（`block_path=false`/`block_radius=false` 关默认 blocker，Target.lua:559-569）；函数值字段转发**真实回调**。falsify 复现：14 个 FORWARDED 行全部 `true`（此前 7 行）。回归：真实 raised `force_max_range`（golem.lua:272/thaumaturgy.lua:234）与 `block_path=false`/`block_radius=false`（shadowflame.lua:157）经生产 guard 进入每个展开 spec |
+| R3（P2 调用方 target_plan 非闭合稠密） | **PASS** | `PolicySchema.isDenseArray` 在策略入口拒绝稀疏/隐藏键 plan（reviewer SPARSE_TARGET_PLAN 行 `schema=true` ⇒ `false`）；`MovementPlanner.plan`/`planSequence` 用 `Factory.validateArray` 防御在 `#`/`ipairs` 之前；**目录层**（`EffectManifest.verify`）同样拒绝（`catalog=true` ⇒ `false`，`target_plan_not_dense`）。回归：policy/movement/catalog 三处稀疏/空洞 plan 用例 |
+| R4（P2 D5 双重 generation 递进） | **PASS** | 同步路径直接 stop（`AutoCombat.step` 的 mismatch 分支一次转换，service 的 stop 变为同因 no-op）；延迟路径 `nativeDeviated(…, terminal=true)` 直接一次 stopped 转换（替代 pause+stop 组合）。复现：`SYNC_GENERATION delta=2` ⇒ **delta=1**，`ASYNC_GENERATION delta=2` ⇒ **delta=1**（`tmp/s3-arm2-fix1/generation-after.out`），两条路径的精确 delta 单测断言（controller + service） |
+| R5（P2 原生准入证据不全 + VALIDATION 超额声明） | **PASS（一项为不可行，已如实记载）** | 原生 `movement-talents` 行补齐（source `s3arm2fix1-probe-source-final` 与 dist `s3arm2fix1-probe-dist2` 各 **203/203**）：真实盾牌 V-N1（两段真实提示 + 首目标 attack+daze + 落点迁移，`vault_shield`）、S-N1 相邻 attack+daze 命中观察（life 下降 + EFF_DAZED，基线 shadowstep 场景重锚于 dummy 旁）、S-N2 非相邻无效果（隐形 actor 环阻止 `teleportRandom(x,y,0)` 的 `findFreeGrid` 半径 1 落点，真实结算 distance≥2 且不攻击）、S-N1 真实 fizzle 分支（EFF_DIMENSIONAL_ANCHOR 使真实 `teleportRandom` 返回 nil，`"The spell fizzles!"` 原样 return true，原位结算）、G-N1/G-N2 Giant Leap 实际落点居中 recipient attack+daze（leap 目标钉在 dummy 相邻格，观察 dummy life 下降 + daze）。**expansion-failure first/middle/last 的原生生产守卫负行不可行**：真实引擎的 native backend 只在 `typ.triangle`/`typ.wall>0`（EffectFootprint.lua:287/:303）或引擎依赖不可得时返回 nil（:324），全部真实 ToME 天赋数据（`game/modules/tome/data/` 全量 grep）不产生 `triangle`/`wall` 投影 shape，三条已准入组件（hit/ball/beam）无任何真实失败路径——伪造失败只能走注入 seam（`test_auto_combat_guard.lua` 单测已有）。该行因此以单元 seam 为证，不再声称为原生行 |
+| 证据 | **PASS** | Lua 42 套全绿（`tmp/s3-arm2-fix1/lua-suite-final.log` sha256 `7386de1ff978189dc2e28479c7f01f2f35d3b2dc0d3a818ba74b8cd88b0d7fb6`，catalog 增至 86 checks）、Python 39 OK（`tmp/s3-arm2-fix1/python-final.log`）、三个 `--check` 退 0（`tmp/s3-arm2-fix1/generate_*-check-final.log`）、falsify 复现 `tmp/s3-arm2-fix1/falsify-after.out`（reviewer 全部行转向）与 `generation-after.out`（delta=1/1）、auto-combat 探针 source `s3arm2fix1-probe-source-final`（game.log sha256 `5fda28b4f90ca22271bbac58aedc6bff16c6b61acb0c8356157cfb0957606ab5`）与 dist `s3arm2fix1-probe-dist2`（`df4cd7f3d348388c531e0adf739065cf3e91066d09c9da381f875dfebb869945`）各 **203/203**、原生验收 source `s3arm2fix1-accept-source2`（game.log sha256 `264c1b71dddf9abebf6acab9128dc1fff39882c50546e3223fb6348c874768be`）与 dist `s3arm2fix1-accept-dist2`（`25104e46e28ac90b4773d8cb01a3e65fe684ea0184b0818bfcbd948a972c9535`）各 **101/101**。dist sha256 `2238cea52b4e7fa75b9d443e0068b5e4ce03217f2d54783faedb09a7a8b5dd4c`，parity 68/68（0 处不符）。无新协议/server diff |
+
 ## 0.9.0：anor-reg-01 修复二轮 R-1（P1 limit-1 活锁）+ R-2（P3 replay 窗口）（`fix/emergency-deny-livelock`，off `2348556`，dev 待评审）
 
 日期：2026-09-18。Role `[Dev]`（model B, rotation）。来源评审：`tmp/mcp-play-support/review-anor-reg-01-fixes.md`

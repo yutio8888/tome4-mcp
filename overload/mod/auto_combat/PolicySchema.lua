@@ -117,6 +117,26 @@ local function finite(n) return type(n)=='number' and n==n and n>-math.huge and 
 local function integer(n,lo,hi) return finite(n) and n%1==0 and n>=lo and n<=hi end
 local function isArray(t) return type(t)=='table' and t~=Json.null end
 
+-- S3-A2-R3: a caller-supplied ordered array must be a CLOSED DENSE `1..n`
+-- list before any `#`/`ipairs` use: non-integer keys, holes and keys beyond
+-- the dense end are rejected instead of being silently ignored by `#`.
+local function isDenseArray(t)
+    if not isArray(t) then return false end
+    local maxKey=0
+    local count=0
+    for key in pairs(t) do
+        if type(key)~='number' or key<1 or key%1~=0 then return false end
+        if key>maxKey then maxKey=key end
+        count=count+1
+    end
+    if count~=maxKey then return false end
+    for i=1,maxKey do
+        if t[i]==nil then return false end
+    end
+    return true
+end
+M.isDenseArray=isDenseArray
+
 local function onlyKeys(t,allowed,path,errors)
     for key in pairs(t) do
         if not allowed[key] then errors[#errors+1]={path=path,code='unknown_field',field=tostring(key)} end
@@ -288,7 +308,10 @@ end
 -- but reported as a capability/integrity limit at execution (never silently
 -- ignored).
 local function validateTargetPlan(plan,path,errors)
-    if not isArray(plan) or #plan==0 then
+    -- S3-A2-R3: a caller-supplied target_plan is a closed dense array at the
+    -- policy ingress; a sparse plan with a hidden key beyond the dense end is
+    -- rejected here (never silently truncated by `#`/`ipairs`).
+    if not isDenseArray(plan) or #plan==0 then
         errors[#errors+1]={path=path,code='invalid_target_plan'};return
     end
     if #plan>8 then errors[#errors+1]={path=path,code='target_plan_too_long'} end

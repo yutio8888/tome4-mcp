@@ -222,6 +222,26 @@ do
         if error.code=='selector_not_hostile' then omittedCode=true end
     end
     check(omittedCode,'an omitted self step selector is rejected for a hostile talent')
+    -- S3-A2-R3: the catalogue consumes `#`/`ipairs` over the caller-supplied
+    -- plan, so a sparse plan (a hidden key beyond the dense end) must be
+    -- rejected at the catalogue too — never silently truncated into a shorter
+    -- matching plan (reviewer SPARSE_TARGET_PLAN line: schema=false AND
+    -- catalog=false).
+    local sparsePlan={}
+    sparsePlan[1]={request='actor',selector='nearest_hostile'}
+    sparsePlan[2]={request='grid',destination={selector='position',x=6,y=2,accept=accept}}
+    sparsePlan[5]={request='NOT_A_REAL_ENUM'}
+    local sparsePolicy=policy({id='vault',priority=1,when={always={}},['then']={action='use_talent',
+        talent='T_VAULT',target='nearest_hostile',target_plan=sparsePlan,
+        destination={selector='position',x=6,y=2,accept=accept}}})
+    local sparseOk,sparseErrors=Catalog.verify(sparsePolicy)
+    local sparseCode=false
+    for _,error in ipairs(sparseErrors or {}) do
+        if error.code=='target_plan_not_dense' then sparseCode=true end
+    end
+    check(sparseOk==nil and sparseCode,
+        'a sparse target_plan with a hidden key-5 entry is rejected by the catalogue (R3)',
+        sparseErrors and sparseErrors[1] and sparseErrors[1].code)
     local summary=Catalog.summary()
     check(#summary.actions>=6 and summary.adapter_version==Catalog.VERSION,
         'the capability summary lists the action adapters and the adapter version')

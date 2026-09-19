@@ -553,8 +553,15 @@ end
 function M.planSequence(attempt,provider,movement,origin)
     local sequence=movement.request_sequence
     local plan=attempt.target_plan
-    if type(plan)~='table' or #plan<1 then return nil,{reason='invalid_target_plan'} end
-    if #plan~=#sequence then
+    -- S3-A2-R3 defence-in-depth: a caller-supplied plan is a closed dense
+    -- `1..n` list before any `#`/`ipairs` indexing; a hole, a non-integer key
+    -- or a key beyond the dense end is `invalid_target_plan`, never a hidden
+    -- step silently ignored by `#`.
+    if type(plan)~='table' then return nil,{reason='invalid_target_plan'} end
+    local dense,maxKey=Factory.validateArray(plan,1)
+    if not dense then return nil,{reason='invalid_target_plan'} end
+    if maxKey<1 then return nil,{reason='invalid_target_plan'} end
+    if maxKey~=#sequence then
         -- The descriptor declares an ordered program, so a plan that disagrees in
         -- length/kind is a policy/adapter mismatch (the static validator already
         -- rejects it; this is the planner's own honest defence).
@@ -701,6 +708,13 @@ function M.plan(attempt,provider,movement)
         end
     end
     if type(attempt.target_plan)=='table' then
+        -- S3-A2-R3 defence-in-depth: the plan is a closed dense array before
+        -- any `#`/`ipairs` use on either the sequence or the single-request
+        -- path (a hidden key beyond the dense end is never silently ignored).
+        local dense,maxKey=Factory.validateArray(attempt.target_plan,1)
+        if not dense or maxKey<1 then
+            return nil,{reason='invalid_target_plan',talent=attempt.talent}
+        end
         -- S2 §12.1: a descriptor that declares an ordered `request_sequence` is
         -- driven by the queue for every N (including N=1: a self-subject actor
         -- prompt cannot be expressed by the single-target lowering, which would
@@ -710,7 +724,7 @@ function M.plan(attempt,provider,movement)
             and #movement.request_sequence>0 then
             return M.planSequence(attempt,provider,movement,origin)
         end
-        if #attempt.target_plan>1 then
+        if maxKey>1 then
             return nil,{reason='unsupported_target_plan',talent=attempt.talent,
                 count=#attempt.target_plan,scope='multi_prompt',
                 missing='ordered_request_sequence'}

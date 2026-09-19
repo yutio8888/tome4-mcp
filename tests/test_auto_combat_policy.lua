@@ -291,6 +291,28 @@ do
     noPlan.rules={{id='door',priority=10,when={always={}},
         ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',target_plan={}}}}
     check(not Schema.validate(noPlan),'an empty target_plan is rejected')
+    -- S3-A2-R3: a caller-supplied target_plan is a CLOSED DENSE array; a
+    -- hidden key beyond the dense end (a sparse `{[1]=..,[2]=..,[5]=..}` Lua
+    -- table that `#` reports as 2) is rejected at the policy ingress instead
+    -- of being silently ignored by `#`/`ipairs` (reviewer SPARSE_TARGET_PLAN
+    -- line: lua_len=2 with an invalid hidden entry at key 5).
+    local sparse=basePolicy()
+    sparse.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_VAULT',target='nearest_hostile',
+            target_plan={{[1]={request='actor',selector='nearest_hostile'},
+                [2]={request='grid',destination={selector='position',x=6,y=2,
+                    accept=accept}},
+                [5]={request='NOT_A_REAL_ENUM'}}}}}}
+    local sparseOk,sparseErrors=Schema.validate(sparse)
+    check(sparseOk==nil and #sparseErrors>0,
+        'a sparse target_plan with a hidden invalid key-5 entry is rejected (R3)',
+        sparseErrors and sparseErrors[1] and sparseErrors[1].code)
+    local hopped=basePolicy()
+    hopped.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={{[1]={request='self'},[3]={request='self'}}}}}}
+    check(not Schema.validate(hopped),
+        'a hole in the target_plan key sequence is rejected (R3)')
 end
 -- S2-R4-01: the agility Vault must NOT be executable. Its first (actor) prompt's
 -- target is attacked and may be dazed before the move, so component-free

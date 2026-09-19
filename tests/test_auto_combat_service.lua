@@ -273,6 +273,7 @@ do
     local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
     Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
     Service.handle(svc,'start',{})
+    local syncGen=svc.controller.generation
     local stepped=Service.step(svc)
     check(stepped.ok and stepped.step.action=='paused'
         and stepped.step.reason=='movement_postcondition_mismatch'
@@ -282,6 +283,9 @@ do
         and svc.controller.reason=='movement_postcondition_mismatch',
         'the safety pause stops the run and revokes the lease')
     check(calls==1,'the mismatched action is never resubmitted (X-U4)')
+    check(svc.controller.generation==syncGen+1,
+        'exactly ONE generation transition for the synchronous mismatch (R4)',
+        svc.controller.generation..' vs start '..syncGen)
     local log=Service.handle(svc,'log',{limit=16})
     local typed=0
     for _,event in ipairs(log.events or {}) do
@@ -296,6 +300,7 @@ do
     local ap2=Service.handle(svc2,'approve',{expected_hash=d2.draft_hash})
     Service.handle(svc2,'activate',{expected_hash=ap2.approved_hash})
     Service.handle(svc2,'start',{})
+    local asyncGen=svc2.controller.generation
     local entry2=Service.nativePostconditionMismatch(svc2,mismatch)
     check(entry2 and entry2.kind=='paused'
         and entry2.reason=='movement_postcondition_mismatch',
@@ -311,6 +316,9 @@ do
         end
     end
     check(typed2==1,'exactly one typed pause/log event for the delayed mismatch')
+    check(svc2.controller.generation==asyncGen+1,
+        'exactly ONE generation transition for the delayed mismatch (R4)',
+        svc2.controller.generation..' vs start '..asyncGen)
     -- SAFETY_PAUSES membership is the reason the handoff exists.
     check(Service.SAFETY_PAUSES.movement_postcondition_mismatch==true,
         'movement_postcondition_mismatch is an internal safety-pause reason beside the S2 reasons')

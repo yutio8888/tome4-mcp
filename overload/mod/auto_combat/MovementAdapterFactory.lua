@@ -838,10 +838,21 @@ M.COMPONENT_CENTERS={target=true,actor=true,self=true,actual_landing=true}
 -- A `center='actual_landing'` component is admitted only for the two shapes the
 -- post-move cell can anchor (design §5.1).
 M.ACTUAL_LANDING_SHAPES={hit=true,ball=true}
--- The projected (multi-actor) delivery path applies the raised projection
--- filters; a direct bound-actor effect does not (ActorProject never runs).
+-- The projected (multi-actor) delivery path forwards the FULL
+-- engine-consulted raised field set (S3-A2-R2 dispatcher correction): the seven
+-- curated projection flags PLUS the fields ActorProject/Target consult that
+-- can each change the footprint (`force_max_range`, `min_range`,
+-- `grid_exclude`, `filter`, `block_path`, `block_radius`,
+-- `requires_knowledge`, actor-delivery `act_exclude`). An explicit `false` is
+-- preserved (it disables the default blocker, Target.lua:559-569);
+-- function-valued `block_path`/`block_radius`/`filter` are forwarded as the
+-- real callbacks. `AutoCombatGuard` forwards exactly this set — this table is
+-- the single canonical list.
 M.RAISED_FLAG_KEYS={friendlyblock=true,friendlyfire=true,selffire=true,
-    pass_terrain=true,no_restrict=true,actorblock=true,stop_block=true}
+    pass_terrain=true,no_restrict=true,actorblock=true,stop_block=true,
+    force_max_range=true,min_range=true,grid_exclude=true,filter=true,
+    block_path=true,block_radius=true,requires_knowledge=true,
+    act_exclude=true}
 M.POSTCONDITION_MODES={fizzle=true,mismatch=true}
 
 local function validStaticFilter(value)

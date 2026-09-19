@@ -233,6 +233,35 @@ do
         {target_requests={'actor','grid'},landing='random'})
     check(multi==nil and multiErr and multiErr.reason=='unsupported_target_plan',
         'a multi-prompt target plan is a typed capability gap, not silently ignored')
+    -- S3-A2-R3 defence-in-depth: a sparse caller-supplied plan (a hidden key
+    -- beyond the dense end, a hole, or a non-integer key) is
+    -- invalid_target_plan BEFORE any `#`/`ipairs` consumption — the hidden
+    -- invalid entry at key 5 must never be silently ignored.
+    local function sparsePlan()
+        local plan={}
+        plan[1]={request='none'}
+        plan[2]={request='none'}
+        plan[5]={request='NOT_A_REAL_ENUM'}
+        return plan
+    end
+    local sparse,sparseErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
+        target_plan=sparsePlan(),destination={selector='native_random',accept=accept()}},
+        provider({x=2,y=2},{}),{target_requests={'none'},landing='random'})
+    check(sparse==nil and sparseErr and sparseErr.reason=='invalid_target_plan',
+        'a sparse target_plan with a hidden key-5 entry is invalid at the planner (R3)',
+        sparseErr and sparseErr.reason)
+    local function holedPlan()
+        local plan={}
+        plan[1]={request='none'}
+        plan[3]={request='none'}
+        return plan
+    end
+    local holed,holedErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',
+        target_plan=holedPlan(),destination={selector='native_random',accept=accept()}},
+        provider({x=2,y=2},{}),{target_requests={'none'},landing='random'})
+    check(holed==nil and holedErr and holedErr.reason=='invalid_target_plan',
+        'a hole in the target_plan key sequence is invalid at the planner (R3)',
+        holedErr and holedErr.reason)
     -- A level-limited adapter variant is rejected with the published reason.
     local Factory=require 'mod.auto_combat.MovementAdapterFactory'
     local doorMatrix=Factory.matrix({

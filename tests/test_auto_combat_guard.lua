@@ -546,6 +546,159 @@ do
         ..'friendlyfire absent) (D3/G-U6)',leapComp and leapComp.raised_flags)
 end
 
+-- S3-A2-R1/R2 fix regressions (the review falsification lines, reproduced on
+-- the REAL Giant Leap raised spec through the production guard).
+do
+    local Fixtures=assert(loadfile(root..'/tests/s3_real_specs.lua'))()
+    local fixture=Fixtures.REAL_GIANT_LEAP_TG
+    local caster={uid=1,x=2,y=2,canProject=function() return true end}
+    local hostile={uid=2,x=5,y=2}
+    local friendly={uid=3,x=4,y=2}
+    local function makeGuard(spec,allies)
+        return Guard.build{
+            game={player=caster,level={map={w=10,h=10}}},source=caster,
+            policy={safety={max_selffire_risk=0}},
+            resolve=function() return hostile end,
+            allies=function() return allies or {} end,
+            known=function() return true end,
+            getDef=function(id)
+                if id=='T_GIANT_LEAP' then return {target=function() return spec end} end
+            end,
+            blockPath=function() return false end,details=Details}
+    end
+    local fullPlan={kind='grid',x=6,y=2,annotation={landing={kind='bounded',
+        center={x=6,y=2},radius=1}}}
+    local leapAttempt={action='use_talent',talent='T_GIANT_LEAP',bound_target=2,plan=fullPlan}
+    -- Reviewer FULL_REAL_SPEC line: the complete radius-1 envelope rejects with
+    -- the known friendly risk.
+    local fullVerdict=makeGuard(fixture.build(),{friendly})(leapAttempt)
+    check(fullVerdict and fullVerdict.action=='reject' and fullVerdict.reason=='selffire_risk'
+        and fullVerdict.detail and fullVerdict.detail.candidate_count==9
+        and fullVerdict.detail.measurement==100,
+        'the full bounded landing envelope finds the friendly (reviewer FULL_REAL_SPEC line)',
+        fullVerdict and fullVerdict.detail and fullVerdict.detail.candidate_count)
+    -- Reviewer SHORT_REAL_SPEC line: the SAME plan with NO readable landing
+    -- annotation is never reclassified as a deterministic one-cell measured
+    -- set (it silently permitted before); it fails closed as an unknown
+    -- landing envelope.
+    local shortVerdict=makeGuard(fixture.build(),{friendly})({action='use_talent',
+        talent='T_GIANT_LEAP',bound_target=2,plan={kind='grid',x=6,y=2}})
+    check(shortVerdict and shortVerdict.action=='reject' and shortVerdict.reason=='selffire_risk'
+        and shortVerdict.detail and shortVerdict.detail.unknown==true
+        and shortVerdict.detail.reason=='landing_envelope_unavailable',
+        'a grid plan with NO landing annotation fails closed (reviewer SHORT_REAL_SPEC '
+        ..'line: never permit, never a one-cell measured set)',
+        shortVerdict and shortVerdict.detail and shortVerdict.detail.reason)
+    -- A present-but-malformed bounded landing (missing centre/radius) and a
+    -- deterministic record that disagrees with the requested grid are unknown
+    -- too, never silently re-anchored.
+    local malformed=makeGuard(fixture.build(),{})({action='use_talent',talent='T_GIANT_LEAP',
+        bound_target=2,plan={kind='grid',x=6,y=2,annotation={landing={kind='bounded'}}}})
+    check(malformed and malformed.action=='reject' and malformed.detail
+        and malformed.detail.unknown==true,
+        'a present-but-malformed bounded landing fails closed (R1)',
+        malformed and malformed.detail and malformed.detail.reason)
+    local disagreed=makeGuard(fixture.build(),{})({action='use_talent',talent='T_GIANT_LEAP',
+        bound_target=2,plan={kind='grid',x=6,y=2,annotation={landing={kind='deterministic',
+            center={x=7,y=2}}}}})
+    check(disagreed and disagreed.action=='reject' and disagreed.detail
+        and disagreed.detail.unknown==true,
+        'a deterministic landing that disagrees with the requested grid fails closed (R1)',
+        disagreed and disagreed.detail and disagreed.detail.reason)
+    -- Reviewer SPARSE_CANDIDATES line: a sparse candidate list is never
+    -- truncated by ipairs into a 1/1 complete measured set; the
+    -- complete-expansion boundary rejects it before any expansion call.
+    local sparseCandidates={kind='bounded',cells={[1]={x=6,y=2},[3]={x=4,y=2}},
+        center={x=6,y=2},radius=2}
+    local calls=0
+    local sparseSet,sparseStats=Guard.expandComplete(
+        Manifest.entry('T_GIANT_LEAP').components[1],sparseCandidates,hostile,1,
+        {selffire=false},
+        {expand=function(spec)
+            calls=calls+1
+            local s,add=Footprint.newSet(); add(spec.origin.x,spec.origin.y)
+            return s,'model'
+        end})
+    check(sparseSet==nil and sparseStats and sparseStats.failure=='candidates_not_dense'
+        and calls==0,
+        'a sparse candidate list is rejected at the expansion boundary (reviewer '
+        ..'SPARSE_CANDIDATES line: never 1/1 complete, never a hidden member)',
+        sparseStats and sparseStats.failure)
+    -- The total required pair count is independent of an early expansion
+    -- failure: a first-pair failure still reports the full applicable count.
+    local earlyCandidates=Guard.landingCandidates(fullPlan,
+        Manifest.entry('T_GIANT_LEAP'),caster,hostile,{w=10,h=10})
+    check(earlyCandidates and #earlyCandidates.cells==9,
+        'the bounded plan enumerates the nine radius-1 candidates (R1)',
+        earlyCandidates and #earlyCandidates.cells)
+    local seen=0
+    local earlySet,earlyStats=Guard.expandComplete(
+        Manifest.entry('T_GIANT_LEAP').components[1],earlyCandidates,hostile,1,{selffire=false},
+        {expand=function()
+            seen=seen+1
+            if seen==1 then return nil,'native_failed' end
+            local s,add=Footprint.newSet(); add(99,99)
+            return s,'model'
+        end})
+    check(earlySet==nil and earlyStats and earlyStats.required==9
+        and earlyStats.completed==0 and earlyStats.failure=='native_failed',
+        'the required pair count is independent of an early expansion failure (R1)',
+        earlyStats and ('required='..tostring(earlyStats.required)..' completed='
+            ..tostring(earlyStats.completed)))
+
+    -- R2 regressions: the FULL engine-consulted raised field set (real raised
+    -- force_max_range from spells/golem.lua:271-272 / thaumaturgy.lua:234 and
+    -- real block_path=false/block_radius=false from
+    -- corruptions/shadowflame.lua:157) is forwarded from the live raised spec
+    -- THROUGH THE PRODUCTION GUARD into every expansion spec (never dropped,
+    -- explicit false preserved).
+    local live={type='ball',range=10,radius=1,selffire=false,
+        -- golem.lua:272 / thaumaturgy.lua:234 raise force_max_range=true.
+        force_max_range=true,
+        -- shadowflame.lua:157 raises block_path=false, block_radius=false,
+        -- requires_knowledge=false, pass_terrain=true.
+        block_path=false,block_radius=false,requires_knowledge=false,
+        pass_terrain=true,
+        min_range=1,
+        grid_exclude={[6]={[2]=true}},
+        filter=function() return true end}
+    local captured={}
+    local originalExpand=Footprint.expand
+    local okCapture,allowErr
+    okCapture=pcall(function()
+        Footprint.expand=function(spec,opts)
+            local copy={}
+            for k,v in pairs(spec) do copy[k]=v end
+            captured[#captured+1]=copy
+            local s,add=Footprint.newSet()
+            add(spec.origin.x,spec.origin.y)
+            return s,'model'
+        end
+        local verdict=makeGuard(live,{})({action='use_talent',talent='T_GIANT_LEAP',
+            bound_target=2,plan=fullPlan})
+        allowErr=verdict and verdict.action or tostring(verdict)
+    end)
+    Footprint.expand=originalExpand
+    check(okCapture and #captured==9 and allowErr=='permit',
+        'the live raised spec reaches every expansion through the production guard (R2)',
+        tostring(allowErr)..' captured='..#captured)
+    local flagsOk=true
+    for _,spec in ipairs(captured) do
+        if spec.force_max_range~=true or spec.min_range~=1 or spec.block_path~=false
+            or spec.block_radius~=false or spec.requires_knowledge~=false
+            or spec.pass_terrain~=true or type(spec.grid_exclude)~='table'
+            or type(spec.filter)~='function' or spec.selffire~=false then
+            flagsOk=false
+        end
+    end
+    check(flagsOk and #captured>0,
+        'every engine-consulted raised field (force_max_range/min_range/grid_exclude/'
+        ..'filter/block_path/block_radius/requires_knowledge/pass_terrain) is forwarded '
+        ..'into each expansion with explicit false preserved (R2)',
+        captured[1] and {fp=captured[1].force_max_range,bp=captured[1].block_path,
+            br=captured[1].block_radius})
+end
+
 -- S3 V-U3 + X-U2 (REAL_VAULT_ACTOR_TG, techniques/agility.lua:92-93): both
 -- direct Vault components are evidenced, risk-exempt, and resolved against the
 -- bound hostile; a missing or self-bound actor fails; the strict vs tolerant
