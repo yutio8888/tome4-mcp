@@ -146,6 +146,38 @@ end
 local function observableSpec(typ)
     return type(typ)=='table' and type(typ.type)=='string'
 end
+-- S2-FIX5: every emitted deviation record must carry its identifying fields so
+-- a reader can always tell what happened (the live S2 playtest produced pause
+-- records a reader could not interpret). `required` names the identifying
+-- fields of each typed record; `M.validateDeviation` is the shared shape gate
+-- and the executor asserts it at every emission site, so a malformed record
+-- can never be stored on the command or surfaced on a result.
+local DEVIATION_REQUIRED={
+    unexpected_target_request={'expected','observed','skippable'},
+    movement_request_kind_unknown={'expected','observed','skippable','handed_back'},
+    movement_request_value_unknown={'expected','observed','index','request','dependency'},
+}
+function M.validateDeviation(record)
+    if type(record)~='table' then return false,'record_not_table' end
+    if type(record.reason)~='string' or record.reason=='' then return false,'missing_reason' end
+    local required=DEVIATION_REQUIRED[record.reason]
+    if not required then return false,'unknown_reason' end
+    for _,key in ipairs(required) do
+        if record[key]==nil then return false,'missing_'..key end
+    end
+    if record.expected~=nil and (type(record.expected)~='table'
+        or type(record.expected.index)~='number') then return false,'invalid_expected' end
+    if record.observed~=nil and (type(record.observed)~='table'
+        or type(record.observed.index)~='number') then return false,'invalid_observed' end
+    return true
+end
+local function assertDeviation(record)
+    local ok,err=M.validateDeviation(record)
+    if not ok then
+        error('deviation record shape violated: '..tostring(err),2)
+    end
+    return record
+end
 M.SEQUENCE_VALUE_KINDS=SEQUENCE_VALUE_KINDS
 function M.normalizeSequence(list)
     if type(list)~='table' then return nil,'invalid_sequence' end
@@ -461,6 +493,16 @@ function M.execute(g, action, target, meta, command)
                     local consumed=false
                     local observed=0
                     local yielded=false
+                    -- S2-FIX5: whether this invocation actually ENTERED the
+                    -- native targeting flow (a getTarget prompt was raised).
+                    -- The queue's settle-time missing-entry rule is only
+                    -- meaningful AFTER a prompt was raised: a native entry
+                    -- that refuses before any prompt (cooldown / no energy /
+                    -- on_pre_use `return false`) never starts the flow, so
+                    -- there is no prompt to compare against and the ordinary
+                    -- native outcome (native_rejected with its own detail)
+                    -- applies — never a fabricated sequence deviation.
+                    local raised=false
                     -- S2-REV-05: once a typed deviation is recorded on a LIVE
                     -- prompt, the queue stops answering: the wrapper falls
                     -- through to the real native target request so the player
@@ -537,7 +579,7 @@ function M.execute(g, action, target, meta, command)
                                 end
                             end
                             if handback then record.handed_back=true end
-                            command.sequence_deviation=record
+                            command.sequence_deviation=assertDeviation(record)
                             if handback then
                                 command.target_handed_back=record.reason
                             else
@@ -552,8 +594,11 @@ function M.execute(g, action, target, meta, command)
                     -- never a wrong answer.
                     local function valueUnknown(index,request,dependency)
                         if command and not command.sequence_deviation then
-                            command.sequence_deviation={reason='movement_request_value_unknown',
-                                index=index,request=request,dependency=dependency}
+                            command.sequence_deviation=assertDeviation({reason='movement_request_value_unknown',
+                                expected={index=index,request=request},
+                                observed={index=index,request=nil},
+                                index=index,request=request,dependency=dependency,
+                                skippable=false})
                             command.target_cancelled=command.target_cancelled or 'movement_request_value_unknown'
                         end
                         return nil
@@ -566,12 +611,12 @@ function M.execute(g, action, target, meta, command)
                     -- `command.target_handed_back`, never `target_cancelled`.
                     local function requestKindUnknown(index,request,shape)
                         if command and not command.sequence_deviation then
-                            command.sequence_deviation={reason='movement_request_kind_unknown',
+                            command.sequence_deviation=assertDeviation({reason='movement_request_kind_unknown',
                                 expected={index=index,request=request},
                                 observed={index=index,request=nil},
                                 observed_shape=type(shape)=='string' and shape or nil,
                                 handed_back=true,
-                                skippable=false}
+                                skippable=false})
                             command.target_handed_back='movement_request_kind_unknown'
                         end
                         return nil
@@ -642,6 +687,7 @@ function M.execute(g, action, target, meta, command)
                                 return original(self,typ,...)
                             end
                             consumed=true
+                            raised=true
                             observed=observed+1
                             local entry=queue[observed]
                             if entry==nil then
@@ -736,8 +782,18 @@ function M.execute(g, action, target, meta, command)
                     -- handback the player owns the prompts, so the settle check
                     -- neither overwrites it nor reports the remaining entries as
                     -- missing.
+                    -- S2-FIX5: the missing-entry rule applies only AFTER the
+                    -- invocation actually entered the targeting flow (`raised`).
+                    -- A native entry that refused before raising any prompt
+                    -- (`useTalent` returned without ever calling getTarget —
+                    -- cooldown / no energy / on_pre_use) has ZERO observed
+                    -- prompts: there is no prompt to compare against the
+                    -- declared sequence, so the ordinary native outcome
+                    -- (`native_rejected` with its own detail, or the no-energy
+                    -- classification) applies — never a fabricated
+                    -- `unexpected_target_request`, never a `target_cancelled`.
                     if queue and command and not command.sequence_deviation
-                        and not yielded then
+                        and not yielded and raised then
                         local answeredSeq=observed
                         if answeredSeq<#queue then
                             local missing=queue[answeredSeq+1]
@@ -746,10 +802,10 @@ function M.execute(g, action, target, meta, command)
                                 command.sequence_reduced=true
                                 command.sequence_reduced_reason='trailing_optional_not_raised'
                             else
-                                command.sequence_deviation={reason='unexpected_target_request',
+                                command.sequence_deviation=assertDeviation({reason='unexpected_target_request',
                                     expected={index=answeredSeq+1,request=missing.request},
                                     observed={index=answeredSeq+1,request=nil},
-                                    skippable=false}
+                                    skippable=false})
                                 command.target_cancelled=command.target_cancelled or 'unexpected_target_request'
                             end
                         end

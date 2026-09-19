@@ -293,6 +293,13 @@ local function runQueue(def,action,target)
     local g={player=p,level={map={w=20,h=20}}}
     local command={command_id='c1'}
     local result=Actions.execute(g,action,target,meta,command)
+    -- S2-FIX5: no deviation record can be emitted without its identifying
+    -- fields — every deviation surfaced by this production harness is
+    -- shape-checked against `Actions.validateDeviation`.
+    if result.sequence_deviation then
+        local valid,err=Actions.validateDeviation(result.sequence_deviation)
+        assert(valid,'deviation record shape violated: '..tostring(err))
+    end
     check(rawget(p,'getTarget')==nil,'the queue wrapper is always removed from the player')
     return result,command,p
 end
@@ -812,6 +819,121 @@ do
         'the deviation detail reaches the bounded decision ring')
 end
 
+-- 15. S2-FIX5: the deviation shape gate -------------------------------
+-- Every emission site asserts `Actions.validateDeviation`, so a deviation
+-- record can never be stored (or surfaced on a result/pause) without its
+-- identifying fields. These checks pin the contract itself.
+do
+    check(Actions.validateDeviation({reason='unexpected_target_request',
+        expected={index=1,request='actor'},observed={index=1,request='grid'},
+        skippable=false})==true,
+        'a complete unexpected_target_request record validates')
+    check(Actions.validateDeviation({reason='movement_request_kind_unknown',
+        expected={index=1,request='actor'},observed={index=1,request=nil},
+        observed_shape='ball',handed_back=true,skippable=false})==true,
+        'a complete movement_request_kind_unknown record validates')
+    check(Actions.validateDeviation({reason='movement_request_value_unknown',
+        expected={index=1,request='actor'},observed={index=1,request=nil},
+        index=1,request='actor',dependency='bound_actor',skippable=false})==true,
+        'a complete movement_request_value_unknown record validates')
+    local function bad(record,why)
+        local valid,err=Actions.validateDeviation(record)
+        check(valid==false and err==why,'an incomplete deviation record is rejected ('..why..')')
+    end
+    bad(nil,'record_not_table')
+    bad({expected={index=1},observed={index=1},skippable=false},'missing_reason')
+    bad({reason='unexpected_target_request',observed={index=1},skippable=false},'missing_expected')
+    bad({reason='unexpected_target_request',expected={index=1},skippable=false},'missing_observed')
+    bad({reason='unexpected_target_request',expected={index=1},observed={index=1}},'missing_skippable')
+    bad({reason='movement_request_kind_unknown',expected={index=1,request='actor'},
+        observed={index=1},skippable=false},'missing_handed_back')
+    bad({reason='movement_request_value_unknown',expected={index=1,request='actor'},
+        observed={index=1},index=1,request='actor',skippable=false},'missing_dependency')
+    bad({reason='movement_request_value_unknown',expected={index=1,request='actor'},
+        observed={index=1},request='actor',dependency='self',skippable=false},'missing_index')
+    bad({reason='not_a_typed_reason',expected={index=1},observed={index=1},
+        skippable=false},'unknown_reason')
+    bad({reason='unexpected_target_request',expected='actor',observed={index=1},
+        skippable=false},'invalid_expected')
+    bad({reason='unexpected_target_request',expected={index=1},observed='grid',
+        skippable=false},'invalid_observed')
+end
+
+-- 16. S2-FIX5: a native entry that refuses BEFORE any prompt (cooldown /
+-- no energy / on_pre_use) never enters the targeting flow, so the queue
+-- observes ZERO prompts. That is the ordinary native rejection — never a
+-- fabricated unexpected_target_request, never a target_cancelled.
+do
+    local p=player({T_SEQ={prompts={{type='hit',range=10,nowarning=true},
+            {type='ball',range=14,radius=1,nowarning=true}},
+        on_answer=function() return true end}},{x=1,y=1})
+    p.talents_cd={T_SEQ=11}
+    local def=p.talents_def.T_SEQ
+    -- Mirror the real native entry (ActorTalents isTalentCoolingDown): the
+    -- cooldown check returns false BEFORE the coroutine/getTarget flow, so no
+    -- prompt is ever raised and the queue settles with zero observed prompts.
+    def.action=function(self)
+        if (self.talents_cd or {})[def.id] and self.talents_cd[def.id]>0 then return false end
+        return scriptedAction(def)(self)
+    end
+    local g={player=p,level={map={w=20,h=20}}}
+    local command={command_id='c1'}
+    local result=Actions.execute(g,{type='use_talent',talent_id='T_SEQ',
+        sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+            {kind='grid',request='grid',x=5,y=3,observed=GRID_SIG}}},nil,meta,command)
+    check(not result.ok and result.code=='native_rejected',
+        'a pre-prompt cooldown refusal is the ordinary native_rejected outcome')
+    check(result.sequence_deviation==nil,
+        'a pre-prompt refusal never fabricates a sequence deviation')
+    check(command.target_cancelled==nil and command.target_handed_back==nil,
+        'a pre-prompt refusal carries no target_cancelled and no handback')
+    check(result.native_return==false,
+        'the native false return is preserved on the result')
+    check(result.target_sequence and #result.target_sequence==0,
+        'the observed prompt sequence stays empty (zero prompts raised)')
+    check(result.missing and result.missing[1] and result.missing[1].kind=='cooldown'
+        and result.missing[1].talent=='T_SEQ' and result.missing[1].remaining==11,
+        'the ordinary refusal carries its own structured cooldown detail')
+    check(type(result.hint)=='string' and result.hint:find('cooldown',1,true)~=nil,
+        'the ordinary refusal carries the cooldown hint')
+end
+
+-- 16. S2-FIX5: a genuine mid-sequence abort still deviates; the deviation
+-- record carries its identifying fields (expected/observed/skippable).
+do
+    local def={prompts={{type='hit',range=10,nowarning=true}},
+        on_answer=function() return true end}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+                {kind='grid',request='grid',x=5,y=3,observed=GRID_SIG}}})
+    check(not result.ok and result.code=='unexpected_target_request',
+        'a genuine mid-sequence abort (first prompt answered, second never raised) still deviates')
+    check(Actions.validateDeviation(result.sequence_deviation)==true,
+        'the mid-sequence abort deviation carries its identifying fields')
+    check(result.sequence_deviation.expected.index==2
+        and result.sequence_deviation.skippable==false,
+        'the mid-sequence abort keeps its expected/skippable fields')
+end
+
+-- 16b. S2-FIX5: a trailing-optional non-raise keeps its meaning: the settled
+-- native outcome is reported reduced, with no deviation record at all.
+do
+    local def={prompts={{type='hit',range=10,nowarning=true}},
+        on_answer=function() return true end}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+                {kind='grid',request='grid',x=5,y=3,optional=true,observed=GRID_SIG}}})
+    check(result.ok and result.reduced==true
+        and result.reduced_reason=='trailing_optional_not_raised'
+        and result.sequence_deviation==nil,
+        'a trailing-optional non-raise is still the settled reduced outcome')
+end
+
+print('Auto-combat ordered sequence: '..checks..' checks passed')
+
+
 Tracker.start,Compat.check,Compat.matches=realStart,realCheck,realMatches
 
 -- 12. Policy validation: the ordered plan validates against the declared
@@ -897,4 +1019,3 @@ do
         'planning a sequence never calls useTalent/teleportRandom')
 end
 
-print('Auto-combat ordered sequence: '..checks..' checks passed')

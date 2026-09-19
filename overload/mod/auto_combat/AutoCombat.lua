@@ -614,8 +614,23 @@ function M:step()
             -- native-landing exclusion.
             if outcome.sequence_deviation then
                 local reason=outcome.sequence_deviation.reason or 'unexpected_target_request'
-                self:record({kind='paused',reason=reason,rule=decision.rule,
-                    detail=boundedDetail(outcome.sequence_deviation)})
+                -- S2-FIX5: the typed deviation event ITSELF reaches the policy
+                -- log with its rule and bounded detail; the pause transition
+                -- must not emit a second, detail-less event (the live S2
+                -- playtest's paused `unexpected_target_request` records carried
+                -- no detail and no rule, because `pause`'s bare notify was the
+                -- only event the log ever saw). Mirror `nativeDeviated`:
+                -- notify the detailed entry, move to paused, and let `pause`
+                -- deduplicate so exactly one typed event is logged.
+                local entry={kind='paused',reason=reason,rule=decision.rule,
+                    detail=boundedDetail(outcome.sequence_deviation),
+                    handed_back=outcome.handed_back==true or nil}
+                self:record(entry)
+                if self.notify then self.notify(entry) end
+                if self.state~='paused' or self.reason~=reason then
+                    self.generation=self.generation+1
+                    self.state='paused'; self.reason=reason
+                end
                 local paused=self:pause(reason)
                 paused.detail=outcome.sequence_deviation
                 -- `handed_back` is evidence only (the reason drives the pause);

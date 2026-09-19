@@ -769,4 +769,64 @@ do
     end
     check(notified,'the settle-time deviation reaches the notify callback (policy log)')
 end
+
+-- S2-FIX5: the synchronous deviation pause logs the typed deviation event
+-- itself — WITH its rule and bounded detail — and never a second, detail-less
+-- `paused` record (the live S2 playtest's paused `unexpected_target_request`
+-- events carried neither).
+do
+    local host=makeHost()
+    host.responses={{status='uncertain',code='unexpected_target_request',energy_spent=true,
+        handed_back=true,
+        sequence_deviation={reason='unexpected_target_request',
+            expected={index=1,request='actor'},observed={index=1,request=nil},
+            observed_shape='ball',handed_back=true,skippable=false}}}
+    local c=AutoCombat.new(policy(),host)
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='paused' and step.reason=='unexpected_target_request',
+        'a synchronous deviation still pauses with its typed reason')
+    local logged={}
+    for _,event in ipairs(host.notifications) do
+        if event.kind=='paused' and event.reason=='unexpected_target_request' then
+            logged[#logged+1]=event
+        end
+    end
+    check(#logged==1 and logged[1].rule=='beam',
+        'exactly one deviation pause event is logged and it carries its rule')
+    check(logged[1].detail~=nil and logged[1].detail.expected~=nil
+        and logged[1].detail.expected.index==1 and logged[1].detail.observed~=nil
+        and logged[1].detail.skippable==false,
+        'the logged deviation pause carries its bounded identifying detail')
+    check(logged[1].handed_back==true,
+        'the logged deviation pause carries the handback evidence')
+end
+
+-- S2-FIX5: an ordinary native rejection WITHOUT a deviation (a pre-prompt
+-- cooldown refusal mapped through the production outcome) is never a
+-- fabricated pause: no paused/unexpected_target_request event, the ordinary
+-- native_rejected refusal is recorded instead.
+do
+    local host=makeHost()
+    host.responses={
+        {status='rejected',code='native_rejected',energy_spent=false,
+            missing={{kind='cooldown',talent='T_PHASE_DOOR',remaining=11,required=0}},
+            hint='talent on cooldown; wait for the listed turns before retrying'},
+        {status='ok'},
+    }
+    local c=AutoCombat.new(policy(),host)
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='acted',
+        'an ordinary native rejection denies its rule and falls through (no pause)')
+    local denied
+    for _,rejection in ipairs(c.rejections) do
+        if rejection.rule=='beam' and rejection.reason=='native_rejected' then denied=true end
+    end
+    check(denied,'the pre-prompt refusal is recorded as an ordinary native_rejected denial')
+    for _,event in ipairs(host.notifications) do
+        check(not (event.kind=='paused' and event.reason=='unexpected_target_request'),
+            'an ordinary native rejection never fabricates an unexpected_target_request pause')
+    end
+end
 print('Auto-combat controller: '..checks..' checks passed')

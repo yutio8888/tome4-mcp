@@ -476,3 +476,34 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
     `target_requests` 叶子）。**教训（我的流程改进）**：应用规范文本必须**逐块写盘 + 逐块校验**，
     或先 `git stash`/写临时文件再一次性提交；不得把一个可能中途失败的脚本当作原子操作。
 
+67. **S2-FIX5（P1，live playtest 复现 ×10）：入口拒绝被伪判为 `unexpected_target_request` —— 已修复（分支
+    `fix/s2-false-deviation`，基于 `main@e51fe8a`）。** Dev 为 model B（轮换；Dev 序列上次为 A）。
+    live 证据：`tmp/mcp-play-support/agent-ham-s2arch-01-report.md`（sha256
+    `4a25b2bcfde5b6a7152e070c9894b88853774c6db8e8147d743d6b50fcd6d67d`）§8。修复见
+    [docs/tome-mcp-0.9.0-s2-fix5-feedback.md](tome-mcp-0.9.0-s2-fix5-feedback.md)。
+    - **伪 deviation**：`Actions.lua` 队列结算比较 `observed` 与 `#queue` 时未区分“从未进入目标流程”。
+      原生入口在提任何提示前拒绝（冷却/无能量/`on_pre_use` 返回 false，`ActorTalents.lua:169-172`，
+      发生在协程与 `getTarget` 之前）时 `observed==0` 而 `#queue==2`，被伪判为“首个声明提示缺失”并捏造
+      `unexpected_target_request`+`target_cancelled`，控制器随之暂停。**修法**：队列包装新增 `raised`
+      标记；缺失条目规则**仅在 `raised` 之后**适用——入口拒绝以普通 `native_rejected`（自带冷却
+      `missing`/`hint` 或 no_energy 分类）结算，无 `sequence_deviation`、无 `target_cancelled`；真实的中段
+      中断（首提示已答、第二提示未抛）仍判 deviation；尾部 `optional` 的 `reduced=true` 语义不变。
+    - **`detail` 缺失的真相**：调度方假设“记录缺 expected/observed”不精确——结算记录本就带这三字段；
+      真正原因是控制器的**同步 deviation 分支只 `record`（决策环，不 notify）**，策略日志唯一看到的是
+      `M:pause(reason)` 的裸 notify（无 `rule`、无 `detail`，与原始 `alllog.json` 逐字吻合）。修法：同步
+      deviation 暂停改为 notify 带 `rule`+`boundedDetail` 的类型化事件后再转 paused（对齐 `nativeDeviated`），
+      `pause` 去重 → 每次 deviation **恰好一条**带 detail 的日志事件。
+    - **deviation 形状门禁**：新增 `Actions.validateDeviation`（按 reason 要求识别字段），所有发射点
+      （`deviate`/`valueUnknown`/`requestKindUnknown`/结算检查）入库前 assert，`valueUnknown` 同时补齐
+      `expected`/`observed`/`skippable`（保留 `index`/`request`/`dependency`）。
+    - **测试**：序列单测 §15/§16（冷却入口拒绝→普通 `native_rejected`+冷却 detail；真实中段中断仍
+      deviation 且带识别字段；尾部 optional 仍 `reduced`；`runQueue` 对每个 deviation 做形状断言；形状门禁
+      正/反 11+3 例）；控制器单测（同步 deviation 暂停恰好一条带 rule+detail 的事件；普通原生拒绝不捏造
+      暂停、记录 `native_rejected` 并 fall-through）；**原生探针**（source+dist）：真实冷却入口拒绝经 auto
+      slot → 执行层 `native_rejected`+冷却 `missing` 无 deviation，控制器层无 `paused/unexpected_target_request`
+      事件（`movement-sequence` 175 checks）。
+    - **验收**：Lua 42/42、Python 39、三个 `--check` exit 0、probe source/dist 175/175、原生验收
+      source/dist 101/101、打包 parity 68/68（dist sha256 `71da54ccb8f72872adf622a8c593165507dd3f9bd9c9b722a9d7e577d82e6281`）、
+      会话全部回收。live 通过的行为全部保留；无插件级策略门禁（`cooldown_ready` 仍是策略作者的选择）；
+      `allow_auto_combat_execution` 保持 `false`；零协议字段、零游戏核心改动、零手改生成文件。
+
