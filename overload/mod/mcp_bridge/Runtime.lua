@@ -133,7 +133,7 @@ local RELEASE_HINTS={unsupported_interaction='a native UI the bridge cannot driv
 local COMMAND_HINTS={native_rejected='the native action refused; see native_message or the player-visible log',
     blocked='the move did not change position and spent no energy',
     native_progression_rejected='the native level-up dialog refused; check the static prerequisites and point pools',
-    native_progression_mismatch='the native level-up result did not match the spending; the point pool was left unchanged',
+    native_progression_mismatch='the native level-up state after its callbacks and cleanup did not match the spending; re-observe the point pools and talent/stat state',
     explore_interrupted='native auto-explore stopped at a popup or notice; check observe interaction/dialogs and respond or dismiss',
     enemies_in_sight='a visible hostile blocks native auto-explore; escorts and allies do not',
     no_autoexplore='this zone or level forbids auto-explore',

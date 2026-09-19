@@ -431,14 +431,14 @@ M.UNSUPPORTED={
     -- blocker — it is player-known and capped at 4 (cursed/shadows.lua:350-352).
     -- The real blocker is the per-iteration random subject.
     {talent='T_CURSED_BOLT',scope='any',missing='nondeterministic_prompt_subject',
-        reason='each loop iteration picks a random shadow as the bolt origin (cursed/advanced-shadowmancy.lua:246 rng.table(shadows)) and the entry is order-sensitive: the first failure aborts (:255-258) and the first success consumes the crit roll (:248-251); the prompt count itself is bounded and player-known, so it is not the blocker'},
+        reason='each loop iteration picks a random shadow as the bolt origin (cursed/advanced-shadowmancy.lua:242 rng.table(shadows)) and the entry is order-sensitive: the first failure aborts (:255-258) and the first success consumes the crit roll (:248-251); the prompt count itself is bounded and player-known, so it is not the blocker'},
     -- Loop 38 audit (unsupported-audit.md §2.5): the two prompts ARE
     -- distinguishable by cursor_type (:144 bolt vs :152 hit) and the distance>=2
     -- relation is expressible pre-commit over the two planned grids; the real
     -- blocker is that activation moves nobody and creates a pair of
     -- later-triggered traps with a third-party trigger.
     {talent='T_WORMHOLE',scope='any',missing='effect_is_a_later_triggered_trap_pair',
-        reason='activation moves nobody: the talent creates a pair of traps (chronomancy/spacetime-weaving.lua:161-198,200-217) whose third-party trigger teleports whoever steps on either trap later (:177-190 teleportRandom), so the landing/mover model does not describe it; the two prompts are distinguishable by cursor_type (:144 vs :152) and distance>=2 is checkable pre-commit, so neither is the blocker'},
+        reason='activation moves nobody: the talent creates a pair of traps (chronomancy/spacetime-weaving.lua:164-207, added at :209-224) whose third-party trigger teleports whoever steps on either trap later (:179-194 teleportRandom at :183), so the landing/mover model does not describe it; the two prompts are distinguishable by cursor_type (:144 vs :152) and distance>=2 is checkable pre-commit, so neither is the blocker'},
     {talent='T_EARTHEN_MISSILES',scope='any',missing='same_shape_equivalent',
         reason='three same-shape bolt prompts whose order is semantically irrelevant (spells/stone.lua:39-54); the third is level-dependent, so the program is not a fixed order'},
     {talent='T_DWARVEN_HALF_EARTHEN_MISSILES',scope='any',missing='same_shape_equivalent',

@@ -105,7 +105,8 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
   ③ **四条 typed 理由事实错误**（拒绝本身仍正当，但原因写错）：`MERGE`/`STONE` 称
   `signature_not_distinguishable` ——**不实**（两段 spec 差 `pass_terrain` presence，Stone 另差
   `friendlyblock=false`），真正阻塞是**多主体操作**（Merge 杀自己影子 `:51`、Stone `target:move :88`）；
-  `CURSED_BOLT` 段数**有界且玩家已知**（上限 4），真正阻塞是**每轮 `rng.table` 随机主体** `:246`；
+  `CURSED_BOLT` 段数**有界且玩家已知**（上限 4），真正阻塞是**每轮 `rng.table` 随机主体**（`:242`；审计初稿误记为 `:246`，
+  已在 loop-39 修正）；
   `WORMHOLE` 的 `distance>=2` **可用 S2 队列表达**且两段 cursor_type 可区分（`:144` vs `:152`），真正阻塞是
   **后续触发的陷阱对**（无施法者移动）。每项 **S 级**。
   ④ **更高用户可见影响（表外）**：`Progression.lua` 仍在 `learn_talent`/`spend` 路径上用

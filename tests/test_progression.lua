@@ -351,6 +351,51 @@ definitions.T_STUNNING_BLOW_ASSAULT.on_levelup_changed=native('data/talents/tech
 result=Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'})
 check(result.ok and p.close_calls==1 and p.close_dialog==true and p.changed_calls==1,'native finish callbacks run once with dialog semantics')
 definitions.T_STUNNING_BLOW_ASSAULT.on_levelup_close=old_close;definitions.T_STUNNING_BLOW_ASSAULT.on_levelup_changed=old_changed
+
+-- NEW-01 (P1): a replaced-but-callable native callback is used, so the spend
+-- may be undone AFTER the point/target delta was checked. Success must only be
+-- published when the post-callback and post-unload state still matches; any
+-- disagreement is a typed uncertain failure, never ok=true.
+g,p=fixture();p.level=10;p.stats[stats.STAT_STR]=40
+local close_undo=definitions.T_STUNNING_BLOW_ASSAULT.on_levelup_close
+definitions.T_STUNNING_BLOW_ASSAULT.on_levelup_close=native('/third_party/replaced-close.lua',
+    'self.talents.T_STUNNING_BLOW_ASSAULT=1;self.unused_talents=5')
+result=Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'})
+check(not result.ok and result.code=='native_progression_mismatch' and result.uncertain
+    and result.points_spent==nil and p.talents.T_STUNNING_BLOW_ASSAULT==1 and p.unused_talents==5,
+    'a callback undoing the spend during finish is a typed uncertain failure, not success: '..Json.encode(result))
+definitions.T_STUNNING_BLOW_ASSAULT.on_levelup_close=close_undo
+
+g,p=fixture();p.level=10;p.stats[stats.STAT_STR]=40
+local unload_undo=dialog.unload
+dialog.unload=native('/third_party/replaced-unload.lua',
+    'local actor=self.actor;actor.talents.T_STUNNING_BLOW_ASSAULT=1;actor.unused_talents=5;return true')
+result=Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'})
+check(not result.ok and result.code=='native_progression_mismatch' and result.uncertain
+    and p.talents.T_STUNNING_BLOW_ASSAULT==1 and p.unused_talents==5,
+    'a replaced-but-callable unload undoing the spend after finish is a typed uncertain failure: '..Json.encode(result))
+dialog.unload=unload_undo
+
+g,p=fixture()
+local unload_stat_undo=dialog.unload
+dialog.unload=native('/third_party/replaced-unload.lua',
+    'local actor=self.actor;actor.unused_stats=9;actor.stats['..stats.STAT_STR..']=15;return true')
+result=Progression.execute(g,{type='spend_stat',stat='str'})
+check(not result.ok and result.code=='native_progression_mismatch' and result.uncertain
+    and p.unused_stats==9 and p.stats[stats.STAT_STR]==15,
+    'a replaced unload undoing a stat spend is a typed uncertain failure: '..Json.encode(result))
+dialog.unload=unload_stat_undo
+
+g,p=fixture()
+check(Progression.execute(g,{type='learn_talent',talent_id='T_RUSH'}).ok,'learned T_RUSH for the respec postcondition')
+local changed_undo=definitions.T_RUSH.on_levelup_changed
+definitions.T_RUSH.on_levelup_changed=native('/third_party/replaced-changed.lua',
+    'self.talents.T_RUSH=1;self.unused_talents=(self.unused_talents or 0)-1')
+result=Progression.execute(g,{type='unlearn_talent',talent_id='T_RUSH'})
+check(not result.ok and result.code=='native_progression_mismatch' and result.uncertain
+    and p.talents.T_RUSH==1 and p.unused_talents==4,
+    'a callback undoing a respec refund during finish is a typed uncertain failure: '..Json.encode(result))
+definitions.T_RUSH.on_levelup_changed=changed_undo
 g,p=fixture();p.level=50;p.stats[stats.STAT_STR]=40
 for _,tid in ipairs{'T_STUNNING_BLOW_ASSAULT','T_WARSHOUT_BERSERKER','T_STUNNING_BLOW_ASSAULT','T_WARSHOUT_BERSERKER','T_RUSH'} do
     check(Progression.execute(g,{type='learn_talent',talent_id=tid}).ok,'native class history allocation '..tid)

@@ -5,6 +5,13 @@
 -- checks only — a replaced-but-callable function is used, a missing/erroring/
 -- non-finite one fails typed. Source identity is never an availability gate;
 -- provenance stays advisory telemetry (NativeCompatibility).
+-- v1.7 (NEW-01): because a replaced-but-callable entrypoint is genuinely called,
+-- a success is only published after the point pool AND the target are re-read
+-- after the last live native call that can still mutate them: the dialog method
+-- (incStat/learnTalent/learnType), the finish callbacks
+-- (on_levelup_close/on_levelup_changed) and the unload cleanup
+-- (capLastLearntTalents). Any final disagreement is a typed, uncertain failure
+-- (`native_progression_mismatch`, uncertain=true), never ok=true.
 local Json = require 'mod.mcp_bridge.Json'
 local D = require 'mod.mcp_bridge.ObservationDetails'
 local M = {}
@@ -449,6 +456,14 @@ local function executeUnlearn(g,p,a)
     if not loaded or not dialogAudit(dialog) then return {ok=false,code='levelup_dialog_unavailable',energy_spent=0} end
     local host,native_message,entered=false,nil,false
     local function message(_,title,text) native_message=D.text(text or title,512) end
+    -- NEW-01: the refund postcondition (`before_points+1`, raw level exactly one
+    -- lower) is re-read after finish and after unload, because the live
+    -- on_levelup_close/on_levelup_changed callbacks and the cleanup can undo it.
+    local function postconditionMismatch()
+        if p[pools[pool]]~=before_points+1 then return 'points' end
+        local value=rawLevel(p,a.talent_id)
+        if not D.finite(value) or value~=before_value-1 then return 'target' end
+    end
     local ok,outcome=pcall(function()
         entered=true
         p.is_dialog_talent_leveling=true;p.no_last_learnt_talents_cap=true
@@ -469,6 +484,7 @@ local function executeUnlearn(g,p,a)
                 missing=staticMissing(p,p.talents_def and p.talents_def[a.talent_id])}
         end
         if not dialog.finish(host) then return {ok=false,code='native_progression_finish_failed',uncertain=true} end
+        if postconditionMismatch() then return {ok=false,code='native_progression_mismatch',uncertain=true} end
         return {ok=true,code='progression_applied',points_returned=1,point_pool=pool,
             previous_value=before_value,new_value=after_value}
     end)
@@ -480,6 +496,10 @@ local function executeUnlearn(g,p,a)
     if not ok or not cleanup_ok then
         outcome={ok=false,code='progression_execution_error',uncertain=entered or nil,
             error=D.text(tostring(not ok and outcome or cleanup_error),512)}
+    elseif outcome.ok and postconditionMismatch() then
+        -- unload (the native capLastLearntTalents) and any replaced-but-callable
+        -- cleanup ran after finish; the final refund must still hold.
+        outcome={ok=false,code='native_progression_mismatch',uncertain=true}
     end
     outcome.native_message=outcome.error or native_message
     local after_energy=type(p.energy)=='table' and D.number(p.energy.value)
@@ -564,6 +584,27 @@ function M.execute(g,action)
     local before_energy=p.energy.value
     local host,native_message,mutated,entered=false,nil,false,false
     local function message(_,title,text) native_message=D.text(text or title,512) end
+    -- NEW-01: compute the expected post-state once, then re-read it after every
+    -- live native call that can still mutate the player (the dialog method, the
+    -- finish callbacks and the unload cleanup). `targetValue` is the same raw
+    -- read used for the pre-finish check, so both agree on what "changed" means.
+    local function targetValue()
+        if a.type=='spend_stat' then return field(p,'stats',target)
+        elseif a.type=='learn_talent' then return rawLevel(p,a.talent_id)
+        else return known(p,a.category_id) and ((field(p,'talents_types_mastery',a.category_id) or 0)+1) or false end
+    end
+    local expected
+    if a.type=='learn_category' then
+        local base_mastery=field(p,'talents_types_mastery',a.category_id)
+        expected=(before_value==false and 1+(base_mastery or 0)) or (before_value+0.2)
+    else
+        expected=before_value+1
+    end
+    local function postconditionMismatch()
+        if p[pool]~=before_points-1 then return 'points' end
+        local value=targetValue()
+        if not D.finite(value) or math.abs(value-expected)>0.000001 then return 'target' end
+    end
     local ok,outcome=pcall(function()
         entered=true
         -- Same bookkeeping as LevelupDialog:init, without UI generation. The
@@ -581,19 +622,17 @@ function M.execute(g,action)
         if a.type=='spend_stat' then dialog.incStat(host,target,1)
         elseif a.type=='learn_talent' then dialog.learnTalent(host,a.talent_id,true)
         else dialog.learnType(host,a.category_id,true) end
-        local after_value
-        if a.type=='spend_stat' then after_value=field(p,'stats',target)
-        elseif a.type=='learn_talent' then after_value=rawLevel(p,a.talent_id)
-        else after_value=known(p,a.category_id) and ((field(p,'talents_types_mastery',a.category_id) or 0)+1) or false end
+        local after_value=targetValue()
         mutated=p[pool]~=before_points or after_value~=before_value
         if p[pool]~=before_points-1 then return {ok=false,code='native_progression_rejected',uncertain=mutated or nil,
             missing=staticMissing(p,a.talent_id and p.talents_def and p.talents_def[a.talent_id])} end
-        local expected=a.type=='learn_category' and (before_value==false and 1+(field(backup,'talents_types_mastery',a.category_id) or 0) or before_value+0.2)
-            or before_value+1
         if not D.finite(after_value) or math.abs(after_value-expected)>0.000001 then
             return {ok=false,code='native_progression_mismatch',uncertain=true}
         end
         if not dialog.finish(host) then return {ok=false,code='native_progression_finish_failed',uncertain=true} end
+        -- finish runs the live on_levelup_close/on_levelup_changed callbacks;
+        -- a replaced-but-callable one can undo the spend here.
+        if postconditionMismatch() then return {ok=false,code='native_progression_mismatch',uncertain=true} end
         return {ok=true,code='progression_applied',points_spent=1,point_pool=description.point_cost.pool,
             previous_value=before_value,new_value=after_value}
     end)
@@ -607,6 +646,10 @@ function M.execute(g,action)
     if not ok or not cleanup_ok then
         outcome={ok=false,code='progression_execution_error',uncertain=entered or nil,
             error=D.text(tostring(not ok and outcome or cleanup_error),512)}
+    elseif outcome.ok and postconditionMismatch() then
+        -- unload (the native capLastLearntTalents) and any replaced-but-callable
+        -- cleanup ran after finish; the final spend/learn must still match.
+        outcome={ok=false,code='native_progression_mismatch',uncertain=true}
     end
     outcome.native_message=outcome.error or native_message
     local after_energy=type(p.energy)=='table' and D.number(p.energy.value)
