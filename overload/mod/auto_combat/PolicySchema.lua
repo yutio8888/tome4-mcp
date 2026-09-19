@@ -107,7 +107,11 @@ M.HARD={max_actions_per_tick=4,max_instant_per_tick=3,max_consecutive_actions=20
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 local function integer(n,lo,hi) return finite(n) and n%1==0 and n>=lo and n<=hi end
-local function isArray(t) return type(t)=='table' and t~=Json.null end
+-- BND-REV-01: the weak `isArray` (type check only) is retired. Every caller-supplied
+-- array ingress uses `Json.denseArray` (checklist A) BEFORE any `#`/`ipairs`/index
+-- walk: a non-integer key / hole / key beyond the dense end is a typed schema
+-- error, never a shorter silently-measured list (a sparse `policy.rules` with a
+-- hole at index 3 used to be measured as a complete one-rule policy).
 
 local function onlyKeys(t,allowed,path,errors)
     for key in pairs(t) do
@@ -127,15 +131,21 @@ local function validateCondition(cond,path,depth,errors)
     if depth>M.HARD.max_depth then errors[#errors+1]={path=path,code='too_deep'};return end
     if type(cond)~='table' then errors[#errors+1]={path=path,code='invalid_condition'};return end
     if cond.all then
-        if not isArray(cond.all) then errors[#errors+1]={path=path,code='invalid_all'};return end
+        -- Checklist A (BND-REV-01): `cond.all` is caller data; it is dense+closed
+        -- validated before the index walk. A hole (`{[1]=ok,[3]=bad}`) or a key
+        -- beyond the dense end is `invalid_all` with the dense cause, never a
+        -- truncated complete group.
+        local dense,count=Json.denseArray(cond.all)
+        if not dense then errors[#errors+1]={path=path,code='invalid_all',cause=count};return end
         onlyKeys(cond,{all=true},path,errors)
-        for i,c in ipairs(cond.all) do validateCondition(c,path..'.all['..i..']',depth+1,errors) end
+        for i=1,count do validateCondition(cond.all[i],path..'.all['..i..']',depth+1,errors) end
         return
     end
     if cond.any then
-        if not isArray(cond.any) then errors[#errors+1]={path=path,code='invalid_any'};return end
+        local dense,count=Json.denseArray(cond.any)
+        if not dense then errors[#errors+1]={path=path,code='invalid_any',cause=count};return end
         onlyKeys(cond,{any=true},path,errors)
-        for i,c in ipairs(cond.any) do validateCondition(c,path..'.any['..i..']',depth+1,errors) end
+        for i=1,count do validateCondition(cond.any[i],path..'.any['..i..']',depth+1,errors) end
         return
     end
     if cond['not']~=nil then
@@ -369,9 +379,14 @@ function M.validate(policy)
         end
     end
     if policy.sustains~=nil then
-        if not isArray(policy.sustains) then errors[#errors+1]={path='sustains',code='invalid_sustains'}
+        -- Checklist A (BND-REV-01): `policy.sustains` is caller data; dense+closed
+        -- validated BEFORE the index walk (a sparse sustains array is
+        -- `invalid_sustains`, never a shorter silently-measured list).
+        local dense,count=Json.denseArray(policy.sustains)
+        if not dense then errors[#errors+1]={path='sustains',code='invalid_sustains',cause=count}
         else
-            for i,sustain in ipairs(policy.sustains) do
+            for i=1,count do
+                local sustain=policy.sustains[i]
                 local path='sustains['..i..']'
                 if type(sustain)~='table' then errors[#errors+1]={path=path,code='invalid_sustain'}
                 else
@@ -411,10 +426,14 @@ function M.validate(policy)
             end
             local tie=policy.targeting.tie_break
             if tie~=nil then
-                if type(tie)~='table' or tie==Json.null then
-                    errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break'}
+                -- Checklist A (BND-REV-01): the tie-break order is caller data;
+                -- dense+closed validated BEFORE the index walk.
+                local dense,count=Json.denseArray(tie)
+                if not dense then
+                    errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break',cause=count}
                 else
-                    for index,key in ipairs(tie) do
+                    for index=1,count do
+                        local key=tie[index]
                         if key~='distance' and key~='hp' and key~='uid' then
                             errors[#errors+1]={path='targeting.tie_break['..index..']',code='unsupported_tie_break'}
                         end
@@ -433,13 +452,20 @@ function M.validate(policy)
             end
         end
     end
-    if not isArray(policy.rules) or #policy.rules==0 then
-        errors[#errors+1]={path='rules',code='rules_required'}
+    -- Checklist A (BND-REV-01): `policy.rules` is caller data; it is dense+closed
+    -- validated BEFORE any `#`/length comparison/index walk. A hole (a valid rule
+    -- at index 1 with an invalid rule at index 3) is `invalid_rules` with the
+    -- dense cause — it is never measured as a shorter complete rule list, which
+    -- is how the old weak `isArray`+`#`+`ipairs` ingress hid a tail rule.
+    local rulesDense,rulesCause=Json.denseArray(policy.rules,1)
+    if not rulesDense then
+        errors[#errors+1]={path='rules',code='rules_required',cause=rulesCause}
     else
         local cap=policy.limits and policy.limits.max_rules or M.HARD.max_rules
-        if #policy.rules>cap then errors[#errors+1]={path='rules',code='too_many_rules'} end
+        if rulesCause>cap then errors[#errors+1]={path='rules',code='too_many_rules'} end
         local ids={}
-        for i,rule in ipairs(policy.rules) do
+        for i=1,rulesCause do
+            local rule=policy.rules[i]
             local path='rules['..i..']'
             if type(rule)~='table' then errors[#errors+1]={path=path,code='invalid_rule'}
             else

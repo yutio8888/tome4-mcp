@@ -112,7 +112,15 @@ function M.fields(policy)
         {id='safety.pause_on_unknown_safety',group='safety',label='Pause on unknown safety',
             kind='boolean',value=safety.pause_on_unknown_safety~=false},
     }
-    for _,rule in ipairs(policy.rules or {}) do
+    -- Checklist A (BND-REV-01): `policy.rules` is caller data. Only a
+    -- dense+closed list contributes editor fields; a malformed list is
+    -- skipped (no rule rows), never silently measured from a truncated
+    -- `ipairs` prefix.
+    local Json=require 'mod.mcp_bridge.Json'
+    local rulesOk,rulesCount=Json.denseArray(policy.rules)
+    local rules={}
+    if rulesOk then for i=1,rulesCount do rules[i]=policy.rules[i] end end
+    for _,rule in ipairs(rules) do
         fields[#fields+1]={id='rules.'..rule.id..'.enabled',group='rule',rule=rule.id,
             label=rule.id,kind='boolean',value=rule.enabled~=false}
         fields[#fields+1]={id='rules.'..rule.id..'.priority',group='rule',rule=rule.id,

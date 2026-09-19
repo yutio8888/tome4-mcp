@@ -25,10 +25,19 @@ fi
 # Boundary checklist self-check (AGENTS.md "边界输入与引擎字段清单"): a caller-data
 # `#`/`ipairs` without a dense validator, or a dropped engine-consulted raised
 # field, fails the standard suite before any Lua test runs.
+#
+# BND-REV-05: this gate is MANDATORY and cannot silently no-op. A missing
+# python3 FAILS the suite; skipping requires explicitly opting out with
+# TOME_MCP_ALLOW_NO_PYTHON=1 (a loud, deliberate decision, recorded in the
+# output), so a mandatory gate can never turn itself off by accident.
 if command -v python3 >/dev/null 2>&1; then
     python3 "$addon_dir/tools/check_boundary_rules.py" --check
+elif [ "${TOME_MCP_ALLOW_NO_PYTHON:-0}" = "1" ]; then
+    echo "tests/run.sh: WARNING python3 not found; boundary self-check SKIPPED by explicit TOME_MCP_ALLOW_NO_PYTHON=1" >&2
 else
-    echo "tests/run.sh: python3 not found; skipping tools/check_boundary_rules.py --check" >&2
+    echo "tests/run.sh: FAIL python3 is required by the mandatory boundary self-check" \
+        "(tools/check_boundary_rules.py); set TOME_MCP_ALLOW_NO_PYTHON=1 to skip it deliberately" >&2
+    exit 2
 fi
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_json.lua"
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_ledger.lua"

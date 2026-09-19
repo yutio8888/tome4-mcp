@@ -45,16 +45,33 @@ local function comparison(value)
     return nil,nil
 end
 
+-- Checklist A (BND-REV-01): `cond.all`/`cond.any` are caller data. A group is
+-- only iterable once `Json.denseArray` proves it dense+closed; the validated
+-- copy is what `ipairs` walks. A malformed group is never a shorter complete
+-- group: `evalCondition` degrades to UNKNOWN (checklist C) and `isSafety`
+-- degrades conservatively to "may involve safety predicates" (fail closed).
+local function denseChildren(list)
+    local ok,count=Json.denseArray(list)
+    if not ok then return nil end
+    local out={}
+    for i=1,count do out[i]=list[i] end
+    return out
+end
+
 function M.evalCondition(cond,ctx)
     if type(cond)~='table' then return UNKNOWN end
     if cond.all then
+        local children=denseChildren(cond.all)
+        if not children then return UNKNOWN end
         local result=TRUE
-        for _,child in ipairs(cond.all) do result=tri_and(result,M.evalCondition(child,ctx)) end
+        for _,child in ipairs(children) do result=tri_and(result,M.evalCondition(child,ctx)) end
         return result
     end
     if cond.any then
+        local children=denseChildren(cond.any)
+        if not children then return UNKNOWN end
         local result=FALSE
-        for _,child in ipairs(cond.any) do result=tri_or(result,M.evalCondition(child,ctx)) end
+        for _,child in ipairs(children) do result=tri_or(result,M.evalCondition(child,ctx)) end
         return result
     end
     if cond['not']~=nil then return tri_not(M.evalCondition(cond['not'],ctx)) end
@@ -134,11 +151,18 @@ end
 local function isSafety(cond)
     if type(cond)~='table' then return false end
     if cond.all then
-        for _,c in ipairs(cond.all) do if isSafety(c) then return true end end
+        -- A malformed group is treated as safety-involving (fail closed: an
+        -- unknown condition must pause, never be measured as a known non-safety
+        -- one from a truncated prefix).
+        local children=denseChildren(cond.all)
+        if not children then return true end
+        for _,c in ipairs(children) do if isSafety(c) then return true end end
         return false
     end
     if cond.any then
-        for _,c in ipairs(cond.any) do if isSafety(c) then return true end end
+        local children=denseChildren(cond.any)
+        if not children then return true end
+        for _,c in ipairs(children) do if isSafety(c) then return true end end
         return false
     end
     if cond['not']~=nil then return isSafety(cond['not']) end
@@ -255,7 +279,17 @@ function M.evaluate(policy,ctx,opts)
         return cached
     end
     local eligible={}
-    for _,rule in ipairs(policy.rules or {}) do
+    -- Checklist A (BND-REV-01): `policy.rules` is caller data; measure it only
+    -- after the dense+closed validation. A sparse/malformed rule list is never
+    -- a shorter complete rule list: it fails closed to a typed hold decision.
+    local rulesDense,rulesCount=Json.denseArray(policy.rules)
+    if not rulesDense then
+        return {decision='hold',reason='invalid_rules',results={},layer=layer,
+            cause=rulesCount}
+    end
+    local rules={}
+    for i=1,rulesCount do rules[i]=policy.rules[i] end
+    for _,rule in ipairs(rules) do
         local emergency=rule.emergency==true
         local include
         if sched.layer=='emergency' then include=emergency
@@ -317,7 +351,7 @@ function M.evaluate(policy,ctx,opts)
         end
         if refusedRule then
             local fallback={}
-            for _,rule in ipairs(policy.rules or {}) do
+            for _,rule in ipairs(rules) do
                 if rule.enabled~=false and rule.emergency~=true then fallback[#fallback+1]=rule end
             end
             table.sort(fallback,function(a,b)

@@ -593,7 +593,28 @@ function M.actionSupported(action) return action~=nil and M.ACTIONS[action]~=nil
 
 function M.verify(policy)
     local errors={}
-    for index,rule in ipairs((policy and policy.rules) or {}) do
+    -- Checklist A (BND-REV-01): `policy.rules`/`policy.sustains` are caller data;
+    -- only a dense+closed list is iterated. A malformed list is a typed error at
+    -- this ingress — never a truncated prefix silently verified as complete (a
+    -- sparse `policy.rules` with a hidden tail rule used to pass verify whole).
+    local rules,ruleCount=nil,0
+    if type(policy)=='table' and policy.rules~=nil then
+        local dense,count=Json.denseArray(policy.rules)
+        if not dense then
+            return nil,{{path='rules',code='invalid_rules',cause=count}}
+        end
+        rules,ruleCount=policy.rules,count
+    end
+    local sustains,sustainCount=nil,0
+    if type(policy)=='table' and policy.sustains~=nil then
+        local dense,count=Json.denseArray(policy.sustains)
+        if not dense then
+            return nil,{{path='sustains',code='invalid_sustains',cause=count}}
+        end
+        sustains,sustainCount=policy.sustains,count
+    end
+    for index=1,ruleCount do
+        local rule=rules[index]
         local action=rule['then'] and rule['then'].action
         local path='rules['..index..']'
         if action~=nil and not M.ACTIONS[action] then
@@ -701,7 +722,8 @@ function M.verify(policy)
             errors[#errors+1]={path=path,code='unsupported_talent',talent=rule['then'].talent}
         end
     end
-    for index,sustain in ipairs((policy and policy.sustains) or {}) do
+    for index=1,sustainCount do
+        local sustain=sustains[index]
         if not M.isSustain(sustain.talent) then
             errors[#errors+1]={path='sustains['..index..']',code='not_a_sustain',talent=sustain.talent}
         end

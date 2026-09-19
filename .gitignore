@@ -10,3 +10,4 @@ dist/*.teaa
 
 # Raw evidence / scratch (kept on disk, never committed)
 /tmp/
+tmp-evidence/

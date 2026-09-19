@@ -108,7 +108,15 @@ function M.validate(svc,policy)
 end
 
 local function findRule(policy,id)
-    for _,rule in ipairs(policy.rules or {}) do if rule.id==id then return rule end end
+    -- Checklist A (BND-REV-01): `policy.rules` is caller data; only a dense+closed
+    -- list is walked, and a malformed one finds no rule (fail closed) instead of
+    -- being measured as a shorter complete list.
+    local ok,count=Json.denseArray(policy and policy.rules)
+    if not ok then return nil end
+    for i=1,count do
+        local rule=policy.rules[i]
+        if rule.id==id then return rule end
+    end
     return nil
 end
 

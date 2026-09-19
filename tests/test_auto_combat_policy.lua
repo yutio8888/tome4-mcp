@@ -631,4 +631,70 @@ do
     check(Evaluator.newEnemyMode({})=='pause','the conservative default is pause')
 end
 
+-- BND-REV-01: sparse caller arrays must be rejected typed at every schema
+-- ingress (checklist A). The reviewer's production reproduction: a valid rule at
+-- index 1 and an INVALID rule at index 3 used to be measured as a complete
+-- one-rule policy (`schema_ok=true errors=0 lua_len=1`).
+do
+    local p=basePolicy()
+    p.rules={[1]={id='heal-low',priority=100,
+            when={hp_pct={lt=50}},['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
+        [3]={id='bad',priority=1,when={always=true},['then']={action='definitely_invalid'}}}
+    local ok,errors=Schema.validate(p)
+    check(not ok,'a sparse policy.rules (hole at 3) is rejected at ingress')
+    check(errors and errors[1] and errors[1].code=='rules_required' and errors[1].cause=='hole',
+        'the sparse rules ingress fails typed (rules_required/cause=hole), not silently shorter')
+    -- key beyond the dense end is the same family (the tail rule is hidden).
+    local p2=basePolicy()
+    p2.rules={[1]=p2.rules[1],[4]=p2.rules[2]}
+    local ok2,errors2=Schema.validate(p2)
+    check(not ok2 and errors2[1].code=='rules_required' and errors2[1].cause=='hole',
+        'a key beyond the dense end in policy.rules is rejected at ingress')
+    -- a non-integer key likewise.
+    local p3=basePolicy(); p3.rules[1.5]=p3.rules[1]
+    local ok3,errors3=Schema.validate(p3)
+    check(not ok3 and errors3[1].cause=='non_integer_key',
+        'a non-integer key in policy.rules is rejected at ingress')
+    -- sustains ingress.
+    local p4=basePolicy(); p4.sustains={[1]={talent='T_ARCANE_POWER'},[3]={talent='T_HEALING_LIGHT'}}
+    local ok4,errors4=Schema.validate(p4)
+    check(not ok4 and errors4[1].code=='invalid_sustains' and errors4[1].cause=='hole',
+        'a sparse policy.sustains is rejected at ingress')
+    -- condition group ingresses.
+    local p5=basePolicy(); p5.rules[1].when={all={[1]={hp_pct={lt=50}},[3]={always=true}}}
+    local ok5,errors5=Schema.validate(p5)
+    check(not ok5 and errors5[1].code=='invalid_all' and errors5[1].cause=='hole',
+        'a sparse cond.all group is rejected at ingress')
+    local p6=basePolicy(); p6.rules[2].when={any={[1]={hp_pct={lt=50}},[3]={always=true}}}
+    local ok6,errors6=Schema.validate(p6)
+    check(not ok6 and errors6[1].code=='invalid_any' and errors6[1].cause=='hole',
+        'a sparse cond.any group is rejected at ingress')
+    -- tie-break ingress.
+    local p7=basePolicy(); p7.targeting.tie_break={[1]='distance',[3]='hp'}
+    local ok7,errors7=Schema.validate(p7)
+    check(not ok7 and errors7[1].code=='invalid_tie_break' and errors7[1].cause=='hole',
+        'a sparse policy.targeting.tie_break is rejected at ingress')
+end
+
+-- BND-REV-01: the evaluator never measures a sparse caller array as a complete
+-- smaller one: a malformed cond.all is UNKNOWN (not FALSE from a truncated
+-- prefix), a malformed cond.any cannot satisfy, a sparse policy.rules holds
+-- typed, and a safety-classified malformed group fails closed to pause.
+do
+    check(Evaluator.evalCondition({all={[1]={always=true},[2]={hp_pct={lt=1}}}},{hp_pct=0})==Evaluator.TRUE,
+        'a dense group still evaluates normally (sanity)')
+    check(Evaluator.evalCondition({all={[1]={always=true},[3]={mystery=true}}},{})==Evaluator.UNKNOWN,
+        'a sparse cond.all is UNKNOWN, never a truncated complete group')
+    check(Evaluator.evalCondition({any={[1]={hp_pct={lt=1}},[3]={always=true}}},{} )==Evaluator.UNKNOWN,
+        'a sparse cond.any is UNKNOWN, never a truncated prefix measured as complete')
+    check(Evaluator.isSafety({all={[1]={hp_pct={lt=1}},[3]={always=true}}})==true,
+        'a sparse safety condition group fails closed (treated as safety)')
+    local sparse=basePolicy()
+    sparse.rules={[1]=sparse.rules[1],[3]=sparse.rules[2]}
+    local decision=Evaluator.evaluate(sparse,ctx({hp_pct=30}))
+    check(decision.decision=='hold' and decision.reason=='invalid_rules',
+        'the evaluator fails closed to a typed hold on a sparse policy.rules')
+    check(decision.cause=='hole','the typed hold carries the dense cause')
+end
+
 print('Auto-combat policy: '..checks..' checks passed')

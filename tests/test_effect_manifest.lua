@@ -331,4 +331,24 @@ do
     check(not starfall_ground,'Starfall has no persistent ground component')
 end
 
+-- BND-REV-01: `Manifest.verify` starts from the same caller carrier
+-- (`policy.rules`/`policy.sustains`); a sparse list is a typed error at this
+-- ingress, never a truncated prefix silently verified as complete.
+do
+    local sparseRules={schema=Manifest.SCHEMA,
+        rules={[1]={id='a',priority=1,when={always=true},['then']={action='wait'}},
+            [3]={id='b',priority=1,when={always=true},['then']={action='definitely_invalid'}}}}
+    local ok,errors=Manifest.verify(sparseRules)
+    check(not ok and errors[1].path=='rules' and errors[1].code=='invalid_rules'
+        and errors[1].cause=='hole',
+        'a sparse policy.rules fails typed in Manifest.verify')
+    local sparseSustains={schema=Manifest.SCHEMA,
+        sustains={[1]={talent='T_ARCANE_POWER'},[3]={talent='T_HEALING_LIGHT'}}}
+    local ok2,errors2=Manifest.verify(sparseSustains)
+    check(not ok2 and errors2[1].path=='sustains' and errors2[1].code=='invalid_sustains',
+        'a sparse policy.sustains fails typed in Manifest.verify')
+    check(Manifest.verify({schema=Manifest.SCHEMA})==true,
+        'a policy with no rules/sustains still verifies (dense sanity)')
+end
+
 print('Effect manifest: '..checks..' checks passed')
