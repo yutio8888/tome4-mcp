@@ -84,14 +84,35 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 30 | S2 契约修订（Investigation B）+ 应用事故修复 | B（Investigation）/ — | — | BLOCKED→已修复（Dev A 正确拒绝实施） | 0 | 0 | 0 | 0 | 0 |
 | 31 | S2 rev3 按修订契约实现（记录在 main 分支账本 c62c31e） | A（Dev）/ **Sol**（Review，复用复核自身） | 同 #29（复核自身发现） | FAIL（**do_not_merge**） | 0 | 1 | 2 | 0 | 3 |
 | 32 | S2 rev4/rev5 收口（presence-explicit + 运行期 exactly-one + Vault 撤回） | **B**（Dev rev4）→ **A**（Dev rev5）/ **Sol**（Review，复用复核自身） | 同 #29/#31（复核自身发现） | **PASS**（终审 **MERGE**，0 findings） | 0 | 0 | 0 | 1 | 1 |
+| 33 | S2 实机测试（Archmage / Phase Door 有效 TL5） | **A**（Test） | —（测试任务；前一候选 Sol 未参与） | FAIL（主目标 **PASS**；新 P1） | 0 | 1 | 0 | 0 | 1 |
+| 34 | S2-FIX5 前置拒绝误报偏差修复 | **B**（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | FAIL（**do_not_merge**） | 0 | 1 | 0 | 0 | 1 |
+| 35 | S2 rev7 零提示成功收紧（S2-FIX5-R1） | **A**（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | **PASS**（终审 **MERGE**，0 findings） | 0 | 0 | 0 | 0 | 0 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**32**（含 1 个未进入评审的 BLOCKED 轮；#31 记录于 main 分支账本 c62c31e）。
-- **PASS 11**、**FAIL 19**、BLOCKED 1、PARTIAL 0 → **通过率 11/31 = 35.5%**。
-- Issue 合计：**82**（P0 1 / P1 32 / P2 27 / P3 22）；平均每 loop 2.65。
+- Loop 总数：**35**（含 1 个未进入评审的 BLOCKED 轮；#31 记录于 main 分支账本 c62c31e）。
+- **PASS 12**、**FAIL 22**、BLOCKED 1、PARTIAL 0 → **通过率 12/34 = 35.3%**。
+- Issue 合计：**84**（P0 1 / P1 34 / P2 27 / P3 22）；平均每 loop 2.47。
+- **#33（S2 实机测试，model A）主目标 PASS**：Phase Door 有效 TL5 的自动路径 `target_sequence` 恰 2 条、
+  `hit`→`ball`、**answers 不同**（施法者 (26,7) → 落点 (26,9)）、`native_result=ok`、实际位移至 (25,10)
+  落在中心 ±1 内、**随机/视野外落点均未被拒绝**；红线 B1-B5/B7/B8 全清。**但发现新 P1**：合法策略下出现
+  **10 条无 `detail` 的伪 `unexpected_target_request`**，可稳定归因到"未加 `cooldown_ready` 守卫的一次
+  `start` 遇上原生入口冷却拒绝"（加守卫后归零；该窗口游戏日志只有一行冷却提示）。
+- **#34（S2-FIX5，Dev B / 全新 Sol）do_not_merge**：Dev 先修正了我的根因判断——settle 记录**本就有**
+  `expected/observed/skippable`，真正的无 detail 来源是 **controller 的同步偏差分支**（`self:record` 不
+  notify，日志只收到 `pause()` 的裸 notify），**与实机原始形状吻合**；两端均修。但 Sol 发现
+  **`raised` 门过宽**：它只区分"弹过/没弹过"，**未区分"前置拒绝"与"零提示成功返回"**，于是声明非
+  optional 条目的描述符可**零提示返回 true 并被报成 `action_complete`**（策略值从未被消费）。附三行复现。
+- **#35（S2 rev7，Dev A / 全新 Sol）MERGE，0 findings**：把豁免收窄为 `preflightRefusal = not raised and
+  not value`——**零提示真值返回在非 optional 序列下必须报 typed 偏差**，零提示假值仍是普通
+  `native_rejected`，一提示后中止仍偏差，尾部 optional 仍 `reduced=true`；**默认 fail-closed、无策展例外**
+  （唯一消费者是 3 个 Phase Door 单元，闸门静态可读）。PR #24 合并 `e2f82dfb`；probe 177/177 src+dist。
+- **基础设施（非 loop）**：低画质渲染档默认启用（`tests/native/runtime.py`，`main@a344f9b`）——单会话
+  CPU **375% → 78%（约 −79%）**，分辨率**刻意保持 1920×1080**（ToME 的 FOV/可见格集由视口决定，改分辨率会
+  破坏历史可比性）；`background_saves` **刻意不动**（关掉会让引擎 `savefilepipe` 报
+  `cannot resume dead coroutine`，被 runner 计为 Lua 错误）；probe 173/173 → 现在 177/177 均通过。
 - **#32 闭环（S2 交付，PR #23 合并 `e01776e6`）**：S2 经 **4 轮 Sol 评审 + 1 次契约修订 + 1 次应用事故**
   收敛。转折点：
   ① 几何分类器（`hit`/`bolt`=actor）**被证伪**——引擎把 `hit` 定义为"命中单个格"，Dimensional Step
