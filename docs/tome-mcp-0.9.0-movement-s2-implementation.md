@@ -505,13 +505,21 @@ precheck/expansion calls.
   `min_range`, `grid_exclude`, `filter`, and a raised `block_path`/`block_radius`
   callback (or an explicit `false`, which the engine honours and which disables
   the default blocker). A value is forwarded whenever it is present (`~=nil`, so
-  `false` is admitted). R2-APR3-01 (rev3): `act_exclude`
+  `false` is admitted). R2-APR3-01 (rev3/rev5): `act_exclude`
   (`{[uid]=true,...}`, documented at `Target.lua:647-650`) is also forwarded and
   honoured: the engine applies it BEFORE the self/friendly admission
   (`ActorProject.lua:248-255`), so the membership measurement excludes every
-  actor whose uid is a key — including the caster — and a raised non-table
-  `act_exclude`, or an unreadable actor uid under a raised `act_exclude`, keeps
-  the membership unknown (fail closed). R2-APR3-02 (rev3): the three
+  actor whose uid is a key — including the caster. The measurement mirrors the
+  engine's EXACT admission expression `typ.act_exclude and typ.act_exclude[act.uid]`
+  value-for-value (`AutoCombatGuard.M.actExcludeVerdict`): a raised table is
+  indexed by uid and `[uid]=false` stays a non-exclusion; `nil`/`false`
+  short-circuit to no exclusion; a **string** indexes without error to `nil`, so
+  it is native-faithful **no exclusion** (it must NOT be turned into a known
+  self-risk); a **number**/`true` would make the native indexing RAISE, so it is
+  an undecidable admission -> a **typed unknown** (`malformed_act_exclude`,
+  `unknown=true`) -> fail closed, never a known self/friendly risk and never a
+  silent non-exclusion. A raised table with an unreadable actor uid is likewise
+  unknown (fail closed). R2-APR3-02 (rev3): the three
   function-valued fields (`block_path`, `block_radius`, `filter`) are
   type-checked — a real callback or an explicit `false` is forwarded verbatim,
   while a non-nil non-function value (string/number/boolean) is never forwarded;
@@ -530,6 +538,37 @@ precheck/expansion calls.
   keeps the ordinary movement skip, a uniform stationary declaration is measured
   at every chosen grid, and only a mixed declaration needs the variant resolved
   (an indeterminate read fails closed with `movement_variant_unknown`).
+
+### 8.4a Caller-array ingress closure (R2-APR4-01..03)
+
+- **Checklist A everywhere on the policy/manifest ingress.** The single shared
+  validator `Json.denseArray` (positive-integer keys only, no holes, no keys
+  beyond the dense end) now guards every caller-supplied array BEFORE any
+  `#`/`ipairs`:
+  - `EffectManifest.verify` (R2-APR4-01) dense-validates the top-level `rules`/
+    `sustains` and each rule's `target_plan` at the boundary entry; a sparse
+    plan is the typed `invalid_target_plan` and a sparse rules list is
+    `invalid_rules`, never measured as the shorter prefix.
+  - `PolicySchema` (R2-APR4-02) dense-validates `rules`, `sustains`,
+    `cond.all`, `cond.any` and `targeting.tie_break`. The **canonical encoding
+    used for the content hash** is key-driven (not `#`-driven): a sparse/mixed/
+    non-integer-keyed policy array makes `M.canonical` return `nil,cause`, so
+    `M.hash` returns **no hash** rather than the shorter-prefix hash.
+  - `PolicyEvaluator` (R2-APR4-02) dense-validates `policy.rules` before
+    evaluation (a sparse list fails closed as `invalid_policy_rules`),
+    `cond.all`/`cond.any` (a sparse branch list is UNKNOWN) and the
+    `target_plan` read for the actor step selector (a sparse plan carries no
+    trustworthy binding).
+- **Checklist D across every generation increment** (R2-APR4-03). The five
+  `generation=self.generation+1` sites in `AutoCombat.lua` are `start`, `stop`,
+  `pause`, `resume` and the `awaiting_ready` promotion in `onOpportunity`.
+  Each is one externally-visible transition. The Option-A safety handoff used to
+  compose `pause` + `stop` (delta 2) because the service normalised a paused run
+  to the terminal `stopped` state with a second transition; it now calls
+  `AutoCombat:handoff(reason)`, which sets the terminal state WITHOUT advancing
+  the generation (and deduplicates a same-cause replay). Every safety-handoff
+  reason — `flee_below_hp_pct`, `no_emergency_action` and the queue-deviation
+  reasons — therefore advances the generation by exactly 1.
 
 ### 8.5 Published residual limitations (§6.6/§6.7)
 

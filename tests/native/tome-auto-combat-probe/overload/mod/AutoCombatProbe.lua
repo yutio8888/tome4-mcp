@@ -61,7 +61,7 @@ M.EXPECTED={
     ['effect-footprint-parity']={'parity_ok'},
     ['manifest-drift']={'verified','hash_reported','identity_ok','advisory_ok'},
     ['dynamic-talents']={'provider_ok','T_FLAMESHOCK:ok','T_FIREFLASH:ok','T_SHADOW_BLAST:ok','T_STARFALL:ok'},
-    ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running'},
+    ['safety-handoff']={'handoff','owner_manual','stopped','resume_not_running','exact_delta'},
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
     ['movement-fallback']={'blocked_landing','alternative_planned','fallback_moved'},
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
@@ -409,6 +409,14 @@ local function safetyHandoffSetup()
     forceReady()
     local started=Runtime.autoCombatHandle(game,'start',{})
     M.handoff_frames=0
+    -- R2-APR4-03 (checklist D): the ordinary safety handoff must not compose a
+    -- second transition after the pause. The probe cannot observe the transient
+    -- `paused` state from `onFrame` (the pump pauses and normalises in one
+    -- service step), so the check below anchors on the controller's OWN paused
+    -- decision generation: the terminal generation must be exactly that + 1
+    -- (the pause is the one transition; the handoff adds none). The old
+    -- pause+stop composition produced +2.
+    M.handoff_generation=nil
     return started and started.ok or false
 end
 
@@ -429,6 +437,22 @@ local function safetyHandoffCheck()
     local refused=resumed.ok==false and resumed.error and resumed.error.code=='not_running'
     signals[#signals+1]=refused and 'resume_not_running' or 'resume_accepted'
     check('safety-handoff:resume',refused,resumed)
+    -- R2-APR4-03 (checklist D): the ordinary safety handoff is ONE externally
+    -- visible transition after the pause. The paused decision itself carries the
+    -- pre-pause generation; the terminal generation must be exactly +1, never
+    -- +2 (the old pause+stop composition).
+    local pausedGeneration
+    for _,decision in pairs((status.last_decisions or {})) do
+        if decision.kind=='paused' and decision.reason=='flee_below_hp_pct' then
+            pausedGeneration=decision.generation
+        end
+    end
+    local after=run and run.generation or nil
+    local exact=type(pausedGeneration)=='number' and type(after)=='number'
+        and after==pausedGeneration+1
+    signals[#signals+1]=exact and 'exact_delta' or 'delta_mismatch'
+    check('safety-handoff:delta',exact,
+        {before=pausedGeneration,after=after,reason=run and run.reason})
     game.player.life=M.handoff_saved_life
     Runtime.autoCombatHandle(game,'stop',{})
     Runtime.setAutoCombatExecution(game,false)

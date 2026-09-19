@@ -95,8 +95,16 @@ end
 --     documented at Target.lua:647-650 and applied BEFORE the self/friendly
 --     admission (ActorProject.lua:248-255), so any actor whose uid is a key —
 --     INCLUDING the caster — is not hit; the membership measurement honours it
---     (see `memberships`). Presence is table-valued: a raised table is
---     forwarded verbatim and an explicit `[uid]=false` stays a non-exclusion;
+--     (see `memberships`). The engine's actual admission is exactly
+--     `typ.act_exclude and typ.act_exclude[act.uid]`, so the NON-TABLE cases
+--     are modelled value-for-value (R2-APR3-01 rev5, `M.actExcluded`): a raised
+--     table is forwarded verbatim and indexed by uid (an explicit
+--     `[uid]=false` stays a non-exclusion), `nil`/`false` short-circuit to no
+--     exclusion, a STRING indexes without error to `nil` (no exclusion, exactly
+--     like native), and a number/`true`/other truthy non-indexable value makes
+--     the native indexing ERROR — that is an undecidable admission and becomes a
+--     TYPED unknown -> fail closed (never a known self risk, never a silent
+--     non-exclusion);
 --   * `filter` removes grids (ActorProject.lua:59-63);
 --   * a raised `block_path`/`block_radius` callback (or an explicit `false`)
 --     REPLACES the default blocker (ActorProject.lua:78-80,113-114,226-239 —
@@ -197,6 +205,41 @@ local function playerOverride(component,typ,ctx)
     return ctx.details.playerSelfOverride(ctx.source,typ or {})
 end
 
+-- R2-APR3-01 (rev5): mirror the engine's exact admission expression
+-- `typ.act_exclude and typ.act_exclude[act.uid]` (ActorProject.lua:252-255,
+-- documented Target.lua:647-650). Returns `false` (no exclusion), `true`
+-- (excluded) or `nil` when the native indexing itself would ERROR (an
+-- undecidable admission -> the guard fails closed as a typed unknown, never as
+-- a known self/friendly risk and never as a silent non-exclusion).
+--   nil / false          -> short-circuit: no exclusion
+--   table                -> uid lookup (an explicit `[uid]=false` is excluded=false)
+--   string               -> numeric index is nil: no exclusion (mirrors native)
+--   number / true / ...  -> indexing raises: undecidable -> nil
+function M.actExcludeVerdict(actExclude,uid)
+    if actExclude==nil or actExclude==false then return false end
+    -- A raised table is indexed by the ACTOR's real uid; an unreadable uid can
+    -- never be resolved into a definite admission, so it stays undecidable.
+    if type(actExclude)=='table' and uid==nil then return nil end
+    local ok,value=pcall(function() return actExclude[uid] end)
+    if not ok then return nil end
+    return value and true or false
+end
+
+-- R2-APR3-01 (rev5): the guard's earlier claim that every truthy non-table
+-- became a typed unknown was wrong (EffectRisk turned `self='unknown'` into a
+-- known selffire/friendlyfire risk, and a string was silently rejected as a
+-- 100% known self-hit). This predicate reports the truthful typed cause when a
+-- raised `act_exclude` cannot be indexed at all (number/true/function/...),
+-- which the guard then turns into `unknown=true` -> fail closed.
+function M.malformedActExclude(typ)
+    if type(typ)~='table' then return nil end
+    local value=typ.act_exclude
+    if value==nil or value==false then return nil end
+    local ok=pcall(function() return value[1] end)
+    if ok then return nil end
+    return 'act_exclude'
+end
+
 local function memberships(component,set,ctx,typ)
     local p=ctx.source
     local m={}
@@ -205,18 +248,19 @@ local function memberships(component,set,ctx,typ)
     -- R2-APR3-01: the engine admits actors against `typ.act_exclude` BEFORE the
     -- self/friendly-fire filters (ActorProject.lua:248-255, documented at
     -- Target.lua:647-650): an actor whose uid is a key of the raised table —
-    -- INCLUDING the caster — is never hit. The measurement mirrors that
-    -- admission. A raised non-table `act_exclude`, or an actor whose uid is
-    -- unreadable while a raised `act_exclude` is present, makes the engine
-    -- admission undecidable: the membership is unknown (conservative union,
-    -- fail closed). An explicit `[uid]=false` stays a non-exclusion.
+    -- INCLUDING the caster — is never hit. The measurement mirrors the engine
+    -- admission exactly through `M.actExcludeVerdict`: `nil`/`false` and a
+    -- string (whose numeric index yields nil) are no exclusion, a table is a uid
+    -- lookup, and a number/`true` (whose indexing would RAISE) is rejected
+    -- before expansion by the `M.malformedActExclude` gate as a typed unknown.
+    -- A raised table with an unreadable actor uid is likewise undecidable
+    -- (conservative union, fail closed), and an explicit `[uid]=false` stays a
+    -- non-exclusion.
     local actExclude=(typ~=nil and type(typ)=='table') and typ.act_exclude or nil
     local function actExcluded(actor)
-        if actExclude==nil then return false end
-        if type(actExclude)~='table' then return nil end
+        if actExclude==nil or actExclude==false then return false end
         local uid=type(actor)=='table' and actor.uid or nil
-        if uid==nil then return nil end
-        return actExclude[uid] and true or false
+        return M.actExcludeVerdict(actExclude,uid)
     end
     local selfExcluded=actExcluded(p)
     if selfExcluded==nil then
@@ -479,11 +523,20 @@ function M.build(ctx)
         -- R2-APR3-02 (checklist B): the curated static flags ARE the raised
         -- spec here; a malformed function-valued field is an explicit unknown
         -- -> fail closed BEFORE any precheck/expansion (the engine would
-        -- invoke the non-function value).
-        local malformedField=M.malformedFunctionField(stationaryProbeSpec(entry,talent,range))
+        -- invoke the non-function value). R2-APR3-01 (rev5): a raised
+        -- `act_exclude` whose native indexing would RAISE (number/`true`) is
+        -- the same kind of explicit unknown -> fail closed with `unknown=true`
+        -- (never a known self/friendly risk and never a silent non-exclusion).
+        local stationaryFlags=stationaryProbeSpec(entry,talent,range)
+        local malformedField=M.malformedFunctionField(stationaryFlags)
         if malformedField then
             return disable('selffire_risk',{talent=talent,stationary=true,
                 unknown=true,reason='malformed_function_field',field=malformedField})
+        end
+        local malformedExclude=M.malformedActExclude(stationaryFlags)
+        if malformedExclude then
+            return disable('selffire_risk',{talent=talent,stationary=true,
+                unknown=true,reason='malformed_act_exclude',field=malformedExclude})
         end
         local range=entry.range
         for _,grid in ipairs(grids) do
@@ -703,10 +756,19 @@ function M.build(ctx)
         -- and the radial `typ:block_radius` calls). A raised non-nil
         -- non-function value of those fields is never forwarded; it is an
         -- explicit unknown -> fail closed BEFORE any precheck/expansion.
+        -- R2-APR3-01 (rev5): the same typed-unknown gate covers a raised
+        -- `act_exclude` whose native indexing would RAISE (number/`true`); a
+        -- string indexes to nil and is therefore native-faithful no-exclusion.
         local malformedField=typ and M.malformedFunctionField(typ) or nil
         if malformedField then
             return disable('selffire_risk',{talent=talent,unknown=true,
                 reason='malformed_function_field',field=malformedField,
+                source=builderSource})
+        end
+        local malformedExclude=typ and M.malformedActExclude(typ) or nil
+        if malformedExclude then
+            return disable('selffire_risk',{talent=talent,unknown=true,
+                reason='malformed_act_exclude',field=malformedExclude,
                 source=builderSource})
         end
         local range=entry.range

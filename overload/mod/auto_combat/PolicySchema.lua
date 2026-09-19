@@ -114,7 +114,6 @@ M.HARD={max_actions_per_tick=4,max_instant_per_tick=3,max_consecutive_actions=20
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 local function integer(n,lo,hi) return finite(n) and n%1==0 and n>=lo and n<=hi end
-local function isArray(t) return type(t)=='table' and t~=Json.null end
 
 local function onlyKeys(t,allowed,path,errors)
     for key in pairs(t) do
@@ -134,15 +133,27 @@ local function validateCondition(cond,path,depth,errors)
     if depth>M.HARD.max_depth then errors[#errors+1]={path=path,code='too_deep'};return end
     if type(cond)~='table' then errors[#errors+1]={path=path,code='invalid_condition'};return end
     if cond.all then
-        if not isArray(cond.all) then errors[#errors+1]={path=path,code='invalid_all'};return end
+        -- R2-APR4-02 (checklist A): the caller-supplied branch array is
+        -- dense+closed validated BEFORE any `ipairs`/length read, so a sparse
+        -- `all` cannot be evaluated as its shorter prefix.
+        local dense,count=Json.denseArray(cond.all,0)
+        if not dense then
+            errors[#errors+1]={path=path,code='invalid_all',cause=select(2,Json.denseArray(cond.all,0))}
+            return
+        end
         onlyKeys(cond,{all=true},path,errors)
-        for i,c in ipairs(cond.all) do validateCondition(c,path..'.all['..i..']',depth+1,errors) end
+        for i=1,count do validateCondition(cond.all[i],path..'.all['..i..']',depth+1,errors) end
         return
     end
     if cond.any then
-        if not isArray(cond.any) then errors[#errors+1]={path=path,code='invalid_any'};return end
+        -- R2-APR4-02 (checklist A): same dense/closed ingress for `any`.
+        local dense,count=Json.denseArray(cond.any,0)
+        if not dense then
+            errors[#errors+1]={path=path,code='invalid_any',cause=select(2,Json.denseArray(cond.any,0))}
+            return
+        end
         onlyKeys(cond,{any=true},path,errors)
-        for i,c in ipairs(cond.any) do validateCondition(c,path..'.any['..i..']',depth+1,errors) end
+        for i=1,count do validateCondition(cond.any[i],path..'.any['..i..']',depth+1,errors) end
         return
     end
     if cond['not']~=nil then
@@ -380,9 +391,14 @@ function M.validate(policy)
         end
     end
     if policy.sustains~=nil then
-        if not isArray(policy.sustains) then errors[#errors+1]={path='sustains',code='invalid_sustains'}
+        -- R2-APR4-02 (checklist A): dense+closed BEFORE `ipairs`.
+        local dense,count=Json.denseArray(policy.sustains,0)
+        if not dense then
+            errors[#errors+1]={path='sustains',code='invalid_sustains',
+                cause=select(2,Json.denseArray(policy.sustains,0))}
         else
-            for i,sustain in ipairs(policy.sustains) do
+            for i=1,count do
+                local sustain=policy.sustains[i]
                 local path='sustains['..i..']'
                 if type(sustain)~='table' then errors[#errors+1]={path=path,code='invalid_sustain'}
                 else
@@ -422,10 +438,14 @@ function M.validate(policy)
             end
             local tie=policy.targeting.tie_break
             if tie~=nil then
-                if type(tie)~='table' or tie==Json.null then
-                    errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break'}
+                -- R2-APR4-02 (checklist A): dense+closed BEFORE `ipairs`.
+                local dense,count=Json.denseArray(tie,0)
+                if not dense then
+                    errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break',
+                        cause=select(2,Json.denseArray(tie,0))}
                 else
-                    for index,key in ipairs(tie) do
+                    for index=1,count do
+                        local key=tie[index]
                         if key~='distance' and key~='hp' and key~='uid' then
                             errors[#errors+1]={path='targeting.tie_break['..index..']',code='unsupported_tie_break'}
                         end
@@ -444,13 +464,20 @@ function M.validate(policy)
             end
         end
     end
-    if not isArray(policy.rules) or #policy.rules==0 then
-        errors[#errors+1]={path='rules',code='rules_required'}
+    -- R2-APR4-02 (checklist A): the top-level `rules` array is the most
+    -- consequential ingress — it feeds validation AND `Schema.hash`. Dense+closed
+    -- validate it over ALL keys BEFORE any `#`/`ipairs`, so a sparse list can
+    -- never be accepted, hashed, or evaluated as its shorter prefix.
+    local rulesDense,rulesCount=Json.denseArray(policy.rules,0)
+    if not rulesDense or rulesCount==0 then
+        errors[#errors+1]={path='rules',code='rules_required',
+            cause=rulesDense and nil or select(2,Json.denseArray(policy.rules,0))}
     else
         local cap=policy.limits and policy.limits.max_rules or M.HARD.max_rules
-        if #policy.rules>cap then errors[#errors+1]={path='rules',code='too_many_rules'} end
+        if rulesCount>cap then errors[#errors+1]={path='rules',code='too_many_rules'} end
         local ids={}
-        for i,rule in ipairs(policy.rules) do
+        for i=1,rulesCount do
+            local rule=policy.rules[i]
             local path='rules['..i..']'
             if type(rule)~='table' then errors[#errors+1]={path=path,code='invalid_rule'}
             else
@@ -579,21 +606,50 @@ function M.validate(policy)
 end
 
 -- Deterministic canonical encoding: arrays keep order, object keys are sorted.
+-- R2-APR4-02 (checklist A): the encoding is the input to the policy content
+-- hash, so it must NEVER consume a caller array through `#`/`ipairs` unchecked —
+-- a sparse `rules`/`sustains` list would otherwise hash identically to its
+-- shorter prefix. Every table is classified by its ACTUAL keys: a dense `1..n`
+-- integer array encodes as an array, a string-keyed object encodes sorted, and a
+-- sparse/mixed/non-integer-keyed table returns `nil,cause` so the caller
+-- computes NO hash at all (typed rejection, never a prefix hash).
 local function canonical(value)
     if type(value)~='table' then
         if type(value)=='string' then return Json.encode(value) end
         return tostring(value)
     end
-    if #value>0 then
+    local keys={}
+    local maxKey=0
+    local strings=false
+    for key in pairs(value) do
+        if type(key)=='number' and key>=1 and key%1==0 then
+            if key>maxKey then maxKey=key end
+        elseif type(key)=='string' then
+            strings=true
+        else
+            return nil,'non_integer_key'
+        end
+        keys[#keys+1]=key
+    end
+    if maxKey>0 then
+        if strings then return nil,'mixed_object_array' end
+        if maxKey~=#keys then return nil,'hole' end
+        for i=1,maxKey do if value[i]==nil then return nil,'hole' end end
         local parts={}
-        for i=1,#value do parts[#parts+1]=canonical(value[i]) end
+        for i=1,maxKey do
+            local encoded,err=canonical(value[i])
+            if encoded==nil then return nil,err end
+            parts[#parts+1]=encoded
+        end
         return '['..table.concat(parts,',')..']'
     end
-    local keys={}
-    for key in pairs(value) do keys[#keys+1]=key end
     table.sort(keys)
     local parts={}
-    for _,key in ipairs(keys) do parts[#parts+1]=Json.encode(key)..':'..canonical(value[key]) end
+    for _,key in ipairs(keys) do
+        local encoded,err=canonical(value[key])
+        if encoded==nil then return nil,err end
+        parts[#parts+1]=Json.encode(key)..':'..encoded
+    end
     return '{'..table.concat(parts,',')..'}'
 end
 
@@ -605,7 +661,10 @@ function M.canonical(policy)
 end
 
 function M.hash(policy)
-    local data=M.canonical(policy)
+    local data,cause=M.canonical(policy)
+    -- R2-APR4-02: a malformed (sparse/mixed/non-integer-keyed) policy array is
+    -- rejected outright; it must never be hashed as its shorter prefix.
+    if data==nil then return nil,cause end
     local ok,md5=pcall(require,'md5')
     if ok and type(md5)=='table' and md5.sumhexa then return md5.sumhexa(data) end
     -- Deterministic FNV-1a fallback for environments without the md5 module.

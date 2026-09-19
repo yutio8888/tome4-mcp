@@ -170,6 +170,48 @@ do
     check(svc.arbiter.owner=='auto_combat','the lease is held again')
 end
 
+-- R2-APR4-03 (checklist D): the ORDINARY safety handoff (the pause path the
+-- mismatch fixes did not touch) must also advance the generation EXACTLY once.
+-- The controller's `pause` already performs the one transition; the service's
+-- terminal-state normalisation is part of that same handoff, not a second stop.
+do
+    local svc=Service.new({host_factory=fakeHost})
+    local flee=policy({safety={min_hp_pct=35,flee_below_hp_pct=25}})
+    local d=Service.handle(svc,'set_draft',{policy=flee})
+    local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
+    Service.handle(svc,'start',{})
+    svc.controller.host.snapshot=function() return {hp_pct=10,enemy_count=1} end
+    local before=svc.controller.generation
+    local stepped=Service.step(svc)
+    check(stepped.ok and stepped.handoff==true and stepped.step.reason=='flee_below_hp_pct',
+        'the ordinary safety handoff pauses with its typed reason (R2-APR4-03)')
+    check(svc.controller.generation==before+1,
+        'the ordinary safety handoff advances the generation by exactly 1 (R2-APR4-03)')
+    check(stepped.generation==before+1,
+        'the reported handoff generation is the post-transition one (R2-APR4-03)')
+    check(svc.controller.state=='stopped' and svc.controller.reason=='flee_below_hp_pct',
+        'the ordinary safety handoff lands terminal with the safety reason (R2-APR4-03)')
+    -- A same-cause handoff replay is a no-op (never a second increment).
+    svc.controller:handoff('flee_below_hp_pct')
+    check(svc.controller.generation==before+1,
+        'a same-cause handoff replay is deduplicated (R2-APR4-03)')
+    -- no_emergency_action is the second ordinary safety pause and shares the
+    -- exact-delta guarantee.
+    local svc2=Service.new({host_factory=fakeHost})
+    local d2=Service.handle(svc2,'set_draft',{policy=policy()})
+    local ap2=Service.handle(svc2,'approve',{expected_hash=d2.draft_hash})
+    Service.handle(svc2,'activate',{expected_hash=ap2.approved_hash})
+    Service.handle(svc2,'start',{})
+    svc2.controller.policy.rules={}
+    svc2.controller.host.snapshot=function() return {hp_pct=10,enemy_count=1} end
+    local before2=svc2.controller.generation
+    local stepped2=Service.step(svc2)
+    check(stepped2.ok and stepped2.step.reason=='no_emergency_action'
+        and svc2.controller.generation==before2+1,
+        'the no_emergency_action handoff also advances the generation by exactly 1 (R2-APR4-03)')
+end
+
 do
     -- no_emergency_action is the other Option-A safety pause.
     local svc=Service.new({host_factory=fakeHost})
