@@ -10,6 +10,7 @@
 --   talent_known(talent), has_effect(effect,who), enemy_count,
 --   nearest_enemy_distance, enemy_in_melee, enemy_hp_pct, computed(field),
 --   attempts (real call attempts already spent in this action opportunity).
+local Json=require 'mod.mcp_bridge.Json'
 local Schema=require 'mod.auto_combat.PolicySchema'
 local M={}
 local TRUE,FALSE,UNKNOWN='true','false','unknown'
@@ -47,13 +48,21 @@ end
 function M.evalCondition(cond,ctx)
     if type(cond)~='table' then return UNKNOWN end
     if cond.all then
+        -- R2-APR4-02 (checklist A): the branch list is caller data; a sparse
+        -- list is not a smaller conjunction, so it evaluates to UNKNOWN
+        -- (fail closed) rather than over a truncated `ipairs` prefix.
+        local dense,count=Json.denseArray(cond.all,0)
+        if not dense then return UNKNOWN end
         local result=TRUE
-        for _,child in ipairs(cond.all) do result=tri_and(result,M.evalCondition(child,ctx)) end
+        for i=1,count do result=tri_and(result,M.evalCondition(cond.all[i],ctx)) end
         return result
     end
     if cond.any then
+        -- R2-APR4-02 (checklist A): same dense/closed rule for `any`.
+        local dense,count=Json.denseArray(cond.any,0)
+        if not dense then return UNKNOWN end
         local result=FALSE
-        for _,child in ipairs(cond.any) do result=tri_or(result,M.evalCondition(child,ctx)) end
+        for i=1,count do result=tri_or(result,M.evalCondition(cond.any[i],ctx)) end
         return result
     end
     if cond['not']~=nil then return tri_not(M.evalCondition(cond['not'],ctx)) end
@@ -133,11 +142,15 @@ end
 local function isSafety(cond)
     if type(cond)~='table' then return false end
     if cond.all then
-        for _,c in ipairs(cond.all) do if isSafety(c) then return true end end
+        local dense,count=Json.denseArray(cond.all,0)
+        if not dense then return false end
+        for i=1,count do if isSafety(cond.all[i]) then return true end end
         return false
     end
     if cond.any then
-        for _,c in ipairs(cond.any) do if isSafety(c) then return true end end
+        local dense,count=Json.denseArray(cond.any,0)
+        if not dense then return false end
+        for i=1,count do if isSafety(cond.any[i]) then return true end end
         return false
     end
     if cond['not']~=nil then return isSafety(cond['not']) end
@@ -206,8 +219,14 @@ end
 -- case, so it is resolved by the snapshot and honoured by the planner.
 local function actorStepSelector(then_)
     local plan=then_ and then_.target_plan
-    if type(plan)~='table' then return nil end
-    for _,step in ipairs(plan) do
+    -- R2-APR4-02 (checklist A): the ordered plan is caller-supplied policy data.
+    -- A malformed (sparse/non-integer-keyed) plan is not a smaller plan: it
+    -- carries no trustworthy actor binding, so the selector stays unresolved
+    -- (nil) rather than being read from a truncated `ipairs` prefix.
+    local dense,count=Json.denseArray(plan,1)
+    if not dense then return nil end
+    for index=1,count do
+        local step=plan[index]
         if step.request=='actor' and step.selector~=nil then return step.selector end
     end
     return nil
@@ -248,7 +267,19 @@ function M.evaluate(policy,ctx,opts)
         return cached
     end
     local eligible={}
-    for _,rule in ipairs(policy.rules or {}) do
+    -- R2-APR4-02 (checklist A): `policy.rules` is caller data and the runtime
+    -- evaluation ingress. Dense+closed validate it BEFORE any `ipairs`/length
+    -- read: a sparse rule list must fail closed (no rule evaluated), never be
+    -- silently evaluated as its shorter prefix. `nil` is returned so the
+    -- controller's `step()` returns a `noop`/hold rather than executing a
+    -- truncated policy.
+    local rulesDense,rulesCount=Json.denseArray(policy.rules or {},0)
+    if not rulesDense then
+        return {decision='pause',reason='invalid_policy_rules',critical=critical,
+            results={},layer=sched.layer}
+    end
+    for index=1,rulesCount do
+        local rule=policy.rules[index]
         local emergency=rule.emergency==true
         local include
         if sched.layer=='emergency' then include=emergency
@@ -310,7 +341,8 @@ function M.evaluate(policy,ctx,opts)
         end
         if refusedRule then
             local fallback={}
-            for _,rule in ipairs(policy.rules or {}) do
+            for index=1,rulesCount do
+                local rule=policy.rules[index]
                 if rule.enabled~=false and rule.emergency~=true then fallback[#fallback+1]=rule end
             end
             table.sort(fallback,function(a,b)

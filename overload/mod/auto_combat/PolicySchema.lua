@@ -110,7 +110,6 @@ M.HARD={max_actions_per_tick=4,max_instant_per_tick=3,max_consecutive_actions=20
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 local function integer(n,lo,hi) return finite(n) and n%1==0 and n>=lo and n<=hi end
-local function isArray(t) return type(t)=='table' and t~=Json.null end
 
 -- Checklist A: a caller-supplied ARRAY is only usable with `#`/`ipairs` once it
 -- is dense and closed over ALL keys (XPS1-REV-01: the weak `isArray` test let a
@@ -141,15 +140,20 @@ local function validateCondition(cond,path,depth,errors)
     if depth>M.HARD.max_depth then errors[#errors+1]={path=path,code='too_deep'};return end
     if type(cond)~='table' then errors[#errors+1]={path=path,code='invalid_condition'};return end
     if cond.all then
-        local count=denseList(cond.all)
-        if not count then errors[#errors+1]={path=path..'.all',code='invalid_all'};return end
+        -- R2-APR4-02 (checklist A, rebased onto X''): the branch array is
+        -- dense+closed validated BEFORE any `ipairs`/length read via the ONE
+        -- validator (denseList over Json.denseArray/denseFault); the typed
+        -- denseFault cause is carried on the diagnostic.
+        local count,allCause=denseList(cond.all)
+        if not count then errors[#errors+1]={path=path,code='invalid_all',cause=allCause};return end
         onlyKeys(cond,{all=true},path,errors)
         for i=1,count do validateCondition(cond.all[i],path..'.all['..i..']',depth+1,errors) end
         return
     end
     if cond.any then
-        local count=denseList(cond.any)
-        if not count then errors[#errors+1]={path=path..'.any',code='invalid_any'};return end
+        -- R2-APR4-02 (checklist A): same dense/closed ingress for `any`.
+        local count,anyCause=denseList(cond.any)
+        if not count then errors[#errors+1]={path=path,code='invalid_any',cause=anyCause};return end
         onlyKeys(cond,{any=true},path,errors)
         for i=1,count do validateCondition(cond.any[i],path..'.any['..i..']',depth+1,errors) end
         return
@@ -387,8 +391,9 @@ function M.validate(policy)
         end
     end
     if policy.sustains~=nil then
-        local sustainCount=denseList(policy.sustains)
-        if not sustainCount then errors[#errors+1]={path='sustains',code='invalid_sustains'}
+        local sustainCount,sustainCause=denseList(policy.sustains)
+        if not sustainCount then errors[#errors+1]={path='sustains',code='invalid_sustains',
+            cause=sustainCause}
         else
             for i=1,sustainCount do
                 local sustain=policy.sustains[i]
@@ -434,9 +439,9 @@ function M.validate(policy)
                 if type(tie)~='table' or tie==Json.null then
                     errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break'}
                 else
-                    local tieCount=denseList(tie)
+                    local tieCount,tieCause=denseList(tie)
                     if not tieCount then
-                        errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break'}
+                        errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break',cause=tieCause}
                     else
                         for index=1,tieCount do
                             local key=tie[index]
@@ -459,9 +464,15 @@ function M.validate(policy)
             end
         end
     end
-    local ruleCount=denseList(policy.rules)
+    -- R2-APR4-02 (checklist A, rebased onto X''): the top-level `rules` array
+    -- feeds validation AND the X-doubleprime content-hash sink; the density
+    -- loop itself lives only in Json.denseArray. A sparse list can never be
+    -- accepted, hashed (PolicyCodec classifies it as a fault), or evaluated as
+    -- its shorter prefix.
+    local ruleCount,rulesCause=denseList(policy.rules)
     if not ruleCount or ruleCount==0 then
-        errors[#errors+1]={path='rules',code='rules_required'}
+        errors[#errors+1]={path='rules',code='rules_required',
+            cause=rulesCause}
     else
         local cap=policy.limits and policy.limits.max_rules or M.HARD.max_rules
         if ruleCount>cap then errors[#errors+1]={path='rules',code='too_many_rules'} end

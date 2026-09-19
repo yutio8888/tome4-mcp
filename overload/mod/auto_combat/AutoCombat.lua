@@ -16,6 +16,7 @@ local Evaluator=require 'mod.auto_combat.PolicyEvaluator'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
 local Schema=require 'mod.auto_combat.PolicySchema'
 local Codec=require 'mod.auto_combat.PolicyCodec'
+local Json=require 'mod.mcp_bridge.Json'
 local M={}
 -- A rejected sustain is not retried forever: after this many rejected attempts
 -- in one run the sustain is disabled for that run (design 5.3).
@@ -164,6 +165,22 @@ function M:stop(reason)
     return {ok=true,state=self.state,generation=self.generation,action='release'}
 end
 
+-- R2-APR4-03 (checklist D): the Option-A safety pause hands control back to the
+-- player, so the run must land in the SAME terminal `stopped` state every other
+-- handoff ends in. The `pause` above already advanced the generation and
+-- notified the typed paused event, so normalising the state here must NOT be a
+-- second generation increment — the externally-visible transition is exactly
+-- one. A run already stopped for the same reason is a same-cause no-op.
+function M:handoff(reason)
+    reason=reason or self.reason or 'paused'
+    if self.state=='stopped' and self.reason==reason then
+        return {ok=true,state=self.state,generation=self.generation,action='release',deduplicated=true}
+    end
+    self.state='stopped'; self.reason=reason
+    self.known_enemies=nil
+    return {ok=true,state=self.state,generation=self.generation,action='release'}
+end
+
 function M:pause(reason)
     reason=reason or 'paused'
     -- Log/notify only on a real transition. Without this a caller that keeps
@@ -194,7 +211,14 @@ function M:resume()
 end
 
 function M:findRule(id)
-    for _,rule in ipairs(self.policy.rules or {}) do if rule.id==id then return rule end end
+    -- R2-APR4-02 (checklist A): only a dense rule list has trustworthy ids; a
+    -- sparse list must not resolve an id out of its truncated prefix.
+    local dense=self.policy and Json.denseArray(self.policy.rules or {},0)
+    if not dense then return nil end
+    for index=1,select(2,Json.denseArray(self.policy.rules,0)) do
+        local rule=self.policy.rules[index]
+        if rule.id==id then return rule end
+    end
     return nil
 end
 
@@ -357,7 +381,12 @@ function M:sustainStep()
     if self.attempts>=limit then return nil end
     if self:instantBudgetExhausted() then return nil end
     local ordered={}
-    for _,sustain in ipairs(self.policy.sustains or {}) do ordered[#ordered+1]=sustain end
+    -- R2-APR4-02 (checklist A): only a dense sustain list may be ordered and
+    -- activated; a sparse list carries no trustworthy program, so no sustain is
+    -- activated from it (fail closed rather than a truncated prefix).
+    local dense,count=Json.denseArray(self.policy.sustains or {},0)
+    if not dense then return nil end
+    for index=1,count do ordered[#ordered+1]=self.policy.sustains[index] end
     table.sort(ordered,function(a,b)
         local pa,pb=a.priority or 0,b.priority or 0
         if pa~=pb then return pa>pb end
