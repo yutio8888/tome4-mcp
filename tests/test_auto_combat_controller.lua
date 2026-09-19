@@ -921,4 +921,51 @@ do
     check(#host.requests==0,'the dry run calls no action/teleport entrypoint (X-U3)')
 end
 
+-- S3 G-U7 (REAL_GIANT_LEAP_TG, uber/str.lua:38-40): a settled success inside
+-- the radius-1 envelope acts (destination evidence carried); an unchanged or
+-- out-of-envelope settled success is a movement_postcondition_mismatch pause
+-- (the mismatch plumbing is asserted once in S-U4; the envelope evaluation
+-- cases are in the runtime block of test_auto_combat_execution.lua).
+do
+    local host=makeHost()
+    local plan={kind='grid',x=6,y=2,annotation={landing={kind='bounded',
+        center={x=6,y=2},radius=1},reasons={'bounded'}}}
+    host.plan=function() return {plan=plan} end
+    local guard_plans={}
+    host.guard=function(attempt)
+        guard_plans[#guard_plans+1]=attempt.plan
+        return {action='permit',detail={candidate_count=9,components_evaluated=1}}
+    end
+    local pol=policy({rules={{id='leap',priority=50,when={enemy_count={ge=1}},
+        ['then']={action='use_talent',talent='T_GIANT_LEAP',target='nearest_hostile',
+            target_plan={{request='grid',destination={selector='position',x=6,y=2,
+                accept={visibility='any',passability='native',hazard='any',
+                    landing='allow_random'}}}}}}}})
+    local c=AutoCombat.new(pol,host,{strict=false})
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='acted' and step.destination==plan.annotation,
+        'a Giant Leap success inside the envelope acts with the landing annotation (G-U7)',
+        step.action)
+    check(guard_plans[1]==plan,'the Giant Leap guard call receives the identical plan (G-U7/X-U3)')
+    -- Out-of-envelope settle: the runtime builds the mismatch; the controller
+    -- pauses on it (Path 1 plumbing, see S-U4).
+    local host2=makeHost()
+    host2.guard=function() return {action='permit',detail={}} end
+    host2.plan=function() return {plan=plan} end
+    host2.request=function(attempt)
+        host2.requests[#host2.requests+1]=attempt
+        return {status='ok',energy_spent=0,
+            postcondition_mismatch={reason='movement_postcondition_mismatch',uncertain=true,
+                outcome='outside_landing_envelope',expected={kind='bounded',radius=1},
+                observed={x=1,y=1}}}
+    end
+    local c2=AutoCombat.new(pol,host2,{strict=false})
+    c2:start()
+    local step2=c2:onOpportunity()
+    check(step2.action=='paused' and step2.reason=='movement_postcondition_mismatch',
+        'an out-of-envelope Giant Leap settle pauses with the typed reason (G-U7)',step2.action)
+    check(#host2.requests==1,'the mismatched leap is never resubmitted (G-U7)')
+end
+
 print('Auto-combat controller: '..checks..' checks passed')
