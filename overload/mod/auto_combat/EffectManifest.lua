@@ -439,10 +439,24 @@ M.UNSUPPORTED={
     -- later-triggered traps with a third-party trigger.
     {talent='T_WORMHOLE',scope='any',missing='effect_is_a_later_triggered_trap_pair',
         reason='activation moves nobody: the talent creates a pair of traps (chronomancy/spacetime-weaving.lua:164-207, added at :209-224) whose third-party trigger teleports whoever steps on either trap later (:179-194 teleportRandom at :183), so the landing/mover model does not describe it; the two prompts are distinguishable by cursor_type (:144 vs :152) and distance>=2 is checkable pre-commit, so neither is the blocker'},
-    {talent='T_EARTHEN_MISSILES',scope='any',missing='same_shape_equivalent',
-        reason='three same-shape bolt prompts whose order is semantically irrelevant (spells/stone.lua:39-54); the third is level-dependent, so the program is not a fixed order'},
-    {talent='T_DWARVEN_HALF_EARTHEN_MISSILES',scope='any',missing='same_shape_equivalent',
-        reason='three same-shape bolt prompts whose order is semantically irrelevant (gifts/dwarven-nature.lua:35-50); the third is level-dependent (TL5)'},
+    -- R2 (option A, loop 39): the interchangeable-group mechanism now exists
+    -- (`request_sequence` `group`/`equiv`, validated by `MovementAdapterFactory`)
+    -- and is exactly what these two talents needed for their SIGNATURE problem:
+    -- the three prompts are indistinguishable yet semantically equivalent (one
+    -- computed `damage`, the same projectile and the same
+    -- `DamageType.SPLIT_BLEED` for every prompt — spells/stone.lua:40-56). The
+    -- signature/order reason is therefore withdrawn. What remains is the
+    -- descriptor-vocabulary gap: both are **stationary projectiles** (the caster
+    -- does not move), while every admitted movement `delivery` denotes a mover
+    -- relocation and `request_then_landing` requires `delivery`/`landing`/`center`
+    -- (mover-landing concepts), and the guard still skips every movement-kind
+    -- entry unconditionally (no S3 mixed composition on this branch). Forcing
+    -- `delivery='step'` would assert a step that never happens, so the honest
+    -- typed reason is recorded instead (audit R2 STOP clause).
+    {talent='T_EARTHEN_MISSILES',scope='any',missing='stationary_project_delivery',
+        reason='a stationary multi-projectile program the movement vocabulary cannot express: the caster never moves, yet every admitted `delivery` denotes a mover relocation and `request_then_landing` requires delivery/landing/center; the three bolt prompts are semantically equivalent (one computed damage, the same projectile and DamageType.SPLIT_BLEED for every prompt, spells/stone.lua:40-56) and are now expressible as a declared interchangeable group, so the signature/order reason is withdrawn'},
+    {talent='T_DWARVEN_HALF_EARTHEN_MISSILES',scope='any',missing='stationary_project_delivery',
+        reason='a stationary multi-projectile program the movement vocabulary cannot express: the caster never moves (gifts/dwarven-nature.lua:35-50), the three TL5-dependent bolt prompts are semantically equivalent (one computed damage, the same projectile and DamageType.SPLIT_BLEED for every prompt) and are expressible as a declared interchangeable group, so the signature/order reason is withdrawn'},
     {talent='*',scope='any',missing='moving_or_swapping_another_actor',
         reason='typed multi-actor destination/effect semantics are not implemented'},
 }

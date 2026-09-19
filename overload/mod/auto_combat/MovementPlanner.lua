@@ -582,6 +582,10 @@ function M.planSequence(attempt,provider,movement,origin)
         -- the executor matches the live prompt against the same curation the
         -- factory validated for this position (`action.sequence[i].observed`).
         if values[i]~=nil and entry.observed~=nil then values[i].observed=entry.observed end
+        -- Interchangeable-group membership is curated descriptor data and must
+        -- ride the internal carrier for the executor's group-aware exactly-one
+        -- gate (same rationale as the curated observed signature above).
+        if values[i]~=nil and entry.group~=nil then values[i].group=entry.group end
     end
     local landing=steps[#steps].annotation
     local kinds={}

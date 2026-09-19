@@ -203,9 +203,26 @@ check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupp
         and not unsupportedEntry('T_WORMHOLE').reason:find('simple_dir_request',1,true)
         and not unsupportedEntry('T_WORMHOLE').reason:find('cross_prompt_postcondition',1,true),
         'Wormhole reason cites the trap pair (correct ranges) and withdraws the simple_dir_request/cross-prompt claims')
-    check(unsupportedEntry('T_EARTHEN_MISSILES').missing=='same_shape_equivalent'
-        and unsupportedEntry('T_DWARVEN_HALF_EARTHEN_MISSILES').missing=='same_shape_equivalent',
-        'Earthen Missiles variants are the same-shape-equivalent typed reason')
+    -- Loop 39 (R2 / option A): the interchangeable-group mechanism landed, so
+    -- the old `same_shape_equivalent` reason is withdrawn. Both talents remain
+    -- unsupported for a DIFFERENT, honest reason: the movement descriptor
+    -- vocabulary cannot express a stationary multi-projectile program (the
+    -- caster never moves while every admitted `delivery` denotes a relocation).
+    check(unsupportedEntry('T_EARTHEN_MISSILES').missing=='stationary_project_delivery'
+        and unsupportedEntry('T_DWARVEN_HALF_EARTHEN_MISSILES').missing=='stationary_project_delivery',
+        'Earthen Missiles variants carry the stationary-project typed reason (R2 STOP clause)')
+    check(unsupportedEntry('T_EARTHEN_MISSILES').reason:find('spells/stone.lua:40-56',1,true)
+        and unsupportedEntry('T_DWARVEN_HALF_EARTHEN_MISSILES').reason:find('gifts/dwarven-nature.lua:35-50',1,true),
+        'both reasons cite their reviewed source')
+    check(unsupportedEntry('T_EARTHEN_MISSILES').reason:find('interchangeable group',1,true)
+        and unsupportedEntry('T_EARTHEN_MISSILES').reason:find('withdrawn',1,true),
+        'the reason records that the signature/order blocker is now solved')
+    -- The reference doc's survey row must agree with the code.
+    do
+        local doc=io.open(root..'/docs/tome-mcp-0.9.0-movement-s2-implementation.md'):read('*a')
+        check(doc:find('stationary_project_delivery',1,true)~=nil,
+            'the S2 survey doc records the corrected R2 disposition')
+    end
     -- S2-R4-01: the agility Vault (techniques/agility.lua) is a MIXED
     -- movement/effect talent: its first (actor) prompt's target is attacked and
     -- may be dazed before the move. It must NOT be executable — component-free

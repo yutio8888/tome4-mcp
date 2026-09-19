@@ -66,6 +66,7 @@ M.EXPECTED={
     ['movement-fallback']={'blocked_landing','alternative_planned','fallback_moved'},
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
     ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused','sd_cooldown_native_rejected','sd_cooldown_no_pause','sd_zero_prompt_success_deviated','sd_zero_prompt_success_paused'},
+    ['movement-groups']={'grp_carrier','grp_declared_group_settles','grp_ungrouped_handed_back'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['handback-answer']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt'},
     ['handback-timeout']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_unanswered_cancelled'},
@@ -1938,6 +1939,160 @@ local function movementSequenceChecks()
 end
 M.movementSequenceChecks=movementSequenceChecks
 
+-- R2 (option A): declared interchangeable groups, through the REAL production
+-- host and executor. A test-only talent raises the SAME bolt prompt N times,
+-- exactly like Earthen Missiles (spells/stone.lua:40-56: one computed damage,
+-- the same projectile and DamageType for every prompt). The descriptor declares
+-- the N entries as one interchangeable group, so the production exactly-one gate
+-- accepts a matched set whose members are all in that group and settles in one
+-- submission. A control fixture declares the SAME signatures with NO group: the
+-- host builds fine (the runtime gate, not the factory, is the gate here) but the
+-- production queue must hand the ambiguous live prompt back.
+local function interchangeableGroupChecks()
+    local signals={}
+    local p=game.player
+    local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+    forceReady()
+    local before={x=p.x,y=p.y}
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local function fixture(name,group)
+        local proof='one computed damage and the same projectile/DamageType.SPLIT_BLEED '
+            ..'for every prompt (spells/stone.lua:40-56)'
+        local declared={}
+        for i=1,3 do
+            declared[i]={index=i,request='grid',subject='self',value_source='target_plan',
+                observed={cursor_type='bolt',nowarning=true},
+                group=group,equiv=group and proof or nil}
+        end
+        -- A grouped program is a legal DECLARATION (the factory validates it).
+        -- The ungrouped control is the SAME three identical signatures, which the
+        -- factory CORRECTLY refuses at build time (`request_signature_ambiguous`)
+        -- — so the control descriptor is hand-built exactly as the executor's own
+        -- carrier would be, to prove the RUNTIME gate (the normative safety net)
+        -- still hands the ambiguous live prompt back.
+        local entry
+        if group then
+            entry=assert(Factory.expand('request_then_landing',{request_sequence=declared,
+                delivery='teleport',landing='random',center='requested_grid',traverses=false,
+                relocates_other=false,radius=1,min_radius=0,range=10}))
+        else
+            local sequence={}
+            for i=1,3 do
+                sequence[i]={index=i,request='grid',subject='self',
+                    value_source='target_plan',observed={cursor_type='bolt',nowarning=true}}
+            end
+            entry={request_sequence=sequence,target_requests={'grid','grid','grid'},
+                delivery='teleport',landing='random',center='requested_grid',traverses=false,
+                relocates_other=false,radius=1,min_radius=0,range=10}
+        end
+        p.talents=p.talents or {}
+        p.talents_def=p.talents_def or {}
+        p.talents_cd=p.talents_cd or {}
+        p.talents[name]=1
+        p.talents_cd[name]=0
+        p.talents_def[name]={id=name,name='MCP group probe',mode='activated',
+            type={'spell/conveyance',1},cooldown=0,mana=0,
+            action=function(self)
+                for _=1,3 do
+                    local x,y=self:getTarget({type='bolt',range=10,nowarning=true})
+                    if not x then return nil end
+                end
+                return true
+            end}
+        local saved=EffectManifest.ENTRIES[name]
+        EffectManifest.ENTRIES[name]={kind='movement',target='self',resource='mana',
+            movement=entry,components={},conformance={builder=false}}
+        return entry,function()
+            EffectManifest.ENTRIES[name]=saved
+            if p.talents then p.talents[name]=nil end
+            if p.talents_def then p.talents_def[name]=nil end
+            if p.talents_cd then p.talents_cd[name]=nil end
+        end
+    end
+    local function gridPlan()
+        local plan={}
+        for i=1,3 do
+            plan[i]={request='grid',destination={selector='position',x=before.x+i,y=before.y,
+                accept=accept}}
+        end
+        return plan
+    end
+    -- (a) A declared group settles all three same-shape prompts in one submission.
+    local entryG,restoreG=fixture('T_MCP_GROUP_G','probe_group')
+    local polG=policy({{id='grp',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_GROUP_G',target='self'}}})
+    local hostG=Runtime.buildAutoCombatHostFor(game,polG,{drift=function() return true end})
+    local planG=hostG.plan({action='use_talent',talent='T_MCP_GROUP_G',target='self',
+        target_plan=gridPlan(),destination=gridPlan()[1].destination})
+    local groupedCarrier=planG and planG.plan and planG.plan.kind=='sequence'
+        and planG.plan.values[1].group=='probe_group'
+        and planG.plan.values[3].group=='probe_group'
+    check('movement-groups:carrier',groupedCarrier,
+        {kind=planG and planG.plan and planG.plan.kind,values=planG and planG.plan and planG.plan.values})
+    signals[#signals+1]=groupedCarrier and 'grp_carrier' or 'grp_carrier_missing'
+    local outcomeG
+    forceReady()
+    p.x,p.y=before.x,before.y
+    if p.talents_cd then p.talents_cd['T_MCP_GROUP_G']=0 end
+    if planG and planG.plan then
+        outcomeG=hostG.request({action='use_talent',talent='T_MCP_GROUP_G',
+            plan=planG.plan,rule='grp'})
+    end
+    local seqG=outcomeG and outcomeG.target_sequence
+    local groupedSettled=outcomeG and outcomeG.status=='ok'
+        and outcomeG.sequence_deviation==nil
+        and type(seqG)=='table' and #seqG==3
+        and seqG[1].answer and seqG[3].answer
+    check('movement-groups:declared-group-settles',groupedSettled,
+        {status=outcomeG and outcomeG.status,code=outcomeG and outcomeG.code,
+            deviation=outcomeG and outcomeG.sequence_deviation,sequence=seqG})
+    signals[#signals+1]=groupedSettled and 'grp_declared_group_settles'
+        or 'grp_declared_group_missing'
+    restoreG()
+    -- (b) Control: the SAME three identical signatures with NO declared group is
+    -- handed back (never answered) by the production exactly-one gate. The
+    -- handed-back prompts go to the REAL native targeting UI, so the player's
+    -- `getTarget` seam is stubbed to consume them (exactly as the S2 reorder
+    -- probe does) — this keeps no live targeting UI open for later scenarios.
+    local entryU,restoreU=fixture('T_MCP_GROUP_U',nil)
+    local polU=policy({{id='ung',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_GROUP_U',target='self'}}})
+    local hostU=Runtime.buildAutoCombatHostFor(game,polU,{drift=function() return true end})
+    local planU=hostU.plan({action='use_talent',talent='T_MCP_GROUP_U',target='self',
+        target_plan=gridPlan(),destination=gridPlan()[1].destination})
+    local asked={}
+    local saved_getTarget_U=rawget(p,'getTarget')
+    rawset(p,'getTarget',function(self,typ,...)
+        asked[#asked+1]=type(typ)=='table' and typ.type or tostring(typ)
+        return self.x+1,self.y,nil
+    end)
+    local outcomeU
+    forceReady()
+    p.x,p.y=before.x,before.y
+    if p.talents_cd then p.talents_cd['T_MCP_GROUP_U']=0 end
+    if planU and planU.plan then
+        outcomeU=hostU.request({action='use_talent',talent='T_MCP_GROUP_U',
+            plan=planU.plan,rule='ung'})
+    end
+    rawset(p,'getTarget',saved_getTarget_U)
+    local devU=outcomeU and outcomeU.sequence_deviation
+    local ungroupedHandedBack=devU and devU.reason=='unexpected_target_request'
+        and type(devU.matched_indexes)=='table' and #devU.matched_indexes==3
+        and devU.handed_back==true
+        and #asked==3
+        and outcomeU.target_sequence and outcomeU.target_sequence[1].answer==nil
+    check('movement-groups:ungrouped-ambiguous-handed-back',ungroupedHandedBack,
+        {status=outcomeU and outcomeU.status,code=outcomeU and outcomeU.code,
+            deviation=devU,asked=asked})
+    signals[#signals+1]=ungroupedHandedBack and 'grp_ungrouped_handed_back'
+        or 'grp_ungrouped_missing'
+    restoreU()
+    p.x,p.y=before.x,before.y
+    forceReady()
+    return compare('movement-groups',signals)
+end
+M.interchangeableGroupChecks=interchangeableGroupChecks
+
 
 local function runAll()
     local ok,err=pcall(function()
@@ -1961,6 +2116,7 @@ local function runAll()
         movementPlan()
         movementFactoryChecks()
         movementSequenceChecks()
+        interchangeableGroupChecks()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok
