@@ -691,15 +691,57 @@ do
         delivery='stationary',traverses=false,radius=1,landing_proof='proof'})
     check(fixedTemplate==nil and fixedTemplateErr.detail=='reserved_stationary_delivery',
         'a fixed mover template cannot author delivery=stationary either (R2-APR-02)')
-    -- The carrier-side group validator enforces contiguity too (R2-APR-03):
-    -- an interleaved group is refused in carrier mode, while a contiguous one
-    -- is accepted without the (carrier-inexpressible) value_source proof.
+    -- R2-APR2-02: contiguity is enforced UNCONDITIONALLY, so the build-time
+    -- language and the runtime carrier accept EXACTLY the same group shapes.
+    -- The reviewer's GENERIC_INTERLEAVED_FACTORY reproduction (a generic
+    -- `request_then_landing` group at indexes 1 and 3 around a distinguishable
+    -- ungrouped entry) is now refused at BUILD time as `group_not_contiguous`
+    -- (it was previously accepted by the generic template and only refused by
+    -- the carrier).
+    local genericInterleaved,genericInterleavedErr=Factory.expand('request_then_landing',{
+        request_sequence={
+            {index=1,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                observed={cursor_type='hit'}},
+            {index=3,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'}},
+        delivery='teleport',landing='random',center='self',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10})
+    check(genericInterleaved==nil and genericInterleavedErr.reason=='movement_adapter_invalid'
+        and genericInterleavedErr.detail=='group_not_contiguous',
+        'the BUILD-time generic template now refuses an interleaved group too (R2-APR2-02)')
+    -- The same shape is refused by `normalizeRequestSequence` directly (the
+    -- function the template calls), so the rule is not template-specific.
+    local directInterleaved,directInterleavedErr=Factory.normalizeRequestSequence({
+        {index=1,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'},
+        {index=2,request='grid',subject='self',value_source='target_plan',observed={cursor_type='hit'}},
+        {index=3,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'}})
+    check(directInterleaved==nil and directInterleavedErr.detail=='group_not_contiguous',
+        'normalizeRequestSequence refuses an interleaved group with no template flag (R2-APR2-02)')
+    -- A CONTIGUOUS generic group stays admitted (only interleaving is forbidden).
+    local genericContiguous,genericContiguousErr=Factory.expand('request_then_landing',{
+        request_sequence={
+            {index=1,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'},
+            {index=2,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'}},
+        delivery='teleport',landing='random',center='self',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10})
+    check(genericContiguous~=nil and genericContiguousErr==nil
+        and #genericContiguous.group_members==1,
+        'a CONTIGUOUS generic group stays admitted at build time (R2-APR2-02)')
+    -- A stationary interleaved group is refused with the same detail.
+    local stationaryInterleaved,stationaryInterleavedErr=stationary({
+        {index=1,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'},
+        {index=2,request='grid',subject='self',value_source='target_plan',observed=BOLT},
+        {index=3,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'}})
+    check(stationaryInterleaved==nil and stationaryInterleavedErr.detail=='group_not_contiguous',
+        'a stationary interleaved group is refused at build time (R2-APR2-02)')
+    -- The carrier-side group validator enforces the SAME contiguity rule
+    -- (R2-APR-03/R2-APR2-02): both boundaries now agree on the accepted language.
     local interleaved,interleavedErr=Factory.groupMembership({
         {index=1,request='grid',observed=BOLT,group='g1'},
         {index=2,request='grid',observed=BOLT},
         {index=3,request='grid',observed=BOLT,group='g1'}},{carrier=true})
     check(interleaved==nil and interleavedErr.detail=='group_not_contiguous',
-        'carrier-mode group validation refuses an interleaved group (R2-APR-03)')
+        'carrier-mode group validation refuses an interleaved group (R2-APR-03/R2-APR2-02)')
     local contiguous,contiguousErr=Factory.groupMembership({
         {index=1,request='grid',observed=BOLT,group='g1'},
         {index=2,request='grid',observed=BOLT,group='g1'}},{carrier=true})
