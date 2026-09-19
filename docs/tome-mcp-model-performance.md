@@ -87,14 +87,27 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 33 | S2 实机测试（Archmage / Phase Door 有效 TL5） | **A**（Test） | —（测试任务；前一候选 Sol 未参与） | FAIL（主目标 **PASS**；新 P1） | 0 | 1 | 0 | 0 | 1 |
 | 34 | S2-FIX5 前置拒绝误报偏差修复 | **B**（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | FAIL（**do_not_merge**） | 0 | 1 | 0 | 0 | 1 |
 | 35 | S2 rev7 零提示成功收紧（S2-FIX5-R1） | **A**（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | **PASS**（终审 **MERGE**，0 findings） | 0 | 0 | 0 | 0 | 0 |
+| 36 | S2-FIX5/rev7 定向复测（V1-V5） | **B**（Test） | —（测试任务） | **PASS**（V1-V5 全通过；仅夹具 bug） | 0 | 0 | 0 | 0 | 0 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**35**（含 1 个未进入评审的 BLOCKED 轮；#31 记录于 main 分支账本 c62c31e）。
-- **PASS 12**、**FAIL 22**、BLOCKED 1、PARTIAL 0 → **通过率 12/34 = 35.3%**。
-- Issue 合计：**84**（P0 1 / P1 34 / P2 27 / P3 22）；平均每 loop 2.47。
+- Loop 总数：**36**（含 1 个未进入评审的 BLOCKED 轮；#31 记录于 main 分支账本 c62c31e）。
+- **PASS 13**、**FAIL 22**、BLOCKED 1、PARTIAL 0 → **通过率 13/35 = 37.1%**。
+- Issue 合计：**84**（P0 1 / P1 34 / P2 27 / P3 22）；平均每 loop 2.40。
+- **#36（S2-FIX5/rev7 定向复测，model B）全部 PASS**：**V1** 旧 P1 零复现（未加 `cooldown_ready` 守卫 +
+  PD 冷却中 `start` ⇒ `paused reason=unexpected_target_request` **= 0**，冷却拒绝表现为普通
+  `denied/native_rejected` 且带 `missing={kind='cooldown',remaining=11}`，该窗口游戏日志**仅一行**冷却提示）；
+  **V2** 全场 12 条策略事件每条带 `rule`，4 条 denied 全带 `detail`，**paused=0**、无任何无 detail 事件；
+  **V3** 主目标仍 PASS（`target_sequence` 恰 2 条 `hit`→`ball`、两条 answer 不同、`native_result=ok`、
+  落点在中心 ±1）；**V4** 视野外落点**未被拒**且观察到**显式 fizzle 分支**；**V5** 直方图 **0 unexpected**、
+  `unexpected_target_request` 全场（含 A5）为 **0**——A5 反向验证表现为**计划期 typed 拒绝**
+  （`target_plan_mismatch`），即**在提交前**就被挡住，比运行时偏差更早。
+  **唯一问题在我方**：出生夹具引用了**不存在**的 `T_LIGHTNING_BOLT`（引擎报
+  `ActorTalents.lua:553: Learning unknown talent`），导致出生期 `native_tick_error` 隔离，需 `abandon` 恢复；
+  **已修**：改为真实 id `T_LIGHTNING`，并把非 PHASE_DOOR 的技能改为**可选容错**（未知/学习失败只跳过，
+  **不得**中断出生）。
 - **#33（S2 实机测试，model A）主目标 PASS**：Phase Door 有效 TL5 的自动路径 `target_sequence` 恰 2 条、
   `hit`→`ball`、**answers 不同**（施法者 (26,7) → 落点 (26,9)）、`native_result=ok`、实际位移至 (25,10)
   落在中心 ±1 内、**随机/视野外落点均未被拒绝**；红线 B1-B5/B7/B8 全清。**但发现新 P1**：合法策略下出现
