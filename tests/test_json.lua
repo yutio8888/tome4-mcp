@@ -42,4 +42,29 @@ local cycle = {}; cycle.self = cycle; check(not pcall(Json.encode, cycle), 'cycl
 local deep = {}; local tail = deep
 for _ = 1, Json.MAX_DEPTH + 2 do tail.child = {}; tail = tail.child end
 check(not pcall(Json.encode, deep), 'deep encoding rejected')
+-- Checklist A: the one shared dense/closed validator.
+do
+    local ok,count=Json.denseArray({1,2,3},1)
+    check(ok==true and count==3,'a dense array is accepted with its length')
+    local emptyOk,emptyCount=Json.denseArray({})
+    check(emptyOk==true and emptyCount==0,'an empty array is dense (length 0)')
+    local hole,holeCause=Json.denseArray({[1]='a',[3]='c'},1)
+    check(hole==false and holeCause=='hole','a hole is rejected')
+    local holeNil,holeNilCause=Json.denseArray({[1]='a',[2]=nil,[3]='c'},1)
+    check(holeNil==false and holeNilCause=='hole','an explicit nil hole is rejected')
+    local frac,fracCause=Json.denseArray({[1]='a',[1.5]='b'},1)
+    check(frac==false and fracCause=='non_integer_key','a non-integer key is rejected')
+    local str,strCause=Json.denseArray({[1]='a',oops='b'},1)
+    check(str==false and strCause=='non_integer_key','a string key is rejected')
+    local zero,zeroCause=Json.denseArray({[0]='a',[1]='b'},1)
+    check(zero==false and zeroCause=='non_integer_key','a zero key is rejected')
+    local negative,negativeCause=Json.denseArray({[-1]='a'},1)
+    check(negative==false and negativeCause=='non_integer_key','a negative key is rejected')
+    local short,shortCause=Json.denseArray({},1)
+    check(short==false and shortCause=='too_short','a min-length violation is too_short')
+    local nullOk,nullCause=Json.denseArray(Json.null,1)
+    check(nullOk==false and nullCause=='not_array','json.null is not an array')
+    local scalarOk,scalarCause=Json.denseArray('x',1)
+    check(scalarOk==false and scalarCause=='not_array','a scalar is not an array')
+end
 print(('json: %d checks passed'):format(checks))

@@ -1448,7 +1448,12 @@ buildAutoCombatHost=function(s,policy,opts)
                 -- implies the authoritative wrapper, so no one-shot prefill is
                 -- consumed by a message-path prompt.
                 action.sequence=plan.values
-                if type(action.sequence)~='table' or #action.sequence==0 then
+                -- Checklist A: the carrier is planner-produced, but re-check it
+                -- dense+closed here so a shorter dense view can never be accepted
+                -- (`M.normalizeSequence` re-validates it again in the executor).
+                local sequenceDense,sequenceCount=Json.denseArray(action.sequence,1)
+                if not sequenceDense or sequenceCount==0 then
+                    action.sequence=nil
                     return {status='rejected',code='sequence_unavailable',energy_spent=false}
                 end
             elseif plan and plan.kind=='grid' then

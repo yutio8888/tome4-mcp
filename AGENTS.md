@@ -167,6 +167,11 @@ generation；"pause + stop" 组合会加两次，必须直接实施一次或同�
 
 > 自检工具的 `A`/`B` 为结构性检查（`--check` 失败即退出非零）；`C`/`D`/`E` 由对应回归与评审清单强制，
 > 工具只报 **REVIEW** 并指明强制它们的回归，**不得**打印 PASS。
+>
+> **可执行自检**：`python3 tools/check_boundary_rules.py --check`（已接入 `tests/run.sh`，在 Lua
+> 套件之前运行，因此边界违规会让标准套件失败）。`--list` 打印每个被扫描的调用方数据 `#`/`ipairs`
+> 站点（含 `guarded`/`unguarded`），`--self-test` 自证 A/B 检测器会命中真实违规、放行已加护形
+> 式。若工具误报/漏报，必须先修工具并说明改了什么——开发者学会忽略的 lint 比没有更糟。
 
 ## 简报契约（派发必须遵守）
 

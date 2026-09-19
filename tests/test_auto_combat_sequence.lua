@@ -260,6 +260,38 @@ do
         provider,movement,{x=2,y=2})
     check(reversed==nil and reversedErr.reason=='target_plan_mismatch',
         'a reversed ordered plan is a typed mismatch')
+    -- Checklist A (boundary-selfcheck): the planner's own defence-in-depth. A
+    -- sparse plan or a sparse adapter request_sequence must fail closed, never be
+    -- measured by a truncated `#` as a smaller compatible program.
+    local holed,holedErr=Planner.planSequence({talent='T_PHASE_DOOR',target='self',
+        target_plan={[1]={request='actor',selector='self'},
+            [3]={request='grid',destination={selector='position',x=5,y=2,accept=accept}}}},
+        provider,movement,{x=2,y=2})
+    check(holed==nil and holedErr.reason=='invalid_target_plan',
+        'a sparse target_plan is invalid_target_plan in planSequence')
+    local badSeqMovement=assert(Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',observed=ACTOR_SIG},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                landing_from='envelope',observed=GRID_SIG}},
+        delivery='teleport',landing='random',center='requested_grid',
+        traverses=false,relocates_other=false,radius=1,min_radius=0,range=10}))
+    badSeqMovement.request_sequence={[1]=badSeqMovement.request_sequence[1],
+        [3]=badSeqMovement.request_sequence[2]}
+    local badSeq,badSeqErr=Planner.planSequence({talent='T_PHASE_DOOR',target='self',
+        bound_target=nil,target_plan={{request='actor',selector='self'},
+            {request='grid',destination={selector='position',x=5,y=2,accept=accept}}}},
+        provider,badSeqMovement,{x=2,y=2})
+    check(badSeq==nil and badSeqErr.reason=='invalid_target_plan',
+        'a sparse adapter request_sequence is invalid_target_plan in planSequence')
+    -- A sparse plan reaches the same typed failure through `M.plan` (never a
+    -- shorter multi_prompt measurement). Passing no movement adapter isolates the
+    -- dense check from variant resolution.
+    local viaPlan,viaPlanErr=Planner.plan({action='use_talent',talent='T_PHASE_DOOR',target='self',
+        target_plan={[1]={request='actor',selector='self'},
+            [3]={request='grid',destination={selector='position',x=5,y=2,accept=accept}}}},
+        provider,nil)
+    check(viaPlan==nil and viaPlanErr.reason=='invalid_target_plan',
+        'M.plan rejects a sparse target_plan as invalid_target_plan')
     -- An un-upgraded multi-prompt adapter keeps the typed capability pause.
     local plain=Planner.plan({action='use_talent',talent='T_X',target='self',
         target_plan={{request='actor',selector='self'},
@@ -776,6 +808,11 @@ do
     check(not Actions.validate({type='use_talent',talent_id='T_A',
         sequence={{kind='self',observed={cursor_type='hit',radius=3}}}}),
         'a dynamic numeric in the observed signature is invalid_sequence (not a signature field)')
+    -- Checklist A: the carrier is dense+closed; a sparse carrier is invalid_sequence
+    -- (the executor also re-checks it dense before any `#queue` read).
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={[1]={kind='self',observed=ACTOR_SIG},[3]={kind='grid',x=3,y=4,observed=GRID_SIG}}}),
+        'a sparse internal carrier is invalid_sequence')
     check(Actions.fingerprint({type='use_talent',talent_id='T_A',sequence={{kind='grid',x=3,y=4,observed=GRID_SIG}}},1)
         ~=Actions.fingerprint({type='use_talent',talent_id='T_A',sequence={{kind='grid',x=3,y=5,observed=GRID_SIG}}},1),
         'the sequence participates in command dedup')
@@ -1042,6 +1079,19 @@ do
         if error.code=='target_plan_mismatch' then mismatch=true end
     end
     check(ok==nil and mismatch,'a reversed plan is the existing target_plan_mismatch')
+    -- Checklist A (boundary-selfcheck): the plan is caller-supplied, so
+    -- `Manifest.verify` validates it dense+closed BEFORE any length comparison.
+    -- A sparse plan must be its own typed shape fault (`invalid_target_plan`),
+    -- not silently measured against a declared sequence by a truncated `#`.
+    local sparse=doorPolicy({[1]={request='actor',selector='self'},
+        [3]={request='grid',destination={selector='position',x=4,y=4,accept=accept}}})
+    local sparseOk,sparseErrors=Manifest.verify(sparse)
+    local sparseCode=nil
+    for _,error in ipairs(sparseErrors or {}) do
+        if error.path=='rules[1].then.target_plan' then sparseCode=error.code end
+    end
+    check(sparseOk==nil and sparseCode=='invalid_target_plan',
+        'a sparse target_plan is invalid_target_plan in Manifest.verify')
 end
 
 -- 13. Dry run: read-only, non-executing, announced as a sequence.

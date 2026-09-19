@@ -3,6 +3,23 @@ local M = { MAX_DEPTH = 64 }
 local array_mt = { __mcp_json_array = true }
 M.null = setmetatable({}, { __tostring = function() return 'json.null' end })
 function M.array(value) return setmetatable(value or {}, array_mt) end
+-- The project's ONE dense/closed array validator (AGENTS.md checklist A): a caller-supplied
+-- array is only usable with `#`/`ipairs` once every key is a positive integer, there are no
+-- holes, and no keys beyond the dense end. Rejects non-integer/zero/negative keys and holes; on
+-- success returns the dense length. Kept dependency-free here so every ingress can share it.
+function M.denseArray(list, minLength)
+    if type(list) ~= 'table' or list == M.null then return false, 'not_array' end
+    local maxKey, count = 0, 0
+    for key in pairs(list) do
+        if type(key) ~= 'number' or key % 1 ~= 0 or key < 1 then return false, 'non_integer_key' end
+        if key > maxKey then maxKey = key end
+        count = count + 1
+    end
+    if maxKey ~= count then return false, 'hole' end
+    for i = 1, maxKey do if list[i] == nil then return false, 'hole' end end
+    if minLength and maxKey < minLength then return false, 'too_short' end
+    return true, maxKey
+end
 local function fail(message) error('JSON: '..message, 0) end
 local function finite(n) return n == n and n > -math.huge and n < math.huge end
 

@@ -56,6 +56,9 @@ M.LANDINGS={exact=true,bounded_alternatives=true,random=true,source_defined=true
 M.CENTERS={self=true,actor=true,requested_grid=true}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
+-- The one canonical dense/closed validator is `Json.denseArray` (AGENTS.md checklist A); the
+-- factory's local name delegates so nothing in this codebase re-implements it.
+local Json=require 'mod.mcp_bridge.Json'
 
 local function shallowCopy(src)
     local out={}
@@ -94,20 +97,9 @@ end
 -- A closed list is a dense `1..n` integer-keyed array. Non-integer keys and holes
 -- are rejected instead of being silently ignored by `#`/`ipairs`.
 local function validateArray(list,minLen)
-    if type(list)~='table' then return false,'not_array' end
-    local maxKey=0
-    local count=0
-    for key in pairs(list) do
-        if type(key)~='number' or key%1~=0 or key<1 then return false,'non_integer_key' end
-        if key>maxKey then maxKey=key end
-        count=count+1
-    end
-    if minLen and maxKey<minLen then return false,'too_short' end
-    if count~=maxKey then return false,'hole' end
-    for i=1,maxKey do
-        if list[i]==nil then return false,'hole' end
-    end
-    return true,maxKey
+    local ok,result=Json.denseArray(list,minLen)
+    if ok then return true,result end
+    return false,result
 end
 
 M.validateArray=validateArray

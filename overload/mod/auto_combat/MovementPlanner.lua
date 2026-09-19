@@ -24,6 +24,7 @@
 -- acceptance reason (`visibility`/`passability`/`hazard`/`landing`) -- never a
 -- strategic refusal.
 local Distance=require 'mod.mcp_bridge.Distance'
+local Json=require 'mod.mcp_bridge.Json'
 local Factory=require 'mod.auto_combat.MovementAdapterFactory'
 local M={}
 
@@ -553,15 +554,18 @@ end
 function M.planSequence(attempt,provider,movement,origin)
     local sequence=movement.request_sequence
     local plan=attempt.target_plan
-    if type(plan)~='table' or #plan<1 then return nil,{reason='invalid_target_plan'} end
-    if #plan~=#sequence then
+    local sequenceOk,sequenceCount=Json.denseArray(sequence,1)
+    local planOk,planCount=Json.denseArray(plan,1)
+    if not sequenceOk or not planOk then return nil,{reason='invalid_target_plan'} end
+    if planCount<1 then return nil,{reason='invalid_target_plan'} end
+    if planCount~=sequenceCount then
         -- The descriptor declares an ordered program, so a plan that disagrees in
         -- length/kind is a policy/adapter mismatch (the static validator already
         -- rejects it; this is the planner's own honest defence).
         return nil,{reason='target_plan_mismatch',talent=attempt.talent,
-            expected=#sequence,got=#plan}
+            expected=sequenceCount,got=planCount}
     end
-    for i=1,#sequence do
+    for i=1,sequenceCount do
         if plan[i].request~=sequence[i].request then
             return nil,{reason='target_plan_mismatch',talent=attempt.talent,
                 expected=Factory.requestKinds(sequence)[i],got=plan[i].request,index=i}
@@ -569,7 +573,7 @@ function M.planSequence(attempt,provider,movement,origin)
     end
     local steps={}
     local values={}
-    for i=1,#sequence do
+    for i=1,sequenceCount do
         local entry=sequence[i]
         local planned,err=planSequenceEntry(entry,plan[i],attempt,provider,movement,origin)
         if not planned then
@@ -585,7 +589,7 @@ function M.planSequence(attempt,provider,movement,origin)
     end
     local landing=steps[#steps].annotation
     local kinds={}
-    for i=1,#sequence do kinds[i]=sequence[i].request end
+    for i=1,sequenceCount do kinds[i]=sequence[i].request end
     local annotation={}
     for key,value in pairs(landing) do annotation[key]=value end
     annotation.requests=kinds
@@ -706,13 +710,30 @@ function M.plan(attempt,provider,movement)
         -- prompt cannot be expressed by the single-target lowering, which would
         -- otherwise reject with `target_lost`). Only an un-upgraded multi-prompt
         -- adapter keeps the typed capability pause (never a silent ignore).
-        if movement~=nil and type(movement.request_sequence)=='table'
-            and #movement.request_sequence>0 then
+        -- Checklist A: `attempt.target_plan` is caller data, so both `#` reads
+        -- below go through the dense/closed validator first; a malformed plan is
+        -- the ordinary typed `invalid_target_plan`, never a shorter "multi_prompt"
+        -- measurement taken from a truncated `#`.
+        local planDense,planCount=Json.denseArray(attempt.target_plan,1)
+        if not planDense then
+            return nil,{reason='invalid_target_plan',talent=attempt.talent}
+        end
+        local sequenceDense,sequenceCount=false,nil
+        if type(movement)=='table' and type(movement.request_sequence)=='table' then
+            -- Present but malformed -> fail closed, never fall back to a
+            -- smaller single-request interpretation (checklist C).
+            sequenceDense,sequenceCount=Json.denseArray(movement.request_sequence,1)
+            if not sequenceDense then
+                return nil,{reason='invalid_target_plan',talent=attempt.talent,
+                    detail='movement_request_sequence_not_dense'}
+            end
+        end
+        if sequenceDense and sequenceCount>0 then
             return M.planSequence(attempt,provider,movement,origin)
         end
-        if #attempt.target_plan>1 then
+        if planCount>1 then
             return nil,{reason='unsupported_target_plan',talent=attempt.talent,
-                count=#attempt.target_plan,scope='multi_prompt',
+                count=planCount,scope='multi_prompt',
                 missing='ordered_request_sequence'}
         end
         if movement==nil then

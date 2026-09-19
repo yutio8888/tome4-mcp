@@ -488,8 +488,17 @@ function M.execute(g, action, target, meta, command)
                     -- unevaluable value or a refused guard value is answered as
                     -- the existing native target cancel (the body unwinds; there
                     -- is no correct value to hand anyone).
-                    local queue=(type(action.sequence)=='table' and #action.sequence>0)
-                        and action.sequence or nil
+                    -- The carrier was produced and closed by
+                    -- `M.normalizeSequence` in `M.validate` (a dense
+                    -- `Json.array`), but it is still re-checked dense here so a
+                    -- future producer cannot present a shorter dense view: every
+                    -- downstream `#queue` read uses this validated `queueCount`.
+                    local queue,queueCount=nil,0
+                    if type(action.sequence)=='table' then
+                        local dense,count=Json.denseArray(action.sequence,1)
+                        if not dense then return nil end
+                        if count>0 then queue,queueCount=action.sequence,count end
+                    end
                     local consumed=false
                     local observed=0
                     local yielded=false
@@ -695,7 +704,7 @@ function M.execute(g, action, target, meta, command)
                                 -- record the shape the native flow actually
                                 -- raised, then hand the live prompt back.
                                 deviate(observed,nil,nil,
-                                    {exhausted=true,count=#queue,
+                                    {exhausted=true,count=queueCount,
                                         observed_shape=observableSpec(typ) and typ.type or nil,
                                         handback=true})
                                 yielded=true
@@ -718,7 +727,7 @@ function M.execute(g, action, target, meta, command)
                                 return original(self,typ,...)
                             end
                             local matched_indexes={}
-                            for i=1,#queue do
+                            for i=1,queueCount do
                                 if observedMatchesSignature(typ,queue[i],p) then
                                     matched_indexes[#matched_indexes+1]=i
                                 end
@@ -805,7 +814,7 @@ function M.execute(g, action, target, meta, command)
                     if queue and command and not command.sequence_deviation
                         and not yielded and not preflightRefusal then
                         local answeredSeq=observed
-                        if answeredSeq<#queue then
+                        if answeredSeq<queueCount then
                             local missing=queue[answeredSeq+1]
                             local optional=missing.optional==true
                             if optional then

@@ -279,12 +279,17 @@ end
 -- executor prefills one native prompt today, so a longer plan is schema-valid
 -- but reported as a capability/integrity limit at execution (never silently
 -- ignored).
+-- Checklist A: the plan is caller-supplied, so it is dense+closed validated
+-- (`Json.denseArray`) BEFORE any `#`/`ipairs`; a non-integer key / hole / key
+-- beyond the dense end is `invalid_target_plan`, never a shorter measured plan.
 local function validateTargetPlan(plan,path,errors)
-    if not isArray(plan) or #plan==0 then
+    local dense,count=Json.denseArray(plan,1)
+    if not dense or count==0 then
         errors[#errors+1]={path=path,code='invalid_target_plan'};return
     end
-    if #plan>8 then errors[#errors+1]={path=path,code='target_plan_too_long'} end
-    for index,step in ipairs(plan) do
+    if count>8 then errors[#errors+1]={path=path,code='target_plan_too_long'} end
+    for index=1,count do
+        local step=plan[index]
         local stepPath=path..'['..index..']'
         if type(step)~='table' then errors[#errors+1]={path=stepPath,code='invalid_target_step'}
         else

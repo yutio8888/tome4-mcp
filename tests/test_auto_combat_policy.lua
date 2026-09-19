@@ -291,6 +291,49 @@ do
     noPlan.rules={{id='door',priority=10,when={always={}},
         ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',target_plan={}}}}
     check(not Schema.validate(noPlan),'an empty target_plan is rejected')
+    -- Checklist A (boundary-selfcheck): the plan is caller-supplied, so a sparse
+    -- plan must be rejected at ingress rather than measured as a shorter complete
+    -- plan (Lua `#` stops at the first hole; `ipairs` terminates there).
+    local function planError(p,path)
+        local ok,errors=Schema.validate(p)
+        if ok then return nil end
+        for _,error in ipairs(errors or {}) do if error.path==path then return error.code end end
+        return nil
+    end
+    local holed=basePolicy()
+    holed.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={[1]={request='self'},[3]={request='grid',
+                destination={selector='away',anchor='bound_target',accept=accept}}}}}}
+    check(planError(holed,'rules[1].then.target_plan')=='invalid_target_plan',
+        'a sparse (holed) target_plan is invalid_target_plan at policy ingress')
+    local nonInteger=basePolicy()
+    nonInteger.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={[1]={request='self'},oops={request='grid'}}}}}
+    check(planError(nonInteger,'rules[1].then.target_plan')=='invalid_target_plan',
+        'a non-integer target_plan key is invalid_target_plan at policy ingress')
+    local beyondEnd=basePolicy()
+    beyondEnd.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={[1]={request='self'},[1.5]={request='grid'}}}}}
+    check(planError(beyondEnd,'rules[1].then.target_plan')=='invalid_target_plan',
+        'a fractional target_plan key is invalid_target_plan at policy ingress')
+    -- A dense plan still validates (no false positive).
+    local dense=basePolicy()
+    dense.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={ {request='self'},
+                {request='grid',destination={selector='away',anchor='bound_target',accept=accept}} }}}}
+    check(Schema.validate(dense),'a dense ordered target_plan still validates')
+    -- Checklist A: the evaluator's actor step selector reads the same
+    -- caller-supplied plan; a sparse plan must not resolve a selector out of a
+    -- truncated `ipairs` prefix (it carries no trustworthy binding).
+    check(Evaluator.actorStepSelector({target_plan={[1]={request='actor',selector='self'},
+        [3]={request='actor',selector='nearest_hostile'}}})==nil,
+        'a sparse target_plan resolves no actor step selector')
+    check(Evaluator.actorStepSelector({target_plan={{request='actor',selector='nearest_hostile'}}})
+        =='nearest_hostile','a dense target_plan still resolves its actor selector')
 end
 -- S2-R4-01: the agility Vault must NOT be executable. Its first (actor) prompt's
 -- target is attacked and may be dazed before the move, so component-free

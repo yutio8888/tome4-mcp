@@ -22,6 +22,14 @@ else
     task_lua=lua
     task_lua_options=()
 fi
+# Boundary checklist self-check (AGENTS.md "边界输入与引擎字段清单"): a caller-data
+# `#`/`ipairs` without a dense validator, or a dropped engine-consulted raised
+# field, fails the standard suite before any Lua test runs.
+if command -v python3 >/dev/null 2>&1; then
+    python3 "$addon_dir/tools/check_boundary_rules.py" --check
+else
+    echo "tests/run.sh: python3 not found; skipping tools/check_boundary_rules.py --check" >&2
+fi
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_json.lua"
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_ledger.lua"
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_observation_views.lua"

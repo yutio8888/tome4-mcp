@@ -10,6 +10,7 @@
 --   talent_known(talent), has_effect(effect,who), enemy_count,
 --   nearest_enemy_distance, enemy_in_melee, enemy_hp_pct, computed(field),
 --   attempts (real call attempts already spent in this action opportunity).
+local Json=require 'mod.mcp_bridge.Json'
 local Schema=require 'mod.auto_combat.PolicySchema'
 local M={}
 local TRUE,FALSE,UNKNOWN='true','false','unknown'
@@ -206,8 +207,14 @@ end
 -- case, so it is resolved by the snapshot and honoured by the planner.
 local function actorStepSelector(then_)
     local plan=then_ and then_.target_plan
-    if type(plan)~='table' then return nil end
-    for _,step in ipairs(plan) do
+    -- Checklist A: the ordered plan is caller-supplied policy data. A malformed
+    -- (sparse/non-integer-keyed) plan is not a smaller plan: it carries no
+    -- trustworthy actor binding, so the selector stays unresolved (nil) rather
+    -- than being read from a truncated `ipairs` prefix.
+    local dense,count=Json.denseArray(plan,1)
+    if not dense then return nil end
+    for index=1,count do
+        local step=plan[index]
         if step.request=='actor' and step.selector~=nil then return step.selector end
     end
     return nil

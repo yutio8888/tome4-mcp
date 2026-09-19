@@ -1241,6 +1241,23 @@ do
     check(type(outcome.target_sequence)=='table' and #outcome.target_sequence==2,
         'the observed prompt sequence reaches the controller outcome')
     check(outcome.reduced==nil,'a fully answered sequence is not reduced')
+    -- Checklist A: the executor re-checks the planner-produced carrier dense+
+    -- closed. A malformed carrier must never be answered as a shorter queue; the
+    -- ordinary typed failure is `sequence_unavailable` (the executor's own
+    -- `Json.denseArray` guard) or `invalid_sequence` (normalizeSequence), never a
+    -- silent one-entry queue.
+    local sparseCarrier=host.request({action='use_talent',talent='T_SEQ_FIXTURE',
+        plan={kind='sequence',values={[1]={kind='self',request='actor',observed={cursor_type='hit',nowarning=true}},
+            [3]={kind='grid',request='grid',x=3,y=2,observed={cursor_type='ball',nowarning=true}}}},
+        rule='door'})
+    check(sparseCarrier.status=='rejected'
+        and (sparseCarrier.code=='sequence_unavailable' or sparseCarrier.code=='invalid_sequence'),
+        'a sparse internal carrier is rejected, never executed as a shorter queue')
+    -- The same dense guard applied directly to the executor's carrier read: a
+    -- sparse `action.sequence` yields queueCount==0 (no truncation).
+    local JsonMod=require 'mod.mcp_bridge.Json'
+    local dense,count=JsonMod.denseArray({[1]='a',[3]='c'},1)
+    check(dense==false and count=='hole','the executor carrier check rejects a sparse list')
     Manifest.ENTRIES.T_SEQ_FIXTURE=saved_entry
     Compat.matches,Compat.check=realMatches,realCheck
     Runtime.reset(g);g:display()
