@@ -859,13 +859,17 @@ do
     local events={}
     c.notify=function(ev) events[#events+1]=ev end
     c:start()
+    local startGeneration=c.generation
     local step=c:onOpportunity()
     check(step.action=='paused' and step.reason=='movement_postcondition_mismatch',
         'a settled synchronous postcondition mismatch pauses (S-U4)',step.action)
-    check(c.state=='paused' and c.reason=='movement_postcondition_mismatch',
-        'the run is paused with the typed reason')
+    check(c.state=='stopped' and c.reason=='movement_postcondition_mismatch',
+        'the mismatch transitions directly to stopped with the typed reason (S-U4/R4)',
+        c.state)
+    check(c.generation==startGeneration+1,
+        'exactly ONE generation transition per synchronous mismatch (R4)',
+        c.generation..' vs '..startGeneration)
     check(c.attempts==0,'a postcondition mismatch never consumes the action budget')
-    check(c.generation>1,'the generation advanced exactly through the pause')
     local typed=0
     for _,event in ipairs(events) do
         if event.kind=='paused' and event.reason=='movement_postcondition_mismatch' then

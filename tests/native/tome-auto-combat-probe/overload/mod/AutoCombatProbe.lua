@@ -68,8 +68,12 @@ M.EXPECTED={
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
     ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused','sd_cooldown_native_rejected','sd_cooldown_no_pause','sd_zero_prompt_success_deviated','sd_zero_prompt_success_paused'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed',
-        'shadowstep_planned','shadowstep_executed','leap_planned','leap_executed',
-        'vault_planned','vault_rejected','mismatch_handoff'},
+        'shadowstep_planned','shadowstep_executed',
+        'shadowstep_far_planned','shadowstep_far_executed',
+        'shadowstep_fizzle_planned','shadowstep_fizzle_executed',
+        'leap_planned','leap_executed',
+        'vault_planned','vault_rejected','vault_shield_planned','vault_shield_executed',
+        'mismatch_handoff'},
     ['movement-composition']={'mc_shadowstep_guard','mc_shadowstep_planned',
         'mc_giant_leap_guard','mc_giant_leap_plan_unavailable','mc_vault_planned',
         'mc_footprint_parity_flags'},
@@ -1337,6 +1341,134 @@ end
 -- executor. Rush (actor target), exact-grid Tumble, and a random self teleport.
 -- MFT-REV-09: the movement-talent run is a small async state machine so each
 -- yielding native task is settled before its final postcondition is asserted.
+
+-- The shared arena dummy: the bound hostile the native mixed actions attack.
+local function arenaDummy()
+    local p=game.player
+    for _,actor in pairs(game.level.entities or {}) do
+        if actor~=p and actor.name and tostring(actor.name):find('MCP target dummy') then
+            return actor
+        end
+    end
+    return nil
+end
+
+-- S3-A2-R5: a deterministic melee hit for the native attack observations.
+-- `Combat.checkHit` returns 100% once atk-def >= 20, so a probe attack value
+-- pins the hit (the setup's real weapon damage still applies; restored).
+local function forceAttackFixture(on)
+    local p=game.player
+    if on then
+        M.mt.saved_accuracy=p.combat_precomputed_accuracy
+        p.combat_precomputed_accuracy=1000
+        p.turn_procs=p.turn_procs or {}
+    elseif M.mt.saved_accuracy~=nil then
+        p.combat_precomputed_accuracy=M.mt.saved_accuracy
+        M.mt.saved_accuracy=nil
+    end
+end
+
+-- S3-A2-R5: clear the dummy's daze resistance/immunities so a REAL hit's
+-- setEffect(EFF_DAZED) is observable; the caller restores the clean state.
+local function clearDazeResistance(dummy)
+    M.mt.saved_daze={stun_resist=dummy.stun_resist,daze_resist=dummy.daze_resist,
+        stun_immune=dummy.stun_immune,daze_immune=dummy.daze_immune}
+    dummy.stun_resist=nil;dummy.daze_resist=nil
+    dummy.stun_immune=nil;dummy.daze_immune=nil
+    pcall(function() dummy:removeEffect(dummy.EFF_DAZED,true,true) end)
+end
+local function restoreDazeState(dummy)
+    if M.mt.saved_daze and dummy then
+        dummy.stun_resist=M.mt.saved_daze.stun_resist
+        dummy.daze_resist=M.mt.saved_daze.daze_resist
+        dummy.stun_immune=M.mt.saved_daze.stun_immune
+        dummy.daze_immune=M.mt.saved_daze.daze_immune
+    end
+    M.mt.saved_daze=nil
+    pcall(function() dummy:removeEffect(dummy.EFF_DAZED,true,true) end)
+end
+
+-- S3-A2-R5 (S-N2): ring every adjacent cell of the dummy with real, inert
+-- actors so the REAL teleportRandom(x,y,0) findFreeGrid(x,y,5) — which excludes
+-- `[Map.ACTOR]`-occupied cells — cannot land adjacent, while LOS/`canProject`
+-- stays intact (actors do not block sight, terrain walls do: the wall ring
+-- corner-blocked the aim line and the talent was refused with no_line_of_sight).
+-- The ring actors are invisible and never act; returns the ring for teardown.
+local function ringDummyWithBlockers(dummy)
+    local NPC=require 'mod.class.NPC'
+    local map=game.level.map
+    local saved={}
+    for _,delta in ipairs({{-1,-1},{0,-1},{1,-1},{-1,0},{1,0},{-1,1},{0,1},{1,1}}) do
+        local x,y=dummy.x+delta[1],dummy.y+delta[2]
+        if map:isBound(x,y) and not map(x,y,engine.Map.ACTOR) then
+            local blocker=NPC.new{
+                name='MCP far blocker', type='humanoid', subtype='human', display='d',
+                color=colors.DARK_GREY, faction='enemies', level_range={1,1},
+                max_life=10000, life_rating=0, rank=1, size_category=3,
+                dont_act=true, invisible=1000, ai='none', never_move=1,
+                stats={str=10, dex=10, mag=10, con=10},
+                combat={dam=0, atk=0, apr=0, dammod={str=1}},
+                combat_armor=0, combat_def=0,
+            }
+            blocker:resolve(); blocker:resolve(nil, true)
+            game.zone:addEntity(game.level,blocker,'actor',x,y)
+            saved[#saved+1]={actor=blocker,x=x,y=y}
+        end
+    end
+    local ring={}
+    for _,delta in ipairs({{-1,-1},{0,-1},{1,-1},{-1,0},{1,0},{-1,1},{0,1},{1,1}}) do
+        local x,y=dummy.x+delta[1],dummy.y+delta[2]
+        if map(x,y,engine.Map.ACTOR)==nil then
+            -- A ring cell silently failed to take an occupant: the real
+            -- teleport fallback could land adjacent and the assert would
+            -- fail with the landing distance in its details.
+            ring[#ring+1]=x..','..y..':MISSING'
+        end
+    end
+    M.emit{kind='probe_diag',scenario='far-ring',dummy=dummy.x..','..dummy.y,
+        ring=table.concat(ring,' ')}
+    return saved
+end
+local function unringDummyBlockers(saved)
+    local map=game.level.map
+    for _,entry in ipairs(saved or {}) do
+        local actor=entry.actor
+        -- `Zone:addEntity` returns nothing, so the created object is tracked
+        -- directly and fully removed from the level.
+        if actor then
+            if actor.x and actor.y and map(actor.x,actor.y,engine.Map.ACTOR)==actor then
+                map(actor.x,actor.y,engine.Map.ACTOR,nil)
+            end
+            pcall(function() game.level:removeEntity(actor, true) end)
+        end
+    end
+end
+
+-- V-N1: a real shield object so the native Vault pre-use check passes and the
+-- two real prompts run (the object is added to the real OFFHAND slot).
+local function wieldShield(on)
+    local p=game.player
+    if on then
+        local Object=require 'mod.class.Object'
+        local shield=Object.new{
+            name='probe test shield', type='armor', subtype='shield', display='[',
+            color=colors.STEEL_BLUE, desc=[[Test fixture shield.]],
+            shield_normal_combat=true,
+            combat={dam=10, atk=100, apr=0, dammod={str=1}},
+        }
+        shield:resolve(); shield:resolve(nil,true)
+        local added=p:addObject(p.INVEN_OFFHAND,shield)
+        M.mt.shield_added=added and shield or nil
+        return added
+    else
+        local inven=p:getInven('OFFHAND')
+        local item=inven and inven[1]
+        if item then p:removeObject('OFFHAND',1) end
+        M.mt.shield_added=nil
+        return item~=nil
+    end
+end
+
 local function movementTalentSetup()
     forceReady()
     Runtime.setAutoCombatExecution(game,true)
@@ -1355,6 +1487,11 @@ local function movementTalentSetup()
         -- Keep the fixture from re-applying a stun/daze that hits a native
         -- boolean-attribute merge; the movement postcondition does not need it.
         if actor.name and actor.name:find('MCP target dummy') then
+            -- S3-A2-R5: the dummy must be dazeable — the DAZED effect's activate
+            -- adds `never_move` as a temporary value (`(base[prop] or 0) + v`),
+            -- which errors on the boolean `true`. A numeric 1 stays truthy (the
+            -- dummy still never moves) and the arithmetic works.
+            if actor.never_move==true then actor.never_move=1 end
             actor.stun_immune=true
             actor.daze_immune=true
             actor.stun_resist=100
@@ -1370,6 +1507,9 @@ local function movementTalentSetup()
         p.talents[talent]=level
     end
     M.mt={index=0,signals={}}
+    -- S3-A2-R5: every mixed scenario attacks the same dummy — give the real
+    -- pools headroom so a later scenario never fails on a spent pool.
+    p.mana=300;p.stamina=1000;p.max_stamina=math.max(p.max_stamina or 0,1000)
     -- S3: Giant Leap's native requirement reads `damage_log.weapon.other`; the
     -- fixture satisfies it with test-only data (restored after the stage).
     M.mt.saved_damage_log=p.damage_log
@@ -1381,8 +1521,11 @@ local function movementTalentSetup()
         {name='door',talent='T_PHASE_DOOR',kind='door'},
         -- S3 mixed movement/effect admissions.
         {name='shadowstep',talent='T_SHADOWSTEP',kind='shadowstep'},
+        {name='shadowstep_far',talent='T_SHADOWSTEP',kind='shadowstep_far'},
+        {name='shadowstep_fizzle',talent='T_SHADOWSTEP',kind='shadowstep_fizzle'},
         {name='leap',talent='T_GIANT_LEAP',kind='leap'},
         {name='vault',talent='T_VAULT',kind='vault'},
+        {name='vault_shield',talent='T_VAULT',kind='vault_shield'},
         {name='mismatch',talent='T_SHADOWSTEP',kind='mismatch_service'},
     }
 end
@@ -1399,8 +1542,11 @@ local function movementTalentSignal(kind,suffix)
     local base=kind=='rush' and 'rush'
         or kind=='tumble' and 'tumble'
         or kind=='shadowstep' and 'shadowstep'
+        or kind=='shadowstep_far' and 'shadowstep_far'
+        or kind=='shadowstep_fizzle' and 'shadowstep_fizzle'
         or kind=='leap' and 'leap'
         or kind=='vault' and 'vault'
+        or kind=='vault_shield' and 'vault_shield'
         or kind=='mismatch_service' and 'mismatch'
         or 'teleport'
     return base..'_'..suffix
@@ -1466,21 +1612,115 @@ local function movementTalentRun(spec)
         check('movement-talents:shadowstep-plan',ok,{kind=planned and planned.plan and planned.plan.kind,
             reason=err and err.reason})
         if ok then
+            -- S3-A2-R5 (S-N1 native): anchor the caster next to the shared
+            -- arena dummy so the real teleportRandom(x,y,0) lands adjacent to
+            -- the bound actor regardless of where Phase Door dropped the
+            -- player; the REAL action then attacks and dazes it.
+            local dummy=arenaDummy()
+            if dummy then p:move(dummy.x-1,dummy.y,true); forceReady() end
+            M.mt.dummy=dummy
+            M.mt.dummy_life=dummy and dummy.life
+            clearDazeResistance(dummy)
+            forceAttackFixture(true)
+            if p.mana then p.mana=300 end
             if p.talents_cd then p.talents_cd[spec.talent]=nil end
             outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
                 bound_target=bound,rule='shadowstep'})
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
+        end
+    elseif spec.kind=='shadowstep_far' then
+        -- S3-A2-R5 (S-N2 native): wall every adjacent cell with real terrain so
+        -- the REAL teleportRandom(x,y,0) cannot land adjacent; the action's
+        -- final distance is >= 2 and the real attack/daze must NOT happen.
+        local ctx=host.snapshot('nearest_hostile')
+        local bound=ctx and ctx.bound_target
+        local planned,err=host.plan({action='use_talent',talent=spec.talent,bound_target=bound,
+            target='nearest_hostile',
+            target_plan={{request='actor',selector='nearest_hostile'}},
+            destination={selector='native_landing',anchor='bound_target',accept=accept}})
+        local ok=planned and planned.plan and planned.plan.kind=='actor'
+        M.mt.signals[#M.mt.signals+1]=ok and 'shadowstep_far_planned'
+            or 'shadowstep_far_plan_missing'
+        check('movement-talents:shadowstep-far-plan',ok,
+            {kind=planned and planned.plan and planned.plan.kind,
+                reason=err and err.reason})
+        if ok then
+            local dummy=arenaDummy()
+            M.mt.dummy=dummy
+            M.mt.dummy_life=dummy and dummy.life
+            M.mt.saved_terrains=dummy and ringDummyWithBlockers(dummy) or nil
+            clearDazeResistance(dummy)
+            forceAttackFixture(true)
+            if p.mana then p.mana=300 end
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
+            outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
+                bound_target=bound,rule='shadowstep_far'})
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
+        end
+    elseif spec.kind=='shadowstep_fizzle' then
+        -- S3-A2-R5 (S-N1 fizzle branch): with the teleport seam unusable the
+        -- REAL action returns true UNCHANGED (the curated fizzle mode); no
+        -- movement, no attack, no postcondition mismatch.
+        local ctx=host.snapshot('nearest_hostile')
+        local bound=ctx and ctx.bound_target
+        local planned,err=host.plan({action='use_talent',talent=spec.talent,bound_target=bound,
+            target='nearest_hostile',
+            target_plan={{request='actor',selector='nearest_hostile'}},
+            destination={selector='native_landing',anchor='bound_target',accept=accept}})
+        local ok=planned and planned.plan and planned.plan.kind=='actor'
+        M.mt.signals[#M.mt.signals+1]=ok and 'shadowstep_fizzle_planned'
+            or 'shadowstep_fizzle_plan_missing'
+        check('movement-talents:shadowstep-fizzle-plan',ok,
+            {kind=planned and planned.plan and planned.plan.kind,
+                reason=err and err.reason})
+        if ok then
+            local dummy=arenaDummy()
+            M.mt.dummy=dummy
+            M.mt.dummy_life=dummy and dummy.life
+            forceAttackFixture(true)
+            -- S3-A2-R5 fizzle fixture: `encased_in_ice` is rejected at the
+            -- native pre-use check (tome/class/Actor.lua preUseTalent rejects
+            -- every `is_teleport` talent), so it never reaches the action's
+            -- real fizzle branch. Dimensional Anchor passes pre-use and makes
+            -- the REAL teleportRandom return nil inside the action
+            -- (mod/class/Actor.lua `EFF_DIMENSIONAL_ANCHOR` guard), which is
+            -- the curated `unchanged='fizzle'` settlement.
+            if dummy then p:move(dummy.x-1,dummy.y,true); forceReady() end
+            M.mt.before={x=p.x,y=p.y}
+            clearDazeResistance(dummy)
+            p:setEffect(p.EFF_DIMENSIONAL_ANCHOR,2,{})
+            M.mt.anchor_set=true
+            if p.mana then p.mana=300 end
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
+            outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
+                bound_target=bound,rule='shadowstep_fizzle'})
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
         end
     elseif spec.kind=='leap' then
         local map=game.level.map
+        -- S3-A2-R5 (G-N1/G-N2 native): pick the leap target ADJACENT to the
+        -- shared arena dummy when one exists, so the REAL post-move projection
+        -- (centred on the actual landing cell, radius 1) demonstrably attacks
+        -- and dazes the recipient. Fall back to the generic free-grid scan.
         local tx,ty
-        for radius=2,9 do
-            for _,delta in ipairs({{radius,0},{-radius,0},{0,radius},{0,-radius},
-                {radius,radius},{-radius,-radius},{radius,-radius},{-radius,radius}}) do
-                local x,y=p.x+delta[1],p.y+delta[2]
+        local dummy=arenaDummy()
+        if dummy then
+            for _,delta in ipairs({{-1,0},{0,-1},{0,1},{1,0}}) do
+                local x,y=dummy.x+delta[1],dummy.y+delta[2]
                 if map:isBound(x,y) and not map:checkAllEntities(x,y,'block_move',p)
                     and not map(x,y,engine.Map.ACTOR) then tx,ty=x,y break end
             end
-            if tx then break end
+        end
+        if not tx then
+            for radius=2,9 do
+                for _,delta in ipairs({{radius,0},{-radius,0},{0,radius},{0,-radius},
+                    {radius,radius},{-radius,-radius},{radius,-radius},{-radius,radius}}) do
+                    local x,y=p.x+delta[1],p.y+delta[2]
+                    if map:isBound(x,y) and not map:checkAllEntities(x,y,'block_move',p)
+                        and not map(x,y,engine.Map.ACTOR) then tx,ty=x,y break end
+                end
+                if tx then break end
+            end
         end
         local planned,err
         if tx then
@@ -1494,9 +1734,19 @@ local function movementTalentRun(spec)
         check('movement-talents:leap-plan',ok,{x=tx,y=ty,reason=err and err.reason})
         if ok then
             M.mt.leap_target={x=tx,y=ty}
+            -- S3-A2-R5 (G-N1/G-N2): the REAL post-move projection at the
+            -- actual landing attacks and dazes every actor within radius 1;
+            -- capture the dummy's life so the assert can observe the effect.
+            local dummy=arenaDummy()
+            M.mt.dummy=dummy
+            M.mt.dummy_life=dummy and dummy.life
+            forceAttackFixture(true)
+            clearDazeResistance(dummy)
+            if p.stamina then p.stamina=1000 end
             if p.talents_cd then p.talents_cd[spec.talent]=nil end
             outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
                 bound_target=host.snapshot('nearest_hostile').bound_target,rule='leap'})
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
         end
     elseif spec.kind=='vault' then
         -- The probe player carries no shield, so the real native pre-use check
@@ -1515,6 +1765,41 @@ local function movementTalentRun(spec)
             if p.talents_cd then p.talents_cd[spec.talent]=nil end
             outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
                 bound_target=host.snapshot('nearest_hostile').bound_target,rule='vault'})
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
+        end
+    elseif spec.kind=='vault_shield' then
+        -- V-N1 (S3-A2-R5): with a REAL shield the native pre-use check passes
+        -- and the two real prompts run: the first target is attacked (and
+        -- dazed) BEFORE the move, then the mover relocates into the requested
+        -- grid's radius-1 landing envelope.
+        local dummy=arenaDummy()
+        if dummy then p:move(dummy.x-1,dummy.y,true) end
+        forceReady()
+        M.mt.before={x=p.x,y=p.y}
+        local ctx=host.snapshot('nearest_hostile')
+        local bound=ctx and ctx.bound_target
+        local planned,err=host.plan({action='use_talent',talent=spec.talent,
+            bound_target=bound,target='nearest_hostile',
+            target_plan={{request='actor',selector='nearest_hostile'},
+                {request='grid',destination={selector='position',x=p.x+2,y=p.y,accept=accept}}},
+            destination={selector='position',x=p.x+2,y=p.y,accept=accept}})
+        local ok=planned and planned.plan and planned.plan.kind=='sequence'
+        M.mt.signals[#M.mt.signals+1]=ok and 'vault_shield_planned'
+            or 'vault_shield_plan_missing'
+        check('movement-talents:vault-shield-plan',ok,
+            {kind=planned and planned.plan and planned.plan.kind,
+                reason=err and err.reason})
+        if ok then
+            M.mt.dummy=dummy
+            M.mt.dummy_life=dummy and dummy.life
+            M.mt.vault_landing={x=p.x+2,y=p.y}
+            wieldShield(true)
+            clearDazeResistance(dummy)
+            forceAttackFixture(true)
+            if p.stamina then p.stamina=1000 end
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
+            outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
+                bound_target=bound,rule='vault_shield'})
             if p.talents_cd then p.talents_cd[spec.talent]=nil end
         end
     elseif spec.kind=='mismatch_service' then
@@ -1577,22 +1862,96 @@ movementTalentAssert=function(spec)
     if spec.kind=='tumble' and M.mt.tumble_target then
         landed=p.x==M.mt.tumble_target.x and p.y==M.mt.tumble_target.y
     end
+    -- S3-A2-R5: shared native fixture teardown for the mixed attack scenarios.
+    local dummy=M.mt.dummy
+    local function teardown()
+        if M.mt.saved_terrains then
+            unringDummyBlockers(M.mt.saved_terrains)
+            M.mt.saved_terrains=nil
+        end
+        if M.mt.anchor_set then
+            p:removeEffect(p.EFF_DIMENSIONAL_ANCHOR,true,true)
+            M.mt.anchor_set=nil
+        end
+        restoreDazeState(dummy)
+        if M.mt.saved_encased~=nil then
+            p.encased_in_ice=M.mt.saved_encased
+            M.mt.saved_encased=nil
+        end
+        if M.mt.shield_added then wieldShield(false) end
+        forceAttackFixture(false)
+        M.mt.dummy=nil;M.mt.dummy_life=nil
+        if M.mt.saved_pos then p.x,p.y=M.mt.saved_pos.x,M.mt.saved_pos.y end
+    end
     -- S3 mixed movement/effect assertions (Shadowstep / Giant Leap / Vault /
     -- forced postcondition mismatch service run).
     if spec.kind=='shadowstep' then
         local settled=outcome and outcome.status=='ok'
-        -- The teleport envelope is radius 5 around the bound actor; an
-        -- unchanged endpoint is the curated fizzle mode (both are passes).
-        local inEnvelope=true
-        if settled and not moved then inEnvelope=true end
+        -- S3-A2-R5 (S-N1 native): the settled teleport lands ADJACENT to the
+        -- bound actor (teleportRandom(x,y,0) picks the nearest free grid), so
+        -- the REAL action then attacks and dazes the bound actor. Life must
+        -- have dropped and the daze must be applied (resistances cleared).
+        local adjacent=settled and dummy and
+            Distance.grid(p.x,p.y,dummy.x,dummy.y)==1
+        local attacked=dummy and dummy.life~=nil and dummy.life~=nil
+            and M.mt.dummy_life~=nil and dummy.life<M.mt.dummy_life
+        local dazed=(dummy and dummy.hasEffect and dummy:hasEffect(dummy.EFF_DAZED))
+            and true or false
         local noMismatch=outcome and outcome.postcondition_mismatch==nil
-        local ok=settled and inEnvelope and noMismatch
-        M.mt.signals[#M.mt.signals+1]=ok and 'shadowstep_executed' or 'shadowstep_rejected'
+        local ok=settled and adjacent and attacked and dazed and noMismatch
+        M.mt.signals[#M.mt.signals+1]=ok and 'shadowstep_executed'
+            or 'shadowstep_effect_missing'
         check('movement-talents:shadowstep-execute',ok,
             {status=outcome and outcome.status,code=outcome and outcome.code,
                 before=before.x..','..before.y,after=p.x..','..p.y,
+                adjacent=adjacent,attacked=attacked,dazed=dazed,
+                dummy_life=dummy and dummy.life,was=M.mt.dummy_life,
                 mismatch=outcome and outcome.postcondition_mismatch~=nil or false})
-        if M.mt.saved_pos then p.x,p.y=M.mt.saved_pos.x,M.mt.saved_pos.y end
+        teardown()
+        return
+    elseif spec.kind=='shadowstep_far' then
+        -- S-N2 native: the settled teleport is INSIDE the radius-5 envelope
+        -- but NOT adjacent; the real action must NOT attack or daze the
+        -- bound actor (life unchanged, no daze, no mismatch).
+        local settled=outcome and outcome.status=='ok'
+        local far=settled and dummy and
+            Distance.grid(p.x,p.y,dummy.x,dummy.y)>=2
+        local untouched=dummy and M.mt.dummy_life~=nil
+            and dummy.life==M.mt.dummy_life
+        local notDazed=dummy and dummy.hasEffect and
+            not dummy:hasEffect(dummy.EFF_DAZED)
+        local noMismatch=outcome and outcome.postcondition_mismatch==nil
+        local ok=settled and far and untouched and notDazed and noMismatch
+        M.mt.signals[#M.mt.signals+1]=ok and 'shadowstep_far_executed'
+            or 'shadowstep_far_wrong'
+        check('movement-talents:shadowstep-far-execute',ok,
+            {status=outcome and outcome.status,code=outcome and outcome.code,
+                before=before.x..','..before.y,after=p.x..','..p.y,
+                distance=dummy and Distance.grid(p.x,p.y,dummy.x,dummy.y),
+                untouched=untouched,notDazed=notDazed,
+                mismatch=outcome and outcome.postcondition_mismatch~=nil or false})
+        teardown()
+        return
+    elseif spec.kind=='shadowstep_fizzle' then
+        -- S-N1 fizzle branch native: the teleport is unusable, the REAL action
+        -- settles UNCHANGED at the caster cell (the curated fizzle mode); no
+        -- movement, no attack, no daze, no postcondition mismatch.
+        local settled=outcome and outcome.status=='ok'
+        local unchanged=(not moved)
+        local untouched=dummy and M.mt.dummy_life~=nil
+            and dummy.life==M.mt.dummy_life
+        local notDazed=dummy and dummy.hasEffect and
+            not dummy:hasEffect(dummy.EFF_DAZED)
+        local noMismatch=outcome and outcome.postcondition_mismatch==nil
+        local ok=settled and unchanged and untouched and notDazed and noMismatch
+        M.mt.signals[#M.mt.signals+1]=ok and 'shadowstep_fizzle_executed'
+            or 'shadowstep_fizzle_wrong'
+        check('movement-talents:shadowstep-fizzle-execute',ok,
+            {status=outcome and outcome.status,code=outcome and outcome.code,
+                before=before.x..','..before.y,after=p.x..','..p.y,
+                untouched=untouched,notDazed=notDazed,
+                mismatch=outcome and outcome.postcondition_mismatch~=nil or false})
+        teardown()
         return
     elseif spec.kind=='leap' then
         local settled=outcome and outcome.status=='ok'
@@ -1600,14 +1959,23 @@ movementTalentAssert=function(spec)
         if M.mt.leap_target then
             within=Distance.grid(p.x,p.y,M.mt.leap_target.x,M.mt.leap_target.y)<=1
         end
+        -- S3-A2-R5 (G-N1/G-N2 native): the REAL projection at the ACTUAL
+        -- landing cell attacked and dazed the recipient inside radius 1.
+        local adjacentAttack=dummy and M.mt.dummy_life~=nil
+            and dummy.life<M.mt.dummy_life
+            and Distance.grid(dummy.x,dummy.y,M.mt.leap_target.x,M.mt.leap_target.y)<=1
+        local dazed=(dummy and dummy.hasEffect and dummy:hasEffect(dummy.EFF_DAZED))
+            and true or false
         local noMismatch=outcome and outcome.postcondition_mismatch==nil
-        local ok=settled and within and noMismatch
+        local ok=settled and within and adjacentAttack and dazed and noMismatch
         M.mt.signals[#M.mt.signals+1]=ok and 'leap_executed' or 'leap_rejected'
         check('movement-talents:leap-execute',ok,
             {status=outcome and outcome.status,code=outcome and outcome.code,
                 before=before.x..','..before.y,after=p.x..','..p.y,
-                target=M.mt.leap_target and (M.mt.leap_target.x..','..M.mt.leap_target.y) or nil})
-        if M.mt.saved_pos then p.x,p.y=M.mt.saved_pos.x,M.mt.saved_pos.y end
+                target=M.mt.leap_target and (M.mt.leap_target.x..','..M.mt.leap_target.y) or nil,
+                dummy_life=dummy and dummy.life,was=M.mt.dummy_life,dazed=dazed,
+                mismatch=outcome and outcome.postcondition_mismatch~=nil or false})
+        teardown()
         return
     elseif spec.kind=='vault' then
         -- V-N2: the real native pre-use shield requirement refuses before any
@@ -1622,6 +1990,30 @@ movementTalentAssert=function(spec)
         check('movement-talents:vault-reject',ok and stayed,
             {status=outcome and outcome.status,code=outcome and outcome.code,
                 deviation=noDeviation,moved=moved})
+        return
+    elseif spec.kind=='vault_shield' then
+        -- V-N1 native: the two real prompts run with a real shield; the first
+        -- target is attacked and dazed BEFORE the move, then the mover
+        -- relocates inside the landing envelope; no postcondition mismatch.
+        local settled=outcome and outcome.status=='ok'
+        local attacked=dummy and M.mt.dummy_life~=nil
+            and dummy.life<M.mt.dummy_life
+        local dazed=(dummy and dummy.hasEffect and dummy:hasEffect(dummy.EFF_DAZED))
+            and true or false
+        local relocated=moved and M.mt.vault_landing
+            and Distance.grid(p.x,p.y,M.mt.vault_landing.x,M.mt.vault_landing.y)<=1
+        local noMismatch=outcome and outcome.postcondition_mismatch==nil
+        local ok=settled and attacked and dazed and relocated and noMismatch
+        M.mt.signals[#M.mt.signals+1]=ok and 'vault_shield_executed'
+            or 'vault_shield_wrong'
+        check('movement-talents:vault-shield-execute',ok,
+            {status=outcome and outcome.status,code=outcome and outcome.code,
+                before=before.x..','..before.y,after=p.x..','..p.y,
+                dummy_life=dummy and dummy.life,was=M.mt.dummy_life,dazed=dazed,
+                landing=M.mt.vault_landing and (M.mt.vault_landing.x..','
+                    ..M.mt.vault_landing.y) or nil,
+                mismatch=outcome and outcome.postcondition_mismatch~=nil or false})
+        teardown()
         return
     elseif spec.kind=='mismatch_service' then
         -- The service-level handoff is polled by the frame pump (the mismatch
