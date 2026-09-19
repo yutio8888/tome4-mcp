@@ -52,38 +52,11 @@ local SEQUENCE_VALUE_KINDS={actor={self=true,actor=true},grid={grid=true},
 -- observed signature per entry (S2 rev3), so the runtime match uses the same
 -- closed allowlist the factory validated. This is the decided value plus the
 -- curation metadata for its position, never a policy/protocol field.
-local SEQUENCE_OBSERVED_FLAGS={nolock=true,pass_terrain=true,friendlyblock=true,
-    nowarning=true,immediate_keys=true,no_restrict=true}
-local SEQUENCE_OBSERVED_STRINGS={first_target=true,msg=true}
-local function normalizeObservedSignature(observed)
-    if type(observed)~='table' then return nil end
-    if type(observed.cursor_type)~='string' or #observed.cursor_type==0
-        or #observed.cursor_type>32 then return nil end
-    local copy={cursor_type=observed.cursor_type}
-    for key in pairs(observed) do
-        if key~='cursor_type' and key~='default_target'
-            and not SEQUENCE_OBSERVED_FLAGS[key] and not SEQUENCE_OBSERVED_STRINGS[key] then
-            return nil
-        end
-    end
-    for flag in pairs(SEQUENCE_OBSERVED_FLAGS) do
-        if observed[flag]~=nil then
-            if type(observed[flag])~='boolean' then return nil end
-            copy[flag]=observed[flag]
-        end
-    end
-    for key in pairs(SEQUENCE_OBSERVED_STRINGS) do
-        if observed[key]~=nil then
-            if type(observed[key])~='string' or #observed[key]>512 then return nil end
-            copy[key]=observed[key]
-        end
-    end
-    if observed.default_target~=nil then
-        if observed.default_target~='self' then return nil end
-        copy.default_target='self'
-    end
-    return copy
-end
+-- R2-APR-03: the carrier uses the FACTORY's canonical observed-signature
+-- normalizer (`Factory.normalizeObserved`) — there is no second, weaker copy of
+-- the signature grammar, so a declaration the factory refuses (its string
+-- bounds, unknown keys, malformed flags) is refused here too.
+local normalizeObservedSignature=Factory.normalizeObserved
 -- S2 rev3: the observed prompt is matched against the entry's **curated
 -- observed signature** (design §4.4). Cursor geometry is NOT a sound
 -- actor/grid classifier (`hit` is "hit a single grid in LOS", `setSpot` fills
@@ -204,6 +177,8 @@ function M.normalizeSequence(list)
         -- S2 rev3: the executor matches each observed prompt against this
         -- entry's curated observed signature, so the carrier must carry it
         -- (every published sequence does; a missing one is fail-closed).
+        -- R2-APR-03: normalized by the SHARED factory normalizer, so the
+        -- carrier cannot admit a signature the factory would refuse.
         local observed=normalizeObservedSignature(entry.observed)
         if not observed then return nil,'invalid_sequence' end
         copy.observed=observed
@@ -213,9 +188,9 @@ function M.normalizeSequence(list)
         end
         -- A′ §6.3: a declared group key rides the internal carrier, and the FULL
         -- membership invariants are re-validated below on the normalised list
-        -- (>=2 members, one request kind, exactly-equal signatures). A
-        -- hand-authored malformed carrier is `invalid_sequence` and can never
-        -- relax the runtime gate.
+        -- (>=2 members, one request kind, exactly-equal signatures, contiguous
+        -- members). A hand-authored malformed carrier is `invalid_sequence` and
+        -- can never relax the runtime gate.
         if entry.group~=nil then
             if not Factory.validGroupKey(entry.group) then return nil,'invalid_sequence' end
             copy.group=entry.group
@@ -249,12 +224,16 @@ function M.normalizeSequence(list)
     -- A′ §6.3: group membership is DECLARED data, so the carrier is held to the
     -- same mechanical invariants the factory validated (>=2 members, one request
     -- kind, exactly-equal signatures). This is what stops a hand-authored
-    -- carrier from forging or weakening membership. The stationary
-    -- grid-closure invariant is a template property expressed in the factory's
-    -- `delivery` vocabulary, which the internal carrier does not carry; the
-    -- carrier enforces the part expressible here, and the decided-value kind
-    -- check (`SEQUENCE_VALUE_KINDS`) still applies per entry.
-    local membership=Factory.groupMembership(out)
+    -- carrier from forging or weakening membership. R2-APR-03: the carrier
+    -- re-validation uses the factory's validator in CARRIER mode — the same
+    -- shared group machinery, with the carrier-expressible subset enforced
+    -- (including CONTIGUITY, so an interleaved group the factory rejects is
+    -- refused here too). The stationary grid/value-source closure is a template
+    -- property expressed in the factory's build-time `delivery` vocabulary,
+    -- which the internal carrier does not carry; routing itself is gated by the
+    -- template-derived marker (R2-APR-02), not by the carrier. The
+    -- decided-value kind check (`SEQUENCE_VALUE_KINDS`) still applies per entry.
+    local membership=Factory.groupMembership(out,{carrier=true})
     if not membership then return nil,'invalid_sequence' end
     return out
 end

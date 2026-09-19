@@ -654,6 +654,57 @@ do
     check(below.group_members~=nil and #below.group_members[1].indexes==2,
         'the admitted Earthen Missiles below-TL5 branch carries a validated 2-member group')
     check(below.stationary==true,'the admitted descriptor carries the template-derived marker')
+    -- R2-APR-02: the stationary vocabulary is RESERVED for the closed
+    -- `stationary_sequence` template. A generic `request_then_landing` (or any
+    -- other template) declaring `delivery='stationary'`/`landing='none'`/
+    -- `center='none'` is `movement_adapter_invalid` at build time — the
+    -- reviewer's GENERIC_STATIONARY_ACCEPTED reproduction can no longer pass.
+    local function reservedOk(out,err,detail)
+        return out==nil and err~=nil and err.reason=='movement_adapter_invalid'
+            and err.detail==detail
+    end
+    local genericStationary,genericErr=Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',
+            observed={cursor_type='hit',nowarning=true}}},
+        delivery='stationary',landing='random',center='self',traverses=false,
+        relocates_other=false})
+    check(genericStationary==nil and genericErr~=nil
+        and genericErr.reason=='movement_adapter_invalid'
+        and genericErr.detail=='reserved_stationary_delivery',
+        'a generic template cannot author delivery=stationary (R2-APR-02)')
+    local noneLanding,noneLandingErr=Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='grid',subject='self',
+            value_source='target_plan',observed=BOLT}},
+        delivery='teleport',landing='none',center='self',traverses=false,
+        relocates_other=false})
+    check(noneLanding==nil and noneLandingErr.detail=='reserved_stationary_landing',
+        'a generic template cannot author landing=none (R2-APR-02)')
+    local noneCenter,noneCenterErr=Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='grid',subject='self',
+            value_source='target_plan',observed=BOLT}},
+        delivery='teleport',landing='random',center='none',traverses=false,
+        relocates_other=false})
+    check(noneCenter==nil and noneCenterErr.detail=='reserved_stationary_center',
+        'a generic template cannot author center=none (R2-APR-02)')
+    -- The reservation also applies to the FIXED-delivery mover templates.
+    local fixedTemplate,fixedTemplateErr=Factory.expand('grid_move_bounded',{
+        delivery='stationary',traverses=false,radius=1,landing_proof='proof'})
+    check(fixedTemplate==nil and fixedTemplateErr.detail=='reserved_stationary_delivery',
+        'a fixed mover template cannot author delivery=stationary either (R2-APR-02)')
+    -- The carrier-side group validator enforces contiguity too (R2-APR-03):
+    -- an interleaved group is refused in carrier mode, while a contiguous one
+    -- is accepted without the (carrier-inexpressible) value_source proof.
+    local interleaved,interleavedErr=Factory.groupMembership({
+        {index=1,request='grid',observed=BOLT,group='g1'},
+        {index=2,request='grid',observed=BOLT},
+        {index=3,request='grid',observed=BOLT,group='g1'}},{carrier=true})
+    check(interleaved==nil and interleavedErr.detail=='group_not_contiguous',
+        'carrier-mode group validation refuses an interleaved group (R2-APR-03)')
+    local contiguous,contiguousErr=Factory.groupMembership({
+        {index=1,request='grid',observed=BOLT,group='g1'},
+        {index=2,request='grid',observed=BOLT,group='g1'}},{carrier=true})
+    check(contiguous and contiguous[1]=='g1' and contiguousErr==nil,
+        'carrier-mode group validation accepts a contiguous group without value_source')
 end
 
 print('Movement adapter factory: '..checks..' checks passed')

@@ -92,9 +92,22 @@ function M.footprintSpec(component,origin,bound,flags)
     -- footprint input. The engine uses `friendlyblock` to let a friendly actor
     -- NOT block the projection (Target.lua:527-535,588-607,657-664), so a probe
     -- rebuilt from geometry alone can manufacture a false blocked line.
+    -- R2-APR-04: the full set of engine-consulted static flags is forwarded.
+    -- Verified against the engine projection inputs:
+    --   * `selffire`/`friendlyfire` filter the affected actors
+    --     (ActorProject.lua:254-255,493-494); a REAL raised spec carries them
+    --     (Giant Leap's builder explicitly sets `selffire=false`,
+    --     uber/str.lua:38-40; bow-threading.lua:143 sets `stop_block=true`);
+    --   * `stop_block`/`actorblock`/`friendlyblock` decide entity blocking in
+    --     `Target.block_path` (Target.lua:518-535,578-600) and
+    --     `getType` fills them only as DEFAULTS (Target.lua:679-684);
+    --     `table.update` never overwrites a raised field
+    --     (engine/utils.lua:559-569), so forwarding them preserves the real
+    --     raised semantics exactly.
     if type(flags)=='table' then
         for _,key in ipairs({'friendlyblock','friendlyfire','nolock',
-                'pass_terrain','nowarning','no_restrict','requires_knowledge'}) do
+                'pass_terrain','nowarning','no_restrict','requires_knowledge',
+                'selffire','actorblock','stop_block'}) do
             if flags[key]~=nil then spec[key]=flags[key] end
         end
     end
@@ -199,33 +212,35 @@ function M.build(ctx)
         local spec={type=shape,range=range,talent=talent}
         if curated then
             for _,key in ipairs({'friendlyfire','friendlyblock','nolock',
-                    'pass_terrain','nowarning'}) do
+                    'pass_terrain','nowarning','selffire','actorblock','stop_block'}) do
                 if curated[key]~=nil then spec[key]=curated[key] end
             end
         end
         return spec
     end
 
+    -- R2-APR-02: the ONLY stationary routing input is the template-derived
+    -- marker the factory sets on a resolved `stationary_sequence` leaf, AND the
+    -- leaf's fixed stationary delivery. The factory refuses a caller-authored
+    -- `delivery='stationary'` (or `landing/center='none'`) on every other
+    -- template at build time, so this conjunction can never be produced by a
+    -- raw caller-authored enum: a mover leaf, an entry-level forged boolean or
+    -- a marker-less stationary enum all stay on the ordinary movement skip.
+    local function isStationaryLeaf(movement)
+        return type(movement)=='table' and movement.stationary==true
+            and movement.delivery=='stationary'
+    end
+
     -- A′ §6.5: stationary guard routing is a VALIDATED CONSEQUENCE of the
     -- resolved movement template, never an independent manifest boolean. A
     -- factory leaf can only carry `delivery='stationary'` when it came from the
     -- closed `stationary_sequence` template (its `delivery`/`landing`/`center`
-    -- are fixed invariants a caller cannot supply), so the declared leaves are
-    -- mechanical data. The resolved leaf then decides the route: a stationary
-    -- leaf runs the stationary measurement; a mover leaf keeps the ordinary
-    -- movement skip; an unresolvable variant fails closed.
-    local function declaresStationary(entry)
-        local movement=entry and entry.movement
-        if type(movement)~='table' then return false end
-        if movement.variants then
-            for _,variant in ipairs(movement.variants) do
-                if type(variant.movement)=='table'
-                    and variant.movement.delivery=='stationary' then return true end
-            end
-            return false
-        end
-        return movement.delivery=='stationary'
-    end
+    -- are fixed invariants a caller cannot supply, and the reserved values are
+    -- refused on every other template — R2-APR-02), so the declared leaves are
+    -- mechanical data keyed on the template-derived marker
+    -- (`isStationaryLeaf`). The resolved leaf then decides the route: a
+    -- stationary leaf runs the stationary measurement; a mover leaf keeps the
+    -- ordinary movement skip; an unresolvable variant fails closed.
     -- `'stationary' | 'mover' | 'mixed'`: the declaration-level classification of
     -- every executable leaf. A uniform declaration routes without any runtime
     -- read (the factory proved the leaf mechanically); only a MIXED declaration
@@ -236,12 +251,10 @@ function M.build(ctx)
         local leaves={}
         if movement.variants then
             for _,variant in ipairs(movement.variants) do
-                if type(variant.movement)=='table' then
-                    leaves[#leaves+1]=variant.movement.delivery=='stationary'
-                end
+                leaves[#leaves+1]=isStationaryLeaf(variant.movement)
             end
         else
-            leaves[1]=movement.delivery=='stationary'
+            leaves[1]=isStationaryLeaf(movement)
         end
         if #leaves==0 then return 'mover' end
         local any,all=false,true
@@ -264,7 +277,7 @@ function M.build(ctx)
             resolved=value
         end
         if type(resolved)~='table' then return false end
-        return resolved.delivery=='stationary' end
+        return isStationaryLeaf(resolved) end
 
     -- A′ §6.5: measure one stationary multi-prompt effect program at EVERY
     -- policy-chosen grid. The caster never moves, so the declared components are
@@ -276,6 +289,15 @@ function M.build(ctx)
     --     closed, and a partially-readable union is never measured as complete;
     --   * every plan value must be a VALID grid (malformed values are rejected,
     --     never silently filtered);
+    --   * the plan is a DENSE array over ALL keys (R2-APR-01): any non-integer
+    --     key, hole or trailing gap is a typed `movement_plan_unavailable`
+    --     BEFORE any precheck/expansion — `ipairs`-style iteration would
+    --     silently truncate a sparse plan into a complete-looking one;
+    --   * the plan carries EXACTLY ONE grid per declared entry of the resolved
+    --     request sequence (the planner attaches the resolved sequence to the
+    --     plan; absent that, the plan length must still match a DECLARED
+    --     executable sequence of the entry) — never a measured risk from a
+    --     partial set;
     --   * the one measure is compared with the policy's `max_selffire_risk`.
     local function guardStationary(entry,talent,threshold,disable,attempt,providers)
         local origin={x=p.x,y=p.y}
@@ -287,8 +309,42 @@ function M.build(ctx)
             return disable('movement_plan_unavailable',{talent=talent,
                 reason='a stationary program needs its planned grids'})
         end
+        -- R2-APR-01: dense-array validation over ALL keys BEFORE any
+        -- precheck/expansion. A sparse plan (valid grids at keys 1 and 3) is
+        -- never measured as a complete one-grid plan.
+        local denseOk,planCause=Factory.validateArray(plan.values,1)
+        local planLength=denseOk and planCause or nil
+        if not denseOk then
+            return disable('movement_plan_unavailable',{talent=talent,
+                reason='a stationary program needs a dense planned grid array',
+                detail='bad_plan_shape',cause=planCause})
+        end
+        -- R2-APR-01: the resolved request-sequence length is cross-checked
+        -- BEFORE any precheck/expansion: the plan must carry exactly one grid
+        -- per declared entry. The planner attaches the RESOLVED sequence to the
+        -- plan; when it is absent the plan length must still match one of the
+        -- entry's declared executable sequences (a pure manifest read — no
+        -- runtime scalar, so an unresolved variant matrix cannot weaken this).
+        local declared=plan.request_sequence
+        if type(declared)~='table' or #declared==0 then
+            local matched=false
+            for _,sequence in ipairs(Manifest.requestSequences(entry) or {}) do
+                if #sequence==planLength then matched=true end
+            end
+            if not matched then
+                return disable('movement_plan_unavailable',{talent=talent,
+                    reason='a stationary plan must have one grid per declared entry',
+                    detail='plan_sequence_length_mismatch',declared=planLength})
+            end
+        elseif #declared~=planLength then
+            return disable('movement_plan_unavailable',{talent=talent,
+                reason='a stationary plan must have one grid per declared entry',
+                detail='plan_sequence_length_mismatch',declared=#declared,
+                got=planLength})
+        end
         local grids={}
-        for index,value in ipairs(plan.values) do
+        for index=1,planLength do
+            local value=plan.values[index]
             if type(value)~='table' or value.kind~='grid'
                 or not finite(value.x) or not finite(value.y)
                 or value.x%1~=0 or value.y%1~=0 then
@@ -367,6 +423,10 @@ function M.build(ctx)
                             friendlyfire=flags.friendlyfire,
                             friendlyblock=flags.friendlyblock,nolock=flags.nolock,
                             pass_terrain=flags.pass_terrain,nowarning=flags.nowarning,
+                            -- R2-APR-04: the full engine-consulted static flag
+                            -- set reaches the footprint input here too.
+                            selffire=flags.selffire,actorblock=flags.actorblock,
+                            stop_block=flags.stop_block,
                             talent=talent,
                             origin={x=origin.x,y=origin.y},target={x=grid.x,y=grid.y}}
                         if resolved.center=='self' then

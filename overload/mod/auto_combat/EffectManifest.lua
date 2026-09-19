@@ -602,17 +602,21 @@ end
 function M.summary()
     local talents={}
     local function stationaryMovement(entry)
+        -- R2-APR-02: the summary classifies on the template-derived marker the
+        -- factory set at expansion time, never on a raw caller-authored enum.
         local movement=entry and entry.movement
         if type(movement)~='table' then return nil end
         if movement.variants then
             for _,variant in ipairs(movement.variants) do
-                if type(variant.movement)=='table' and variant.movement.delivery=='stationary' then
+                if type(variant.movement)=='table' and variant.movement.stationary==true
+                    and variant.movement.delivery=='stationary' then
                     return variant.movement
                 end
             end
             return nil
         end
-        return movement.delivery=='stationary' and movement or nil
+        return (movement.stationary==true and movement.delivery=='stationary')
+            and movement or nil
     end
     for talent,entry in pairs(M.ENTRIES) do
         local compat=M.compat(entry)
