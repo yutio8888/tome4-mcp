@@ -672,11 +672,24 @@ function M.verify(policy)
         local entry=rule['then'] and rule['then'].talent and M.ENTRIES[rule['then'].talent] or nil
         if entry then
             local selector=rule['then'].target or (policy.targeting and policy.targeting.default)
+            -- S3-A2-R3 defence-in-depth (catalog): the selector binding and the
+            -- sequence matching below consume `#`/`ipairs` over the
+            -- caller-supplied plan. A sparse plan (a hole or a hidden key
+            -- beyond the dense end) must be rejected here, never silently
+            -- truncated into a shorter matching plan.
+            local plan=rule['then'].target_plan
+            if type(plan)=='table' then
+                local dense=Factory.validateArray(plan,1)
+                if not dense then
+                    errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_not_dense'}
+                    plan=nil
+                end
+            end
             -- MFT-REV-03 (Option A): an actor step selector is the effective
             -- binding when the action/default selector is absent, so the
             -- self/hostile consistency check honours it.
-            if selector==nil and type(rule['then'].target_plan)=='table' then
-                for _,step in ipairs(rule['then'].target_plan) do
+            if selector==nil and type(plan)=='table' then
+                for _,step in ipairs(plan) do
                     if step.request=='actor' and step.selector~=nil then
                         selector=step.selector
                         break
@@ -699,7 +712,6 @@ function M.verify(policy)
             end
             -- MFT-REV-03: an explicit ordered target plan must match the
             -- source-pinned movement adapter's request sequence exactly.
-            local plan=rule['then'].target_plan
             local movement=entry.kind=='movement' and entry.movement or nil
             if type(plan)=='table' then
                 local sequences=M.requestSequences(entry)

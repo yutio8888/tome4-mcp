@@ -378,7 +378,7 @@ end
 -- a strategy refusal. The Runtime pump owns the native side (the live handle is
 -- cancelled at its bound); this function only records and pauses so the stall is
 -- never invisible.
-function M:nativeDeviated(deviation)
+function M:nativeDeviated(deviation,terminal)
     deviation=deviation or {}
     local reason=deviation.reason or 'unexpected_target_request'
     local entry={kind='paused',reason=reason,detail=deviation,
@@ -386,6 +386,17 @@ function M:nativeDeviated(deviation)
         generation=self.generation}
     self:record(entry)
     if self.notify then self.notify(entry) end
+    -- D5 (S3-A2-R4): a terminal deviation transitions ONCE, directly to
+    -- stopped (`terminal=true`; the postcondition-mismatch handoff path).
+    -- The old pause+stop composition advanced the generation twice. Without
+    -- `terminal` the legacy paused-transition behavior is unchanged.
+    if terminal then
+        if self.state~='stopped' or self.reason~=reason then
+            self.generation=self.generation+1
+            self.state='stopped'; self.reason=reason
+        end
+        return entry
+    end
     -- Transition to paused without emitting a second `paused` notify (the typed
     -- entry above is the one recorded event). `nativeDeviation` then stops the
     -- run with the same reason.
@@ -736,11 +747,14 @@ function M:step()
                     detail=boundedDetail(mismatch)}
                 self:record(entry)
                 if self.notify then self.notify(entry) end
-                if self.state~='paused' or self.reason~=reason then
-                    self.generation=self.generation+1
-                    self.state='paused'; self.reason=reason
-                end
-                local paused=self:pause(reason)
+                -- D5 (S3-A2-R4): exactly ONE generation transition per
+                -- mismatch. The transition is the stop itself (a direct
+                -- paused->stopped transition, not a pause+stop composition):
+                -- the service safety handoff's `stop(step.reason)` is then a
+                -- deduplicated no-op instead of a second generation advance.
+                local stopped=self:stop(reason)
+                local paused={action='paused',state=stopped.state,reason=reason,
+                    generation=stopped.generation}
                 paused.detail=mismatch
                 paused.results=decision.results;paused.rejections=self.rejections
                 return paused

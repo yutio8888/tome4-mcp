@@ -609,17 +609,17 @@ end
 -- S3 §3.2 (Path 2): deliver a settled movement-postcondition mismatch that was
 -- NOT delivered inside the submitting step (a `native_pending` root that
 -- settled later; `Runtime.reapAutoInvocation` evaluates the immutable
--- expectation before release). Mirrors `nativeDeviation`: one typed event, the
--- run stops, the lease revokes, and the action is never resubmitted.
+-- expectation before release). One typed event and EXACTLY ONE generation
+-- transition (S3-A2-R4): the terminal stop happens inside
+-- `nativeDeviated(…, true)` instead of a pause+stop composition, then the
+-- lease revokes and the action is never resubmitted.
 function M.nativePostconditionMismatch(svc,mismatch)
     if not svc then return nil end
     mismatch=mismatch or {}
     local reason=mismatch.reason or 'movement_postcondition_mismatch'
     local entry
     if svc.controller then
-        entry=svc.controller:nativeDeviated(mismatch)
-        svc.controller:pause(reason)
-        if svc.controller.state~='stopped' then svc.controller:stop(reason) end
+        entry=svc.controller:nativeDeviated(mismatch,true)
     end
     if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,reason) end
     return entry
