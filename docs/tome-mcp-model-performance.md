@@ -88,13 +88,31 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 34 | S2-FIX5 前置拒绝误报偏差修复 | **B**（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | FAIL（**do_not_merge**） | 0 | 1 | 0 | 0 | 1 |
 | 35 | S2 rev7 零提示成功收紧（S2-FIX5-R1） | **A**（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | **PASS**（终审 **MERGE**，0 findings） | 0 | 0 | 0 | 0 | 0 |
 | 36 | S2-FIX5/rev7 定向复测（V1-V5） | **B**（Test） | —（测试任务） | **PASS**（V1-V5 全通过；仅夹具 bug） | 0 | 0 | 0 | 0 | 0 |
+| 37 | 不支持条目全量审计（Investigation A） | **A**（Investigation） | — | **PASS**（1 项可证过度保守 + 4 项错误理由 + 1 项 v1.6 违规） | 0 | 0 | 0 | 0 | 0 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**36**（含 1 个未进入评审的 BLOCKED 轮；#31 记录于 main 分支账本 c62c31e）。
-- **PASS 13**、**FAIL 22**、BLOCKED 1、PARTIAL 0 → **通过率 13/35 = 37.1%**。
+- Loop 总数：**37**（含 1 个未进入评审的 BLOCKED 轮；#31 记录于 main 分支账本 c62c31e）。
+- **PASS 14**、**FAIL 22**、BLOCKED 1、PARTIAL 0 → **通过率 14/36 = 38.9%**。
+- **#37（不支持条目全量审计，Investigation A）**：审计 `EffectManifest.UNSUPPORTED` 全部 11 条 + 表外能力型
+  拒绝，结论（我已逐条独立核实）：
+  ① **唯一可证的过度保守拒绝 = `T_BLINK_RUNE`**（理由 `stable_native_talent_id` 为**假前提**——六个
+  `T_RUNE:_BLINK_1..6` 是同一份定义的克隆、行为同一；设计 `:594` 一直写"Supportable with the factory"；
+  且 `Out of Phase` 为**自益**效果 → 既不需要 S2 也不需要 S3）。**修复 S 级**，已并入 S3 分支实施。
+  ② `T_SHADOWSTEP`/`T_GIANT_LEAP`/`T_VAULT` **归 S3 正确**（main 上显示"不支持"只是 S3 未合并）。
+  ③ **四条 typed 理由事实错误**（拒绝本身仍正当，但原因写错）：`MERGE`/`STONE` 称
+  `signature_not_distinguishable` ——**不实**（两段 spec 差 `pass_terrain` presence，Stone 另差
+  `friendlyblock=false`），真正阻塞是**多主体操作**（Merge 杀自己影子 `:51`、Stone `target:move :88`）；
+  `CURSED_BOLT` 段数**有界且玩家已知**（上限 4），真正阻塞是**每轮 `rng.table` 随机主体** `:246`；
+  `WORMHOLE` 的 `distance>=2` **可用 S2 队列表达**且两段 cursor_type 可区分（`:144` vs `:152`），真正阻塞是
+  **后续触发的陷阱对**（无施法者移动）。每项 **S 级**。
+  ④ **更高用户可见影响（表外）**：`Progression.lua` 仍在 `learn_talent`/`spend` 路径上用
+  **`debug.getinfo` 源身份审计**（`D.native`，7 处调用），而 `review-disposition.md:14-18` 已宣告
+  **D11（运行期摘要+身份+闭包门禁）作废** → **真实的 v1.6 违规**，需独立评审，**M–L**。
+  ⑤ 真正不可判定（保留）：Dimensional Step TL5（S4）、Merge/Stone（双主体）、Cursed Bolt（随机主体）、
+  Wormhole（第三方触发陷阱）、Displacement Shield（延迟伤害转移，无位移，设计 `:601` 已置于工厂之外）。
 - Issue 合计：**84**（P0 1 / P1 34 / P2 27 / P3 22）；平均每 loop 2.40。
 - **#36（S2-FIX5/rev7 定向复测，model B）全部 PASS**：**V1** 旧 P1 零复现（未加 `cooldown_ready` 守卫 +
   PD 冷却中 `start` ⇒ `paused reason=unexpected_target_request` **= 0**，冷却拒绝表现为普通
