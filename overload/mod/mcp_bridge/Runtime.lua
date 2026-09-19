@@ -3,6 +3,7 @@ local Json=require 'mod.mcp_bridge.Json'
 local Transport=require 'mod.mcp_bridge.TransportSocket'
 local Observer=require 'mod.mcp_bridge.Observer'
 local Actions=require 'mod.mcp_bridge.Actions'
+local Progression=require 'mod.mcp_bridge.Progression'
 local Input=require 'mod.mcp_bridge.Input'
 local Journal=require 'mod.mcp_bridge.Journal'
 local Details=require 'mod.mcp_bridge.ObservationDetails'
@@ -883,6 +884,37 @@ local function settle(s)
             end
         else finish(s,command,'failed','scene_changed') end
     elseif phase=='ready' and (not command.requires_ready or s.ready_serial>command.ready_before) then
+        -- NEW-03: the progression postcondition is re-validated at SETTLEMENT
+        -- time — the native tick-end queue has drained here (onTickEndExists
+        -- would keep the phase 'settling') and root.done holds, so owned
+        -- deferred callbacks (the real `game:onTickEnd` undo pattern used by
+        -- official talents, e.g. psionic/solipsism.lua:48) have already run.
+        -- A mismatched or uncheckable final state settles as a typed uncertain
+        -- failure and is never published as success. No identity/source gate:
+        -- the recheck calls the live reads only.
+        if command.action_ok and command.progression_postcondition then
+            local checked,mismatch=pcall(Progression.checkPostcondition,s.game.player,command.progression_postcondition)
+            if not checked then
+                command.progression_postcondition=nil
+                command.uncertain=true
+                command.native_message=command.native_message
+                    or 'Progression settlement recheck could not read the final state: '..Details.text(tostring(mismatch),256)
+                s.native_error='progression_execution_error'
+                revoke(s,s.native_error)
+                if s.active==command then finish(s,command,'failed',s.native_error) end
+                return
+            elseif mismatch then
+                command.progression_postcondition=nil
+                command.uncertain=true
+                command.native_message=command.native_message
+                    or 'The native level-up state after its deferred callbacks did not match the spending ('..tostring(mismatch)..').'
+                s.native_error='native_progression_mismatch'
+                revoke(s,s.native_error)
+                if s.active==command then finish(s,command,'failed',s.native_error) end
+                return
+            end
+            command.progression_postcondition=nil
+        end
         if queueDeferredSave(s) then return end
         if NativeActivity.is(command.kind) then
             finish(s,command,command.interruption and 'cancelled' or command.action_ok and 'completed' or 'failed',
@@ -1568,6 +1600,11 @@ local function execute(s,command)
     -- Preserve false explicitly: it describes a previously locked category.
     if result.previous_value==false then command.previous_value=false end
     command.new_value=Details.number(result.new_value)
+    -- NEW-03: when a progression mutation was accepted, its expected
+    -- postcondition (pool, target, expected value, operation) travels on the
+    -- command so the settlement path re-validates it after the native tick-end
+    -- queue has drained. In-memory only; never serialized or saved.
+    command.progression_postcondition=type(result.postcondition)=='table' and result.postcondition or nil
     if result.uncertain then
         -- Growth and inventory callbacks may fail after a partial mutation.
         -- Preserve the command once, keep observation available, and require a

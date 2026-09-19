@@ -71,6 +71,17 @@ local function field(p,name,key)
     if type(value)=='table' then return value[key] end
 end
 local function known(p,category) return field(p,'talents_types',category) and true or false end
+-- NEW-04 (NEW-03 shared read): the category target value is computed without
+-- any unvalidated arithmetic. A known category needs a finite number mastery
+-- to be comparable; a missing one means 1 (the native default); a wrong-typed
+-- or non-finite one is `nil` (typed mismatch), never an escaping error.
+local function categoryTargetValue(p,category)
+    if not known(p,category) then return false end
+    local mastery=field(p,'talents_types_mastery',category)
+    if mastery==nil then return 1 end
+    if D.finite(mastery) then return mastery+1 end
+    return nil
+end
 local function rawLevel(p,tid)
     local value=field(p,'talents',tid)
     if value==nil then return 0 end
@@ -433,6 +444,31 @@ function M.describe(g,p)
     end
     return result
 end
+-- NEW-03: settlement-time postcondition. `checkPostcondition` re-reads the
+-- LIVE player state with the same total, type-safe reads used during execute
+-- and compares them against the descriptor recorded when the mutation was
+-- accepted. It returns nil when the drained final state still matches, a
+-- mismatch reason ('points'/'target'/'invalid_postcondition') otherwise, and
+-- never raises: missing/wrong-typed values are mismatches, not errors. No
+-- identity/digest/source gate is involved — the reads are live entrypoints.
+local function postconditionTarget(p,operation,target)
+    if operation=='spend_stat' then
+        return type(p.stats)=='table' and p.stats[target] or nil
+    elseif operation=='learn_talent' or operation=='unlearn_talent' then
+        return rawLevel(p,target)
+    elseif operation=='learn_category' then
+        return categoryTargetValue(p,target)
+    end
+end
+function M.checkPostcondition(p,spec)
+    if type(p)~='table' or type(spec)~='table' then return 'invalid_postcondition' end
+    local points=p[spec.pool]
+    if not integer(points) or points~=spec.expected_points then return 'points' end
+    local value=postconditionTarget(p,spec.operation,spec.target)
+    if not D.finite(value) or not D.finite(spec.expected_value)
+        or math.abs(value-spec.expected_value)>0.000001 then return 'target' end
+end
+
 local dialog_methods={'incStat','learnTalent','learnType','getMaxTPoints','checkDeps','finish','unload'}
 local function dialogAudit(dialog)
     if type(dialog)~='table' then return false end
@@ -485,8 +521,12 @@ local function executeUnlearn(g,p,a)
         end
         if not dialog.finish(host) then return {ok=false,code='native_progression_finish_failed',uncertain=true} end
         if postconditionMismatch() then return {ok=false,code='native_progression_mismatch',uncertain=true} end
+        -- NEW-03: the refund was accepted; the command carries the expected
+        -- postcondition for the settlement-time re-validation.
         return {ok=true,code='progression_applied',points_returned=1,point_pool=pool,
-            previous_value=before_value,new_value=after_value}
+            previous_value=before_value,new_value=after_value,
+            postcondition={pool=pools[pool],expected_points=before_points+1,operation='unlearn_talent',
+                target=a.talent_id,expected_value=before_value-1}}
     end)
     local cleanup_ok,cleanup_error=true,nil
     if entered then
@@ -496,10 +536,18 @@ local function executeUnlearn(g,p,a)
     if not ok or not cleanup_ok then
         outcome={ok=false,code='progression_execution_error',uncertain=entered or nil,
             error=D.text(tostring(not ok and outcome or cleanup_error),512)}
-    elseif outcome.ok and postconditionMismatch() then
-        -- unload (the native capLastLearntTalents) and any replaced-but-callable
-        -- cleanup ran after finish; the final refund must still hold.
-        outcome={ok=false,code='native_progression_mismatch',uncertain=true}
+    elseif outcome.ok then
+        -- NEW-04: the after-unload recheck cannot escape; an erroring final
+        -- read is a typed uncertain progression failure, never ok=true.
+        local checked,mismatch=pcall(postconditionMismatch)
+        if not checked then
+            outcome={ok=false,code='progression_execution_error',uncertain=true,
+                error=D.text(tostring(mismatch),512)}
+        elseif mismatch then
+            -- unload (the native capLastLearntTalents) and any replaced-but-callable
+            -- cleanup ran after finish; the final refund must still hold.
+            outcome={ok=false,code='native_progression_mismatch',uncertain=true}
+        end
     end
     outcome.native_message=outcome.error or native_message
     local after_energy=type(p.energy)=='table' and D.number(p.energy.value)
@@ -591,12 +639,22 @@ function M.execute(g,action)
     local function targetValue()
         if a.type=='spend_stat' then return field(p,'stats',target)
         elseif a.type=='learn_talent' then return rawLevel(p,a.talent_id)
-        else return known(p,a.category_id) and ((field(p,'talents_types_mastery',a.category_id) or 0)+1) or false end
+        else return categoryTargetValue(p,a.category_id) end
     end
+    -- NEW-04: every arithmetic step validates its operand first. A wrong-typed
+    -- mastery read before the mutation is a clean typed refusal (nothing has
+    -- been spent yet), not a crash.
     local expected
     if a.type=='learn_category' then
-        local base_mastery=field(p,'talents_types_mastery',a.category_id)
-        expected=(before_value==false and 1+(base_mastery or 0)) or (before_value+0.2)
+        if before_value==false then
+            local base_mastery=field(p,'talents_types_mastery',a.category_id)
+            if base_mastery~=nil and not D.finite(base_mastery) then
+                return {ok=false,code='progression_state_unknown',energy_spent=0}
+            end
+            expected=1+(base_mastery or 0)
+        else
+            expected=before_value+0.2
+        end
     else
         expected=before_value+1
     end
@@ -633,8 +691,15 @@ function M.execute(g,action)
         -- finish runs the live on_levelup_close/on_levelup_changed callbacks;
         -- a replaced-but-callable one can undo the spend here.
         if postconditionMismatch() then return {ok=false,code='native_progression_mismatch',uncertain=true} end
+        -- NEW-03: the mutation was accepted, so the command carries the expected
+        -- postcondition. Runtime re-validates it at settlement time, after the
+        -- native tick-end queue (the real `game:onTickEnd` undo pattern used by
+        -- official talents too) has drained, before any success is published.
         return {ok=true,code='progression_applied',points_spent=1,point_pool=description.point_cost.pool,
-            previous_value=before_value,new_value=after_value}
+            previous_value=before_value,new_value=after_value,
+            postcondition={pool=pool,expected_points=before_points-1,operation=a.type,
+                target=a.type=='spend_stat' and target or (a.talent_id or a.category_id),
+                expected_value=expected}}
     end)
     local cleanup_ok,cleanup_error=true,nil
     if entered then
@@ -646,10 +711,20 @@ function M.execute(g,action)
     if not ok or not cleanup_ok then
         outcome={ok=false,code='progression_execution_error',uncertain=entered or nil,
             error=D.text(tostring(not ok and outcome or cleanup_error),512)}
-    elseif outcome.ok and postconditionMismatch() then
-        -- unload (the native capLastLearntTalents) and any replaced-but-callable
-        -- cleanup ran after finish; the final spend/learn must still match.
-        outcome={ok=false,code='native_progression_mismatch',uncertain=true}
+    elseif outcome.ok then
+        -- NEW-04: the after-unload recheck itself must never escape; unload and
+        -- any replaced-but-callable cleanup may leave a wrong-typed state whose
+        -- read errors. Any failure here is a typed uncertain progression
+        -- failure, never an uncaught error and never ok=true.
+        local checked,mismatch=pcall(postconditionMismatch)
+        if not checked then
+            outcome={ok=false,code='progression_execution_error',uncertain=true,
+                error=D.text(tostring(mismatch),512)}
+        elseif mismatch then
+            -- unload (the native capLastLearntTalents) and any replaced-but-callable
+            -- cleanup ran after finish; the final spend/learn must still match.
+            outcome={ok=false,code='native_progression_mismatch',uncertain=true}
+        end
     end
     outcome.native_message=outcome.error or native_message
     local after_energy=type(p.energy)=='table' and D.number(p.energy.value)

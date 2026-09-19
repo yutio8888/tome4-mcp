@@ -483,4 +483,91 @@ check(Progression.execute(g,{type='unlearn_talent',talent_id='T_RUSH'}).code=='r
     'unlearn_talent requires the settings opt-in')
 config.settings.tome_mcp_bridge.allow_respec=true
 
+-- NEW-03 (P1): a replaced-but-callable on_levelup_close can schedule the undo
+-- with the real native pattern game:onTickEnd (official talents do this too,
+-- e.g. data/talents/psionic/solipsism.lua:48), so the synchronous checks inside
+-- execute can all pass while a queued callback later restores the
+-- pre-operation state. An accepted mutation therefore carries the expected
+-- postcondition (pool, target, expected value, operation) on the outcome for
+-- the settlement-time re-validation in Runtime (end-to-end: tests/test_runtime.lua).
+g,p=fixture()
+result=Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'})
+check(result.ok and type(result.postcondition)=='table'
+    and result.postcondition.pool=='unused_talents' and result.postcondition.expected_points==p.unused_talents
+    and result.postcondition.operation=='learn_talent' and result.postcondition.target=='T_STUNNING_BLOW_ASSAULT'
+    and math.abs(result.postcondition.expected_value-2)<0.000001,
+    'an accepted learn_talent carries its expected postcondition: '..tostring(result.postcondition and result.postcondition.expected_points))
+check(Progression.checkPostcondition(p,result.postcondition)==nil,'the settlement recheck passes on the matching final state')
+local recorded=result.postcondition
+p.unused_talents=p.unused_talents+1
+check(Progression.checkPostcondition(p,recorded)=='points','a pool restored after the accept is a typed settlement mismatch')
+p.unused_talents=p.unused_talents-1;p.talents.T_STUNNING_BLOW_ASSAULT=1
+check(Progression.checkPostcondition(p,recorded)=='target','a target restored after the accept is a typed settlement mismatch')
+p.talents.T_STUNNING_BLOW_ASSAULT='corrupt'
+check(Progression.checkPostcondition(p,recorded)=='target','a wrong-typed raw level is a typed settlement mismatch, not an error')
+p.talents.T_STUNNING_BLOW_ASSAULT=2
+
+g,p=fixture()
+result=Progression.execute(g,{type='spend_stat',stat='str'})
+check(result.ok and result.postcondition.pool=='unused_stats' and result.postcondition.operation=='spend_stat'
+    and result.postcondition.target==stats.STAT_STR and result.postcondition.expected_value==16
+    and Progression.checkPostcondition(p,result.postcondition)==nil,
+    'an accepted stat spend carries its expected postcondition')
+
+g,p=fixture()
+result=Progression.execute(g,{type='learn_category',category_id='cunning/dirty'})
+check(result.ok and result.postcondition.pool=='unused_talents_types' and result.postcondition.operation=='learn_category'
+    and result.postcondition.target=='cunning/dirty' and math.abs(result.postcondition.expected_value-1)<0.000001
+    and Progression.checkPostcondition(p,result.postcondition)==nil,
+    'an accepted category unlock carries its expected postcondition: '..tostring(result.postcondition and result.postcondition.expected_value))
+g,p=fixture();p.talents_types_mastery['technique/2hweapon-assault']=0.3
+result=Progression.execute(g,{type='learn_category',category_id='technique/2hweapon-assault'})
+check(result.ok and math.abs(result.postcondition.expected_value-1.5)<0.000001
+    and Progression.checkPostcondition(p,result.postcondition)==nil,
+    'an accepted mastery improvement carries its expected postcondition')
+g,p=fixture()
+Progression.execute(g,{type='learn_talent',talent_id='T_RUSH'})
+result=Progression.execute(g,{type='unlearn_talent',talent_id='T_RUSH'})
+check(result.ok and result.postcondition.pool=='unused_talents' and result.postcondition.expected_points==p.unused_talents
+    and result.postcondition.operation=='unlearn_talent' and result.postcondition.target=='T_RUSH'
+    and result.postcondition.expected_value==0 and Progression.checkPostcondition(p,result.postcondition)==nil,
+    'an accepted refund carries its expected postcondition')
+check(Progression.checkPostcondition(nil,{})=='invalid_postcondition' and Progression.checkPostcondition(p,nil)=='invalid_postcondition',
+    'a malformed settlement descriptor is typed, never an error')
+g,p=fixture();p.talents_types['cunning/dirty']=true;p.talents_types_mastery['cunning/dirty']='corrupt'
+check(Progression.checkPostcondition(p,{pool='unused_talents_types',expected_points=1,operation='learn_category',
+        target='cunning/dirty',expected_value=1})=='target',
+    'a wrong-typed mastery is a typed settlement mismatch, never an escaping error')
+
+-- NEW-04 (P1): the category target value is computed without unvalidated
+-- arithmetic and the after-unload recheck is pcall-protected, so a callable
+-- unload that leaves the category known with a string mastery settles as a
+-- typed uncertain failure instead of an escaping arithmetic error (the old
+-- code crashed AFTER the category point was spent).
+g,p=fixture()
+local unload_mastery=dialog.unload
+dialog.unload=native('/third_party/replaced-unload.lua',
+    'local actor=self.actor;actor.talents_types_mastery["technique/2hweapon-assault"]="corrupt";return true')
+result=Progression.execute(g,{type='learn_category',category_id='technique/2hweapon-assault'})
+check(not result.ok and result.code=='native_progression_mismatch' and result.uncertain
+    and p.talents_types_mastery['technique/2hweapon-assault']=='corrupt' and p.unused_talents_types==0,
+    'a callable unload writing a string mastery is a typed uncertain failure, not an escaping error: '..Json.encode(result))
+dialog.unload=unload_mastery
+
+g,p=fixture()
+local hook_corrupt=dialog.triggerHook
+dialog.triggerHook=native('/third_party/replaced-hook.lua',
+    'self.actor.talents_types_mastery["cunning/dirty"]="corrupt"')
+result=Progression.execute(g,{type='learn_category',category_id='cunning/dirty'})
+check(not result.ok and result.code=='native_progression_mismatch' and result.uncertain
+    and p.talents_types_mastery['cunning/dirty']=='corrupt' and p.unused_talents_types==0,
+    'a live hook corrupting the category mastery type between mutation and check is a typed uncertain failure: '..Json.encode(result))
+dialog.triggerHook=hook_corrupt
+
+g,p=fixture();p.talents_types_mastery['cunning/dirty']='corrupt'
+result=Progression.execute(g,{type='learn_category',category_id='cunning/dirty'})
+check(not result.ok and result.code=='progression_state_unknown' and not result.uncertain
+    and p.unused_talents_types==1,
+    'a wrong-typed mastery on a locked category is refused typed before any mutation: '..Json.encode(result))
+
 print('Progression: '..checks..' checks passed')
