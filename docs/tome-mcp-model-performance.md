@@ -89,13 +89,33 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 35 | S2 rev7 零提示成功收紧（S2-FIX5-R1） | **A**（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | **PASS**（终审 **MERGE**，0 findings） | 0 | 0 | 0 | 0 | 0 |
 | 36 | S2-FIX5/rev7 定向复测（V1-V5） | **B**（Test） | —（测试任务） | **PASS**（V1-V5 全通过；仅夹具 bug） | 0 | 0 | 0 | 0 | 0 |
 | 37 | 不支持条目全量审计（Investigation A） | **A**（Investigation） | — | **PASS**（1 项可证过度保守 + 4 项错误理由 + 1 项 v1.6 违规） | 0 | 0 | 0 | 0 | 0 |
+| 38 | R3/R4/R5 理由改写 + R7 移除 Progression 源身份门禁 | **B**（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | FAIL（**do_not_merge**；P1 假成功 + P2） | 0 | 1 | 1 | 0 | 2 |
+| 39 | NEW-01/02（finish/unload 后置复核 + 文档更正） | **A**（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | FAIL（**do_not_merge**；2 P1） | 0 | 2 | 0 | 0 | 2 |
+| 40 | NEW-03/04（结算期重校验 + 类型安全） | **B**（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | **PASS**（merge with follow-ups） | 0 | 0 | 1 | 0 | 1 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**37**（含 1 个未进入评审的 BLOCKED 轮；#31 记录于 main 分支账本 c62c31e）。
-- **PASS 14**、**FAIL 22**、BLOCKED 1、PARTIAL 0 → **通过率 14/36 = 38.9%**。
+- Loop 总数：**40**（含 1 个未进入评审的 BLOCKED 轮；#31 记录于 main 分支账本 c62c31e）。
+- **PASS 15**、**FAIL 24**、BLOCKED 1、PARTIAL 0 → **通过率 15/38 = 39.5%**。
+- **#38–#40（Progression 审计链，Dev B→A→B，三轮全新 Sol）**：为移除 **v1.6 违规的
+  `debug.getinfo` 源身份门禁**（7 处）而做，但移除后**暴露了"在错误时点判定成功"这一类漏洞的三个变体**，
+  **每轮都由独立 Sol 反证抓出新的一处**（单测与自查均未发现）：
+  ① **NEW-01（P1）**：在 `dialog.finish`（**会跑活 `on_levelup_close` 回调**）**之前**判定成功 → 回调可在
+  finish 中撤销花费而仍返回 `progression_applied`；
+  ② **NEW-03（P1）**：改成"finish 后 + unload 后**同步**复核"仍不够——回调可用**原生自己的**
+  `game:onTickEnd(...)`（**官方技能就这么做**，`psionic/solipsism.lua:48`）把撤销**排队**，两道同步检查
+  都过，随后排队的回调才恢复原状；
+  ③ **修复（通过）**：变更被接受时在 command 上记录期望后置条件，`Runtime` 在**原生 tick-end 队列 drain
+  完成、`phase=='ready'`、且在任何 `finish(...'completed')` 之前**重跑校验；不一致 → `failed`/`uncertain`/
+  `native_progression_mismatch` + quarantine；不可校验 → `progression_execution_error`+`uncertain`。
+  **NEW-04**（`learn_category` 先算术后验类型、after-unload 复核在 `pcall` 之外 → 字符串 mastery 逃逸为
+  未捕获错误）同轮修复。
+  ④ **遗留 P2（NEW-05，已按评审收窄）**：诚实保证 = "**调用完成且当前（递归链式）`onTickEnd` 队列为空后的
+  第一个 ready 决策边界**上状态一致"；**不是**对更晚帧/回合（`registerTimer`、更晚 tick、不受管协程）调度的
+  永久保证——那不属本插件调用所有权。已写入 `Runtime.lua` 注释与 TODO #67。
+  **教训**：**"成功"必须在最终可观测状态上判定**；每把判定点后移，都要再问"**还有没有更晚的写入者**"。
 - **#37（不支持条目全量审计，Investigation A）**：审计 `EffectManifest.UNSUPPORTED` 全部 11 条 + 表外能力型
   拒绝，结论（我已逐条独立核实）：
   ① **唯一可证的过度保守拒绝 = `T_BLINK_RUNE`**（理由 `stable_native_talent_id` 为**假前提**——六个
