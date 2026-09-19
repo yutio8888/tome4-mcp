@@ -2118,6 +2118,7 @@ local function movementSequenceChecks()
     controllerZ:start()
     forceReady()
     if pZ.talents_cd then pZ.talents_cd['T_MCP_SEQ_Z']=0 end
+    local zpBefore=controllerZ.generation
     local stepZ=controllerZ:onOpportunity()
     local pausedZ=false
     for _,ev in ipairs(zpEvents) do
@@ -2126,9 +2127,16 @@ local function movementSequenceChecks()
             pausedZ=true
         end
     end
+    -- R2-APR3-04 (checklist D): the mismatch handoff performs exactly ONE
+    -- generation transition and lands the run in the terminal handoff state
+    -- (`stopped`, the same state every other safety handoff ends in) with the
+    -- typed reason; the pause is never a resting state and the same-cause
+    -- service stop must not advance the generation again.
     check('movement-sequence:zero-prompt-success-paused',zeroPromptDeviated and pausedZ
-        and controllerZ.state=='paused' and controllerZ.attempts==0,
+        and controllerZ.state=='stopped' and controllerZ.reason=='unexpected_target_request'
+        and controllerZ.generation==zpBefore+1 and controllerZ.attempts==0,
         {step=stepZ and stepZ.action,state=controllerZ.state,reason=controllerZ.reason,
+            generation=zpBefore..'->'..controllerZ.generation,
             attempts=controllerZ.attempts,events=zpEvents})
     signals[#signals+1]=(zeroPromptDeviated and pausedZ) and 'sd_zero_prompt_success_paused'
         or 'sd_zero_prompt_success_pause_missing'
