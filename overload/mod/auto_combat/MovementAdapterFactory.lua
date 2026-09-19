@@ -59,11 +59,20 @@ M.DELIVERIES={step=true,line_move=true,leap=true,teleport=true,scene_change=true
     stationary=true}
 M.LANDINGS={exact=true,bounded_alternatives=true,random=true,source_defined=true,
     -- A′: no mover landing at all (the caster does not move).
+    -- R2-APR-02: `none` is RESERVED for the closed `stationary_sequence`
+    -- template (`M.expand` refuses it on every other template), so the enum is
+    -- never a caller-authorable routing input.
     none=true}
 M.CENTERS={self=true,actor=true,requested_grid=true,
     -- A′: the program's centre is each prompt's policy-chosen grid, never a
     -- mover landing.
+    -- R2-APR-02: reserved for `stationary_sequence`, as above.
     none=true}
+-- R2-APR-02: the values below are RESERVED for the closed `stationary_sequence`
+-- template. On every other template they are refused at build time, so the
+-- guard/planner/summary can route on the template-derived marker knowing that
+-- a raw caller-authored enum can never produce it.
+M.RESERVED_STATIONARY={delivery='stationary',landing='none',center='none'}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 
@@ -265,8 +274,16 @@ end
 --     gate requires the expected arrival index inside the matched set, so an
 --     interleaved group could never be answered in order).
 -- Returns a fresh list `{{key=,indexes={...}}, ...}` or a typed error.
+-- R2-APR-03: `options.carrier==true` selects the RUNTIME-CARRIER mode (the
+-- internal `action.sequence` carrier has no `value_source` field, so the
+-- stationary value-source proof stays a build-time template property). The
+-- carrier still enforces every expressible membership invariant, including
+-- CONTIGUITY, so an interleaved declaration the factory rejects cannot be
+-- accepted on the carrier either.
 local function validateGroups(sequence,options)
     options=options or {}
+    local carrier=options.carrier==true
+    local stationary=options.stationary==true
     local members={}
     local order={}
     for i=1,#sequence do
@@ -298,16 +315,22 @@ local function validateGroups(sequence,options)
                 return nil,{detail='group_signature_mismatch',group=key,indexes=list}
             end
         end
-        if options.stationary==true then
+        if stationary or carrier then
             for _,index in ipairs(list) do
                 local entry=sequence[index]
-                if entry.request~='grid' then
-                    return nil,{detail='group_stationary_not_grid',group=key,index=index}
-                end
-                if entry.value_source~='target_plan' then
-                    return nil,{detail='group_stationary_value_source',group=key,index=index}
+                if stationary then
+                    if entry.request~='grid' then
+                        return nil,{detail='group_stationary_not_grid',group=key,index=index}
+                    end
+                    if entry.value_source~='target_plan' then
+                        return nil,{detail='group_stationary_value_source',group=key,index=index}
+                    end
                 end
             end
+            -- Contiguity is enforced on BOTH boundaries: build time (the
+            -- stationary gate answers the expected arrival index inside the
+            -- matched set, so an interleaved group could never be answered in
+            -- order) and the runtime carrier (R2-APR-03).
             for step=2,#list do
                 if list[step]~=list[step-1]+1 then
                     return nil,{detail='group_not_contiguous',group=key,indexes=list}
@@ -320,9 +343,20 @@ local function validateGroups(sequence,options)
 end
 M.validateGroups=validateGroups
 
+-- R2-APR-03: the SHARED canonical observed-signature normalizer. The runtime
+-- carrier (`Actions.normalizeSequence`) uses exactly this function, so a
+-- declaration the factory's normalizer refuses (for example a 65-byte
+-- `first_target`) is refused on the carrier too — there is no second, weaker
+-- copy of the signature grammar.
+M.normalizeObserved=normalizeObserved
+
 -- Public helper for the RUNTIME CARRIER boundary (A′ §6.3): the executor
 -- re-validates the same invariants on the internal carrier, so a hand-authored
 -- malformed carrier cannot weaken the gate. Returns `index -> group_key`.
+-- R2-APR-03: pass `{carrier=true}` — the carrier has no `value_source` field,
+-- but every expressible membership invariant (>=2 members, one request kind,
+-- exactly-equal signatures, CONTIGUITY) is enforced, matching the factory for
+-- the grouped programs that exist.
 function M.groupMembership(sequence,options)
     local groups,err=validateGroups(sequence,options)
     if not groups then return nil,err end
@@ -625,6 +659,24 @@ function M.expand(template,params)
     end
     for key,value in pairs(params) do
         if key=='target_requests' then out.target_requests=value else out[key]=value end
+    end
+    -- R2-APR-02: the stationary mechanical vocabulary is RESERVED for the closed
+    -- `stationary_sequence` template. On any other template a caller-authored
+    -- `delivery='stationary'` (or `landing='none'`/`center='none'`) is
+    -- `movement_adapter_invalid` at build time, so the guard/planner/summary
+    -- marker (`stationary=true`) is a validated consequence of the resolved
+    -- template and can never be produced by a raw caller-authored enum.
+    if spec.stationary~=true and out.delivery==M.RESERVED_STATIONARY.delivery then
+        return nil,{reason=M.REASON_INVALID,detail='reserved_stationary_delivery',
+            template=template}
+    end
+    if spec.stationary~=true and out.landing==M.RESERVED_STATIONARY.landing then
+        return nil,{reason=M.REASON_INVALID,detail='reserved_stationary_landing',
+            template=template}
+    end
+    if spec.stationary~=true and out.center==M.RESERVED_STATIONARY.center then
+        return nil,{reason=M.REASON_INVALID,detail='reserved_stationary_center',
+            template=template}
     end
     -- S2-REV-03: a declared `target_requests` (fixed or caller-supplied) must be
     -- a closed dense `1..n` array; a hole, non-array or unknown key is

@@ -1138,6 +1138,31 @@ do
         sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='Earthen Missiles (stone.lua)'},
             {kind='grid',x=6,y=3,observed=BOLT_SIG,group='Earthen Missiles (stone.lua)'}}}),
         'a forged group key carrying prose is invalid_sequence')
+    -- R2-APR-03: the carrier re-validation uses the factory's SHARED signature
+    -- normalizer and group validator, so a declaration the factory refuses is
+    -- refused on the carrier too. (a) A 65-byte `first_target` (the factory
+    -- bounds it to 64) is invalid_sequence; 64 stays admitted.
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed={cursor_type='bolt',
+                first_target=string.rep('a',65)},group='g1'},
+            {kind='grid',x=6,y=3,observed={cursor_type='bolt',
+                first_target=string.rep('a',65)},group='g1'}}}),
+        'a 65-byte first_target the factory refuses is invalid_sequence on the carrier (R2-APR-03)')
+    local ok64=Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed={cursor_type='bolt',
+                first_target=string.rep('a',64)},group='g1'},
+            {kind='grid',x=6,y=3,observed={cursor_type='bolt',
+                first_target=string.rep('a',64)},group='g1'}}})
+    check(ok64 and ok64.sequence[1].observed.first_target==string.rep('a',64),
+        'a 64-byte first_target stays admitted on the carrier (factory-identical bounds)')
+    -- (b) An interleaved group — members at 1 and 3 around an ungrouped entry —
+    -- is the factory's `group_not_contiguous`; the carrier must refuse it too
+    -- (the reviewer's CARRIER_INTERLEAVED reproduction).
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='g1'},
+            {kind='grid',x=6,y=3,observed=BOLT_SIG},
+            {kind='grid',x=7,y=3,observed=BOLT_SIG,group='g1'}}}),
+        'an interleaved group the factory rejects is invalid_sequence on the carrier (R2-APR-03)')
     local valid=Actions.validate({type='use_talent',talent_id='T_A',
         sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='g1'},
             {kind='grid',x=6,y=3,observed=BOLT_SIG,group='g1'}}})
@@ -1180,6 +1205,21 @@ do
         check(value.kind=='grid' and type(value.x)=='number' and type(value.y)=='number',
             'plan value '..i..' is a valid grid')
     end
+    -- R2-APR-02 (both ways): the annotation derives from the TEMPLATE-DERIVED
+    -- marker, never from a raw caller-authored enum. A hand-authored mover leaf
+    -- that merely DECLARES `delivery='stationary'` (the bypass shape the factory
+    -- now refuses at build time) is NOT annotated stationary.
+    local forged={delivery='stationary',landing='exact',center='self',
+        traverses=false,relocates_other=false,target_requests={'grid'},
+        request_sequence={{index=1,request='grid',subject='self',
+            value_source='target_plan',observed=BOLT_SIG}}}
+    local forgedPlan=assert(Planner.planSequence({talent='T_FORGED',target='self',
+        target_plan={{request='grid',destination={selector='position',x=5,y=2,accept=accept}}}},
+        provider,forged,{x=2,y=2}))
+    check(forgedPlan and forgedPlan.annotation.stationary~=true,
+        'a marker-less leaf with a stationary delivery enum is never annotated stationary (R2-APR-02)')
+    check(forgedPlan and forgedPlan.annotation.delivery~='stationary',
+        'the annotation delivery stays empty for a non-template stationary enum')
 end
 
 print('Auto-combat ordered sequence: '..checks..' checks passed')
