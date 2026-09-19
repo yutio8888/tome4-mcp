@@ -439,10 +439,24 @@ M.UNSUPPORTED={
     -- later-triggered traps with a third-party trigger.
     {talent='T_WORMHOLE',scope='any',missing='effect_is_a_later_triggered_trap_pair',
         reason='activation moves nobody: the talent creates a pair of traps (chronomancy/spacetime-weaving.lua:164-207, added at :209-224) whose third-party trigger teleports whoever steps on either trap later (:179-194 teleportRandom at :183), so the landing/mover model does not describe it; the two prompts are distinguishable by cursor_type (:144 vs :152) and distance>=2 is checkable pre-commit, so neither is the blocker'},
-    {talent='T_EARTHEN_MISSILES',scope='any',missing='same_shape_equivalent',
-        reason='three same-shape bolt prompts whose order is semantically irrelevant (spells/stone.lua:39-54); the third is level-dependent, so the program is not a fixed order'},
-    {talent='T_DWARVEN_HALF_EARTHEN_MISSILES',scope='any',missing='same_shape_equivalent',
-        reason='three same-shape bolt prompts whose order is semantically irrelevant (gifts/dwarven-nature.lua:35-50); the third is level-dependent (TL5)'},
+    -- R2-REV-03 (rev2, DO_NOT_MERGE withdrawal): the R2 "declared
+    -- interchangeable group" admission is WITHDRAWN. The curated proof claimed
+    -- the prompts were semantically equivalent, but the native action rolls
+    -- spellCrit SEPARATELY immediately before EACH projectile
+    -- (spells/stone.lua:41-46,48-52,54-56; gifts/dwarven-nature.lua:37-42,44-47,49-52)
+    -- and spellCrit does `rng.percent(chance)`
+    -- (modules/tome/class/interface/Combat.lua:2012-2032), so every prompt
+    -- position consumes a DISTINCT random crit outcome. Exchanging which answer
+    -- belongs to which missile can exchange a crit and a non-crit between two
+    -- different targets — an observable damage/kill difference. Shared base
+    -- damage/projectile/damage-type does NOT establish interchangeability, and
+    -- the prompts themselves are indistinguishable, so the executor cannot even
+    -- pin an answer to a position it can name. That is a plugin-completeness
+    -- boundary, never a strategy judgement: the tactic stays legal for a player.
+    {talent='T_EARTHEN_MISSILES',scope='any',missing='nondeterministic_prompt_outcome',
+        reason='the three bolt prompts are indistinguishable AND each carries an independent random crit outcome: the native action calls self:spellCrit(damage) separately before EACH projectile (spells/stone.lua:41-46,48-52,54-56) and spellCrit does rng.percent(chance) (modules/tome/class/interface/Combat.lua:2012-2032), so exchanging which answer belongs to which missile can exchange a crit and a non-crit between targets — the answers are not interchangeable and the plugin cannot execute the program honestly'},
+    {talent='T_DWARVEN_HALF_EARTHEN_MISSILES',scope='any',missing='nondeterministic_prompt_outcome',
+        reason='the three bolt prompts are indistinguishable AND each carries an independent random crit outcome: the native action calls self:spellCrit(damage) separately before EACH projectile (gifts/dwarven-nature.lua:37-42,44-47,49-52; the spec also sets friendlyfire=false,friendlyblock=false at :34/:41/:49) and spellCrit does rng.percent(chance) (modules/tome/class/interface/Combat.lua:2012-2032), so exchanging which answer belongs to which missile can exchange a crit and a non-crit between targets — the answers are not interchangeable and the prompts carry no positional signature to bind them'},
     {talent='*',scope='any',missing='moving_or_swapping_another_actor',
         reason='typed multi-actor destination/effect semantics are not implemented'},
 }

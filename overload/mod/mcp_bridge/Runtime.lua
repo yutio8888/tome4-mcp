@@ -1492,8 +1492,13 @@ buildAutoCombatHost=function(s,policy,opts)
             return {status='rejected',code='unsupported_action',energy_spent=false}
         end
         -- AC-03: final reject-only guard immediately before native execution.
-        local refusal=safetyGuard(attempt)
-        if refusal then return {status='rejected',code=refusal.reason,energy_spent=false} end
+        -- The guard returns nil (no measurable risk), a `permit` verdict (a
+        -- known risk within the policy's tolerance, carried for the decision
+        -- trace) or a `reject`/`pause` verdict. Only the latter two refuse.
+        local verdict=safetyGuard(attempt)
+        if verdict and verdict.action~='permit' then
+            return {status='rejected',code=verdict.reason,energy_spent=false}
+        end
         local command={command_id='auto-combat',status='auto_combat',auto_combat=true,
             interactions={},responses={},response_count=0,consumed_interactions={},interaction_sequence=0,
             rule=attempt.rule,action=action}
