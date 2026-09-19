@@ -65,7 +65,11 @@ M.EXPECTED={
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
     ['movement-fallback']={'blocked_landing','alternative_planned','fallback_moved'},
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
+    ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
+    ['handback-answer']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt'},
+    ['handback-timeout']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_unanswered_cancelled'},
+    ['handback-reorder']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt','hb_same_kind_reorder'},
     ['scene-lifecycle']={'level_changed','stopped','resume_refused'},
     ['solo-pump']={},
 }
@@ -1569,6 +1573,249 @@ local function sceneLifecycle()
     return compare('scene-lifecycle',signals)
 end
 
+-- S2 (§13.1/§6.2): ordered prompt-response queue. A test-only fixture talent
+-- raises the exact native prompts in order; the production host lowers a
+-- two-entry target plan and the real executor answers each prompt with its own
+-- decided value in one submission. `sd_second_range_refused` proves the native
+-- per-request range guard, `sd_missing_optional_reduced` the trailing-optional
+-- `reduced=true` settlement.
+local function movementSequenceFixture(name,secondSpec,raiseSecond,secondEntryOptional)
+    local p=game.player
+    local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+    local entry=assert(Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',
+                observed={cursor_type='hit',nowarning=true}},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                landing_from='envelope',optional=secondEntryOptional or nil,
+                observed={cursor_type='ball',nowarning=true}}},
+        delivery='teleport',landing='random',center='requested_grid',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10}))
+    p.talents=p.talents or {}
+    p.talents_def=p.talents_def or {}
+    p.talents[name]=1
+    p.talents_def[name]={id=name,name='MCP sequence probe',mode='activated',type={'spell/conveyance',1},
+        cooldown=0,mana=0,
+        action=function(self)
+            local tx,ty=self:getTarget({type='hit',range=10,nowarning=true})
+            if not tx then return nil end
+            if raiseSecond then
+                local x,y=self:getTarget(secondSpec)
+                if not x then return nil end
+            end
+            return true
+        end}
+    local saved=EffectManifest.ENTRIES[name]
+    EffectManifest.ENTRIES[name]={kind='movement',target='self',resource='mana',
+        movement=entry,components={},conformance={builder=false}}
+    return entry,function()
+        EffectManifest.ENTRIES[name]=saved
+        -- Remove the test-only talent so no later native cooldown/message
+        -- callback can touch the minimal fixture definition.
+        if p.talents then p.talents[name]=nil end
+        if p.talents_def then p.talents_def[name]=nil end
+        if p.talents_cd then p.talents_cd[name]=nil end
+    end
+end
+
+local function movementSequenceChecks()
+    local signals={}
+    local p=game.player
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    forceReady()
+    -- Save the native seams the fixture replaces so the later async stages
+    -- (movement-talents / scene-lifecycle) drive the real production entries.
+    local saved_useTalent=rawget(p,'useTalent')
+    local saved_getTarget=rawget(p,'getTarget')
+    local saved_cd=p.talents_cd
+    local function restoreSeams()
+        rawset(p,'useTalent',saved_useTalent)
+        rawset(p,'getTarget',saved_getTarget)
+        p.talents_cd=saved_cd
+    end
+    -- (a) The planner lowers a two-entry program into an ordered sequence.
+    local entry,restore=movementSequenceFixture('T_MCP_SEQ_A',{type='ball',range=14,radius=1,nowarning=true},true,false)
+    local pol=policy({{id='seq',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_SEQ_A',target='self'}}})
+    local host=Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end})
+    local before={x=p.x,y=p.y}
+    local dest={selector='position',x=p.x+3,y=p.y,accept=accept}
+    local planArgs={action='use_talent',talent='T_MCP_SEQ_A',target='self',
+        target_plan={{request='actor',selector='self'},{request='grid',destination=dest}},
+        destination=dest}
+    local planned,planErr=host.plan(planArgs)
+    local okPlan=planned and planned.plan and planned.plan.kind=='sequence'
+        and #planned.plan.steps==2 and planned.plan.values[1].kind=='self'
+        and planned.plan.values[2].kind=='grid'
+    check('movement-sequence:plan',okPlan,{kind=planned and planned.plan and planned.plan.kind,
+        reason=planErr and planErr.reason})
+    signals[#signals+1]=okPlan and 'sd_plan_sequence' or 'sd_plan_missing'
+    -- (b) A reversed plan is a typed mismatch, never silently reordered.
+    local reversed,reversedErr=host.plan({action='use_talent',talent='T_MCP_SEQ_A',target='self',
+        target_plan={{request='grid',destination=dest},{request='actor',selector='self'}},
+        destination=dest})
+    local okReverse=reversed==nil and reversedErr and reversedErr.reason=='target_plan_mismatch'
+    check('movement-sequence:reverse',okReverse,{reason=reversedErr and reversedErr.reason})
+    signals[#signals+1]=okReverse and 'sd_reverse_plan_rejected' or 'sd_reverse_missing'
+    -- (c) An un-upgraded multi-prompt descriptor keeps the typed capability gap.
+    local static,staticErr=host.plan({action='use_talent',talent='T_SEQ_STATIC',target='self',
+        target_plan={{request='actor',selector='self'},{request='grid',destination=dest}},
+        destination=dest})
+    local okStatic=static==nil and staticErr and staticErr.reason=='unsupported_target_plan'
+        and staticErr.missing=='ordered_request_sequence' and staticErr.scope=='multi_prompt'
+    check('movement-sequence:static-unsupported',okStatic,
+        {reason=staticErr and staticErr.reason,missing=staticErr and staticErr.missing})
+    signals[#signals+1]=okStatic and 'sd_static_unsupported' or 'sd_static_missing'
+    -- (d) The ordered queue answers both prompts distinct in one submission.
+    local outcome
+    if planned then
+        outcome=host.request({action='use_talent',talent='T_MCP_SEQ_A',plan=planned.plan,rule='seq'})
+    end
+    local settled=outcome and outcome.status=='ok'
+    local seq=outcome and outcome.target_sequence
+    local ordered=type(seq)=='table' and #seq==2
+    check('movement-sequence:two-requests',settled and ordered,
+        {status=outcome and outcome.status,code=outcome and outcome.code,count=seq and #seq})
+    signals[#signals+1]=(settled and ordered) and 'sd_two_requests_ordered' or 'sd_two_requests_missing'
+    -- The two recorded requests are distinguishable (the landing prompt carries
+    -- a radius) and, S2-REV-06, the RECORDED ANSWER VALUES are observed and
+    -- distinct: the actor prompt was answered with the caster cell/player uid,
+    -- the landing prompt with its own distinct coordinate and no entity.
+    local answers=ordered and seq[1].answer and seq[2].answer or nil
+    local distinct=ordered and seq[2].radius==1 and seq[1].radius==nil
+        and answers
+        and seq[1].answer.x==p.x and seq[1].answer.y==p.y
+        and seq[1].answer.uid==p.uid
+        and seq[2].answer.x==p.x+3 and seq[2].answer.y==p.y
+        and seq[2].answer.uid==nil
+    check('movement-sequence:distinct-values',settled and distinct,
+        {first=seq and seq[1],second=seq and seq[2]})
+    signals[#signals+1]=(settled and distinct) and 'sd_distinct_values' or 'sd_distinct_missing'
+    restore()
+    -- (e) The per-request native guard: a landing 3 tiles away with a range-1
+    -- second prompt is refused as the typed native cancel (never bypassed).
+    local entry2,restore2=movementSequenceFixture('T_MCP_SEQ_B',{type='ball',range=1,radius=1,nowarning=true},true,false)
+    local pol2=policy({{id='seq',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_SEQ_B',target='self'}}})
+    local host2=Runtime.buildAutoCombatHostFor(game,pol2,{drift=function() return true end})
+    p.x,p.y=before.x,before.y
+    local plan2=host2.plan({action='use_talent',talent='T_MCP_SEQ_B',target='self',
+        target_plan=planArgs.target_plan,destination=dest})
+    local outcome2
+    forceReady()
+    if p.talents_cd then p.talents_cd.T_MCP_SEQ_B=0 end
+    if plan2 and plan2.plan then
+        outcome2=host2.request({action='use_talent',talent='T_MCP_SEQ_B',plan=plan2.plan,rule='seq'})
+    end
+    local refused=outcome2 and outcome2.code=='target_out_of_range'
+    check('movement-sequence:second-range-refused',refused,
+        {status=outcome2 and outcome2.status,code=outcome2 and outcome2.code,
+            deviation=outcome2 and outcome2.sequence_deviation})
+    signals[#signals+1]=refused and 'sd_second_range_refused' or 'sd_second_range_missing'
+    restore2()
+    -- (f) A missing trailing optional entry is a settled native outcome with
+    -- reduced=true (not an error).
+    local entry3,restore3=movementSequenceFixture('T_MCP_SEQ_C',{type='ball',range=14,radius=1,nowarning=true},false,true)
+    local pol3=policy({{id='seq',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_SEQ_C',target='self'}}})
+    local host3=Runtime.buildAutoCombatHostFor(game,pol3,{drift=function() return true end})
+    p.x,p.y=before.x,before.y
+    local plan3=host3.plan({action='use_talent',talent='T_MCP_SEQ_C',target='self',
+        target_plan=planArgs.target_plan,destination=dest})
+    local outcome3
+    forceReady()
+    if p.talents_cd then p.talents_cd.T_MCP_SEQ_C=0 end
+    if plan3 and plan3.plan then
+        outcome3=host3.request({action='use_talent',talent='T_MCP_SEQ_C',plan=plan3.plan,rule='seq'})
+    end
+    local reduced=outcome3 and outcome3.status=='ok' and outcome3.reduced==true
+        and outcome3.reduced_reason=='trailing_optional_not_raised'
+    check('movement-sequence:missing-optional-reduced',reduced,
+        {status=outcome3 and outcome3.status,reduced=outcome3 and outcome3.reduced,
+            deviation=outcome3 and outcome3.sequence_deviation})
+    signals[#signals+1]=reduced and 'sd_missing_optional_reduced' or 'sd_missing_optional_missing'
+    restore3()
+    -- (g) S2-REV-01: a REORDERED native program. The declared sequence is
+    -- actor-then-grid but the native body raises a grid-shaped prompt (ball)
+    -- first and an actor-shaped prompt (hit) second. Every observed prompt is
+    -- classified from its cursor spec and matched against the declared entry at
+    -- that index, so the flow is `unexpected_target_request` and the live
+    -- prompts are handed to the player — the queue never answers the k-th
+    -- declared value blindly.
+    local pR=game.player
+    local entryR=assert(require('mod.auto_combat.MovementAdapterFactory').expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',
+                observed={cursor_type='hit',nowarning=true}},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                landing_from='envelope',observed={cursor_type='ball',nowarning=true}}},
+        delivery='teleport',landing='random',center='requested_grid',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10}))
+    -- Simulate the player who answers the handed-back prompts themselves: the
+    -- stub records every spec it was asked and answers its own coordinate, so
+    -- the queue's declared values are provably absent from the native flow.
+    local asked={}
+    local saved_getTarget_R=rawget(pR,'getTarget')
+    rawset(pR,'getTarget',function(self,typ,...)
+        asked[#asked+1]=type(typ)=='table' and typ.type or tostring(typ)
+        return pR.x+1,pR.y,nil
+    end)
+    pR.talents=pR.talents or {}
+    pR.talents_def=pR.talents_def or {}
+    pR.talents['T_MCP_SEQ_R']=1
+    pR.talents_def['T_MCP_SEQ_R']={id='T_MCP_SEQ_R',name='MCP reorder probe',
+        mode='activated',type={'spell/conveyance',1},cooldown=0,mana=0,
+        action=function(self)
+            -- REVERSED relative to the declared actor-then-grid program.
+            local gx,gy=self:getTarget({type='ball',range=10,radius=1,nowarning=true,
+                nolock=true,pass_terrain=true})
+            if not gx then return nil end
+            local ax,ay=self:getTarget({type='hit',range=10,nowarning=true})
+            if not ax then return nil end
+            return true
+        end}
+    local saved_entry_R=EffectManifest.ENTRIES['T_MCP_SEQ_R']
+    EffectManifest.ENTRIES['T_MCP_SEQ_R']={kind='movement',target='self',resource='mana',
+        movement=entryR,components={},conformance={builder=false}}
+    local polR=policy({{id='seq',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_SEQ_R',target='self'}}})
+    local hostR=Runtime.buildAutoCombatHostFor(game,polR,{drift=function() return true end})
+    pR.x,pR.y=before.x,before.y
+    local planR=hostR.plan({action='use_talent',talent='T_MCP_SEQ_R',target='self',
+        target_plan=planArgs.target_plan,destination=dest})
+    local outcomeR
+    forceReady()
+    if pR.talents_cd then pR.talents_cd['T_MCP_SEQ_R']=0 end
+    if planR and planR.plan then
+        outcomeR=hostR.request({action='use_talent',talent='T_MCP_SEQ_R',plan=planR.plan,rule='seq'})
+    end
+    local devR=outcomeR and outcomeR.sequence_deviation
+    local reorderRefused=outcomeR and outcomeR.status~='ok'
+        and outcomeR.code=='unexpected_target_request'
+        and devR and devR.expected.index==1 and devR.expected.request=='actor'
+        and devR.observed.index==1 and devR.observed_shape=='ball'
+        and devR.handed_back==true and devR.skippable==false
+        and asked[1]=='ball' and asked[2]=='hit' and #asked==2
+        and outcomeR.target_sequence and outcomeR.target_sequence[1].answer==nil
+    check('movement-sequence:reorder-refused',reorderRefused,
+        {status=outcomeR and outcomeR.status,code=outcomeR and outcomeR.code,
+            deviation=devR,asked=asked,
+            answers=outcomeR and outcomeR.target_sequence})
+    signals[#signals+1]=reorderRefused and 'sd_reorder_refused' or 'sd_reorder_missing'
+    -- Restore the reorder fixture.
+    EffectManifest.ENTRIES['T_MCP_SEQ_R']=saved_entry_R
+    if pR.talents then pR.talents['T_MCP_SEQ_R']=nil end
+    if pR.talents_def then pR.talents_def['T_MCP_SEQ_R']=nil end
+    if pR.talents_cd then pR.talents_cd['T_MCP_SEQ_R']=nil end
+    if saved_getTarget_R==nil then rawset(pR,'getTarget',nil) else rawset(pR,'getTarget',saved_getTarget_R) end
+    -- Restore the native seams and the player's previous position/energy so the
+    -- later asynchronous stages drive the real production entries.
+    restoreSeams()
+    p.x,p.y=before.x,before.y
+    forceReady()
+    return compare('movement-sequence',signals)
+end
+M.movementSequenceChecks=movementSequenceChecks
+
+
 local function runAll()
     local ok,err=pcall(function()
         startWhenReady()
@@ -1590,6 +1837,7 @@ local function runAll()
         movementNativeFallback()
         movementPlan()
         movementFactoryChecks()
+        movementSequenceChecks()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok
@@ -1619,6 +1867,311 @@ local function productionReady()
     local probe=Runtime.buildAutoCombatHostFor(game,policy({WAIT}),{drift=function() return true end})
     local phase=probe and probe.phase and probe.phase() or 'ready'
     return phase=='ready'
+end
+
+-- S2 rev3/§6.2 + S2-R3-03: TRULY YIELDING native handbacks driven through the
+-- PRODUCTION service/controller join. Unlike the synchronous reorder fixture
+-- above (which stubs `p.getTarget`), this fixture does NOT stub `getTarget`:
+-- the declared program's curated signature mismatches the raised prompt, so the
+-- executor wrapper falls through to the real `original`, which enters
+-- `targetGetForPlayer`'s exclusive target mode, registers a bridge handle and
+-- genuinely suspends the native body on `coroutine.yield()`. The typed deviation
+-- must therefore survive on the `native_pending` result while the invocation is
+-- live, and the production service must pause with that reason, release the
+-- lease and stop the run without resubmitting.
+--
+-- Evidence layering (exact, per the S2-R3-03 fix):
+--   * the yielding submission is driven by `AutoCombatService.step` — the same
+--     production function the frame pump calls — so the controller's
+--     deviation-before-`native_pending` ordering, its pause, the safety-pause
+--     stop and the Arbiter revoke are all observed in ONE submission without
+--     any manual `nativeDeviation` call;
+--   * the answered sub-cases go through the production MCP dispatch
+--     (`Runtime.respond` via the `bridgeRequestFor` seam), never
+--     `Interactions.prepare/apply` directly, so broken respond routing fails
+--     this probe (S2-R3-02 was exactly such a routing defect);
+--   * the unanswered sub-case triggers the bounded abort through the
+--     production `abortAutoInvocationFor` seam (the same function the frame
+--     pump calls) — it is NOT evidence for the pump's own frame bookkeeping;
+--   * the direct lower-layer probes (movementSequenceChecks) remain the
+--     executor-layer evidence and are unchanged.
+-- The cases run from the frame pump (stage `handback`) because the phase must
+-- be genuinely 'ready' (a flushed save pipe), which only arrives across real
+-- display frames.
+--
+-- Three sub-cases: (A) 'answer' — a single-entry program whose curated `hit`
+-- signature mismatches the raised `ball` prompt, answered after the lease is
+-- released through Runtime respond; (B) 'timeout' — the same yield left
+-- unanswered, cancelled at the bounded abort; (C) 'reorder' — a two-entry
+-- SAME-KIND yielding reorder: both declared prompts are `hit`-shaped actor
+-- prompts (mutually exclusive via the shared `nolock` discriminator), and the
+-- native flow raises the entry-2-flavoured prompt first, so position 1 cannot
+-- match and the live prompt is handed back.
+local function handbackFixture(name,sigs,raiseSpecs)
+    local p=game.player
+    local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+    local declared={}
+    for i,sig in ipairs(sigs) do
+        declared[i]={index=i,request='actor',subject='self',observed=sig}
+    end
+    local entry=assert(Factory.expand('request_then_landing',{
+        request_sequence=declared,
+        delivery='teleport',landing='random',center='self',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10}))
+    p.talents=p.talents or {}
+    p.talents_def=p.talents_def or {}
+    p.talents_cd=p.talents_cd or {}
+    p.talents[name]=1
+    p.talents_cd[name]=0
+    p.talents_def[name]={id=name,name='MCP handback probe',mode='activated',type={'spell/conveyance',1},
+        cooldown=0,mana=0,
+        action=function(self)
+            for _,spec in ipairs(raiseSpecs) do
+                local copy={}
+                for key,value in pairs(spec) do copy[key]=value end
+                local x,y=self:getTarget(copy)
+                if not x then return nil end
+                self.handback_answer={x=x,y=y}
+            end
+            return true
+        end}
+    -- S2-R3-03: the fixture talent must be schema-admissible for the duration
+    -- of the case, so `set_draft` genuinely validates the policy and the run
+    -- really executes the controller path (a silently rejected draft would
+    -- bypass the production joins this probe exists to prove).
+    local savedEntry=EffectManifest.ENTRIES[name]
+    local savedSchema=Schema.TALENTS[name]
+    Schema.TALENTS[name]=true
+    EffectManifest.ENTRIES[name]={kind='movement',target='self',resource='mana',
+        movement=entry,components={},conformance={builder=false}}
+    return entry,function()
+        EffectManifest.ENTRIES[name]=savedEntry
+        if savedSchema==nil then Schema.TALENTS[name]=nil else Schema.TALENTS[name]=savedSchema end
+        if p.talents then p.talents[name]=nil end
+        if p.talents_def then p.talents_def[name]=nil end
+        if p.talents_cd then p.talents_cd[name]=nil end
+        p.handback_answer=nil
+    end
+end
+
+-- Stage 1 (one frame slot): prepare the run, drive ONE opportunity through the
+-- PRODUCTION service step, then answer or abort. Everything here is
+-- synchronous inside one submission; returns a finalize table for the answered
+-- modes (settled across later frames by the pump) or nil for the timeout mode
+-- (which completes inline).
+local function handbackRun(answerMode)
+    forceReady()
+    Runtime.setAutoCombatExecution(game,true)
+    local p=game.player
+    local sigs,raiseSpecs
+    if answerMode=='reorder' then
+        -- S2-R4-03: a GENUINE same-kind reorder for a Vault-shaped
+        -- presence-explicit pair. Entry 1 declares `nolock` ABSENT (the
+        -- presence-explicit rule then requires the prompt NOT to raise it),
+        -- entry 2 declares `nolock=true`; the raised prompt carries entry 2's
+        -- COMPLETE presence-explicit signature, so it matches entry 2 only and
+        -- arrives at index 1 — a pure order deviation whose `matched_indexes`
+        -- must be exactly `{2}` (the previous fixture raised a prompt with
+        -- `nolock` absent, which was a zero-match drift case, not a reorder).
+        sigs={{cursor_type='hit',nowarning=true},
+            {cursor_type='hit',nolock=true,nowarning=true}}
+        raiseSpecs={{type='hit',nolock=true,range=10,nowarning=true}}
+    else
+        sigs={{cursor_type='hit',nowarning=true}}
+        raiseSpecs={{type='ball',range=10,radius=1,nowarning=true,nolock=true}}
+    end
+    local entry,restore=handbackFixture('T_MCP_HANDBACK',sigs,raiseSpecs)
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local dest={selector='position',x=p.x+2,y=p.y,accept=accept}
+    local steps={{request='actor',selector='self'}}
+    if answerMode=='reorder' then
+        steps[2]={request='actor',selector='self'}
+    end
+    -- A hand-built policy (not the shared helper) so the safety gates cannot
+    -- swallow this run: max_selffire_risk=100 (movement entries carry no damage
+    -- footprint anyway), rules evaluated even with no visible enemy, and no
+    -- new-enemy pause.
+    local pol={schema='tome-auto-combat/v1',id='hb-probe',name='probe',
+        limits={max_actions_per_tick=1},
+        mode={on_no_enemy='evaluate_rules'},
+        safety={min_hp_pct=35,max_selffire_risk=100,pause_on_new_enemy=false},
+        targeting={default='self'},
+        rules={{id='hb',priority=10,when={always={}},['then']={action='use_talent',
+            talent='T_MCP_HANDBACK',target='self',destination=dest,target_plan=steps}}}}
+    -- Arm the run so the production service owns the controller and the arbiter.
+    Runtime.autoCombatHandle(game,'set_draft',{policy=pol})
+    local approved=Runtime.autoCombatHandle(game,'approve',{})
+    Runtime.autoCombatHandle(game,'activate',{expected_hash=approved and approved.approved_hash})
+    -- The frame stage waited for a genuinely 'ready' phase boundary; assert it
+    -- through the production host (the audited phase read the controller uses).
+    local phaseHost=Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end})
+    local readyNow=phaseHost and phaseHost.phase and phaseHost.phase()=='ready'
+    check('handback:phase-ready',readyNow==true,{phase=phaseHost and phaseHost.phase and phaseHost.phase()})
+    forceReady()
+    local started=Runtime.autoCombatHandle(game,'start',{})
+    local svc=Runtime.autoCombatService(game)
+    local signals={}
+    signals[#signals+1]=readyNow and 'hb_phase_ready' or 'hb_phase_not_ready'
+    if not (started and started.ok and svc and svc.controller) then
+        check('handback:start',false,{started=started})
+        Runtime.autoCombatHandle(game,'stop',{reason='handback_failed'})
+        Runtime.setAutoCombatExecution(game,false)
+        restore()
+        forceReady()
+        compare('handback-'..answerMode,signals)
+        return nil
+    end
+    -- S2-R3-03: drive ONE opportunity through the PRODUCTION service step (the
+    -- exact function the frame pump calls). The controller decides the 'hb'
+    -- rule, plans through the production host and submits through the real
+    -- executor; the native body genuinely yields inside this submission.
+    local step=AutoCombatService.step(svc)
+    local root=Runtime.autoInvocationFor(game)
+    local stepInner=step and step.step or {}
+    local handoff=step and step.ok and step.handoff==true
+        and stepInner.action=='paused'
+        and stepInner.reason=='unexpected_target_request'
+        and stepInner.handed_back==true
+    check('handback:service-handoff',handoff,
+        {step=step,root=root~=nil})
+    signals[#signals+1]=handoff and 'hb_service_handoff' or 'hb_handoff_missing'
+    local okPending=root and (root.pending or 0)>0
+        and root.sequence_deviation
+        and root.sequence_deviation.reason=='unexpected_target_request'
+        and root.sequence_deviation.handed_back==true
+        and root.sequence_deviation.observed_shape~=nil
+    check('handback:pending-deviation',okPending,
+        {deviation=root and root.sequence_deviation,pending=root and root.pending,
+            handed_back=root and root.handed_back})
+    signals[#signals+1]=okPending and 'hb_pending_deviation' or 'hb_pending_missing'
+    check('handback:live-command',root and root.command
+        and root.command.target_handed_back=='unexpected_target_request'
+        and root.command.target_cancelled==nil,
+        {handed_back=root and root.command and root.command.target_handed_back,
+            cancelled=root and root.command and root.command.target_cancelled})
+    -- Path 1 + Option A in one submission: the controller paused with the typed
+    -- reason and the service stopped the run and released the lease. The
+    -- controller must never have entered `waiting_native` (the reason is the
+    -- typed deviation, not 'native_pending').
+    local svcStatus=Runtime.autoCombatStatus(game) or {}
+    local run=svcStatus.run or {}
+    local stopped=(svc.controller and svc.controller.state=='stopped')
+        and svc.controller.reason=='unexpected_target_request'
+        and svcStatus.control_owner=='manual' and run.state=='stopped'
+    check('handback:safety-stop',stopped,
+        {state=svc.controller and svc.controller.state,
+            reason=svc.controller and svc.controller.reason,
+            owner=svcStatus.control_owner,run_state=run.state})
+    signals[#signals+1]=stopped and 'hb_lease_released' or 'hb_lease_held'
+    local neverWaiting=(svc.controller and svc.controller.reason~='native_pending')
+        and run.reason~='native_pending'
+    check('handback:never-waiting-native',neverWaiting,
+        {controller_reason=svc.controller and svc.controller.reason,run_reason=run.reason})
+    -- Not resubmitted: the run is stopped, so no new opportunity is taken.
+    local attempts_before=run.attempts or 0
+    AutoCombatService.step(svc)
+    local status2=Runtime.autoCombatStatus(game) or {}
+    check('handback:not-resubmitted',(status2.run and status2.run.attempts or 0)==attempts_before,
+        {before=attempts_before,after=status2.run and status2.run.attempts})
+    signals[#signals+1]='hb_not_resubmitted'
+    -- The live interaction is answerable through the bridge after release.
+    local Interactions=require 'mod.mcp_bridge.Interactions'
+    local handle=root and Interactions.current(root)
+    local answerable=handle~=nil and handle.target~=nil
+    check('handback:answerable',answerable,{handle=handle and handle.kind})
+    signals[#signals+1]=answerable and 'hb_answerable' or 'hb_unanswerable'
+    signals[#signals+1]='hb_never_waiting_native'
+    if answerMode~='timeout' then
+        -- S2-R3-03: answer through the PRODUCTION MCP respond routing (never
+        -- Interactions.prepare/apply directly). The bridge dispatch needs an
+        -- authenticated session; connect through the same dispatch with the
+        -- configured token (the probe rig configures one).
+        local token=(config.settings.tome_mcp_bridge
+            and config.settings.tome_mcp_bridge.token) or 'auto-combat-probe'
+        local connected=Runtime.bridgeRequestFor(game,{v=4,id='hb-connect',op='connect',
+            args={token=token}})
+        local session=connected.result
+        check('handback:bridge-connect',session and session.session_id and session.control_token,
+            {connected=connected.ok,code=connected.error and connected.error.code})
+        local observedView=session and Runtime.bridgeRequestFor(game,{v=4,id='hb-observe',
+            op='observe',args={session_id=session.session_id}})
+        local revision=observedView and observedView.result and observedView.result.revision
+        local answered=session and Runtime.bridgeRequestFor(game,{v=4,id='hb-respond',
+            op='respond',args={session_id=session.session_id,
+                control_token=session.control_token,command_id='cmd-999999',
+                interaction_id=handle.interaction_id,response_id='r-hb',
+                expected_revision=revision,
+                answer={type='position',x=p.x+2,y=p.y}}})
+        local routed=answered and answered.result and answered.result.answered==true
+            and answered.result.scope=='auto_combat'
+            and p.handback_answer~=nil
+            and p.handback_answer.x==p.x+2 and p.handback_answer.y==p.y
+        check('handback:respond-routed',routed,
+            {ok=answered and answered.ok,code=answered and answered.error and answered.error.code,
+                answer=p.handback_answer})
+        signals[#signals+1]=routed and 'hb_respond_routed' or 'hb_respond_missing'
+        -- S2-R3-02 on the native path: the routed answer is fingerprinted,
+        -- counted and marked consumed on the auto command.
+        local autoCommand=(root and root.command) or {}
+        local receipt=autoCommand.responses and autoCommand.responses['r-hb']
+        local counted=autoCommand.response_count==1 and receipt~=nil
+            and receipt.fingerprint~=nil
+            and autoCommand.consumed_interactions
+                and autoCommand.consumed_interactions[handle.interaction_id]==true
+        check('handback:respond-receipt',counted,
+            {count=autoCommand.response_count,fingerprint=receipt and receipt.fingerprint~=nil})
+        signals[#signals+1]=counted and 'hb_respond_receipt' or 'hb_receipt_missing'
+        if answerMode=='reorder' then
+            -- Same-kind reorder evidence (S2-R4-03): the handed-back prompt's
+            -- shape equals the declared cursor_type of BOTH entries (a pure order
+            -- deviation, not a shape one) AND the typed deviation's
+            -- `matched_indexes` is exactly `{2}` (entry 2's complete
+            -- presence-explicit signature arrived at index 1).
+            local seq=(root and root.command and root.command.target_sequence) or {}
+            local dev=root and root.sequence_deviation
+            local matched=dev and dev.matched_indexes or {}
+            local sameKind=seq[1]~=nil
+                and seq[1].shape==sigs[1].cursor_type
+                and seq[1].shape==sigs[2].cursor_type
+                and dev~=nil and dev.reason=='unexpected_target_request'
+                and dev.observed_shape==sigs[2].cursor_type
+                and #matched==1 and matched[1]==2
+            check('handback:same-kind-reorder',sameKind,
+                {sequence=seq,expected=sigs[1].cursor_type,
+                    matched_indexes=dev and dev.matched_indexes,reason=dev and dev.reason})
+            signals[#signals+1]=sameKind and 'hb_same_kind_reorder' or 'hb_kind_missing'
+        end
+        -- Finalize across later frames: the body settles once answered, then
+        -- the frame reaper releases the invocation root.
+        local function finalize()
+            check('handback:body-settled',Runtime.autoInvocationFor(game)==nil,
+                {pending=Runtime.autoInvocationFor(game)~=nil})
+            Runtime.autoCombatHandle(game,'stop',{reason='handback_done'})
+            Runtime.setAutoCombatExecution(game,false)
+            if root then pcall(Interactions.cancelTarget,root);pcall(Interactions.release,root) end
+            restore()
+            forceReady()
+            compare('handback-'..answerMode,signals)
+        end
+        return finalize
+    end
+    -- Timeout mode: do not answer; the bounded abort cancels the live targeting
+    -- UI. The abort seam is the same production function the frame pump calls.
+    Runtime.abortAutoInvocationFor(game,{tick=game.turn,ms=0,frames=0},
+        {ticks=Runtime.AUTO_NATIVE_TIMEOUT_TICKS,ms=0,frames=Runtime.AUTO_NATIVE_TIMEOUT_FRAMES})
+    local record=Runtime.lastNativeAbort(game)
+    local cancelled=record and record.cancelled==true
+        and record.reason~='authoritative_target_cancelled'
+    check('handback:unanswered-cancelled',cancelled,
+        {record=record,handle_closed=not (root and Interactions.current(root))})
+    signals[#signals+1]=cancelled and 'hb_unanswered_cancelled' or 'hb_unanswered_open'
+    Runtime.autoCombatHandle(game,'stop',{reason='handback_done'})
+    Runtime.setAutoCombatExecution(game,false)
+    if root then pcall(Interactions.cancelTarget,root);pcall(Interactions.release,root) end
+    restore()
+    forceReady()
+    compare('handback-'..answerMode,signals)
+    return nil
 end
 
 function M.onFrame()
@@ -1671,15 +2224,79 @@ function M.onFrame()
             settleTick(M.final_frames)
             if productionReady() or M.final_frames>=120 then
                 forceReady()
-                M.final_stage='done'
-                M.waiting_final=false
-                sceneLifecycle()
-                M.done=true
-                M.emit{kind='auto_combat_done',passed=M.failures==0,failures=M.failures,checks=#M.checks}
+                -- S2-R3-03: the handback cases need a genuinely 'ready' phase
+                -- (a flushed save pipe), which only arrives across real display
+                -- frames; run them from the frame pump like the other native
+                -- final stages, before the scene lifecycle scenario.
+                M.final_stage='handback'
+                M.handback_queue={'answer','timeout','reorder'}
+                M.handback_index=1
+                M.handback_stage='wait'
+                M.final_frames=0
+            end
+            return
+        end
+        if M.final_stage=='handback' then
+            M.final_frames=(M.final_frames or 0)+1
+            if M.handback_stage=='wait' then
+                settleTick(M.final_frames)
+                if productionReady() or M.final_frames>=240 then
+                    forceReady()
+                    M.handback_stage='run'
+                end
+                return
+            end
+            if M.handback_stage=='settle' then
+                M.handback_frames=(M.handback_frames or 0)+1
+                settleTick(M.handback_frames)
+                if Runtime.autoInvocationFor(game)==nil or M.handback_frames>=240 then
+                    if M.handback_finalize then
+                        local ok_f,err_f=pcall(M.handback_finalize)
+                        if not ok_f then check('handback:finalize',false,{error=tostring(err_f)}) end
+                    end
+                    M.handback_finalize=nil
+                    M.handback_index=M.handback_index+1
+                    if M.handback_queue[M.handback_index]==nil then
+                        M.final_stage='scene'
+                        M.final_frames=0
+                        return
+                    end
+                    M.handback_stage='wait'
+                    M.final_frames=0
+                end
+                return
+            end
+            -- stage 'run': one synchronous yielding submission per case.
+            local finalize=handbackRun(M.handback_queue[M.handback_index])
+            if finalize then
+                M.handback_finalize=finalize
+                M.handback_stage='settle'
+                M.handback_frames=0
+            else
+                M.handback_index=M.handback_index+1
+                if M.handback_queue[M.handback_index]==nil then
+                    M.final_stage='scene'
+                    M.final_frames=0
+                    return
+                end
+                M.handback_stage='wait'
+                M.final_frames=0
             end
             return
         end
         if M.final_stage=='scene' then
+            -- S2-R3-03: settle-gate the scene scenario in the SAME frame it
+            -- runs: a ready check one frame earlier can be invalidated by the
+            -- alternate-tick settle (the yielding bodies need ticks, and a
+            -- controller started on a stale boundary defers to awaiting_ready).
+            M.final_frames=(M.final_frames or 0)+1
+            local sceneReady=productionReady()
+                and Runtime.autoInvocationFor(game)==nil
+            if not sceneReady and M.final_frames<240 then
+                settleTick(M.final_frames)
+                return
+            end
+            forceReady()
             sceneLifecycle()
             M.final_stage='done'
             M.waiting_final=false

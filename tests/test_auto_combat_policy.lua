@@ -292,6 +292,33 @@ do
         ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',target_plan={}}}}
     check(not Schema.validate(noPlan),'an empty target_plan is rejected')
 end
+-- S2-R4-01: the agility Vault must NOT be executable. Its first (actor) prompt's
+-- target is attacked and may be dazed before the move, so component-free
+-- grid-movement admission would let a policy bind that actor prompt to `self`
+-- and aim an offensive native action at the player with the effect hidden from
+-- the movement-skipping guard. It must be rejected as an unsupported talent.
+do
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local p=basePolicy()
+    p.rules={{id='vault-self',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_VAULT',target='self',
+            destination={selector='position',x=3,y=3,accept=accept},
+            target_plan={{request='actor',selector='self'}}}}}
+    local ok,errors=Schema.validate(p)
+    check(ok==nil,'the agility Vault is not an executable schema talent')
+    local code=nil
+    for _,error in ipairs(errors or {}) do
+        if error.path=='rules[1].then.talent' then code=error.code end
+    end
+    check(code=='unsupported_talent','a self-bound Vault rule is rejected as unsupported_talent')
+    -- The acrobatics Vault (a different, single-prompt pure-movement talent)
+    -- stays a valid schema talent.
+    local skirmisher=basePolicy()
+    skirmisher.rules={{id='svault',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_SKIRMISHER_VAULT',target='self',
+            destination={selector='position',x=3,y=3,accept=accept}}}}
+    check(Schema.validate(skirmisher),'T_SKIRMISHER_VAULT stays a valid schema talent')
+end
 do
     -- v1.6: `emergency` is a scheduling label only. It is not an action
     -- allowlist, so any declared action may carry it; the executor guard is the

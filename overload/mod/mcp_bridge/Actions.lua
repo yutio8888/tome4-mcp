@@ -26,6 +26,182 @@ end
 local function finite(value) return type(value)=='number' and value==value and value>-math.huge and value<math.huge end
 local function stringId(value) return type(value)=='string' and #value>0 and #value<=256 and not value:find('%z') end
 local function coordinate(value) return type(value)=='number' and value%1==0 and value>=0 and value<=2147483647 end
+-- S2 ordered prompt-response queue: one internal decided value per declared native
+-- prompt. The record is closed and every field is a scalar so command dedup
+-- (`M.fingerprint`) stays deterministic and JSON-safe. `kind` is what the answer
+-- *is* (`grid` coordinates with no entity, `self` the caster, `actor` the bound
+-- actor); `request` is the declared prompt kind it answers, kept for the
+-- expected/observed deviation report.
+local SEQUENCE_KINDS={grid=true,self=true,actor=true}
+-- A sequence entry is a real native prompt; `none` (no prompt at all) is a
+-- `target_requests` value for single-request descriptors and is not a prompt
+-- the queue can answer, so it is not part of the program vocabulary.
+local SEQUENCE_REQUESTS={grid=true,self=true,actor=true}
+-- The decided-value kind admissible for each declared prompt kind: an `actor`
+-- prompt may be answered with the caster (`self`) or the bound actor; a `grid`
+-- prompt only with coordinates (no entity); a `self` prompt with the caster
+-- cell.
+local SEQUENCE_VALUE_KINDS={actor={self=true,actor=true},grid={grid=true},
+    self={self=true}}
+-- The executor's internal carrier (`action.sequence`) also rides the curated
+-- observed signature per entry (S2 rev3), so the runtime match uses the same
+-- closed allowlist the factory validated. This is the decided value plus the
+-- curation metadata for its position, never a policy/protocol field.
+local SEQUENCE_OBSERVED_FLAGS={nolock=true,pass_terrain=true,friendlyblock=true,
+    nowarning=true,immediate_keys=true,no_restrict=true}
+local SEQUENCE_OBSERVED_STRINGS={first_target=true,msg=true}
+local function normalizeObservedSignature(observed)
+    if type(observed)~='table' then return nil end
+    if type(observed.cursor_type)~='string' or #observed.cursor_type==0
+        or #observed.cursor_type>32 then return nil end
+    local copy={cursor_type=observed.cursor_type}
+    for key in pairs(observed) do
+        if key~='cursor_type' and key~='default_target'
+            and not SEQUENCE_OBSERVED_FLAGS[key] and not SEQUENCE_OBSERVED_STRINGS[key] then
+            return nil
+        end
+    end
+    for flag in pairs(SEQUENCE_OBSERVED_FLAGS) do
+        if observed[flag]~=nil then
+            if type(observed[flag])~='boolean' then return nil end
+            copy[flag]=observed[flag]
+        end
+    end
+    for key in pairs(SEQUENCE_OBSERVED_STRINGS) do
+        if observed[key]~=nil then
+            if type(observed[key])~='string' or #observed[key]>512 then return nil end
+            copy[key]=observed[key]
+        end
+    end
+    if observed.default_target~=nil then
+        if observed.default_target~='self' then return nil end
+        copy.default_target='self'
+    end
+    return copy
+end
+-- S2 rev3: the observed prompt is matched against the entry's **curated
+-- observed signature** (design §4.4). Cursor geometry is NOT a sound
+-- actor/grid classifier (`hit` is "hit a single grid in LOS", `setSpot` fills
+-- `target.entity` for every geometry, the cursor starts with the caster as
+-- `entity`, and reviewed talents consume the same shapes with opposite
+-- semantics), so the runtime evidence is a curated, closed set of STATIC
+-- discriminators: `cursor_type` (the `typ.type` the reviewed action passes)
+-- plus the boolean flags `nolock`/`pass_terrain`/`friendlyblock`/`nowarning`/
+-- `immediate_keys`/`no_restrict`, and the bounded strings `first_target`/`msg`
+-- and `default_target='self'`. Dynamic numerics (`range`/`radius`) and closures
+-- are never signature fields (they are the per-request guard inputs). This is a
+-- drift check on recorded fields, never an identity audit of a live object.
+-- S2-R3-01 rev5 (presence-explicit semantics, normative): the signature is a
+-- record, not a wildcard predicate.
+--   * `cursor_type` is always an equality constraint;
+--   * a DECLARED boolean flag must be PRESENT in the observed spec and equal
+--     (`{cursor_type='hit'}` does not match a prompt that raises `nolock`; a
+--     declared `nolock=false` requires the key present with value `false`,
+--     distinct from absence — Vault's two prompts differ exactly by nolock
+--     presence);
+--   * an UNDECLARED boolean flag must NOT be raised by the observed spec;
+--   * a declared string/`default_target` must be present and equal; when the
+--     signature omits them the observed value is IGNORED — real flows raise
+--     them nondeterministically (Phase Door's `first_target` is
+--     rng.percent-driven, conveyance.lua:85), so they are never required-absent.
+-- The normative runtime gate is the executor's EXACTLY-ONE rule: a raised
+-- prompt may be answered only when exactly one declared entry — the arrival
+-- position — matches it; zero matches, several matches, or a match at another
+-- index are typed deviations that pause and hand the live prompt back.
+local OBSERVED_FLAGS={nolock=true,pass_terrain=true,friendlyblock=true,
+    nowarning=true,immediate_keys=true,no_restrict=true}
+local OBSERVED_STRINGS={first_target=true,msg=true}
+-- S2-R3-01 rev5: the runtime EXACTLY-ONE rule is the normative gate, so there
+-- is no build-time exclusivity proof here: a published descriptor's factory
+-- validation rejects only subsuming declarations, and the executor refuses to
+-- answer any prompt that does not match EXACTLY the arrival entry (zero
+-- matches, several matches, or a match at another index are typed handbacks).
+local function observedMatchesSignature(typ,entry,caster)
+    local signature=entry and entry.observed
+    if type(signature)~='table' or type(signature.cursor_type)~='string' then return false end
+    if type(typ)~='table' or type(typ.type)~='string' then return false end
+    if typ.type~=signature.cursor_type then return false end
+    -- Presence-explicit flags: declared -> present-and-equal; undeclared -> the
+    -- observed spec must NOT raise the field.
+    for flag in pairs(OBSERVED_FLAGS) do
+        if signature[flag]~=nil then
+            if typ[flag]~=signature[flag] then return false end
+        elseif typ[flag]~=nil then return false end
+    end
+    -- Strings/default_target: declared -> present-and-equal; undeclared ->
+-- ignored (real flows raise them nondeterministically, so they are never
+    -- required-absent and never discriminate by absence).
+    for key in pairs(OBSERVED_STRINGS) do
+        if signature[key]~=nil and typ[key]~=signature[key] then return false end
+    end
+    if signature.default_target=='self' then
+        if typ.default_target==nil or typ.default_target~=caster then return false end
+    end
+    return true
+end
+-- A spec the bridge cannot read as a signature at all (not a table, or no
+-- string `type`) is the plugin's own observability boundary and is
+-- `movement_request_kind_unknown`; a readable spec that matches no declared
+-- entry is `unexpected_target_request` (design §6.1).
+local function observableSpec(typ)
+    return type(typ)=='table' and type(typ.type)=='string'
+end
+M.SEQUENCE_VALUE_KINDS=SEQUENCE_VALUE_KINDS
+function M.normalizeSequence(list)
+    if type(list)~='table' then return nil,'invalid_sequence' end
+    local maxKey,count=0,0
+    for key in pairs(list) do
+        if type(key)~='number' or key%1~=0 or key<1 then return nil,'invalid_sequence' end
+        if key>maxKey then maxKey=key end
+        count=count+1
+    end
+    if count~=maxKey or maxKey<1 or maxKey>8 then return nil,'invalid_sequence' end
+    local out=Json.array()
+    for i=1,maxKey do
+        local entry=list[i]
+        if type(entry)~='table' then return nil,'invalid_sequence' end
+        local kind=entry.kind
+        if not SEQUENCE_KINDS[kind] then return nil,'invalid_sequence' end
+        if entry.request~=nil and not SEQUENCE_REQUESTS[entry.request] then return nil,'invalid_sequence' end
+        local copy={kind=kind,request=entry.request or kind}
+        -- S2 rev3: the executor matches each observed prompt against this
+        -- entry's curated observed signature, so the carrier must carry it
+        -- (every published sequence does; a missing one is fail-closed).
+        local observed=normalizeObservedSignature(entry.observed)
+        if not observed then return nil,'invalid_sequence' end
+        copy.observed=observed
+        if entry.optional~=nil then
+            if type(entry.optional)~='boolean' then return nil,'invalid_sequence' end
+            if entry.optional then copy.optional=true end
+        end
+        if kind=='grid' then
+            if not coordinate(entry.x) or not coordinate(entry.y) then return nil,'invalid_sequence' end
+            for key in pairs(entry) do
+                if key~='kind' and key~='request' and key~='x' and key~='y' and key~='optional'
+                    and key~='observed' then return nil,'invalid_sequence' end
+            end
+            copy.x,copy.y=entry.x,entry.y
+        elseif kind=='actor' then
+            if entry.target_id~=nil and not stringId(entry.target_id) then return nil,'invalid_sequence' end
+            for key in pairs(entry) do
+                if key~='kind' and key~='request' and key~='target_id' and key~='optional'
+                    and key~='observed' then return nil,'invalid_sequence' end
+            end
+            if entry.target_id~=nil then copy.target_id=entry.target_id end
+        else
+            for key in pairs(entry) do
+                if key~='kind' and key~='request' and key~='optional'
+                    and key~='observed' then return nil,'invalid_sequence' end
+            end
+        end
+        out[i]=copy
+    end
+    -- S2-R3-01 rev5: no carrier-level pairwise check — the runtime EXACTLY-ONE
+    -- gate is the normative rule and subsumes it: even a directly submitted
+    -- overlapping/identical signature pair can never be answered ambiguously,
+    -- because a prompt is only answered when exactly the arrival entry matches.
+    return out
+end
 -- Statistical audit of an attack entry (NO-AUDIT): the only structural
 -- requirement is a callable action + target with no post_action override. A
 -- replaced-but-usable action/target is used; provenance is advisory.
@@ -119,6 +295,18 @@ function M.validate(action)
             if type(action.authoritative_target)~='boolean' then return nil,'invalid_authoritative_target' end
             a.authoritative_target,allowed.authoritative_target=action.authoritative_target,true
         end
+        -- S2 ordered prompt-response queue (internal auto-combat field). A
+        -- non-empty decided-value list answers the k-th native target request
+        -- with the k-th value inside one submission; it implies the
+        -- authoritative wrapper (the queue, not the one-shot prefill, owns every
+        -- request). Closed and validated: an unknown kind, a malformed
+        -- coordinate/actor, a hole or more than 8 entries is `invalid_sequence`.
+        if action.sequence~=nil then
+            local sequence,sequenceErr=M.normalizeSequence(action.sequence)
+            if not sequence then return nil,sequenceErr end
+            a.sequence,allowed.sequence=sequence,true
+            a.authoritative_target,allowed.authoritative_target=true,true
+        end
         local has_actor,has_position=action.target_id~=nil,action.x~=nil or action.y~=nil
         if has_actor and has_position then return nil,'conflicting_target' end
         if has_actor then
@@ -171,14 +359,21 @@ function M.execute(g, action, target, meta, command)
     if not normalized then return {ok=false,code=invalid,energy_spent=0} end
     action=normalized
     -- Each command records its own native target geometry and target-cancel
-    -- marker; clear any previous run.
-    if type(command)=='table' then command.target_geometry=nil;command.target_cancelled=nil end
+    -- marker; clear any previous run. The S2 ordered-queue evidence
+    -- (`target_sequence`) and deviations are per-invocation too.
+    if type(command)=='table' then
+        command.target_geometry=nil;command.target_cancelled=nil
+        command.target_handed_back=nil
+        command.target_sequence=nil;command.sequence_deviation=nil
+        command.sequence_reduced=nil;command.sequence_reduced_reason=nil
+    end
     if Progression.isAction(action.type) then return Progression.execute(g,action) end
     if Items.isAction(action.type) then return Items.execute(g,action,meta) end
     if action.type=='rest' then return {ok=false,code='runtime_managed_action',energy_spent=0} end
     if action.type=='change_level' then return changeLevel(g) end
     local p = g.player
-    local prefilling=action.type=='use_talent' and (action.target_id~=nil or action.x~=nil)
+    local prefilling=action.type=='use_talent'
+        and (action.target_id~=nil or action.x~=nil or action.sequence~=nil)
     if action.target_id and not prefilling and (not target or target==p or target.dead) then
         return {ok=false,code='target_lost',energy_spent=0}
     end
@@ -248,26 +443,35 @@ function M.execute(g, action, target, meta, command)
                     local original=p.getTarget
                     if type(original)~='function' then return run() end
                     local authoritative=action.authoritative_target==true
+                    -- S2 ordered prompt-response queue: the k-th observed native
+                    -- request is matched against the k-th declared entry's
+                    -- CURATED OBSERVED SIGNATURE and answered with that entry's
+                    -- decided value. The queue lives inside this one submission;
+                    -- it never resubmits the talent. A readable-but-unmatched
+                    -- prompt (extra/reordered/signature-mismatched) is a LIVE
+                    -- handback: the wrapper falls through to the real native
+                    -- targeting UI and records `command.target_handed_back`
+                    -- (never `target_cancelled`). An unreadable spec is
+                    -- `movement_request_kind_unknown`, also a live handback. An
+                    -- unevaluable value or a refused guard value is answered as
+                    -- the existing native target cancel (the body unwinds; there
+                    -- is no correct value to hand anyone).
+                    local queue=(type(action.sequence)=='table' and #action.sequence>0)
+                        and action.sequence or nil
                     local consumed=false
-                    local function allowed(typ,x,y)
-                        local map=g.level and g.level.map
-                        if not map or not finite(x) or not finite(y) then return false,'invalid_target' end
-                        if x<0 or y<0 or x>=map.w or y>=map.h then return false,'target_out_of_bounds' end
-                        if type(typ)=='table' then
-                            -- Preserve the native range guard.
-                            if finite(typ.range) and finite(p.x) and finite(p.y)
-                                and Distance.grid(p.x,p.y,x,y)>typ.range then return false,'target_out_of_range' end
-                            -- Let the native UI raise its own self-target warning.
-                            if x==p.x and y==p.y and typ.nowarning~=true and typ.talent~=nil then
-                                return false,'self_target_warning'
-                            end
-                        end
-                        return true
-                    end
-                    p.getTarget=function(self,typ,...)
-                        -- Record the native target geometry once, for the agent
-                        -- (beam/ball radius/self-fire). This is the spec the
-                        -- native talent itself built, not a speculative run.
+                    local observed=0
+                    local yielded=false
+                    -- S2-REV-05: once a typed deviation is recorded on a LIVE
+                    -- prompt, the queue stops answering: the wrapper falls
+                    -- through to the real native target request so the player
+                    -- answers the interaction themselves (design §6.1 "hand the
+                    -- live interaction back if safely possible"; the engine
+                    -- implementation is `targetGetForPlayer`'s exclusive target
+                    -- mode, `GameTargeting.lua:299`). Every later prompt of this
+                    -- invocation goes to the player too; the controller pauses
+                    -- and the service releases the auto-combat lease.
+                    if queue and command then command.target_sequence={} end
+                    local function recordGeometry(typ)
                         if command and type(typ)=='table' and not command.target_geometry then
                             local talent=type(typ.talent)=='string' and p.talents_def and p.talents_def[typ.talent] or nil
                             local shape=type(typ.type)=='string' and typ.type or 'unknown'
@@ -281,7 +485,225 @@ function M.execute(g, action, target, meta, command)
                                 piercing=typ.type=='beam' or nil,damage_scope=scope,
                                 residual_area_radius=residual}
                         end
+                        if command and queue and #command.target_sequence<8 then
+                            command.target_sequence[#command.target_sequence+1]={
+                                shape=type(typ)=='table' and (type(typ.type)=='string' and typ.type or 'unknown') or nil,
+                                range=type(typ)=='table' and finite(typ.range) and typ.range or nil,
+                                radius=type(typ)=='table' and finite(typ.radius) and typ.radius or nil}
+                        end
+                    end
+                    local function allowed(typ,x,y)
+                        local map=g.level and g.level.map
+                        if not map or not finite(x) or not finite(y) then return false,'invalid_target' end
+                        if x<0 or y<0 or x>=map.w or y>=map.h then return false,'target_out_of_bounds' end
+                        if type(typ)=='table' then
+                            -- Preserve the native range guard. It is evaluated
+                            -- against THIS request's own spec, so a value legal
+                            -- for one prompt but not another stays refused.
+                            if finite(typ.range) and finite(p.x) and finite(p.y)
+                                and Distance.grid(p.x,p.y,x,y)>typ.range then return false,'target_out_of_range' end
+                            -- Let the native UI raise its own self-target warning.
+                            if x==p.x and y==p.y and typ.nowarning~=true and typ.talent~=nil then
+                                return false,'self_target_warning'
+                            end
+                        end
+                        return true
+                    end
+                    -- Record a typed queue deviation once. For a LIVE prompt the
+                    -- caller hands the interaction back to the real native
+                    -- targeting UI; for an already-settled flow (missing prompt
+                    -- at return time) there is nothing to hand back and the
+                    -- pause surfaces directly.
+                    -- `extra.handback=true` marks a LIVE handback: the executor
+                    -- records `command.target_handed_back` and must NOT set
+                    -- `command.target_cancelled` (a still-live prompt is neither
+                    -- answered nor cancelled). Every other deviation keeps the
+                    -- existing cancel marker.
+                    local function deviate(expectedIndex,expectedRequest,observedRequest,extra)
+                        if command and not command.sequence_deviation then
+                            local handback=false
+                            local record={reason='unexpected_target_request',
+                                expected={index=expectedIndex,request=expectedRequest},
+                                observed={index=observed,request=observedRequest},
+                                -- Only a missing trailing `optional` entry is
+                                -- skippable; that case settles with `reduced=true`
+                                -- instead of this deviation, so every emitted
+                                -- deviation is a non-skippable mismatch.
+                                skippable=false}
+                            if extra then
+                                for key,value in pairs(extra) do
+                                    if key=='handback' then handback=value==true
+                                    else record[key]=value end
+                                end
+                            end
+                            if handback then record.handed_back=true end
+                            command.sequence_deviation=record
+                            if handback then
+                                command.target_handed_back=record.reason
+                            else
+                                command.target_cancelled=command.target_cancelled or record.reason
+                            end
+                        end
+                        return nil
+                    end
+                    -- Evaluate one declared entry's decided value at answer
+                    -- time. An unevaluable value is the plugin's own
+                    -- uncomputability boundary (`movement_request_value_unknown`),
+                    -- never a wrong answer.
+                    local function valueUnknown(index,request,dependency)
+                        if command and not command.sequence_deviation then
+                            command.sequence_deviation={reason='movement_request_value_unknown',
+                                index=index,request=request,dependency=dependency}
+                            command.target_cancelled=command.target_cancelled or 'movement_request_value_unknown'
+                        end
+                        return nil
+                    end
+                    -- S2 rev3: the observed spec cannot be read as a signature
+                    -- (`typ` not a table or `typ.type` not a string). The plugin
+                    -- cannot prove what the native flow is asking, so it must
+                    -- never answer blindly (design §6.1). This is a LIVE handback
+                    -- (the prompt is still open): record
+                    -- `command.target_handed_back`, never `target_cancelled`.
+                    local function requestKindUnknown(index,request,shape)
+                        if command and not command.sequence_deviation then
+                            command.sequence_deviation={reason='movement_request_kind_unknown',
+                                expected={index=index,request=request},
+                                observed={index=index,request=nil},
+                                observed_shape=type(shape)=='string' and shape or nil,
+                                handed_back=true,
+                                skippable=false}
+                            command.target_handed_back='movement_request_kind_unknown'
+                        end
+                        return nil
+                    end
+                    -- S2-REV-06: record the value actually answered for this
+                    -- observed request (bounded: coordinates, the actor uid and
+                    -- a short name), so the native evidence distinguishes the
+                    -- per-prompt answers and not only their geometries.
+                    local function recordAnswer(index,x,y,entity)
+                        if command and command.target_sequence then
+                            local entry=command.target_sequence[index]
+                            if entry then
+                                entry.answer={x=x,y=y,
+                                    uid=(type(entity)=='table' and finite(entity.uid)) and entity.uid or nil,
+                                    name=(type(entity)=='table' and type(entity.getName)=='function')
+                                        and Details.text(entity:getName(),64) or nil}
+                            end
+                        end
+                    end
+                    local function resolveQueued()
+                        local index=observed
+                        local entry=queue[index]
+                        local value=action.sequence[index]
+                        if value==nil then return valueUnknown(index,entry.kind,'sequence_entry') end
+                        -- Kind integrity (design §2.3/§4.4): the value we would
+                        -- answer with must be admissible for the prompt kind this
+                        -- position declares. This is the one non-inferential
+                        -- kind check available (it never inspects the native
+                        -- cursor spec); a real native reorder is not provable
+                        -- here and surfaces as the native rejection or the
+                        -- postcondition check instead.
+                        if value.request~=nil and value.request~=entry.request then
+                            return deviate(index,entry.request,value.request)
+                        end
+                        local valueKinds=SEQUENCE_VALUE_KINDS[entry.request]
+                        if valueKinds==nil or not valueKinds[value.kind] then
+                            return deviate(index,entry.request,value.kind)
+                        end
+                        if value.kind=='grid' then
+                            if not finite(value.x) or not finite(value.y) then
+                                return valueUnknown(index,entry.kind,'target_plan['..index..'].destination')
+                            end
+                            return value.x,value.y,nil
+                        end
+                        if value.kind=='self' then
+                            if not (finite(p.x) and finite(p.y)) then
+                                return valueUnknown(index,entry.kind,'self')
+                            end
+                            return p.x,p.y,p
+                        end
+                        if value.kind=='actor' then
+                            local actor=target
+                            if type(actor)~='table' or not finite(actor.x) or not finite(actor.y) then
+                                return valueUnknown(index,entry.kind,'bound_actor')
+                            end
+                            return actor.x,actor.y,actor
+                        end
+                        return valueUnknown(index,entry.kind,'sequence_entry')
+                    end
+                    p.getTarget=function(self,typ,...)
+                        recordGeometry(typ)
                         if consumed and not authoritative then return original(self,typ,...) end
+                        if queue then
+                            if yielded then
+                                -- S2-REV-05: the queue already handed this live
+                                -- interaction back to the player; it never
+                                -- answers another prompt of this invocation.
+                                return original(self,typ,...)
+                            end
+                            consumed=true
+                            observed=observed+1
+                            local entry=queue[observed]
+                            if entry==nil then
+                                -- An extra prompt past the declared sequence:
+                                -- record the shape the native flow actually
+                                -- raised, then hand the live prompt back.
+                                deviate(observed,nil,nil,
+                                    {exhausted=true,count=#queue,
+                                        observed_shape=observableSpec(typ) and typ.type or nil,
+                                        handback=true})
+                                yielded=true
+                                return original(self,typ,...)
+                            end
+                            -- S2-R3-01 rev5: the normative runtime EXACTLY-ONE
+                            -- gate. Compute the set of declared entries whose
+                            -- curated observed signature matches this raised
+                            -- prompt. The prompt may be answered ONLY when that
+                            -- set is exactly the arrival position: zero matches
+                            -- (extra/drifted prompt), several matches
+                            -- (ambiguous declaration), or a match at another
+                            -- index (reordered flow) are typed deviations — the
+                            -- live prompt is handed back, never a blind answer
+                            -- of the k-th declared value. Geometry alone is
+                            -- never used as actor/grid evidence.
+                            if not observableSpec(typ) then
+                                requestKindUnknown(observed,entry.request,nil)
+                                yielded=true
+                                return original(self,typ,...)
+                            end
+                            local matched_indexes={}
+                            for i=1,#queue do
+                                if observedMatchesSignature(typ,queue[i],p) then
+                                    matched_indexes[#matched_indexes+1]=i
+                                end
+                            end
+                            if #matched_indexes~=1 or matched_indexes[1]~=observed then
+                                deviate(observed,entry.request,nil,
+                                    {observed_shape=typ.type,handback=true,
+                                        matched_indexes=matched_indexes})
+                                yielded=true
+                                return original(self,typ,...)
+                            end
+                            local x,y,entity=resolveQueued()
+                            if x==nil then
+                                -- A decided value that cannot be evaluated is
+                                -- the plugin's own uncomputability boundary: the
+                                -- prompt is cancelled (there is no value to hand
+                                -- the player either) and the typed pause below
+                                -- releases control and the lease.
+                                return nil
+                            end
+                            local ok,reason=allowed(typ,x,y)
+                            if ok then
+                                recordAnswer(observed,x,y,entity)
+                                return x,y,entity
+                            end
+                            -- A value refused by this request's own native guard is
+                            -- the existing native target-cancel path with its
+                            -- typed reason (never a bypass).
+                            if command then command.target_cancelled=reason end
+                            return nil
+                        end
                         consumed=true
                         if not authoritative then rawset(p,'getTarget',prior) end
                         local x,y,entity=resolve()
@@ -304,6 +726,34 @@ function M.execute(g, action, target, meta, command)
                     local ok,value=pcall(run)
                     if authoritative or not consumed then rawset(p,'getTarget',prior) end
                     if not ok then error(value,0) end
+                    -- Settle the queue on return: a missing non-optional entry is
+                    -- a typed deviation (pauses, never resubmits); a missing
+                    -- trailing `optional` entry is a settled native outcome
+                    -- reported with `reduced=true`, not an error. A skipped
+                    -- optional that was in fact raised leaves no marker.
+                    -- S2 rev3: a deviation already recorded on a live prompt
+                    -- (or a handed-back interaction) is authoritative — after a
+                    -- handback the player owns the prompts, so the settle check
+                    -- neither overwrites it nor reports the remaining entries as
+                    -- missing.
+                    if queue and command and not command.sequence_deviation
+                        and not yielded then
+                        local answeredSeq=observed
+                        if answeredSeq<#queue then
+                            local missing=queue[answeredSeq+1]
+                            local optional=missing.optional==true
+                            if optional then
+                                command.sequence_reduced=true
+                                command.sequence_reduced_reason='trailing_optional_not_raised'
+                            else
+                                command.sequence_deviation={reason='unexpected_target_request',
+                                    expected={index=answeredSeq+1,request=missing.request},
+                                    observed={index=answeredSeq+1,request=nil},
+                                    skippable=false}
+                                command.target_cancelled=command.target_cancelled or 'unexpected_target_request'
+                            end
+                        end
+                    end
                     return value
                 end)
             else
@@ -318,11 +768,36 @@ function M.execute(g, action, target, meta, command)
     if not finite(p.energy.value) then return {ok=false,code='invalid_native_energy',uncertain=true,
         native_message=not ok and tostring(ret) or nil} end
     local spent = math.max(0, before-p.energy.value)
-    if not ok then return {ok=false,code='execution_error',energy_spent=spent,uncertain=true,native_message=tostring(ret)} end
+    if not ok then
+        local failure={ok=false,code='execution_error',energy_spent=spent,uncertain=true,
+            native_message=tostring(ret)}
+        -- A typed queue deviation is the more precise reason when the native body
+        -- also raised: surface it (and its evidence) instead of masking it as a
+        -- generic execution_error.
+        if command and command.target_sequence then failure.target_sequence=command.target_sequence end
+        if command and command.sequence_deviation then
+            failure.sequence_deviation=command.sequence_deviation
+            failure.code=command.sequence_deviation.reason
+        end
+        return failure
+    end
     -- T_ATTACK returns true even when the underlying blow misses. A false
     -- talent result can spend energy during native pre-use failure; settle it.
     if command and command.invocation and command.invocation.pending>0 and not command.invocation.error then
-        return {ok=true,code='native_pending',energy_spent=spent}
+        -- S2 rev3: the typed deviation must ride on the `native_pending` result
+        -- itself (design §6.2), so the controller pauses on it BEFORE its
+        -- `native_pending` branch and the service stops the run + revokes the
+        -- lease inside this same submission. `handed_back=true` is evidence for
+        -- the controller/policy log; the reason drives the pause.
+        local pending={ok=true,code='native_pending',energy_spent=spent}
+        if command.target_sequence then pending.target_sequence=command.target_sequence end
+        if command.sequence_deviation then pending.sequence_deviation=command.sequence_deviation end
+        if command.sequence_reduced then
+            pending.reduced=true
+            pending.reduced_reason=command.sequence_reduced_reason
+        end
+        if command.target_handed_back then pending.handed_back=true end
+        return pending
     end
     local success = ret and true or false
     local result={ok=success,code=success and 'action_complete' or 'native_rejected',energy_spent=spent}
@@ -331,6 +806,23 @@ function M.execute(g, action, target, meta, command)
     -- reports the typed guard reason instead of a generic native rejection.
     if command and command.target_cancelled and not success then
         result.code=command.target_cancelled
+    end
+    -- S2: surface the ordered-queue evidence and typed deviations through the
+    -- already-declared command plumbing (no protocol/schema widening). A
+    -- deviation always fails the action (it paused rather than answered a native
+    -- request with a wrong value); a missing trailing `optional` entry is a
+    -- settled native outcome reported with `reduced=true`.
+    if command and command.target_sequence then result.target_sequence=command.target_sequence end
+    if command and command.sequence_deviation then
+        result.sequence_deviation=command.sequence_deviation
+        result.ok=false
+        result.code=command.sequence_deviation.reason
+        result.uncertain=true
+    end
+    if command and command.target_handed_back then result.handed_back=true end
+    if command and command.sequence_reduced then
+        result.reduced=true
+        result.reduced_reason=command.sequence_reduced_reason
     end
     -- P3-2: a native rejection of an activated talent whose own cooldown is
     -- still running carries structured, client-visible cooldown info through the

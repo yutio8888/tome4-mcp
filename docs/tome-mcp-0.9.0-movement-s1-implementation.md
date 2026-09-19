@@ -44,8 +44,10 @@ talent name; every admitted talent keeps an explicit manifest entry.
 - `M.resolveVariant(movement, talent, reads)` returns exactly one descriptor.
   Zero matches, multiple matches or an indeterminate condition/axis return
   `movement_variant_unknown`; a known unimplemented branch returns its declared
-  typed runtime reason (Phase Door TL4+ → `unsupported_target_plan`). There is no
-  ordering fallback.
+  typed runtime reason. There is no ordering fallback. (S1 published the Phase
+  Door TL4+ branch as `unsupported_target_plan`; **S2 replaced that branch with
+  real `request_then_landing` descriptors**, see
+  `docs/tome-mcp-0.9.0-movement-s2-implementation.md`.)
 - `M.resolveBounds(...)` resolves `{getter='getRange'}` envelopes through the
   injected audited getter; a missing/erroring/non-finite value returns
   `movement_derivation_unknown`.
@@ -73,7 +75,9 @@ annotates a bounded/random grid landing as `bounded`/`random`.
 | --- | --- | --- | --- | --- |
 | `< 4` | absent | `{'none'}` | random self, `t.getRange` | driven |
 | `< 4` | present | `{'grid'}` | bounded around requested grid, `t.getRadius`, self-centred `t.getRange` LOS fallback | driven |
-| `>= 4` | known (either) | `{'actor'}` / `{'actor','grid'}` | — | `unsupported_target_plan` (`scope='multi_prompt'`, S2), which both controllers pause on |
+| `[4,5)` | absent | `{'actor'}` | random self, `t.getRange` | driven (S2 ordered program) |
+| `[4,5)` | present | `{'actor','grid'}` | bounded around requested grid, `t.getRadius`, self-centred `t.getRange` LOS fallback | driven (S2 ordered program) |
+| `>= 5` | either | `{'actor','grid'}` | bounded around requested grid, `t.getRadius`, self-centred `t.getRange` LOS fallback | driven (S2 ordered program) |
 | any | unknown | — | — | `movement_variant_unknown` (both axes pre-read) |
 
 The old fixed `radius=6, min_radius=1` is replaced by the audited dynamic
@@ -96,8 +100,11 @@ Admitted (explicit manifest entry + template + pins):
 
 Structured unsupported (typed reason, never a strategy refusal):
 
-- `T_PHASE_DOOR` TL4+: `actor_then_grid_target_plan` published as
-  `unsupported_target_plan` (S2 queue).
+- `T_PHASE_DOOR` TL4+: the S1 `actor_then_grid_target_plan` / S2-queue gap was
+  **closed by S2**; the TL4/TL5 cells now resolve to real ordered programs.
+  A **multi-prompt** plan against any adapter that has no `request_sequence`
+  keeps the typed `unsupported_target_plan` (`missing='ordered_request_sequence'`,
+  `scope='multi_prompt'`).
 - `T_DIMENSIONAL_STEP` TL5 occupied grid: `moving_or_swapping_another_actor`
   (S4).
 - `T_BLINK_RUNE`: `stable_native_talent_id` — the native inscription id is

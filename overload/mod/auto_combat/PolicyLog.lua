@@ -80,6 +80,13 @@ function M.add(log,event)
         elapsed_ticks=event.elapsed_ticks,
         elapsed_frames=event.elapsed_frames,
         movement=boundedObject(event.movement,0),risk=boundedObject(event.risk,0),
+        -- S2 ordered prompt-response queue evidence: the observed native prompt
+        -- sequence (bounded) and the reduced-trailing-optional marker. The typed
+        -- deviation reaches the log as a `paused` event whose bounded `detail`
+        -- carries expected/observed/index/reason.
+        target_sequence=bounded(event.target_sequence,8),
+        reduced=event.reduced==true or nil,reduced_reason=boundedString(event.reduced_reason,64),
+        detail=boundedObject(event.detail,0),
         tick=event.tick,revision=event.revision,level_instance_id=event.level_instance_id,
         rule_results=bounded(event.rule_results,32),rejections=bounded(event.rejections,8),
         resources_before=event.resources_before,resources_after=event.resources_after,

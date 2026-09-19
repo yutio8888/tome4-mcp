@@ -189,7 +189,8 @@ end
 -- set of known keys are carried; nested tables are shallow-copied with a cap.
 local DETAIL_KEYS={'measurement','threshold','risk','unknown','provenance','phase','component',
     'landing','visible','remembered','known_passable','known_hazard','confidence','reasons',
-    'selector','talent','scope','missing','native_message','hint','requests','friendlies','selffire','friendlyfire'}
+    'selector','talent','scope','missing','native_message','hint','requests','friendlies','selffire','friendlyfire',
+    'reason','expected','observed','index','dependency','exhausted','count','request','skippable'}
 -- D-2: the structured `missing` array (for example the native cooldown entry
 -- `{kind='cooldown',talent,remaining,required=0}`) is an array of small objects,
 -- so the generic scalar-only table projection above would drop it. Project the
@@ -298,6 +299,32 @@ function M:nativeAborted(info)
     if info.rule then self.rejections[#self.rejections+1]={rule=info.rule,reason=entry.reason} end
     self:record(entry)
     if self.notify then self.notify(entry) end
+    return entry
+end
+
+-- S2 rev3/§6.2 settle-time delivery (Path 2): an ordered-queue deviation that was
+-- not delivered inside the submitting `step` (for example the native body
+-- settled without player input, or the very first frame already ran past the
+-- pump gate) is fed to the controller here. The typed reason drives the pause;
+-- this is the same post-commit integrity pause the synchronous path uses, never
+-- a strategy refusal. The Runtime pump owns the native side (the live handle is
+-- cancelled at its bound); this function only records and pauses so the stall is
+-- never invisible.
+function M:nativeDeviated(deviation)
+    deviation=deviation or {}
+    local reason=deviation.reason or 'unexpected_target_request'
+    local entry={kind='paused',reason=reason,detail=deviation,
+        handed_back=deviation.handed_back==true or nil,
+        generation=self.generation}
+    self:record(entry)
+    if self.notify then self.notify(entry) end
+    -- Transition to paused without emitting a second `paused` notify (the typed
+    -- entry above is the one recorded event). `nativeDeviation` then stops the
+    -- run with the same reason.
+    if self.state~='paused' or self.reason~=reason then
+        self.generation=self.generation+1
+        self.state='paused'; self.reason=reason
+    end
     return entry
 end
 
@@ -573,6 +600,32 @@ function M:step()
                 max_turns=decision.max_turns,direction=decision.direction,
                 destination=decision.destination,target_plan=decision.target_plan,plan=plan,
                 target=decision.target,bound_target=bound.bound_target,generation=generation})) or {}
+            -- S2 rev3: the ordered prompt-response queue deviation rides on the
+            -- `native_pending` result, so it MUST be checked BEFORE the budget
+            -- increment and BEFORE the `native_pending` branch — otherwise the
+            -- pause (and the service's lease release) would be unreachable and
+            -- the run would enter `waiting_native` instead. The plugin could not
+            -- answer the k-th native prompt with the k-th declared value (a
+            -- signature mismatch, a reordered flow, an extra prompt, an
+            -- unreadable spec, a missing non-optional entry, or an unevaluable
+            -- value), so it pauses with the typed reason and NEVER resubmits.
+            -- A settled queue deviation does not consume the action budget; this
+            -- is a post-commit integrity pause, not a strategy refusal and not a
+            -- native-landing exclusion.
+            if outcome.sequence_deviation then
+                local reason=outcome.sequence_deviation.reason or 'unexpected_target_request'
+                self:record({kind='paused',reason=reason,rule=decision.rule,
+                    detail=boundedDetail(outcome.sequence_deviation)})
+                local paused=self:pause(reason)
+                paused.detail=outcome.sequence_deviation
+                -- `handed_back` is evidence only (the reason drives the pause);
+                -- it marks that a LIVE native prompt was handed to the
+                -- player/caller, so the caller can answer it via
+                -- respond/dismiss after the lease is released.
+                if outcome.handed_back then paused.handed_back=true end
+                paused.results=decision.results;paused.rejections=self.rejections
+                return paused
+            end
             -- R-1 (round anor-reg-01 fix2): the action budget counts native
             -- submissions that took effect (a completed action or a charged
             -- attempt). A settled refusal that produced no native action and
@@ -607,9 +660,14 @@ function M:step()
                 self:countInstant(outcome)
                 self:record({kind='acted',rule=decision.rule,talent=decision.talent,
                     target=bound.bound_target,destination=plan and plan.annotation,
+                    reduced=outcome.reduced==true or nil,
+                    reduced_reason=outcome.reduced_reason,
+                    target_sequence=outcome.target_sequence,
                     detail=boundedDetail(guard_detail)})
                 return {action='acted',rule=decision.rule,talent=decision.talent,bound_target=bound.bound_target,
                     destination=plan and plan.annotation,risk=boundedDetail(guard_detail),
+                    reduced=outcome.reduced==true or nil,reduced_reason=outcome.reduced_reason,
+                    target_sequence=outcome.target_sequence,
                     results=decision.results,rejections=self.rejections,outcome=outcome,
                     state=self.state,generation=generation}
             end

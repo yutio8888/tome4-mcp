@@ -273,6 +273,20 @@ M.ENTRIES={
             builder_shape='beam',
             landing_proof='forces the exact requested grid after launch/blocked/projection checks'}),
         components={},conformance={builder=true}},
+    -- S2-R4-01: the agility Vault (techniques/agility.lua:83-150, T_VAULT) is
+    -- deliberately NOT published here. Its two prompts are distinguishable
+    -- (hit-without-nolock then hit+nolock), but the talent is MIXED: the first
+    -- (actor) prompt's target is attacked (agility.lua:137-138) and may be dazed
+    -- (:140-145) before the move (:149-150). Publishing it as component-free grid
+    -- movement with `traverses=true` let a valid policy bind that actor prompt to
+    -- `self` and aim an offensive native action at the player, with the
+    -- damage/daze invisible to the guard (which skips every movement entry); the
+    -- `traverses=true` metadata was also wrong (the native moves directly with
+    -- `self:move(x,y,true)`). It is declared in `M.UNSUPPORTED` with the typed
+    -- reason `movement_effect_composition_required` until the S3 composition slice
+    -- represents and guards the component. (T_SKIRMISHER_VAULT above is a
+    -- DIFFERENT talent: the acrobatics Vault, a genuine single-prompt beam
+    -- landing — unaffected.)
     -- Dimensional Step: below effective TL5 the native action is always the
     -- self-only `teleportRandom(x,y,0)` branch. At TL5 it swaps only when the
     -- requested grid holds an actor; a player-known empty grid still runs the
@@ -295,9 +309,22 @@ M.ENTRIES={
     -- `phase_door_force_precise` attribute. The old level-only gate was wrong:
     -- the grid prompt appears below TL4 when that attribute is set. Both axes
     -- are pre-read (matrix `axes`), so an unknown level or attribute is
-    -- `movement_variant_unknown` even at TL4+. The TL4+ actor(+grid) prompt is a
-    -- known capability gap published as the `unsupported_target_plan` reason the
-    -- live/dry-run controllers pause on.
+    -- `movement_variant_unknown` even at TL4+. From effective TL4 the action
+    -- prompts for a subject (`{'actor'}`) and, at TL5 or under the precise
+    -- attribute, for a landing grid (`{'actor','grid'}`): those cells are S2
+    -- `request_then_landing` ordered prompt programs (design §4.4).
+    --
+    -- The TL4 cell is split into two explicit attribute branches rather than
+    -- declaring the grid entry `optional=true` (both forms are admitted by
+    -- §4.4/§12.1(a); the design recommends the split). Reasons: (1) the
+    -- `phase_door_force_precise` axis is already read and must be known at TL4+,
+    -- so the two states are already distinguishable; (2) an explicit N=1 branch
+    -- keeps the declared program exactly what the source raises, instead of a
+    -- second entry the executor must tolerate as missing; (3) the TL5+ cell is
+    -- then statically unconditional (`at_least=5`), matching the source's first
+    -- disjunct. The trailing-`optional` rule is still implemented and tested
+    -- (`MovementAdapterFactory.normalizeRequestSequence`, executor `reduced`),
+    -- for genuinely state-dependent trailing prompts.
     T_PHASE_DOOR={kind='movement',target='self',resource='mana',
         movement=movementMatrix({
             {when={kind='all',conditions={
@@ -314,12 +341,46 @@ M.ENTRIES={
                     range={getter='getRange'},min_radius=0,
                     fallback_center='self',fallback_radius={getter='getRange'},fallback_when='los_fizzle',
                     landing_proof='grid prompt below TL4 under the precise attribute'}},
-            {when={kind='talent_level',at_least=4},
-                unsupported={scope='multi_prompt',
-                    missing='actor_then_grid_target_plan',
-                    typed_reason='unsupported_target_plan',
-                    requests={{'actor'},{'actor','grid'}},
-                    reason='Phase Door prompts for a target at TL4+ and a landing at TL5; the executor pre-fills one native prompt only'}},
+            -- Effective TL4 without the precise attribute: the actor prompt only;
+            -- the landing is the native random self teleport with `t.getRange`.
+            {when={kind='all',conditions={
+                    {kind='talent_level',at_least=4,below=5},
+                    {kind='attr',id='phase_door_force_precise',truthy=false}}},
+                template='request_then_landing',
+                params={delivery='teleport',landing='random',center='self',
+                    traverses=false,relocates_other=false,
+                    radius={getter='getRange'},min_radius=0,range={getter='getRange'},
+                    request_sequence={{index=1,request='actor',subject='self',
+                        observed={cursor_type='hit',friendlyblock=false,nowarning=true,default_target='self'}}},
+                    landing_proof='TL4 actor prompt then teleportRandom(self, getRange)'}},
+            -- Effective TL4 with the precise attribute: actor prompt then the
+            -- landing grid prompt, landing bounded around the requested grid.
+            {when={kind='all',conditions={
+                    {kind='talent_level',at_least=4,below=5},
+                    {kind='attr',id='phase_door_force_precise',truthy=true}}},
+                template='request_then_landing',
+                params={delivery='teleport',landing='random',center='requested_grid',
+                    traverses=false,relocates_other=false,
+                    radius={getter='getRadius'},min_radius=0,range={getter='getRange'},
+                    fallback_center='self',fallback_radius={getter='getRange'},fallback_when='los_fizzle',
+                    request_sequence={{index=1,request='actor',subject='self',
+                            observed={cursor_type='hit',friendlyblock=false,nowarning=true,default_target='self'}},
+                        {index=2,request='grid',subject='self',value_source='target_plan',
+                            landing_from='envelope',observed={cursor_type='ball',nolock=true,pass_terrain=true,nowarning=true}}},
+                    landing_proof='TL4 precise: actor prompt then the landing grid prompt'}},
+            -- Effective TL5+: the grid prompt is statically unconditional (the
+            -- first disjunct of the native gate is true for this very level read).
+            {when={kind='talent_level',at_least=5},
+                template='request_then_landing',
+                params={delivery='teleport',landing='random',center='requested_grid',
+                    traverses=false,relocates_other=false,
+                    radius={getter='getRadius'},min_radius=0,range={getter='getRange'},
+                    fallback_center='self',fallback_radius={getter='getRange'},fallback_when='los_fizzle',
+                    request_sequence={{index=1,request='actor',subject='self',
+                            observed={cursor_type='hit',friendlyblock=false,nowarning=true,default_target='self'}},
+                        {index=2,request='grid',subject='self',value_source='target_plan',
+                            landing_from='envelope',observed={cursor_type='ball',nolock=true,pass_terrain=true,nowarning=true}}},
+                    landing_proof='TL5+: actor prompt then the unconditional landing grid prompt'}},
         },{{kind='attr',id='phase_door_force_precise'}}),
         components={},conformance={builder=false}},
 }
@@ -335,9 +396,6 @@ function M.source(talent) return Sources.talents[talent] end
 -- actions whose adapters are not yet source-reviewed; they are not strategy
 -- refusals and do not affect already-supported actions.
 M.UNSUPPORTED={
-    {talent='T_PHASE_DOOR',scope='effective_talent_level>=4',
-        missing='actor_then_grid_target_plan',
-        reason='the no-prompt and precise-grid single-prompt forms are driven; the TL4+ actor and TL5 actor-then-grid prompts need the ordered queue'},
     {talent='T_BLINK_RUNE',scope='any',missing='stable_native_talent_id',
         reason='the native inscription id is slot-indexed (T_RUNE:_BLINK_1..6); no single stable id to source-pin'},
     {talent='T_DIMENSIONAL_STEP',scope='effective_talent_level>=5 and requested_grid_occupied',
@@ -347,8 +405,30 @@ M.UNSUPPORTED={
         reason='actor-anchored random teleport plus an attack; movement/effect composition is a later slice'},
     {talent='T_GIANT_LEAP',scope='any',missing='source_reviewed_movement_adapter',
         reason='requested-grid movement with an alternate landing and radius effect; movement/effect composition is a later slice'},
+    -- S2-R4-01: the agility Vault is a MIXED talent whose sequence is
+    -- distinguishable but whose first (actor) prompt's target is attacked and may
+    -- be dazed before the move. Component-free grid-movement admission would let
+    -- a policy bind that actor prompt to `self` and hide the offensive effect from
+    -- the guard. The typed reason reserves it for the S3 composition slice.
+    {talent='T_VAULT',scope='any',missing='movement_effect_composition_required',
+        reason='mixed movement/effect talent: the first (actor) prompt target is attacked (techniques/agility.lua:137-138) and may be dazed (:140-145) before the move (:149-150); component-free movement admission would bind that actor prompt and hide the effect from the guard'},
     {talent='T_DISPLACEMENT_SHIELD',scope='any',missing='source_reviewed_effect_adapter',
         reason='actor-target shield that does not relocate the player; effect adapter not source-reviewed'},
+    -- S2-R3-01 rev5: the officially-decided multi-prompt unsupported set. Each
+    -- entry carries its own typed reason (never a strategy judgement); the
+    -- survey of every official 1.7.6 multi-prompt talent backs the disposition.
+    {talent='T_MERGE',scope='any',missing='signature_not_distinguishable',
+        reason='two hit prompts separated only by first_target/start_x/source_actor (cursed/advanced-shadowmancy.lua:43-46); start_x/source_actor are outside the curated allowlist and first_target is raised nondeterministically elsewhere'},
+    {talent='T_STONE',scope='any',missing='signature_not_distinguishable',
+        reason='two hit prompts separated only by first_target/start_x/source_actor (cursed/advanced-shadowmancy.lua:80-83); start_x/source_actor are outside the curated allowlist and first_target is raised nondeterministically elsewhere'},
+    {talent='T_CURSED_BOLT',scope='any',missing='dynamic_prompt_count',
+        reason='a getTarget inside a per-shadow loop (cursed/advanced-shadowmancy.lua:245); the prompt count is runtime-dynamic, so no fixed ordered program can be curated'},
+    {talent='T_WORMHOLE',scope='any',missing='cross_prompt_postcondition',
+        reason='the entrance prompt is a simple_dir_request direction step and the entrance/exit pair is coupled by native trap-placement and distance>=2 postconditions the per-request guard cannot verify (chronomancy/spacetime-weaving.lua:145,153)'},
+    {talent='T_EARTHEN_MISSILES',scope='any',missing='same_shape_equivalent',
+        reason='three same-shape bolt prompts whose order is semantically irrelevant (spells/stone.lua:39-54); the third is level-dependent, so the program is not a fixed order'},
+    {talent='T_DWARVEN_HALF_EARTHEN_MISSILES',scope='any',missing='same_shape_equivalent',
+        reason='three same-shape bolt prompts whose order is semantically irrelevant (gifts/dwarven-nature.lua:35-50); the third is level-dependent (TL5)'},
     {talent='*',scope='any',missing='moving_or_swapping_another_actor',
         reason='typed multi-actor destination/effect semantics are not implemented'},
 }

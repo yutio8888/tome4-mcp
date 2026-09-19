@@ -82,29 +82,16 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 28 | S2 有序 prompt-响应队列（实现） | A（Dev）/ **Sol**（Review，全新） | 全新 Sol（新任务） | FAIL（**do_not_merge**） | 0 | 2 | 4 | 1 | 7 |
 | 29 | S2 rev2 修 REV-01..07 | **B**（Dev）/ **Sol**（Review，复用复核自身） | 同 #28（复核自身发现） | FAIL（**do_not_merge**） | 0 | 2 | 0 | 0 | 2 |
 | 30 | S2 契约修订（Investigation B）+ 应用事故修复 | B（Investigation）/ — | — | BLOCKED→已修复（Dev A 正确拒绝实施） | 0 | 0 | 0 | 0 | 0 |
-| 31 | S2 rev3 按修订契约实现 | A（Dev）/ **Sol**（Review，复用复核自身） | 同 #29（复核自身发现） | FAIL（**do_not_merge**） | 0 | 1 | 2 | 0 | 3 |
+| 31 | S2 rev3 按修订契约实现（记录在 main 分支账本 c62c31e） | A（Dev）/ **Sol**（Review，复用复核自身） | 同 #29（复核自身发现） | FAIL（**do_not_merge**） | 0 | 1 | 2 | 0 | 3 |
+| 32 | S2 rev4 修 R3-01..03（Dev B，先按 wildcard 语义交付，后按协调者 carry-over 改为 presence-explicit + 运行期 exactly-one） | **B**（Dev）/ —（待新 Sol 复审） | 全新 Sol 评审 | 待评审（carry-over: R3-02/R3-03 已验收保留） | 0 | 0 | 0 | 0 | 3 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
-- Loop 总数：**31**。
-- **PASS 10**、**FAIL 20**、BLOCKED 1、PARTIAL 0 → **通过率 10/31 = 32.3%**。
-- Issue 合计：**81**（P0 1 / P1 32 / P2 27 / P3 21）；平均每 loop 2.61。
-- **#31（S2 rev3，Dev A / Sol 复用复核）do_not_merge**：几何分类器已被正确删除、异步交还的**核心**
-  投递/租约/中止已修好，但仍有三项：
-  **S2-R3-01（P1，契约层）**——构建期只校验签名**记录不相等**，而签名是**部分谓词**（未声明字段即
-  通配），故两条语法不同的签名可**重叠**：`{hit}` 与 `{hit,nowarning=true}` 都会被同一条 `hit,nowarning`
-  提示匹配，于是**乱序时先消费了错误的答案**才在后续不匹配处报偏差；另一绕过是 **nil vs false**
-  （`{hit}` 与 `{hit,nolock=false}` 记录不同但匹配等价）→ 甚至 `action_complete` 无偏差。Sol 指出这是
-  "已发布序列的保证仍为假"，必须改为校验**两两互斥**（或改造为"显式 presence"语义）。且
-  `test_auto_combat_sequence.lua:161-174` **把该重叠对断言为安全**——测试本身编码了缺陷。
-  **S2-R3-02（P2）**——auto 交还的 `respond` 分支在局部变量声明**之前**引用 `fingerprint`（被解析为
-  **全局**，字节码 `GGET`），导致复用的 `response_id` 不再报 `response_conflict`，且 `MAX_RESPONSES`
-  预算在该路径**未生效**。**S2-R3-03（P2 证据缺口）**——yield 探针确实真 yield，但**绕过了它声称
-  验证的生产接线**（直接调 `host.request()`、手工调 `nativeDeviation`、用 `Interactions.apply` 而非
-  Runtime `respond`），且夹具是单条目 `hit` vs `ball`，**不是同 kind 的 yield 乱序**。
-  已按轮换派 **Dev B** 修复（Dev 序列 A→B）。
+- Loop 总数：**32**（含 1 个未进入评审的 BLOCKED 轮；#31 记录于 main 分支账本 c62c31e）。
+- **PASS 10**、**FAIL 19**、BLOCKED 1、PARTIAL 0 → **通过率 10/30 = 33.3%**。
+- Issue 合计：**78**（P0 1 / P1 31 / P2 25 / P3 21）；平均每 loop 2.60。
 - **#30（契约修订，Investigation=B）**：交付 `s2-contract-revision.md`（sha256 `cd41df23…`）——
   经引擎证据裁决**几何不是 actor/grid 的可靠判别器**（`hit`=单格、`setSpot` 全几何填 `target.entity`、
   Dimensional Step 用 `hit` 表达网格、Phase Door actor 提示用 `hit`），改采**逐条目策展观测签名** +

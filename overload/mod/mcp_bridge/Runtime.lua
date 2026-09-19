@@ -220,7 +220,18 @@ local function snapshot(s,radius,options)
     -- remote command slot (a plain `tome.respond` is not routed into it).
     if s.auto_invocation then
         local h=Interactions.current(s.auto_invocation)
-        if h then result.auto_combat.pending_interaction=Interactions.describe(s.auto_invocation,m) end
+        if h then
+            result.auto_combat.pending_interaction=Interactions.describe(s.auto_invocation,m)
+            -- S2 rev3/§6.2 (display only): when the prompt was handed back by a
+            -- queue deviation, report the typed reason so the caller sees why the
+            -- plugin is not answering it.
+            local root=s.auto_invocation
+            if root.sequence_deviation then
+                result.auto_combat.pending_interaction.handed_back=true
+                result.auto_combat.pending_interaction.handed_back_reason=
+                    root.sequence_deviation.reason
+            end
+        end
     end
     result.events=Journal.capture(s.game,options and options.events_after)
     -- observe.sections: keep identity/metadata plus the requested domains only.
@@ -1245,6 +1256,19 @@ function M.mapAutoCombatOutcome(result,action,noEnergy)
         if type(result.native_message)=='string' and #result.native_message>0 then
             mapped.native_message=result.native_message
         end
+        -- S2 ordered prompt-response queue evidence (internal auto-combat
+        -- plumbing, never a protocol field): the observed prompt sequence, a
+        -- typed deviation, and the reduced-trailing-optional marker.
+        if type(result.target_sequence)=='table' then mapped.target_sequence=result.target_sequence end
+        if type(result.sequence_deviation)=='table' then mapped.sequence_deviation=result.sequence_deviation end
+        -- S2 rev3/§6.2: `handed_back` marks a LIVE prompt handed to the
+        -- player/caller; the controller carries it as evidence (the typed reason
+        -- drives the pause).
+        if result.handed_back==true then mapped.handed_back=true end
+        if result.reduced==true then
+            mapped.reduced=true
+            mapped.reduced_reason=result.reduced_reason
+        end
         return mapped
     end
     if result.uncertain then
@@ -1374,7 +1398,19 @@ buildAutoCombatHost=function(s,policy,opts)
             action={type='change_level'}
         elseif attempt.action=='use_talent' then
             action={type='use_talent',talent_id=attempt.talent}
-            if plan and plan.kind=='grid' then
+            if plan and plan.kind=='sequence' then
+                -- S2 ordered prompt-response queue: one native submission, one
+                -- decided value per declared prompt. The executor answers the
+                -- k-th native getTarget with the k-th entry's value (a grid
+                -- coordinate, the caster cell or the bound actor) and keeps each
+                -- request's own native range/self-warning guard. `sequence`
+                -- implies the authoritative wrapper, so no one-shot prefill is
+                -- consumed by a message-path prompt.
+                action.sequence=plan.values
+                if type(action.sequence)~='table' or #action.sequence==0 then
+                    return {status='rejected',code='sequence_unavailable',energy_spent=false}
+                end
+            elseif plan and plan.kind=='grid' then
                 action.x,action.y=plan.x,plan.y
                 -- Grid lowering: answer every native target request with the
                 -- requested coordinate (no entity). `authoritative_target` makes
@@ -1418,11 +1454,28 @@ buildAutoCombatHost=function(s,policy,opts)
         local refusal=safetyGuard(attempt)
         if refusal then return {status='rejected',code=refusal.reason,energy_spent=false} end
         local command={command_id='auto-combat',status='auto_combat',auto_combat=true,
-            interactions={},responses={},consumed_interactions={},interaction_sequence=0,
+            interactions={},responses={},response_count=0,consumed_interactions={},interaction_sequence=0,
             rule=attempt.rule,action=action}
         local ok,root,result=pcall(Tracker.startAction,g,command,function()
             return Actions.execute(g,action,target,meta(s),command)
         end)
+        -- S2: publish the observed prompt sequence and any typed deviation on the
+        -- invocation root before it is reaped, so the abort/pause path and the
+        -- controller can report them even when the action failed.
+        if type(command)=='table' and root~=nil and type(root)=='table' then
+            root.target_sequence=command.target_sequence
+            root.sequence_deviation=command.sequence_deviation
+            root.sequence_reduced=command.sequence_reduced or nil
+            root.handed_back=command.target_handed_back or nil
+            -- S2 rev3/§6.2 Path 1: when the action returned (ok), the deviation
+            -- rides the mapped outcome and the controller checks it BEFORE its
+            -- `native_pending` branch, so it is delivered inside this very step.
+            -- Mark it so `reapAutoInvocation` does not deliver it a second time.
+            -- If the pcall failed, leave it undelivered for Path 2.
+            if ok and type(result)=='table' and command.sequence_deviation then
+                root.deviation_delivered=true
+            end
+        end
         if type(root)=='table' and root.done then
             NativeTasks.release(root);Interactions.release(root);Tracker.release(root);root.invocation=nil
             if s.auto_invocation==root then s.auto_invocation=nil end
@@ -1571,6 +1624,21 @@ local function executeResponse(s,command,receipt)
         or p.energy.value<(s.game.energy_to_act or 1000)
     command.status='settling'
     bump(s)
+end
+-- S2 rev3/§6.2: the handed-back auto-combat interaction is answerable by the
+-- caller once the run stopped and the lease was released. Until then the auto
+-- invocation is not a caller-owned negotiation target (the run is live and the
+-- plugin may still answer its own prompts), so this returns nil while the lease
+-- is held. The command-scoped respond/dismiss routes are tried first; this is the
+-- fallback for the auto invocation (which has no command-ledger receipt).
+local function autoHandbackHandle(s)
+    local auto=s.auto_invocation
+    if not auto then return nil end
+    local owner=s.auto_combat and s.auto_combat.arbiter and s.auto_combat.arbiter.owner
+    if owner=='auto_combat' then return nil end
+    if s.auto_combat and s.auto_combat.controller
+        and s.auto_combat.controller.state~='stopped' then return nil end
+    return Interactions.current(auto)
 end
 local function fail(code,message,details)
     -- INT-02: every emitted code carries category/acceptance_scope/recovery
@@ -1826,6 +1894,12 @@ local function dispatch(s,request)
             -- the command can settle instead of deadlocking in awaiting_input.
             h=Interactions.current(s.active.invocation)
         end
+        -- S2 rev3/§6.2: after a live handback the auto-combat run is stopped and
+        -- the lease is released, so the handed-back prompt is player/caller-owned.
+        -- Let `dismiss` resolve the auto invocation's current handle too. It
+        -- grants nothing while the run is still live (autoHandbackHandle returns
+        -- nil while the arbiter still owns auto-combat or the run is not stopped).
+        if not h then h=autoHandbackHandle(s) end
         if not h then
             -- A native dialog the bridge never adopted (for example death) can
             -- still be closed through its own handler.
@@ -1943,10 +2017,88 @@ local function dispatch(s,request)
             return fail('command_history_expired','The parent command receipt is no longer retained.',
                 {accepted=Json.null,uncertain=true,acceptance_scope='response',recovery='do_not_replay',command_id=a.command_id})
         end
-        local command=s.ledger:get(seq)
-        if not command then return fail('command_not_accepted','The parent command was not accepted in this session.',
-            {accepted=false,acceptance_scope='response',recovery='observe_before_resubmit',command_id=a.command_id}) end
+        -- S2-R3-02: the fingerprint is computed BEFORE both routes (the ledger
+        -- branch and the auto-handback branch), so a reused response_id is
+        -- classified with the real fingerprint of THIS request — never as a
+        -- Lua global (the previous bug resolved `fingerprint` as a global).
+        -- Same formula and same revision input as the command-scoped route.
         local fingerprint=Actions.fingerprint({interaction_id=a.interaction_id,answer=answer},a.expected_revision)
+        local command=s.ledger:get(seq)
+        if not command then
+            -- S2 rev3/§6.2: an auto-combat handback has no ledger receipt (its
+            -- command is `auto-combat`, never registered). When the run is stopped
+            -- and the lease released, answer the auto invocation's current
+            -- handle directly. Every existing guard still applies: the control
+            -- token, the interaction id match, the consumed/response-budget
+            -- bounds and the expected revision.
+            local auto=s.auto_invocation
+            -- S2-R4-02: consult the retained auto-command response receipts
+            -- BEFORE requiring the request to name the CURRENT live handle. A
+            -- successful target answer reissues a fresh interaction, so an exact
+            -- retry of the successful response names the OLD (now superseded)
+            -- interaction id yet must still classify as the recorded idempotent
+            -- success; requiring the current handle first sent it to
+            -- `command_not_accepted`. The receipt is compared by fingerprint, so
+            -- a reused response_id with a different request is still
+            -- `response_conflict`. The receipts live on the auto invocation's
+            -- command, so they are retained exactly as long as the invocation is
+            -- (and are dropped with it); the response budget still bounds how many
+            -- fresh answers can be recorded.
+            if auto then
+                local autoCommand=auto.command or {}
+                local entry=autoCommand.responses and autoCommand.responses[a.response_id]
+                if entry then
+                    if entry.fingerprint~=fingerprint then return fail('response_conflict') end
+                    return {answered=true,scope='auto_combat',
+                        interaction_id=entry.interaction_id or a.interaction_id,
+                        response_id=a.response_id}
+                end
+            end
+            local h=autoHandbackHandle(s)
+            if h and a.interaction_id==h.interaction_id then
+                local autoCommand=auto.command or {}
+                -- The reused-response_id classification already happened above
+                -- (before the current-handle requirement), so no receipt can
+                -- remain unclassified here; the guards below are the fresh-answer
+                -- path.
+                if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
+                if autoCommand.consumed_interactions and autoCommand.consumed_interactions[a.interaction_id] then
+                    return fail('interaction_consumed')
+                end
+                if h.consumed then return fail('interaction_consumed',nil,{interaction_id=h.interaction_id}) end
+                if a.expected_revision~=s.revision then return fail('stale_revision') end
+                local prepared2,code2=Interactions.prepare(h,answer,meta(s))
+                if not prepared2 then return fail(code2,nil,{interaction_id=h.interaction_id}) end
+                -- S2-R3-02: the command-scoped response budget applies unchanged:
+                -- every auto-handback answer is counted on the auto command and
+                -- bounded by `Interactions.MAX_RESPONSES`. The command route's
+                -- extra `revoke` tears down a remote-owned command execution
+                -- state that does not exist here (the auto lease is already
+                -- released to manual), so the bound is enforced by refusing the
+                -- answer without revoking the session.
+                autoCommand.response_count=autoCommand.response_count or 0
+                if autoCommand.response_count>=Interactions.MAX_RESPONSES then
+                    return fail('response_budget_exhausted')
+                end
+                autoCommand.responses=autoCommand.responses or {}
+                autoCommand.responses[a.response_id]={fingerprint=fingerprint,interaction_id=a.interaction_id}
+                autoCommand.response_count=autoCommand.response_count+1
+                autoCommand.consumed_interactions=autoCommand.consumed_interactions or {}
+                autoCommand.consumed_interactions[a.interaction_id]=true
+                local ok2,err2=pcall(Interactions.apply,h,prepared2)
+                if not ok2 then
+                    -- No new protocol/v4 code: the auto-handback answer failure
+                    -- is the existing native-error surface (the command path also
+                    -- records `native_error` and lets the caller re-observe).
+                    s.native_error=s.native_error or 'dismiss_error'
+                    return fail('dismiss_error',Details.text(err2,512),{interaction_id=h.interaction_id})
+                end
+                bump(s)
+                return {answered=true,scope='auto_combat',interaction_id=h.interaction_id,response_id=a.response_id,snapshot=snapshot(s)}
+            end
+            return fail('command_not_accepted','The parent command was not accepted in this session.',
+                {accepted=false,acceptance_scope='response',recovery='observe_before_resubmit',command_id=a.command_id})
+        end
         local existing=command.responses[a.response_id]
         if existing then
             if existing.fingerprint~=fingerprint then return fail('response_conflict') end
@@ -2029,6 +2181,17 @@ local function reapAutoInvocation(s)
     local root=s.auto_invocation
     if not root or not root.done then return end
     if root.error then s.native_error=s.native_error or 'native_action_error' end
+    -- S2 rev3/§6.2 Path 2 (belt-and-braces, exactly once): an ordered-queue
+    -- deviation that was not delivered inside the submitting step (for example
+    -- the native body settled without player input) is delivered here, before the
+    -- root is released. The service records it, pauses with the typed reason,
+    -- stops the run and revokes the auto lease. Runs in `onFrame` before the pump
+    -- gate, so the pause lands before the next opportunity and the pending body
+    -- can never become a fresh opportunity (the rule is never resubmitted).
+    if root.sequence_deviation and not root.deviation_delivered and s.auto_combat then
+        root.deviation_delivered=true
+        AutoCombat.nativeDeviation(s.auto_combat,root.sequence_deviation)
+    end
     NativeTasks.release(root);Interactions.release(root);Tracker.release(root)
     root.invocation=nil
     s.auto_invocation=nil
@@ -2047,7 +2210,16 @@ local function abortAutoInvocation(s,started,elapsed)
     if NativeTasks.current(root) then return end
     local command=root.command or {}
     local cancelled,reason
-    if command.target_cancelled then
+    -- S2 rev3/§6.2: live-handle-first. A still-live targeting UI is never
+    -- "already answered", so a live handle is cancelled regardless of the
+    -- `target_cancelled` marker. Only when no live handle exists may
+    -- `target_cancelled` take the authoritative fast path (the queue genuinely
+    -- answered nil and the native body is unwinding).
+    local live=Interactions.current(root)
+    if live and live.target then
+        cancelled,reason=Interactions.cancelTarget(root)
+        if cancelled and command.target_handed_back then reason='handed_back_timeout' end
+    elseif command.target_cancelled then
         -- The executor's authoritative prefill already answered the native
         -- request with a cancel; the native body is unwinding, not stalled.
         cancelled=true;reason='authoritative_target_cancelled'
@@ -2208,5 +2380,57 @@ function M.autoCombatService(g)
     local s=state
     if not s or s.game~=g then return nil end
     return s.auto_combat
+end
+
+-- production dispatch path — the same pcall(dispatch) + response envelope +
+-- transport fan-out `receive` performs — and also return the response to the
+-- caller. The auto-combat handback probe uses this to answer a live handed-back
+-- prompt through the production respond/dismiss routing (never
+-- Interactions.prepare/apply directly), so broken MCP routing fails the probe.
+function M.bridgeRequestFor(g,request)
+    local s=state
+    if not s or s.game~=g then return {v=4,id=Json.null,ok=false} end
+    local ok,result,err=pcall(dispatch,s,request)
+    local response={v=4,id=type(request.id)=='string' and request.id or Json.null}
+    if not ok then
+        response.ok=false
+        response.error=ErrorRegistry.envelope('bridge_error','The bridge could not process this request.')
+        print('[MCP Bridge] request error: '..tostring(result))
+    elseif err then response.ok=false;response.error=err
+    else response.ok=true;response.result=result end
+    if s.transport then s.transport:send(response) end
+    return response
+end
+-- Test/native fixture seams for the S2 rev3 handback wiring: drive the production
+-- pump's reap/abort steps and inspect/replace the live auto invocation without
+-- installing the frame pump. They call the real production functions, so a test
+-- asserts the same behaviour the pump has (no test-only reimplementation).
+function M.autoInvocationFor(g)
+    local s=state
+    if not s or s.game~=g then return nil end
+    return s.auto_invocation
+end
+function M.setAutoInvocationFor(g,root)
+    local s=state
+    if not s or s.game~=g then return nil end
+    s.auto_invocation=root
+    return root
+end
+function M.reapAutoInvocationFor(g)
+    local s=state
+    if not s or s.game~=g then return nil end
+    reapAutoInvocation(s)
+end
+function M.abortAutoInvocationFor(g,started,elapsed)
+    local s=state
+    if not s or s.game~=g then return nil end
+    abortAutoInvocation(s,started,elapsed)
+end
+-- The last bounded-abort record (`s.auto_timeout`), exposed so the production
+-- abort test can assert the live-handle-first reason/cancelled flag.
+function M.lastNativeAbort(g)
+    local s=state
+    if not s or s.game~=g then return nil end
+    return s.auto_timeout
 end
 return M

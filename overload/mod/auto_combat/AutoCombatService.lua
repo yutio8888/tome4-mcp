@@ -19,7 +19,16 @@ M.SOURCE='auto_combat'
 -- Option A (round-3 follow-up): the two safety pauses hand control back to the
 -- player immediately. The run stops and the lease returns to `manual`, so a
 -- remote action needs no reconnect and `resume` cannot loop-pause.
-M.SAFETY_PAUSES={flee_below_hp_pct=true,no_emergency_action=true}
+-- S2-REV-05: the ordered-queue typed deviations are the same handoff class —
+-- after `unexpected_target_request` (the live native prompt was handed to the
+-- real targeting UI) or `movement_request_value_unknown`/
+-- `movement_request_kind_unknown` (the prompt was cancelled so the plugin could
+-- not answer with a wrong value), the auto-combat lease is released and the
+-- player owns the interaction. Without this the service would keep the lease
+-- while the live interaction is no longer the plugin's to answer.
+M.SAFETY_PAUSES={flee_below_hp_pct=true,no_emergency_action=true,
+    unexpected_target_request=true,movement_request_value_unknown=true,
+    movement_request_kind_unknown=true}
 
 function M.new(options)
     options=options or {}
@@ -368,6 +377,9 @@ function M.start(svc)
         Log.add(svc.log,withContext(svc,{kind=event.kind,reason=event.reason,rule=event.rule,talent=event.talent,
             target=event.target,action=event.action,elapsed_ticks=event.elapsed_ticks,
             elapsed_frames=event.elapsed_frames,generation=event.generation,
+            -- S2 rev3/§6.2: the typed ordered-queue deviation detail (expected/
+            -- observed index and shape) reaches the client-visible policy log.
+            detail=event.detail,handed_back=event.handed_back,
             -- P2-1: a deterministic-landing retry carries the refused landing
             -- and the underlying native result (for example `blocked`) so the
             -- refusal stays auditable in the client-visible policy log/replay.
@@ -447,6 +459,25 @@ function M.nativeAbort(svc,info)
     return entry
 end
 
+-- S2 rev3/§6.2 (Path 2): deliver a settled-time ordered-queue deviation to the
+-- controller exactly once. Modelled on `nativeAbort`: record the typed event,
+-- pause the controller with the deviation's reason, stop the run and revoke the
+-- auto lease through the arbiter. The Runtime `reapAutoInvocation` calls this for
+-- a root deviation that Path 1 (the `native_pending` result) did not deliver.
+function M.nativeDeviation(svc,deviation)
+    if not svc then return nil end
+    deviation=deviation or {}
+    local reason=deviation.reason or 'unexpected_target_request'
+    local entry
+    if svc.controller then
+        entry=svc.controller:nativeDeviated(deviation)
+        svc.controller:pause(reason)
+        if svc.controller.state~='stopped' then svc.controller:stop(reason) end
+    end
+    if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,reason) end
+    return entry
+end
+
 local function resourcesOf(host)
     if host and type(host.resources)=='function' then
         local ok,value=pcall(host.resources)
@@ -484,6 +515,10 @@ function M.step(svc)
             target=step.bound_target,generation=step.generation,
             movement=step.destination,risk=step.risk,
             native_result=step.outcome and step.outcome.status or nil,
+            -- S2 ordered prompt-response queue evidence: the observed prompt
+            -- sequence and the reduced-trailing-optional marker.
+            target_sequence=step.target_sequence,reduced=step.reduced,
+            reduced_reason=step.reduced_reason,
             rule_results=step.results,rejections=step.rejections,
             resources_before=before,resources_after=after,policy_hash=policy_hash}))
     elseif step.action=='stopped' then

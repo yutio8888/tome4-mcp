@@ -47,17 +47,15 @@ M.REASON_VARIANT_UNKNOWN='movement_variant_unknown'
 M.REASON_DERIVATION_UNKNOWN='movement_derivation_unknown'
 
 M.TARGET_REQUESTS={none=true,actor=true,grid=true,self=true}
+-- S2 (`request_then_landing`): the binding of one ordered prompt's answer and
+-- the source of its decided value. Both are closed vocabularies.
+M.REQUEST_SUBJECTS={self=true,actor=true}
+M.REQUEST_VALUE_SOURCES={subject=true,target_plan=true}
 M.DELIVERIES={step=true,line_move=true,leap=true,teleport=true,scene_change=true}
 M.LANDINGS={exact=true,bounded_alternatives=true,random=true,source_defined=true}
 M.CENTERS={self=true,actor=true,requested_grid=true}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
-
-local function copyArray(src)
-    local out={}
-    for i=1,#src do out[i]=src[i] end
-    return out
-end
 
 local function shallowCopy(src)
     local out={}
@@ -113,6 +111,204 @@ local function validateArray(list,minLen)
 end
 
 M.validateArray=validateArray
+
+-- S2-REV-03: a declared `target_requests` is a closed dense `1..n` array. The
+-- legacy `copyArray` silently truncated holes/non-array/unknown keys to length
+-- 1, so a malformed declaration was accepted and its length/kind cross-check
+-- against `request_sequence` bypassed. Validate BEFORE copying; any malformed
+-- form is `movement_adapter_invalid` at build time.
+local function copyTargetRequests(src)
+    local ok,countOrCause=validateArray(src,1)
+    if not ok then return nil,{detail='bad_target_requests',cause=countOrCause} end
+    local out={}
+    for i=1,countOrCause do out[i]=src[i] end
+    return out
+end
+
+-- Normalise and validate one `request_sequence` (S2 §4.4). The record is closed:
+-- `index` must equal the array position (a hole/gap/reorder is invalid), the
+-- prompt kind and subject binding come from the closed vocabularies, `optional`
+-- is only admitted on the trailing entry, `landing_from` is only 'envelope', and
+-- `observed` is the per-entry **curated observed signature** (S2 rev3): the
+-- closed allowlist of static discriminators the reviewed flow raises at this
+-- position. A published sequence must carry a signature on every entry; for
+-- N≥2 no entry's signature may SUBSUME another's (presence-explicit match
+-- semantics; see `signatureSubsumes`), else the subsumed entry can never be
+-- uniquely matched and the descriptor is
+-- `movement_adapter_invalid`/`request_signature_ambiguous`.
+-- Returns a fresh array of normalised entries (no shared reference with the
+-- caller's declaration).
+local SEQUENCE_KEYS={index=true,request=true,subject=true,value_source=true,
+    landing_from=true,optional=true,observed=true}
+-- The closed `observed` signature allowlist: `cursor_type` plus the static
+-- discriminators. Dynamic numerics (`range`/`radius`) and closures are never
+-- signature fields.
+local OBSERVED_SIGNATURE_KEYS={cursor_type=true,default_target=true,first_target=true,
+    msg=true,nolock=true,pass_terrain=true,friendlyblock=true,nowarning=true,
+    immediate_keys=true,no_restrict=true}
+local OBSERVED_SIGNATURE_FLAGS={nolock=true,pass_terrain=true,friendlyblock=true,
+    nowarning=true,immediate_keys=true,no_restrict=true}
+local OBSERVED_SIGNATURE_STRINGS={first_target=64,msg=512}
+local function normalizeObserved(observed,index)
+    if type(observed)~='table' then return nil,{detail='bad_observed_signature',index=index} end
+    for key in pairs(observed) do
+        if not OBSERVED_SIGNATURE_KEYS[key] then
+            return nil,{detail='unknown_observed_key',index=index,key=tostring(key)}
+        end
+    end
+    if type(observed.cursor_type)~='string' or #observed.cursor_type==0
+        or #observed.cursor_type>32 then
+        return nil,{detail='bad_observed_cursor_type',index=index}
+    end
+    local copy={cursor_type=observed.cursor_type}
+    for flag in pairs(OBSERVED_SIGNATURE_FLAGS) do
+        if observed[flag]~=nil then
+            if type(observed[flag])~='boolean' then
+                return nil,{detail='bad_observed_flag',index=index,key=flag}
+            end
+            copy[flag]=observed[flag]
+        end
+    end
+    for key,limit in pairs(OBSERVED_SIGNATURE_STRINGS) do
+        if observed[key]~=nil then
+            if type(observed[key])~='string' or #observed[key]>limit then
+                return nil,{detail='bad_observed_string',index=index,key=key}
+            end
+            copy[key]=observed[key]
+        end
+    end
+    if observed.default_target~=nil then
+        if observed.default_target~='self' then
+            return nil,{detail='bad_observed_default_target',index=index}
+        end
+        copy.default_target='self'
+    end
+    return copy
+end
+-- S2-R3-01 rev5 (presence-explicit semantics, normative). A curated observed
+-- signature is a record of the allowlisted static discriminators the reviewed
+-- native flow raises at this position; matching is PRESENCE-EXPLICIT, not
+-- wildcard-based:
+--   * `cursor_type` is always declared and constrains `typ.type` by equality;
+--   * a declared boolean flag must be PRESENT in the observed spec and EQUAL
+--     (so `{cursor_type='hit'}` is distinguishable from
+--     `{cursor_type='hit',nolock=true}`, and a declared `nolock=false` is a real
+--     constraint distinct from absence — Vault's two prompts differ exactly by
+--     nolock presence);
+--   * a declared string (`first_target`/`msg`) or `default_target='self'` must
+--     be present and equal when the signature declares it; when the signature
+--     OMITS them, the observed spec's value is ignored — real flows raise them
+--     nondeterministically (Phase Door's `first_target` is rng.percent-driven,
+--     conveyance.lua:85), so they are never required-absent;
+--   * an observed spec may not raise an allowlisted field the entry does not
+--     declare beyond the string/default_target exception above (no wildcard).
+-- The build-time ambiguity rule (decidable by inspection): for every pair of
+-- entries in an N≥2 sequence, one signature must not SUBSUME the other — i.e.
+-- one entry's match set must not contain the other's (equal flag constraint
+-- sets and the subsumer declaring no additional strings). A subsumed entry can
+-- never be the unique match of any prompt, so the descriptor is
+-- `movement_adapter_invalid`/`request_signature_ambiguous`. The normative
+-- runtime safety net is the executor's EXACTLY-ONE rule (`Actions.lua`): a
+-- raised prompt may be answered only when exactly one declared entry — the
+-- arrival position — matches it; zero matches, several matches, or a match at
+-- another index are typed deviations that pause and hand the live prompt back.
+local function signatureSubsumes(a,b)
+    -- b's match set ⊆ a's: the flag constraint sets must be IDENTICAL (a
+    -- declared flag is present-and-equal, an undeclared one required-absent, so
+    -- any flag difference makes the sets disjoint, not nested), and every
+    -- string/default_target a declares must also be declared by b with the same
+    -- value.
+    if a.cursor_type~=b.cursor_type then return false end
+    for flag in pairs(OBSERVED_SIGNATURE_FLAGS) do
+        if (a[flag]~=nil)~=(b[flag]~=nil) then return false end
+        if a[flag]~=nil and a[flag]~=b[flag] then return false end
+    end
+    for key in pairs(OBSERVED_SIGNATURE_STRINGS) do
+        if a[key]~=nil and (b[key]==nil or b[key]~=a[key]) then return false end
+    end
+    if a.default_target~=nil and (b.default_target==nil or b.default_target~=a.default_target) then
+        return false
+    end
+    return true
+end
+function M.normalizeRequestSequence(list)
+    local ok,maxKey=validateArray(list,1)
+    if not ok then return nil,{detail='request_sequence_not_array'} end
+    if maxKey>8 then return nil,{detail='request_sequence_too_long'} end
+    local out={}
+    for i=1,maxKey do
+        local entry=list[i]
+        if type(entry)~='table' then return nil,{detail='bad_request_entry',index=i} end
+        for key in pairs(entry) do
+            if not SEQUENCE_KEYS[key] then
+                return nil,{detail='unknown_request_key',index=i,key=tostring(key)}
+            end
+        end
+        if entry.index~=i then return nil,{detail='request_index_mismatch',index=i} end
+        if not M.TARGET_REQUESTS[entry.request] then
+            return nil,{detail='bad_request_kind',index=i}
+        end
+        -- S2-REV-04: a sequence entry is a real native prompt. `none` (no
+        -- prompt at all) stays a `target_requests` value for single-request
+        -- descriptors such as `self_random_teleport`; as a program entry it
+        -- would be accepted at build time and then fail executor lowering
+        -- (`invalid_sequence`), so it is rejected here at declaration time.
+        if entry.request=='none' then
+            return nil,{detail='bad_request_kind',index=i,reason_text='none is not a native prompt; it cannot form an ordered program'}
+        end
+        if not M.REQUEST_SUBJECTS[entry.subject] then
+            return nil,{detail='bad_subject',index=i}
+        end
+        local valueSource=entry.value_source or 'subject'
+        if not M.REQUEST_VALUE_SOURCES[valueSource] then
+            return nil,{detail='bad_value_source',index=i}
+        end
+        if entry.landing_from~=nil and entry.landing_from~='envelope' then
+            return nil,{detail='bad_landing_from',index=i}
+        end
+        if entry.optional~=nil and type(entry.optional)~='boolean' then
+            return nil,{detail='bad_optional',index=i}
+        end
+        if entry.optional==true and i~=maxKey then
+            return nil,{detail='optional_not_trailing',index=i}
+        end
+        -- S2 rev3: every published sequence entry carries a curated observed
+        -- signature (the runtime evidence the executor matches).
+        local observed,observedErr=normalizeObserved(entry.observed,i)
+        if not observed then return nil,observedErr end
+        local copy={index=i,request=entry.request,subject=entry.subject,
+            value_source=valueSource,observed=observed}
+        if entry.landing_from~=nil then copy.landing_from=entry.landing_from end
+        if entry.optional==true then copy.optional=true end
+        out[i]=copy
+    end
+    -- S2-R3-01 rev5: for N≥2 no entry's curated signature may SUBSUME another's
+    -- (presence-explicit match semantics; see `signatureSubsumes`): a subsumed
+    -- entry can never be the unique match of any raised prompt, so the
+    -- descriptor is refused at build time (a plugin-completeness boundary,
+    -- never a strategy judgement). Pairs that are merely distinguishable under
+    -- presence semantics (Vault's hit-without-nolock vs hit+nolock) are
+    -- admitted; the runtime EXACTLY-ONE gate is the normative safety net.
+    if maxKey>=2 then
+        for i=1,maxKey-1 do
+            for j=i+1,maxKey do
+                if signatureSubsumes(out[i].observed,out[j].observed)
+                    or signatureSubsumes(out[j].observed,out[i].observed) then
+                    return nil,{detail='request_signature_ambiguous',
+                        indexes={i,j},signature=out[i].observed.cursor_type}
+                end
+            end
+        end
+    end
+    return out
+end
+
+-- The declared prompt kinds of one normalised sequence.
+function M.requestKinds(sequence)
+    local out={}
+    for i=1,#sequence do out[i]=sequence[i].request end
+    return out
+end
 
 -- Discriminant-closed condition records: each kind allows only the fields it
 -- actually consumes. A field belonging to another kind is rejected rather than
@@ -212,6 +408,21 @@ local TEMPLATES={
             landing='bounded_alternatives',center='actor',traverses=false,
             relocates_other=false},
     },
+    -- Ordered prompt-response program (S2 §4.4): the executor answers the k-th
+    -- native `getTarget` with the k-th declared entry's decided value inside one
+    -- action opportunity and one native submission. There are **no** mechanical
+    -- defaults for the request order, subject binding, centre, bounds or landing:
+    -- every value is a per-talent source-review output, and the sequence plus
+    -- every branch/envelope is curated. `target_requests` is derived from the
+    -- sequence when omitted; when supplied it must agree in length and kind.
+    request_then_landing={
+        required={request_sequence=true,delivery=true,landing=true,center=true,
+            traverses=true,relocates_other=true},
+        optional={target_requests=true,radius=true,min_radius=true,range=true,
+            builder_shape=true,fallback_center=true,fallback_radius=true,
+            fallback_when=true,occupancy_dependent=true,landing_proof=true},
+        fixed={},
+    },
 }
 
 M.TEMPLATES=TEMPLATES
@@ -243,13 +454,53 @@ function M.expand(template,params)
     end
     local out={}
     for key,value in pairs(spec.fixed) do
-        if key=='target_requests' then out.target_requests=copyArray(value) else out[key]=value end
+        if key=='target_requests' then out.target_requests=value else out[key]=value end
     end
     for key,value in pairs(spec.defaults or {}) do
         if out[key]==nil then out[key]=value end
     end
     for key,value in pairs(params) do
-        if key=='target_requests' then out.target_requests=copyArray(value) else out[key]=value end
+        if key=='target_requests' then out.target_requests=value else out[key]=value end
+    end
+    -- S2-REV-03: a declared `target_requests` (fixed or caller-supplied) must be
+    -- a closed dense `1..n` array; a hole, non-array or unknown key is
+    -- `movement_adapter_invalid` at build time instead of being silently
+    -- truncated by `#`.
+    if out.target_requests~=nil then
+        local requests,reqErr=copyTargetRequests(out.target_requests)
+        if not requests then
+            local err={reason=M.REASON_INVALID,template=template}
+            for key,value in pairs(reqErr) do err[key]=value end
+            return nil,err
+        end
+        out.target_requests=requests
+    end
+    -- S2: a `request_sequence` is normalised and cross-checked against the
+    -- static capability list. A hole, gap, reorder, bad kind/subject/value
+    -- source, non-trailing `optional`, unknown key or a `target_requests`
+    -- disagreement is `movement_adapter_invalid` (never silently ignored).
+    if out.request_sequence~=nil then
+        local sequence,seqErr=M.normalizeRequestSequence(out.request_sequence)
+        if not sequence then
+            local err={reason=M.REASON_INVALID,template=template}
+            for key,value in pairs(seqErr) do err[key]=value end
+            return nil,err
+        end
+        local kinds=M.requestKinds(sequence)
+        if out.target_requests~=nil then
+            if #out.target_requests~=#kinds then
+                return nil,{reason=M.REASON_INVALID,
+                    detail='request_sequence_length_mismatch',template=template}
+            end
+            for i=1,#kinds do
+                if out.target_requests[i]~=kinds[i] then
+                    return nil,{reason=M.REASON_INVALID,
+                        detail='request_sequence_kind_mismatch',template=template,index=i}
+                end
+            end
+        end
+        out.request_sequence=sequence
+        out.target_requests=kinds
     end
     if not checkEnum(out.delivery,M.DELIVERIES) then
         return nil,{reason=M.REASON_INVALID,detail='bad_delivery',template=template,value=out.delivery}
@@ -421,9 +672,14 @@ local function evalWhen(when,talent,reads)
         if type(reads.talentLevel)~='function' then return nil end
         local ok,level=pcall(reads.talentLevel,talent)
         if not ok or not finite(level) then return nil end
-        if when.at_least~=nil then return level>=when.at_least end
-        if when.below~=nil then return level<when.below end
-        return nil
+        -- `at_least` and `below` may be declared together (a bounded cell of the
+        -- variant matrix, for example Phase Door's effective TL4 cell in [4,5)).
+        -- The effective level is read once; the declared bounds are then applied
+        -- to that single value so a replaced getter cannot disagree with itself.
+        if when.at_least==nil and when.below==nil then return nil end
+        if when.at_least~=nil and level<when.at_least then return false end
+        if when.below~=nil and level>=when.below then return false end
+        return true
     end
     if when.kind=='attr' then
         if type(reads.attr)~='function' then return nil end
@@ -482,7 +738,27 @@ function M.resolveVariant(movement,talent,reads)
     local descriptor=matched.movement
     local out={}
     for key,value in pairs(descriptor) do
-        if key=='target_requests' then out.target_requests=copyArray(value) else out[key]=value end
+        if key=='target_requests' then
+            -- Curated dense list; copy 1..# defensively (build-time validation
+            -- happens in `M.expand`).
+            local requests={}
+            for i=1,#value do requests[i]=value[i] end
+            out.target_requests=requests
+        elseif key=='request_sequence' then
+            local sequence={}
+            for i=1,#value do
+                local entry={}
+                for k,v in pairs(value[i]) do
+                    if k=='observed' and type(v)=='table' then
+                        local sig={}
+                        for sk,sv in pairs(v) do sig[sk]=sv end
+                        entry.observed=sig
+                    else entry[k]=v end
+                end
+                sequence[i]=entry
+            end
+            out.request_sequence=sequence
+        else out[key]=value end
     end
     return out
 end

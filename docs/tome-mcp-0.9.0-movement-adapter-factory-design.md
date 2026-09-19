@@ -38,10 +38,19 @@ target plan, and current execution rejects multi-prompt plans rather than guessi
   and Phase Door; each records `target_requests`, `delivery`, `landing`, `center`,
   `traverses`, and `relocates_other`. Phase Door also has a coarse TL4+
   unsupported variant (`overload/mod/auto_combat/EffectManifest.lua:233-256`).
-- The structured gap list names Blink Rune, Vault, Dimensional Step, Shadowstep,
-  Giant Leap, Displacement Shield, and moving/swapping another actor as adapter
-  or execution-capability gaps, not tactical refusals
-  (`overload/mod/auto_combat/EffectManifest.lua:264-287`).
+- The structured gap list names Blink Rune, Vault (T_SKIRMISHER_VAULT, later
+  admitted in S1), Dimensional Step, Shadowstep, Giant Leap, Displacement Shield,
+  and moving/swapping another actor as adapter or execution-capability gaps, not
+  tactical refusals (`overload/mod/auto_combat/EffectManifest.lua:264-287`). The
+  S2-R3-01 rev5 survey adds the officially-unsupported multi-prompt talents with
+  their typed reasons (`signature_not_distinguishable`, `dynamic_prompt_count`,
+  `cross_prompt_postcondition`, `same_shape_equivalent`). The *Agility*-tree
+  `T_VAULT` (techniques/agility.lua) is **unsupported until S3** with the typed
+  reason `movement_effect_composition_required`: its sequence is distinguishable,
+  but it is a mixed movement/effect talent (the first actor prompt's target is
+  attacked and may be dazed before the move), so component-free movement
+  admission would expose the effect to no guard (review S2-R4-01; see the
+  implementation doc §4.1 and §4.5 on main).
 - Plain policy `move` is already talent-independent: selectors are generic and
   deterministic, while talent selectors reuse the same data vocabulary
   (`overload/mod/auto_combat/MovementPlanner.lua:29-52`). No factory entry is
@@ -213,7 +222,8 @@ distinguish them. Dynamic numerics (`range`, `radius`) are never signature field
 
 - `index` is explicit and must equal the array position; a hole, gap or reorder is
   `movement_adapter_invalid`. `request_sequence` and `target_requests` must agree in
-  length and kind (a mismatch is `movement_adapter_invalid`), so every existing consumer
+  length and kind (a mismatch is `movement_adapter_invalid`), and a declared
+  `target_requests` must be a closed dense `1..n` array, so every existing consumer
   of `target_requests` — `EffectManifest.requestSequences`, the static policy validator
   and the capability summary — keeps working unchanged
   (`overload/mod/auto_combat/EffectManifest.lua:363-384,485-566`).
@@ -236,21 +246,33 @@ distinguish them. Dynamic numerics (`range`, `radius`) are never signature field
   (`radius`/`min_radius`/`fallback_center`/`fallback_radius`) instead of an exact cell.
 - `observed` is the per-entry curated signature of the prompt the reviewed native flow
   raises at this position: `cursor_type` (required, the `typ.type` string the action
-  passes) plus static discriminators from a closed, **presence-explicit** allowlist —
-  boolean flags `nolock`/`pass_terrain`/`friendlyblock`/`nowarning`/`immediate_keys`/
-  `no_restrict`, strings `first_target`/`msg`, and `default_target='self'`. **Presence
-  is part of the signature**: an undeclared field is *not* a wildcard — the matcher
-  requires the observed spec's value for a declared field to equal the declared value
-  **and** requires a declared boolean to be present-and-equal (so `nolock=false`
-  matches only an absent-or-false `nolock`, and a bare `{cursor_type='hit'}` is
-  distinguishable from `{cursor_type='hit', nolock=true}`). Without presence
-  semantics an accepted pair can overlap and a reorder would be unobservable
-  (review S2-R3-01). Consequently, for N≥2 the executor requires that **exactly one**
-  entry matches each raised prompt (§6.1/§6.2): zero matches, or two-or-more matches
-  (an ambiguous declaration), are typed deviations that pause, never a positional
-  guess. Every published sequence must carry a signature for every entry; a missing
-  one is `movement_adapter_invalid`. The signature detects drift from the reviewed
-  flow as recorded; it is not an identity audit of any live object (§7.1) and it never
+  passes) plus optional static discriminators from a closed allowlist — boolean flags
+  `nolock`/`pass_terrain`/`friendlyblock`/`nowarning`/`immediate_keys`/`no_restrict`,
+  `first_target`, `msg`, and `default_target='self'`. **Signature semantics
+  (normative, S2-R3-01 rev5): the signature is PRESENCE-EXPLICIT, not a wildcard
+  predicate.** `cursor_type` is always an equality constraint; a DECLARED boolean flag
+  must be PRESENT in the observed spec and EQUAL (so `{cursor_type='hit'}` does not
+  match a prompt that raises `nolock`, and a declared `nolock=false` requires the key
+  present with value `false`, distinct from absence — Vault's two prompts
+  (techniques/agility.lua:113,119) differ exactly by nolock presence and are therefore
+  cleanly distinguishable); an UNDECLARED boolean flag must NOT be raised by the
+  observed spec; a declared string (`first_target`/`msg`) or `default_target='self'`
+  must be present and equal when declared, and when the signature omits them the
+  observed value is **ignored** — real flows raise them nondeterministically (Phase
+  Door's `first_target` is rng.percent-driven, conveyance.lua:85), so they are never
+  required-absent and never discriminate by absence. Observed fields outside the
+  allowlist (range/radius/closures) are ignored (guard inputs, not identity). The
+  normative runtime gate is the executor's **EXACTLY-ONE rule** (§6.1): a raised
+  prompt may be answered only when exactly one declared entry — the arrival position
+  — matches it; zero matches, several matches, or a match at another index are typed
+  deviations that pause and hand the live prompt back. The build-time checks keep
+  only what is decidable by inspection: every published entry must carry a
+  signature, and for a sequence of N≥2 entries no entry's signature may **SUBSUME**
+  another's (equal flag constraint sets and the subsumer declaring no additional
+  strings) — a subsumed entry can never be the unique match of any prompt, so the
+  descriptor is `movement_adapter_invalid` (detail `request_signature_ambiguous`,
+  with the colliding indices). The signature detects drift from the reviewed flow as
+  recorded; it is not an identity audit of any live object (§7.1) and it never
   claims geometry proves actor/grid semantics (§3.2).
 - `optional=true` marks a **trailing** entry the native flow may legitimately not raise.
   A missing `optional` trailing prompt is a settled native outcome (reported with
@@ -281,22 +303,34 @@ k-th declared entry's decided value, keeping every existing per-request guard:
 - a value that fails the guard is answered as a native target cancel carrying the typed
   reason (existing `command.target_cancelled`, `overload/mod/mcp_bridge/Actions.lua:297`
   surfaced at `:330-334`);
-- the observed prompt is matched against the declared entries' curated observed
-  signatures **before any answer is built**, and the match must be **exactly one**
-  entry, at the expected index, for an answer to be produced: zero matches (an extra
-  or drifted prompt), several matches (an ambiguous declaration), or a match at a
-  different index (a reorder) are all typed deviations (`unexpected_target_request`
-  with expected/observed index and observed shape), never a blind answer of the k-th
-  declared value and never a positional guess. In particular a **single-request
-  descriptor that receives a second prompt does not answer it** — it surfaces a typed
-  deviation and hands the live prompt back (this is the rule that makes an unmodelled
-  multi-prompt flow safe rather than silently mistargeted). Cursor geometry alone is
-  never used as actor/grid evidence (§3.2: no sound automatic classifier exists). A
-  spec the bridge cannot read as a signature (`typ` not a table or `typ.type` not a
-  string) is `movement_request_kind_unknown`. What this check cannot observe is the
-  native body's internal consumption of an already-given answer, which remains the
-  native flow's own behaviour and is bounded by the per-request native guard, the
-  native rejection, and the declared postcondition check (§6.1);
+- the raised prompt is checked against the declared program by the normative
+  runtime **EXACTLY-ONE rule (S2-R3-01 rev5)** before any answer is built: the
+  executor computes the set of declared entries whose curated observed signature
+  matches the prompt and answers only when that set is exactly the arrival position.
+  Zero matches (extra/drifted prompt), several matches (ambiguous declaration), or a
+  match at another index (reordered flow) are a typed deviation
+  (`unexpected_target_request` with the expected/observed index, the observed shape
+  and the matched indexes) — the live prompt is handed back, never a blind answer of
+  the k-th declared value. Cursor geometry alone is never used as actor/grid evidence
+  (§3.2: no sound automatic classifier exists). A spec the bridge cannot read as a
+  signature (`typ` not a table or `typ.type` not a string) is
+  `movement_request_kind_unknown`. For the **specifically curated** published
+  descriptors whose pairs differ by a declared discriminator, the two positions are
+  distinguishable by construction (Vault's two `hit` prompts by `nolock` presence;
+  Phase Door's by cursor type), so those descriptors cannot answer a reordered
+  native flow with the k-th declared value. That construction argument holds **only
+  for a curated pair**, not for an arbitrary accepted declaration: the build check
+  rejects only subsumption, so an overlapping (yet non-subsuming) declaration — for
+  example `{cursor_type='hit',first_target='friend'}` beside
+  `{cursor_type='hit',msg='aim'}` — is admissible and both signatures match one
+  prompt carrying both strings. For every accepted declaration the guarantee comes
+  from the **runtime exactly-one gate** above: the ambiguous prompt matches several
+  entries, so it is handed back rather than answered, and a wrong answer is
+  prevented at execution time whether or not the declaration was distinguishable by
+  construction. What this check cannot observe is the native body's internal
+  consumption of an already-given answer, which remains the native flow's own
+  behaviour and is bounded by the per-request native guard, the native rejection, and
+  the declared postcondition check (§6.1);
 - a native flow that never raises the next prompt and never returns is bounded by the
   existing `native_timeout` abort
   (`overload/mod/mcp_bridge/Runtime.lua:50-52,2044-2078,2081-2104`).
@@ -333,86 +367,6 @@ The following remain per-talent review output:
 
 These are execution semantics, not policy preferences. Templates may provide
 field defaults only where the category itself proves them.
-
-### 3.3 What `tome-auto_talent_assistant` (ATA) does with multi-prompt targeting (evidence)
-
-An independent read-only analysis of the sibling addon `tome-auto_talent_assistant` (`game/addons/
-tome-auto_talent_assistant`) is recorded at `tmp/mcp-play-support/ata-targeting-analysis.md` (sha256
-`159463ad436206e10d2664219e4059fb0a2ee2e4df0d76b80c324e7e1ec54e33`). Its mechanism, verified directly
-against the source:
-
-- ATA pre-computes a target in its own scoring pipeline and then **hijacks `Player:getTarget`** with a
-  transient `self.talentAssistantTarget` envelope (`superload/mod/class/Player.lua:204-226`); inside that
-  branch it **never reads the native `typ` descriptor at all** (`typ` is only forwarded to `old_getTarget`).
-  Whether the answer is an actor is decided by `self.talentAssistantTarget.target.name`
-  (`Player.lua:215-217`), i.e. by the *shape of its own data*, not by the native request.
-- It does **not** use the engine's `force_target` argument for auto-casts (the fifth `useTalent` argument is
-  `nil`, `hooks/load.lua:719,733`).
-- Multi-prompt talents are handled with a **counter**: `talentAssistantTarget.num` increments per native
-  prompt (`Player.lua:206-210`), and prompts after the first **re-enter its scoring pipeline**
-  (`useAutoTalent`) and overwrite `.target`. Per-stage configuration exists only through a player-authored,
-  **positional** `textListList[num]` table with an off-by-one (entry 1 = the second prompt,
-  `hooks/load.lua:680-699`); the "composite talent" path (`num=-999`, `hooks/load.lua:433`) answers **every**
-  prompt with one pre-aimed target.
-- Failure handling: when re-scoring finds nothing it **silently reuses the previous answer**; only a few
-  shapes (`safety-tp`/`mov`) fail closed via `notarget` → `nil` answer → talent abort (`hooks/load.lua:
-  1719-1721`); if the envelope is absent the call falls through to `old_getTarget` (manual UI, **no
-  timeout**). There is **no identity/digest/source-line audit** anywhere in ATA, and `useTalent` is not
-  wrapped to clear the envelope on error (a stale envelope can leak).
-
-**Implication for this design.** The convergent lesson is that "which prompt am I answering" is a real
-hazard that ATA only sidesteps because it is **typ-blind by construction** (it answers whatever arrives, in
-order, from its own pre-computed list, and silently reuses the previous answer when its re-score fails).
-That posture is unsound here: it can commit a semantically wrong target, and it cannot detect an unexpected
-shape/order. Conversely, three of its mechanisms are sound and are already reflected above — a per-cast
-envelope with an explicit prompt **counter**, an explicit fail-closed "no target" path, and reads gated on
-player-visible information. This is also why §4.4 requires the per-entry **curated observed signature** and
-pairwise **mutual exclusivity** rather than a positional list: our executor must be able to *prove* which
-prompt it is answering, or pause and hand the live interaction back.
-
-### 4.5 Which official 1.7.6 talents actually raise several prompts (survey)
-
-A block-level survey of every action body under `game/modules/tome/data/talents/**` (259 files; each
-`action=function…end` balanced after stripping comments/strings) finds exactly **nine** action bodies that
-call `getTarget`/`getTargetLimited` more than once. They fall into three classes, and the class decides the
-disposition — not the talent name:
-
-| Talent | Source | Prompts | Disposition |
-| --- | --- | --- | --- |
-| **Phase Door** (effective TL≥5) | `spells/conveyance.lua:78-114` | 2: `hit`+`default_target=self`, then `ball`+`nolock` | **supported** (two-entry sequence) |
-| **Vault** (`T_VAULT`) | `techniques/agility.lua:83-150` | 2: `hit` (no `nolock`), then `hit`+`nolock=true` | **unsupported until S3** — `movement_effect_composition_required`. The sequence is *distinguishable* (it is the worked example for presence-explicit signatures in §4.4), but the talent is a **mixed** movement/effect skill: its **first (actor) prompt's target is attacked** (`agility.lua:137-138`) and may be **dazed** (`:140-145`) before the move (`:149-150`). Admitting it as component-free grid movement would let a policy bind that actor prompt to `self` and direct an offensive native action at the player, with the damage/daze hidden from the guard — the exact composition gap §5 requires (§2 finding 2, §13 S3). It must not be executable until its component is represented and guarded. **Note the id:** this is the *Agility*-tree `Vault` (T2, no `short_name`, so `T_VAULT`; previously not modelled at all). The *Acrobatics*-tree `T_SKIRMISHER_VAULT` (`techniques/acrobatics.lua:28-50`) is a **different, single-prompt** pure-movement `beam` talent, stays a single-prompt descriptor, and is unaffected. |
-| **Merge** | `cursed/advanced-shadowmancy.lua:43-46` | 2: both `hit` | **unsupported** — `signature_not_distinguishable` (separated only by `first_target`/`start_x`/`source_actor`, outside the curated allowlist) |
-| **Stone** | `cursed/advanced-shadowmancy.lua:80-83` | 2: both `hit` | **unsupported** — `signature_not_distinguishable` |
-| **Cursed Bolt** | `cursed/advanced-shadowmancy.lua:245` | **N dynamic** — a `getTarget` inside a per-shadow `for` loop | **unsupported** — `dynamic_prompt_count` |
-| **Wormhole** | `chronomancy/spacetime-weaving.lua:145,153` | 2: `bolt`+`simple_dir_request`, then `hit`+`pass_terrain` | **unsupported** — `cross_prompt_postcondition` (the exit's legality depends on the entrance, so a one-shot decided pair would need a joint postcondition; not a movement-slice target either) |
-| **Earthen Missiles** | `spells/stone.lua:39-54` | 3 (TL≥5): `bolt`×3, identical | **unsupported** — `same_shape_equivalent` (order is semantically irrelevant, so there is nothing to disambiguate and nothing to gain) |
-| **Earthen Missiles** (dwarven) (`T_DWARVEN_HALF_EARTHEN_MISSILES`) | `gifts/dwarven-nature.lua:21-50` | 3 (TL≥5): `bolt`×3, identical | **unsupported** — `same_shape_equivalent` (mis-named "Stone Shards" in the first pass of this survey) |
-
-Consequences that shape §4.4 and §6.1:
-
-1. **The real support surface is one talent** (Phase Door: an actor/self prompt followed by a grid prompt).
-   Vault is *distinguishable* but **mixed** (it attacks/dazes the first target), so it joins the
-   composition slice instead of the movement slice (see its row and §13 S3). The ordered queue therefore
-   does **not** need a general N-prompt engine; it needs a correct two-entry sequence, which is why §4.4
-   stays a closed, ordered list with a per-entry signature.
-2. **The prompt *order* is fixed in every official action body** (each `getTarget` is a plain sequential
-   statement; only the *count* varies, via an `if getTalentLevel(t) >= 5` tail or an early `return nil`).
-   The variable-count cases are exactly what `optional=true` (trailing) already covers — for Phase Door and
-   for the two unsupported same-shape talents. What the runtime check defends against is therefore **not**
-   an official reorder but *drift*: another addon replacing `getTarget`/the action, an engine targeting
-   change, or a curation mistake of ours.
-3. **Presence-explicit signatures are load-bearing, not a nicety.** Vault's two prompts differ *only* by the
-   presence of `nolock`; under wildcard semantics they are indistinguishable and Vault would have to be
-   dropped. Under presence semantics it is a clean two-entry sequence.
-4. **A one-value-for-every-request executor is unsafe for every row above.** Any descriptor that answers a
-   second prompt with the first prompt's value silently fabricates a target; §4.4 therefore requires the
-   runtime *exactly-one-match* gate, and a single-prompt descriptor that receives a second prompt must
-   surface a typed deviation and hand the live prompt back instead of answering.
-
-A sibling addon (`tome-auto_talent_assistant`) takes the opposite approach — it is deliberately blind to the
-native cursor descriptor and answers positionally, reusing the previous answer when its own re-score finds
-nothing (see §3.3 for the verified mechanism). That posture cannot detect *any* of the drift classes above,
-which is precisely why this design does not adopt it.
 
 ## 5. Landing envelopes and mixed effects
 
@@ -511,7 +465,11 @@ and the bounded abort cancels a live target handle first, treating
 `target_cancelled` as authoritative only when no live handle remains
 (`overload/mod/mcp_bridge/Runtime.lua:2073-2105`). After the lease is released, the
 handed-back interaction is answerable by the caller through the existing
-respond/dismiss routing extended to the auto invocation's current handle; if nobody
+respond/dismiss routing extended to the auto invocation's current handle, with the
+command-scoped response guards preserved unchanged (S2-R3-02: the response
+fingerprint is computed before both routes, a reused `response_id` is classified
+conflict-vs-idempotent before the consumed checks, and every auto answer is counted
+and bounded by `Interactions.MAX_RESPONSES`); if nobody
 answers, the existing `native_timeout` bound force-cancels it
 (`overload/mod/mcp_bridge/Runtime.lua:2110-2134`). This preserves the rule that
 `native_pending` is tracked without resubmission

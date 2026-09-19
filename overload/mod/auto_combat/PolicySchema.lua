@@ -94,6 +94,9 @@ M.TALENTS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_HEALING_LIGHT=true,
     -- Movement tranche (v1.6). Ordinary movement/teleport actions.
     T_RUSH=true,T_SKIRMISHER_CUNNING_ROLL=true,T_PHASE_DOOR=true,
     -- S1 factory admissions (source-reviewed templates + variant matrix).
+    -- S2-R4-01: T_VAULT (agility) is deliberately absent — it is a MIXED
+    -- movement/effect talent reserved for the S3 composition slice (typed reason
+    -- `movement_effect_composition_required` in EffectManifest.UNSUPPORTED).
     T_SKIRMISHER_VAULT=true,T_DIMENSIONAL_STEP=true}
 M.SUSTAINS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_WEAPON_OF_LIGHT=true,
     T_ARCANE_POWER=true,T_SHIELDING=true,T_DARK_RITUAL=true,T_BERSERKER_RAGE=true,

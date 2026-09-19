@@ -114,11 +114,15 @@ end
 check(Manifest.entry('T_SKIRMISHER_CUNNING_ROLL').movement.landing=='exact','Tumble is an exact grid move')
 check(Manifest.entry('T_SKIRMISHER_VAULT').movement.landing=='exact','Vault is an exact grid move')
 check(Manifest.entry('T_RUSH').movement.landing=='bounded_alternatives','Rush is an actor-anchored line move')
--- Phase Door is a closed matrix: the no-prompt and precise-grid branches are
--- single-prompt; the TL4+ branch is the ordered-queue capability gap.
+-- Phase Door is a closed matrix: the no-prompt, precise-grid, TL4 actor and
+-- TL4/TL5 actor-then-grid branches are all executable S2 ordered programs.
 local phaseDoorSequences=Manifest.requestSequences(Manifest.entry('T_PHASE_DOOR'))
-check(#phaseDoorSequences==4 and phaseDoorSequences[1][1]=='none' and phaseDoorSequences[2][1]=='grid',
-    'Phase Door declares the no-prompt, precise-grid and TL4+ request sequences')
+check(#phaseDoorSequences==5 and phaseDoorSequences[1][1]=='none' and phaseDoorSequences[2][1]=='grid',
+    'Phase Door declares the no-prompt, precise-grid, TL4 actor and actor+grid request sequences')
+local phaseDoorSeen={}
+for _,sequence in ipairs(phaseDoorSequences) do phaseDoorSeen[table.concat(sequence,',')]=true end
+check(phaseDoorSeen['actor'] and phaseDoorSeen['actor,grid'],
+    'Phase Door declares both the TL4 actor-only and the actor+grid ordered programs')
 check(Manifest.entry('T_PHASE_DOOR').movement.variants~=nil,'Phase Door declares a state-variant matrix')
 check(Manifest.SOURCES.talents['T_PHASE_DOOR'].getters~=nil,'Phase Door pins its dynamic getters')
 check(Manifest.compat(Manifest.entry('T_FLAME')).shape=='widebeam','Flame compat reports the widest union member')
@@ -155,13 +159,65 @@ do
         end
         return nil
     end
-    for _,talent in ipairs({'T_PHASE_DOOR','T_BLINK_RUNE',
+    for _,talent in ipairs({'T_BLINK_RUNE',
         'T_DIMENSIONAL_STEP','T_SHADOWSTEP','T_GIANT_LEAP','T_DISPLACEMENT_SHIELD'}) do
         local entry=unsupportedEntry(talent)
         check(entry~=nil and entry.missing and entry.reason and entry.scope,
             talent..' has a structured unsupported entry')
     end
-    check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupported')
+    -- S2: Phase Door's TL4+ ordered prompt-response queue is implemented, so its
+    -- capability gap is gone (only the generic multi-actor swap gap remains).
+    check(unsupportedEntry('T_PHASE_DOOR')==nil,
+        'Phase Door TL4+ is admitted after the S2 ordered queue')
+    check(Manifest.entry('T_PHASE_DOOR').movement.variants~=nil,
+        'Phase Door still declares its state-variant matrix')
+check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupported')
+    -- S2-R3-01 rev5: the officially-decided multi-prompt unsupported set, each
+    -- with its own typed reason.
+    for _,talent in ipairs({'T_MERGE','T_STONE','T_CURSED_BOLT','T_WORMHOLE',
+        'T_EARTHEN_MISSILES','T_DWARVEN_HALF_EARTHEN_MISSILES'}) do
+        local u=unsupportedEntry(talent)
+        check(u~=nil and u.missing and u.reason and u.scope,
+            talent..' has a structured unsupported entry')
+    end
+    check(unsupportedEntry('T_MERGE').missing=='signature_not_distinguishable'
+        and unsupportedEntry('T_STONE').missing=='signature_not_distinguishable',
+        'Merge and Stone are the signature-not-distinguishable typed reason')
+    check(unsupportedEntry('T_CURSED_BOLT').missing=='dynamic_prompt_count',
+        'Cursed Bolt is the dynamic-prompt-count typed reason')
+    check(unsupportedEntry('T_WORMHOLE').missing=='cross_prompt_postcondition',
+        'Wormhole is the cross-prompt-postcondition typed reason')
+    check(unsupportedEntry('T_EARTHEN_MISSILES').missing=='same_shape_equivalent'
+        and unsupportedEntry('T_DWARVEN_HALF_EARTHEN_MISSILES').missing=='same_shape_equivalent',
+        'Earthen Missiles variants are the same-shape-equivalent typed reason')
+    -- S2-R4-01: the agility Vault (techniques/agility.lua) is a MIXED
+    -- movement/effect talent: its first (actor) prompt's target is attacked and
+    -- may be dazed before the move. It must NOT be executable — component-free
+    -- grid-movement admission would let a valid policy bind that actor prompt to
+    -- `self` and hide the effect from the guard. It is published with the typed
+    -- reason `movement_effect_composition_required` (the S3 composition slice).
+    check(Manifest.entry('T_VAULT')==nil,'the agility Vault is NOT executable')
+    check(Manifest.supported('T_VAULT')==false
+        and #Manifest.requestSequences(Manifest.entry('T_VAULT'))==0,
+        'an unsupported talent has no descriptor and no request sequence')
+    check(Schema.TALENTS['T_VAULT']==nil,'the agility Vault is not a schema talent')
+    local agilityVault=unsupportedEntry('T_VAULT')
+    check(agilityVault~=nil
+        and agilityVault.missing=='movement_effect_composition_required'
+        and type(agilityVault.reason)=='string' and #agilityVault.reason>0
+        and agilityVault.scope=='any',
+        'the agility Vault is surfaced with the typed movement_effect_composition_required reason')
+    check(Manifest.SOURCES.talents['T_VAULT']==nil,
+        'the unsupported agility Vault has no executable source pin')
+    -- T_SKIRMISHER_VAULT (acrobatics) is a DIFFERENT, single-prompt pure-movement
+    -- talent and stays admitted unchanged.
+    local skirmisherVault=Manifest.entry('T_SKIRMISHER_VAULT')
+    check(skirmisherVault~=nil and skirmisherVault.kind=='movement'
+        and skirmisherVault.movement.landing=='exact'
+        and skirmisherVault.movement.traverses==false,
+        'T_SKIRMISHER_VAULT stays a single-prompt exact pure-movement descriptor')
+    check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,
+        'T_SKIRMISHER_VAULT is still admitted, not unsupported')
     local step=unsupportedEntry('T_DIMENSIONAL_STEP')
     check(step~=nil and step.missing=='moving_or_swapping_another_actor',
         'Dimensional Step TL5 is the swap capability gap')
