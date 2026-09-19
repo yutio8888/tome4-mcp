@@ -572,6 +572,40 @@ precheck/expansion calls.
   reason — `flee_below_hp_pct`, `no_emergency_action` and the queue-deviation
   reasons — therefore advances the generation by exactly 1.
 
+### 8.4b Rev-5 review closure: the typed density code + the assistant-import ingress (R2-APR4-01 rev5, R2-APR5-01)
+
+- **`EffectManifest.verify` emits the contracted typed density rejection.** A
+  caller-supplied `target_plan` that fails `Json.denseArray` at the verify
+  boundary is now `target_plan_not_dense` — never the bare generic
+  `invalid_target_plan` — with a diagnosable `cause`
+  (`hole|non_integer_key|key_beyond_dense_end`, from the shared
+  `Json.denseFault` diagnostic; the raw `denseArray` cause is kept when no
+  density fault can be named, e.g. `too_short`) and the offending `key`. A
+  dense prefix plus exactly one detached key is `key_beyond_dense_end` with
+  that key; a multi-key gap is `hole` at the first missing index.
+  (`PolicySchema.validateTargetPlan` and the planner keep their existing
+  `invalid_target_plan`+cause shape, which passed review.)
+- **`AssistantAdapter` dense-closes every caller array BEFORE any
+  `#`/`ipairs`/hashing** (R2-APR5-01, checklist A): `M.versionKey`
+  (`assistant.addon_version`/`tome_version`) rejects a sparse tuple as the
+  typed `sparse_version_array` detect refusal (field+cause+key);
+  `translateCondition` dense-validates `cond.all`/`cond.any` before the child
+  traversal (a sparse branch drops its whole rule with a typed
+  `sparse_condition_array` report carrying branch+cause+key); `M.translate`
+  dense-validates top-level `config.sustains`/`config.talents` before any
+  traversal or hashing — a present but sparse/non-table list fails the WHOLE
+  import as `sparse_import_array` (path+cause+key, no draft, no hash), while
+  an absent list stays simply empty. A malformed import can never surface as
+  a valid hashed shorter-prefix draft.
+- **Boundary registry:** `tools/check_boundary_rules.py` (the
+  `feat/boundary-selfcheck` provenance registry) is NOT on `main` yet — this
+  branch rebased onto `main` (`ded8e1a`) per the dispatch note, and the
+  registry file is still absent there. The AssistantAdapter registration
+  entries are stated verbatim in the dev report so the registry owner can add
+  them; against a scratch copy of that registry (with the entries applied) the
+  five registered arrays all report "dense-validated at ingress" and the file
+  contributes zero uncatalogued/unguarded sites.
+
 ### 8.5 Published residual limitations (§6.6/§6.7)
 
 - `outcome_uncertainty='per_projectile_random_crit'` on the plan annotation: a
