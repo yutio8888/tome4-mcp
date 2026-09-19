@@ -315,7 +315,7 @@ reason — a capability boundary, never a strategy judgement:
 | `T_MERGE`, `T_STONE` | `moving_or_swapping_another_actor` | the effect targets/moves another actor: Merge kills the caster's own doomed shadow (`target.die(target)` at cursed/advanced-shadowmancy.lua:51) before acting on the second actor (:52); Stone relocates that shadow (`target:move(sx,sy,true)` at :88) and attacks through it (`target:project(...)` at :100). The second spec differs by the ALLOWLISTED `pass_terrain=true` (:45,:82) plus `friendlyblock=false` for Stone (:82), so the signature axis was **not** the blocker |
 | `T_CURSED_BOLT` | `nondeterministic_prompt_subject` | each loop iteration picks a random shadow as the bolt origin (`rng.table(shadows)` at cursed/advanced-shadowmancy.lua:242) and the entry is order-sensitive (first success consumes the crit roll :248-251, first failure aborts :255-258); the prompt count itself is bounded and player-known (cap 4, cursed/shadows.lua:350-352), so the count was **not** the blocker |
 | `T_WORMHOLE` | `effect_is_a_later_triggered_trap_pair` | activation moves nobody: it creates a pair of later-triggered traps (chronomancy/spacetime-weaving.lua:164-207, added at :209-224) whose third-party trigger teleports whoever steps on one later (:179-194, `teleportRandom` at :183). The prompts ARE distinguishable by cursor_type (:144 `bolt` vs :152 `hit`) and `distance>=2` (:157) is checkable pre-commit, so neither was the blocker |
-| `T_EARTHEN_MISSILES`, `T_DWARVEN_HALF_EARTHEN_MISSILES` | `nondeterministic_prompt_outcome` (loop 39 rev2 withdrawal) | The R2 "declared interchangeable group" admission is **WITHDRAWN**: the native action rolls `self:spellCrit(damage)` SEPARATELY immediately before EACH projectile (spells/stone.lua:41-46,48-52,54-56; gifts/dwarven-nature.lua:37-42,44-47,49-52) and `spellCrit` does `rng.percent(chance)` (modules/tome/class/interface/Combat.lua:2012-2032), so each prompt position consumes a DISTINCT random crit outcome — exchanging which answer belongs to which missile can exchange a crit and a non-crit between different targets, an observable result. Shared base damage/projectile/damage-type does NOT establish interchangeability, and the prompts themselves are indistinguishable, so no positional signature can bind an answer to a missile. The `group`/`stationary_sequence` relaxation surface is removed entirely; a narrower equivalence notion would need a per-position observable model that 1.7.6 does not offer. The tactic stays legal for a player — this is a plugin-completeness boundary, never a strategy judgement |
+| `T_EARTHEN_MISSILES`, `T_DWARVEN_HALF_EARTHEN_MISSILES` | — (supported, A′ admission) | The loop-39 withdrawal is **SUPERSEDED**. The prompts are mutually unidentifiable (all three local bolt specs are identical: `spells/stone.lua:38,45,53`; the dwarven twin adds `friendlyfire=false,friendlyblock=false` at `:34,:41,:49`), so they are declared as ONE mechanically validated `group` (§A′ below). The admission is justified by the **arrival-order** guarantee, NOT by any equivalence claim: the S2 executor answers the k-th OBSERVED prompt with `plan[k]` (`Actions.lua`), so no declared value is ever re-mapped. The per-missile `self:spellCrit(damage)` roll (`stone.lua:42,48,56`; `dwarven-nature.lua:38,44,52`) and the caster on-crit callbacks (`Combat.lua:2025-2056`) are published as `outcome_uncertainty='per_projectile_random_crit'` — an annotation, never a refusal (AGENTS.md read policy v1.4). The tactic stays legal for a player |
 
 Note: the talent called "Stone Shards" in the survey is the dwarven
 "Earthen Missiles" (`T_DWARVEN_HALF_EARTHEN_MISSILES`,
@@ -353,19 +353,25 @@ reads never submit actions and never expose player-unknown information.
 
 ## 7. Evidence
 
-- **Lua**: `bash tests/run.sh` (42 suites). The ordered-queue suites:
-  `tests/test_auto_combat_sequence.lua` (108 checks, includes the classifier
+- **Lua**: `bash tests/run.sh` (40 suites). The ordered-queue suites:
+  `tests/test_auto_combat_sequence.lua` (197 checks, includes the A′ in-group
+  matching/arrival-index cases and the classifier
   falsification matrix: legal grid-via-`hit`/`actor-via-`ball` accepted per
   signature, unreadable spec ⇒ `movement_request_kind_unknown`, readable-but-
   unmatched ⇒ `unexpected_target_request` + `observed_shape`, same-kind reorder
   detected, signature-ambiguous descriptor rejected at build time);
-  `test_auto_combat_movement_factory.lua` (98), `test_auto_combat_controller.lua`
-  (114, includes the `native_pending` + deviation pause-before-pending case),
+  `test_auto_combat_movement_factory.lua` (122, includes the A′ mechanical group
+  and stationary-template validation), `test_auto_combat_guard.lua` (60,
+  includes the Dwarven `friendlyblock=false`/`friendlyfire=false` fidelity and
+  the partial-footprint fail-closed case), `test_effect_manifest.lua` (465,
+  includes the A′ admission assertions), `test_auto_combat_controller.lua`
+  (121, includes the `native_pending` + deviation pause-before-pending case),
   `test_auto_combat_service.lua` (162, includes the lease release and the
-  settle-time `nativeDeviation` delivery), `test_runtime.lua` (227, includes the
+  settle-time `nativeDeviation` delivery), `test_runtime.lua` (253, includes the
   production outcome-mapping survival, the reap-exactly-once delivery, the
-  live-handle-first abort, the `authoritative_target_cancelled` regression and
-  the respond/dismiss answerability after lease release).
+  live-handle-first abort, the `authoritative_target_cancelled` regression, the
+  respond/dismiss answerability after lease release, and the NEW end-to-end
+  guard-PERMIT-to-`Tracker.startAction` regression).
 - **Python**: `server/tests` 39 OK; `tools/generate_effect_manifest.py --check`,
   `tools/generate_native_seams.py --check`, `tools/generate_protocol.py --check`
   all exit 0.
@@ -373,7 +379,13 @@ reads never submit actions and never expose player-unknown information.
   packaged `dist`, scenario `movement-sequence`:
   `sd_plan_sequence`, `sd_reverse_plan_rejected`, `sd_static_unsupported`,
   `sd_two_requests_ordered`, `sd_distinct_values`, `sd_second_range_refused`,
-  `sd_missing_optional_reduced`, `sd_reorder_refused`, and the S2 rev3
+  `sd_missing_optional_reduced`, `sd_reorder_refused`, the NEW
+  `sd_phase_door_no_handback` (REAL TL4 `T_PHASE_DOOR` driven through its
+  manifest `request_sequence` — no test-only talent, no synthetic shapes, the
+  curated signatures matched against the real raised specs) and the NEW
+  `permit-path:*` checks (a guard permit verdict reaching
+  `Tracker.startAction`/`Actions.execute` in exactly one submission, and a
+  reject verdict reaching none), and the S2 rev3
   `sd_handback_yielding` (a TRULY yielding native handback: the native body
   suspends on the real `targetGetForPlayer`, the deviation survives to the
   controller, the run pauses with the typed reason and the lease is released,
@@ -385,6 +397,101 @@ reads never submit actions and never expose player-unknown information.
   passed.
 - `python3 tools/package.py`: 68 files; archive = manifest = source tree, 0
   mismatches; the dist sha256 is recorded in the round report.
+
+
+## 8. A′ admission: declared groups + the stationary effect program
+
+The revised proposal A′ (adversarial review verdict *sound with changes*; binding
+revision log §6) admits `T_EARTHEN_MISSILES` and
+`T_DWARVEN_HALF_EARTHEN_MISSILES`. The two mechanisms it adds are:
+
+### 8.1 `group` — declared, mechanically validated membership (§6.3)
+
+`group` is a closed key on a `request_sequence` entry (bounded identifier:
+lowercase word characters, 1..32). It is **declared** membership, never inferred
+from signature equality, and it is validated mechanically at BOTH boundaries:
+
+- `MovementAdapterFactory.normalizeRequestSequence` requires, per group: ≥2
+  members, one `request` kind, EXACTLY EQUAL normalised signature records
+  (`M.signatureEquals`), and — on a stationary program — `request='grid'` +
+  `value_source='target_plan'` with contiguous members. Any violation is
+  `movement_adapter_invalid` (`bad_group_key` / `group_too_small` /
+  `group_kind_mismatch` / `group_signature_mismatch` /
+  `group_stationary_not_grid` / `group_stationary_value_source` /
+  `group_not_contiguous`) and is never published.
+- `Actions.normalizeSequence` re-validates the SAME invariants on the internal
+  carrier (`Factory.groupMembership`), so a hand-authored carrier cannot forge or
+  weaken factory-validated membership — it is `invalid_sequence`.
+- An entry declaring a group is exempt from the build-time subsumption rejection
+  **for its own group members only**; every ungrouped pair keeps today's
+  behaviour exactly (including the presence-distinguishable `{cursor_type='hit'}`
+  vs `{cursor_type='hit',nolock=false}` pair, which stays ADMITTED — the earlier
+  proposal's nil-vs-false rejection is deleted).
+
+### 8.2 The runtime gate relaxes MATCHING ONLY (§6.1)
+
+For a raised prompt the executor computes the matched set. It answers **iff** the
+matched set CONTAINS the expected arrival index AND all matches are members of
+that entry's declared group (or, as before, the single expected entry matches).
+
+- The answer is always `action.sequence[observed]`: **arrival k ⇒ plan[k]**.
+  There is no value comparison, no reordering and no "interchangeable" logic.
+- A matched set that EXCLUDES the expected arrival index is ALWAYS a typed
+  deviation; cross-group matches, non-members and ambiguous ungrouped matches
+  likewise produce `unexpected_target_request` with
+  `expected`/`observed`/`matched_indexes`.
+- **Guarantee wording (§6.1, revised):** *the k-th OBSERVED prompt is answered
+  only with `plan[k]`*. What the mechanism cannot observe is **source-slot**
+  identity inside a same-signature group (a hypothetical replaced native body
+  raising its identical prompts in another source order is undetectable); for the
+  reviewed 1.7.6 bodies (`spells/stone.lua:38-56`;
+  `gifts/dwarven-nature.lua:34-52`) the prompts are raised in source order, so
+  this does not block admission. Source drift is advisory under `AGENTS.md` and
+  is not policed by a runtime identity gate.
+
+### 8.3 `stationary_sequence` — the closed stationary program (§6.5)
+
+The movement vocabulary has no "fire N projectiles at N chosen grids without
+moving", so a closed `stationary_sequence` template exists: fixed
+`delivery='stationary'`, `landing='none'`, `center='none'`, `traverses=false`,
+`relocates_other=false`, `required={request_sequence}`, and **grid-only**
+enforcement (`stationary_entry_not_grid` / `stationary_entry_value_source` /
+`stationary_entry_optional`). Every plan value must be a **valid grid**; a
+malformed value is rejected, never filtered. The program is lowered by the
+**existing** sequence planner into the same `{kind='sequence'}` plan — no second
+queue — and the guard marker `stationary` is a **validated consequence of the
+resolved template**, never an independently authorable manifest boolean.
+
+### 8.4 Guard: Dwarven projection fidelity and footprint closure (§6.4/§6.5)
+
+- These talents have LOCAL `tg` tables, not a callable `t.target` builder, so
+  "the real shape" is a curated copy of those local flags
+  (`AutoCombatGuard.STATIONARY_SPECS`). The `canProject` precheck and the native
+  footprint input carry the **actual static flags** (`friendlyblock`,
+  `friendlyfire`, `nolock`, `pass_terrain`, `nowarning`); the engine uses
+  `friendlyblock` to let a friendly actor NOT block the projection
+  (`engines/default/engine/Target.lua:527-535,588-607,657-664`), so a probe
+  rebuilt from `{type,range,talent}` alone can manufacture a false
+  `no_line_of_sight`. `friendlyfire=false` also reaches risk/effect modelling.
+- **Every** applicable component × planned-grid footprint must expand; an
+  unreadable one propagates `unknown` and the guard fails closed
+  (`footprint_unavailable`, `unknown=true`). A partially-readable union is never
+  measured as complete.
+- Routing itself is derived from the resolved factory leaf: a mover declaration
+  keeps the ordinary movement skip, a uniform stationary declaration is measured
+  at every chosen grid, and only a mixed declaration needs the variant resolved
+  (an indeterminate read fails closed with `movement_variant_unknown`).
+
+### 8.5 Published residual limitations (§6.6/§6.7)
+
+- `outcome_uncertainty='per_projectile_random_crit'` on the plan annotation: a
+  crit may change projectile damage **and** trigger caster on-crit behaviour
+  (`Combat.lua:2025-2056`). It is an annotation, never a refusal.
+- Same-signature intra-group **source order** is unobservable (see §8.2).
+- Fail-closed remains only for the plugin's own unreadable values/footprints, or
+  for position-specific **non-random** semantics found by source review.
+- A chosen grid is an aim request, not a promise about the eventual damaged
+  actor/grid; projectile travel and damage settle after the answer.
 
 Raw evidence lives under `tmp/` (git-ignored); this document records only the
 summary and the package sha256 of the tested archive.

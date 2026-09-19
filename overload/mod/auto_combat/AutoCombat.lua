@@ -608,7 +608,7 @@ function M:step()
             local guard=self.host and self.host.guard and self.host.guard({
                 rule=decision.rule,action=decision.action,talent=decision.talent,
                 target=decision.target,bound_target=bound.bound_target,
-                emergency=decision.emergency==true})
+                plan=plan,emergency=decision.emergency==true})
             if guard and guard.action=='pause' then
                 self:record({kind='paused',reason=guard.reason,rule=decision.rule,
                     detail=boundedDetail(guard.detail)})

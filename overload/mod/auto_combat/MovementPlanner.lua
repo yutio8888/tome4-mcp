@@ -202,6 +202,15 @@ end
 -- deterministic; a random landing stays an ANNOTATION the policy decides on,
 -- never a plugin refusal.
 local function applyLandingEnvelope(annotation,movement,origin,x,y)
+    -- A′ §6.5: a stationary program has NO mover landing. The requested cell is
+    -- the projectile target, not a landing, so the annotation stays
+    -- deterministic (the projectile is fired AT this cell; nobody moves).
+    if type(movement)=='table' and (movement.landing=='none'
+        or movement.delivery=='stationary') then
+        annotation.confidence='source_stationary_program'
+        annotation.reasons[#annotation.reasons+1]='caster_does_not_move'
+        return annotation
+    end
     if type(movement)~='table' or movement.landing=='exact' or movement.landing==nil then
         return annotation
     end
@@ -380,6 +389,16 @@ end
 -- is reported here too (the sequence per-step annotations share this builder).
 local function nativeLandingAnnotation(movement,anchor,origin)
     movement=movement or {}
+    -- A′ §6.5: a stationary program has no mover landing; the annotation reports
+    -- the projectile target grid as a deterministic aim point (nobody moves).
+    if movement.delivery=='stationary' or movement.landing=='none' then
+        local target=(type(anchor)=='table') and {x=anchor.x,y=anchor.y} or nil
+        if target==nil and type(origin)=='table' then target={x=origin.x,y=origin.y} end
+        return {landing={kind='deterministic',x=target and target.x,y=target and target.y},
+            visible=true,remembered=true,known_passable='unknown',known_hazard='unknown',
+            confidence='source_stationary_program',
+            reasons={'caster_does_not_move','projectile_aim_grid'}}
+    end
     if movement.landing=='random' then
         local bounds={kind='random',source='native'}
         if finite(movement.radius) then bounds.radius=movement.radius end
@@ -582,6 +601,10 @@ function M.planSequence(attempt,provider,movement,origin)
         -- the executor matches the live prompt against the same curation the
         -- factory validated for this position (`action.sequence[i].observed`).
         if values[i]~=nil and entry.observed~=nil then values[i].observed=entry.observed end
+        -- A′ §6.3: declared group membership is curated descriptor data and must
+        -- ride the internal carrier for the executor's in-group matching
+        -- relaxation (same rationale as the curated observed signature above).
+        if values[i]~=nil and entry.group~=nil then values[i].group=entry.group end
     end
     local landing=steps[#steps].annotation
     local kinds={}
@@ -592,6 +615,19 @@ function M.planSequence(attempt,provider,movement,origin)
     annotation.sequence=kinds
     annotation.reasons=annotation.reasons or {}
     annotation.reasons[#annotation.reasons+1]='ordered_prompt_sequence'
+    -- A′ §6.5/§6.6: a stationary program is annotated as such from the RESOLVED
+    -- template (the leaf's fixed `delivery`), never from a manifest boolean, and
+    -- the per-projectile random crit is published as an annotation (never a
+    -- refusal): the k-th answer is always followed by the native k-th projectile
+    -- and its own crit roll (`spells/stone.lua:38-56`; `Combat.lua:2025-2056`).
+    if movement and movement.delivery=='stationary' then
+        annotation.stationary=true
+        annotation.delivery='stationary'
+        annotation.outcome_uncertainty='per_projectile_random_crit'
+        annotation.reasons[#annotation.reasons+1]='outcome_uncertainty=per_projectile_random_crit'
+        annotation.reasons[#annotation.reasons+1]='per_projectile_crit_may_differ_and_trigger_on_crit'
+        annotation.reasons[#annotation.reasons+1]='same_signature_source_slot_order_unobservable'
+    end
     return {kind='sequence',steps=steps,values=values,
         request_sequence=sequence,annotation=annotation}
 end
