@@ -448,13 +448,29 @@ effect over every cell the mover can actually occupy at settle:
   read the guard already uses (`AutoCombatGuard.lua:132-140`); no hidden state is read.
 
 **Union and membership (normative).** For `center='actual_landing'` components the
-pre-commit footprint union is computed analytically from the candidate envelope, not by
-per-cell expansion: `shape='hit'` → the candidate set itself; `shape='ball'` radius `r`
-→ the circle around the envelope center with radius `envelope_radius + r` (for the
-audited distance metric this contains every per-candidate native projection; it is a
-conservative superset). Expansion goes through the existing `EffectFootprint.expand`
-backends (`overload/mod/auto_combat/EffectFootprint.lua:290-300`), so a native expansion
-failure is unknown membership, never a silent model downgrade. For
+pre-commit union is computed by **complete pair expansion**, never by the analytic
+circle:
+
+1. enumerate the finite landing candidate set `L` from the declared envelope;
+2. for every active risk-bearing component `c` and every candidate `l` for which `c.when`
+   may hold, expand `spec(c,l)` through the existing native backend
+   (`EffectFootprint.expand`, `overload/mod/auto_combat/EffectFootprint.lua:290-300`);
+3. union only after **all** required expansions succeeded;
+4. one `nil` expansion, a malformed spec, an unreadable radius, an unavailable anchor or
+   an incomplete enumeration **discards the partial union** and yields unknown
+   membership (`selffire_risk` with `unknown=true`, or `movement_plan_unavailable` when
+   the candidate set itself is undecidable).
+
+**[CORRECTED 2026-09-18]** An earlier revision of this section prescribed the analytic
+`circle(center, envelope_radius + r)` as a conservative superset. That is **false**: the
+native backend applies **per-center** line/radius blocking (`block_radius` evaluated per
+cell, `calc_beam_any_angle` rooted at the candidate's own `start_x/start_y`), so a
+blocker beside one candidate can remove cells that the analytic circle would still claim;
+`expand` also returns `native_failed` rather than falling back. Measuring such a partial
+or analytic union would **understate** friendly/self risk — the exact fail-open class the
+S3 review flagged. The analytic circle may remain **only** as a test oracle asserting that
+the complete union is *contained* in it, never as the production expansion (Designer plan
+`tmp/mcp-play-support/s3-design-arm2.md` D1, sha256 `4c2d3bffd12c323036e83fc86ec1d714cdfa08eb4ff0a083917cf4a5ae771a28`). For
 `center='actual_landing'` components self-membership is evaluated as `candidates ∩
 union ≠ ∅` (conservatively `true` when either side is unknown) instead of containment at
 the mover's **current** cell — the mover will have moved (`AutoCombatGuard.lua:117`
@@ -639,9 +655,12 @@ no-prompt leaf would be unsafe.
    the envelope must become `movement_postcondition_mismatch`; a valid random
    endpoint must not.
 8. Verify mixed component footprints are unioned over the landing candidate set and
-   centered on `actual_landing`: an exact landing yields a single-cell candidate set;
-   a bounded envelope yields the `circle(center, envelope+effect)` superset; `min_radius`
-   is ignored (superset assertion). An unknowable footprint (native expansion failure,
+   centered on `actual_landing` by **complete pair expansion** (§5.1, corrected): an exact
+   landing yields a single-cell candidate set; a bounded envelope expands **every**
+   component × candidate pair; `min_radius` is ignored. The analytic
+   `circle(center, envelope+effect)` is used **only** as an oracle asserting the complete
+   union is contained in it. Any single failed/cancelled expansion proves unknown
+   membership (partial union discarded), not a measured risk. An unknowable footprint (native expansion failure,
    unseen-grid occupancy, missing landing annotation, unreadable radius) disables only
    that action (`selffire_risk` with `unknown=true`, or `movement_plan_unavailable` when
    the candidate set itself is undecidable). Assert `landing_adjacent` resolution: an
