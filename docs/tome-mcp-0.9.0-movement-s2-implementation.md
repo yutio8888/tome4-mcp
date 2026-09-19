@@ -505,11 +505,23 @@ precheck/expansion calls.
   `min_range`, `grid_exclude`, `filter`, and a raised `block_path`/`block_radius`
   callback (or an explicit `false`, which the engine honours and which disables
   the default blocker). A value is forwarded whenever it is present (`~=nil`, so
-  `false` is admitted). NOT forwarded, and not needed: the per-projection
-  instance fields the caller sets (`source_actor`, `start_x`/`start_y`,
-  `x`/`y`, `line_function`, `bypass`, `multiple`, `act_exclude`) and the
-  shape/radius geometry the guard derives from the manifest component
-  (`Target.getType` supplies those itself).
+  `false` is admitted). R2-APR3-01 (rev3): `act_exclude`
+  (`{[uid]=true,...}`, documented at `Target.lua:647-650`) is also forwarded and
+  honoured: the engine applies it BEFORE the self/friendly admission
+  (`ActorProject.lua:248-255`), so the membership measurement excludes every
+  actor whose uid is a key — including the caster — and a raised non-table
+  `act_exclude`, or an unreadable actor uid under a raised `act_exclude`, keeps
+  the membership unknown (fail closed). R2-APR3-02 (rev3): the three
+  function-valued fields (`block_path`, `block_radius`, `filter`) are
+  type-checked — a real callback or an explicit `false` is forwarded verbatim,
+  while a non-nil non-function value (string/number/boolean) is never forwarded;
+  it is an explicit unknown -> fail-closed rejection
+  (`malformed_function_field`) because the engine would invoke it
+  (`ActorProject.lua:60,74,95-96` and the radial `typ:block_radius` calls).
+  NOT forwarded, and not needed: the per-projection instance fields the caller
+  sets (`source_actor`, `start_x`/`start_y`, `x`/`y`, `line_function`, `bypass`,
+  `multiple`) and the shape/radius geometry the guard derives from the manifest
+  component (`Target.getType` supplies those itself).
 - **Every** applicable component × planned-grid footprint must expand; an
   unreadable one propagates `unknown` and the guard fails closed
   (`footprint_unavailable`, `unknown=true`). A partially-readable union is never

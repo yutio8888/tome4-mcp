@@ -733,6 +733,10 @@ end
 -- S2 rev3/§6.2: a deviation riding on a `native_pending` result pauses BEFORE the
 -- controller's native_pending branch (it never enters waiting_native), and a
 -- settled-time deviation delivered by nativeDeviated does the same.
+-- R2-APR3-04 (checklist D): the mismatch handoff is ONE state transition with
+-- generation delta exactly 1 — the run lands in the terminal handoff state
+-- (`stopped`, the same state every other safety handoff ends in), and the
+-- service's same-cause stop must not advance the generation again.
 do
     local requests=0
     local host=makeHost()
@@ -747,11 +751,19 @@ do
     end
     local c=AutoCombat.new(policy(),host)
     c:start()
+    local before=c.generation
     local step=c:onOpportunity()
     check(step.action=='paused' and step.reason=='unexpected_target_request',
         'a native_pending carrying a deviation pauses instead of entering waiting_native')
-    check(step.handed_back==true and c.state=='paused' and c.reason=='unexpected_target_request',
-        'the pause carries the handback evidence and the typed reason')
+    check(step.handed_back==true and c.state=='stopped' and c.reason=='unexpected_target_request',
+        'the mismatch handoff lands in the terminal state with the typed reason')
+    check(step.generation==before+1 and c.generation==before+1,
+        'the synchronous mismatch advances the generation by exactly 1 (R2-APR3-04)')
+    -- A same-cause stop (the service's lease release) must be a no-op, never a
+    -- second transition.
+    local again=c:stop('unexpected_target_request')
+    check(again.deduplicated==true and c.generation==before+1,
+        'the same-cause handoff stop deduplicates (R2-APR3-04 delta stays 1)')
     check(requests==1 and c.attempts==0,
         'the pending deviation is never resubmitted and consumes no action budget')
 end
@@ -759,10 +771,15 @@ do
     local host=makeHost()
     local c=AutoCombat.new(policy(),host)
     c:start()
+    local before=c.generation
     local entry=c:nativeDeviated({reason='movement_request_kind_unknown',handed_back=true})
     check(entry.kind=='paused' and entry.reason=='movement_request_kind_unknown'
         and entry.handed_back==true,
         'nativeDeviated records the settle-time deviation as a paused handback event')
+    check(c.state=='stopped' and c.reason=='movement_request_kind_unknown',
+        'the settle-time deviation lands in the terminal handoff state')
+    check(c.generation==before+1,
+        'the asynchronous mismatch advances the generation by exactly 1 (R2-APR3-04)')
     local notified
     for _,event in ipairs(host.notifications) do
         if event.kind=='paused' and event.reason=='movement_request_kind_unknown' then notified=event end

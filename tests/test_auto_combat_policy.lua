@@ -291,6 +291,34 @@ do
     noPlan.rules={{id='door',priority=10,when={always={}},
         ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',target_plan={}}}}
     check(not Schema.validate(noPlan),'an empty target_plan is rejected')
+    -- R2-APR3-03 (checklist A): a caller-supplied target_plan is DENSE-validated
+    -- over ALL keys BEFORE any `#`/`ipairs`. Lua `#` stops at the first hole, so
+    -- a sparse plan (a valid step at key 1 and a hidden entry beyond the dense
+    -- end) must never be accepted as a shorter complete program.
+    local sparse=basePolicy()
+    sparse.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={ [1]={request='self'}, [3]={request='grid',
+                destination={selector='away',anchor='bound_target',accept=accept}} }}}}  -- key 2 is a hole
+    local sparseOk,sparseErrors=Schema.validate(sparse)
+    check(sparseOk==nil,'a sparse target_plan (hidden entry beyond the dense end) is rejected')
+    local sparseCode=nil
+    for _,error in ipairs(sparseErrors or {}) do
+        if error.path=='rules[1].then.target_plan' then sparseCode=error.code end
+    end
+    check(sparseCode=='invalid_target_plan','a sparse target_plan is a typed invalid_target_plan')
+    local badKey=basePolicy()
+    badKey.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={ {request='self'}, extra={request='grid'} }}}}
+    check(not Schema.validate(badKey),'a non-integer target_plan key is rejected')
+    local trailing=basePolicy()
+    trailing.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={ [1]={request='self'}, [2]={request='grid',
+                destination={selector='away',anchor='bound_target',accept=accept}},
+                [5]={request='grid'} }}}}
+    check(not Schema.validate(trailing),'a hole before a trailing key is rejected (dense over ALL keys)')
 end
 -- S2-R4-01: the agility Vault must NOT be executable. Its first (actor) prompt's
 -- target is attacked and may be dazed before the move, so component-free
