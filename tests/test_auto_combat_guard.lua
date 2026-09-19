@@ -372,6 +372,65 @@ do
     check(badValue and badValue.action=='reject'
         and badValue.reason=='movement_plan_unavailable',
         'a non-grid plan value fails closed instead of being filtered')
+    -- R2-APR-01: the reviewer's sparse-plan reproduction — valid grids at keys
+    -- 1 and 3 — must be rejected as movement_plan_unavailable BEFORE any
+    -- precheck/expansion (ipairs-style iteration would have measured it as a
+    -- complete ONE-grid plan and could publish a permit).
+    do
+        local prechecks=0
+        local sparse=build{policy={safety={max_selffire_risk=0}},
+            player_fields={canProject=function() prechecks=prechecks+1;return true end}}
+        local sparseAttempt=attempt('T_EARTHEN_MISSILES')
+        sparseAttempt.plan={kind='sequence',values={
+            [1]={kind='grid',request='grid',x=5,y=2,group='earthen_missiles'},
+            [3]={kind='grid',request='grid',x=6,y=2,group='earthen_missiles'}}}
+        local sparseVerdict=sparse(sparseAttempt)
+        check(sparseVerdict and sparseVerdict.action=='reject'
+            and sparseVerdict.reason=='movement_plan_unavailable',
+            'a sparse plan (valid grids at keys 1 and 3) is rejected, never measured')
+        check(sparseVerdict.detail.detail=='bad_plan_shape' and sparseVerdict.detail.cause=='hole',
+            'the sparse plan reports its dense-array cause (hole over key 2)')
+        check(prechecks==0,'no precheck ran before the sparse plan was rejected')
+    end
+    -- R2-APR-01: a plan whose length disagrees with every declared executable
+    -- sequence (2 or 3 entries for Earthen Missiles) is rejected before any
+    -- precheck/expansion.
+    do
+        local prechecks=0
+        local mismatch=build{policy={safety={max_selffire_risk=0}},
+            player_fields={canProject=function() prechecks=prechecks+1;return true end}}
+        local longAttempt=attempt('T_EARTHEN_MISSILES')
+        longAttempt.plan=planOf({{5,2},{6,2},{5,3},{6,3}})
+        local longVerdict=mismatch(longAttempt)
+        check(longVerdict and longVerdict.action=='reject'
+            and longVerdict.reason=='movement_plan_unavailable'
+            and longVerdict.detail.detail=='plan_sequence_length_mismatch',
+            'a plan longer than every declared sequence is rejected')
+        check(prechecks==0,'no precheck ran before the length mismatch was rejected')
+        -- A plan carrying the planner-attached resolved sequence is
+        -- cross-checked against ITS length too: 2 values against a resolved
+        -- 3-entry (TL5) sequence is a mismatch.
+        local seqAttempt=attempt('T_EARTHEN_MISSILES')
+        seqAttempt.plan=planOf({{5,2},{6,2}})
+        seqAttempt.plan.request_sequence={
+            {index=1,request='grid'},{index=2,request='grid'},{index=3,request='grid'}}
+        local seqVerdict=mismatch(seqAttempt)
+        check(seqVerdict and seqVerdict.action=='reject'
+            and seqVerdict.reason=='movement_plan_unavailable'
+            and seqVerdict.detail.detail=='plan_sequence_length_mismatch'
+            and seqVerdict.detail.declared==3 and seqVerdict.detail.got==2,
+            'a plan length disagreeing with the resolved request sequence is rejected')
+        -- The matching case stays executable: 3 values with the resolved TL5
+        -- sequence of length 3.
+        local tl5Attempt=attempt('T_EARTHEN_MISSILES')
+        tl5Attempt.plan=planOf({{5,2},{6,2},{5,3}})
+        tl5Attempt.plan.request_sequence={
+            {index=1,request='grid'},{index=2,request='grid'},{index=3,request='grid'}}
+        local tl5Verdict=mismatch(tl5Attempt)
+        check(tl5Verdict==nil or (tl5Verdict.action=='permit' and tl5Verdict.detail.stationary==true),
+            'a plan matching the resolved request-sequence length is measured normally')
+        check(prechecks>0,'the matching plan did run its prechecks')
+    end
     -- A′ §6.5: EVERY component x grid footprint must expand. One unreadable
     -- expansion with another readable one (an ally standing in the readable
     -- footprint) must never be measured as a partial, complete union.
@@ -459,7 +518,77 @@ do
     local measured=guard(statAttempt)
     check(measured==nil or (measured.action=='permit' and measured.detail.stationary==true),
         'a stationary template leaf is measured from the resolved template alone')
+    -- (c) R2-APR-02: a hand-authored mover-shape leaf that merely DECLARES
+    -- `delivery='stationary'` (the reviewer's bypass: the factory now refuses
+    -- this at build time on every non-stationary template, so only a
+    -- hand-written descriptor can still present it) carries NO template marker
+    -- and must be SKIPPED as movement — the raw enum is never a routing input.
+    local forgedStationary={delivery='stationary',landing='random',center='self',
+        traverses=false,relocates_other=false,target_requests={'actor'},
+        request_sequence={{index=1,request='actor',subject='self',
+            observed={cursor_type='hit',nowarning=true}}}}
+    Manifest.ENTRIES.T_MOONLIGHT_RAY={kind='movement',target='grid',
+        movement=forgedStationary,components={},conformance={builder=false}}
+    local forgedAttempt=attempt('T_MOONLIGHT_RAY')
+    forgedAttempt.plan=planOf({{5,2}})
+    check(guard(forgedAttempt)==nil,
+        'a caller-authored stationary delivery without the template marker is skipped, never measured (R2-APR-02)')
     Manifest.ENTRIES.T_MOONLIGHT_RAY=saved
+end
+
+-- R2-APR-04: the REAL raised static flags reach the native footprint input.
+-- Giant Leap's builder explicitly returns `selffire=false`
+-- (game/modules/tome/data/talents/uber/str.lua:38-40); the footprint input the
+-- guard builds for the projection must carry that field, exactly like the real
+-- `ActorProject:project` input (getType fills it only as a DEFAULT and
+-- `table.update` never overwrites a raised field).
+do
+    local Footprint=require 'mod.auto_combat.EffectFootprint'
+    local savedEntry=Manifest.ENTRIES.T_MOONLIGHT_RAY
+    local realExpand=Footprint.expand
+    local captured={}
+    Footprint.expand=function(spec,opts)
+        captured[#captured+1]=spec
+        return realExpand(spec,opts)
+    end
+    local giantLeapBuilder=function()
+        -- Verbatim field set of Giant Leap's raised spec (uber/str.lua:38-40):
+        -- type/range(self:getTalentRange=10)/selffire=false/radius.
+        return {type='ball',range=10,selffire=false,radius=1}
+    end
+    Manifest.ENTRIES.T_MOONLIGHT_RAY={kind='attack',target='hostile',resource='negative',
+        range=10,cursor={shape='ball',range=10,radius=1},
+        conformance={shape='ball',builder=true},
+        components={
+            {id='cursor',phase='cursor',delivery='project',shape='ball',range=10,center='target'},
+            {id='instant',phase='instant',delivery='project',shape='ball',range=10,center='target',
+                selffire=100,friendlyfire=100}}}
+    local defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=giantLeapBuilder}}
+    local guard=build{defs=defs,allies={{uid=9,x=5,y=2}}}
+    local ok,verdict=pcall(guard,attempt('T_MOONLIGHT_RAY'))
+    Footprint.expand=realExpand
+    Manifest.ENTRIES.T_MOONLIGHT_RAY=saved
+    check(ok and verdict and verdict.action=='reject' and verdict.detail.risk=='friendly',
+        'the injected Giant-Leap-shaped talent measured its ally risk through the footprint')
+    local footprintInput
+    for _,spec in ipairs(captured) do
+        if spec.shape=='ball' and spec.selffire~=nil then footprintInput=spec end
+    end
+    check(footprintInput~=nil and footprintInput.selffire==false,
+        'Giant Leap\'s real raised selffire=false reaches the native footprint input (R2-APR-04)')
+    -- The remaining engine-consulted flags forward from a REAL raised spec too:
+    -- bow-threading.lua:143 raises stop_block=true with friendlyfire=false and
+    -- friendlyblock=false; actorblock is engine-consulted (Target.block_path,
+    -- default true) and must survive forwarding when raised.
+    local bowSpec=Guard.footprintSpec({shape='ball',radius=1,center='target'},
+        {x=0,y=0},{x=3,y=0},{type='ball',range=8,stop_block=true,friendlyfire=false,
+            friendlyblock=false})
+    check(bowSpec.stop_block==true and bowSpec.friendlyfire==false and bowSpec.friendlyblock==false,
+        'a real raised stop_block/friendlyfire/friendlyblock spec reaches the footprint input')
+    local actorSpec=Guard.footprintSpec({shape='ball',radius=1,center='target'},
+        {x=0,y=0},{x=3,y=0},{type='ball',range=8,actorblock=false})
+    check(actorSpec.actorblock==false,
+        'a raised actorblock reaches the footprint input (R2-APR-04)')
 end
 
 print('Auto-combat guard: '..checks..' checks passed')

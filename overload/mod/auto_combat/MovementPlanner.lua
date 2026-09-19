@@ -205,8 +205,10 @@ local function applyLandingEnvelope(annotation,movement,origin,x,y)
     -- A′ §6.5: a stationary program has NO mover landing. The requested cell is
     -- the projectile target, not a landing, so the annotation stays
     -- deterministic (the projectile is fired AT this cell; nobody moves).
-    if type(movement)=='table' and (movement.landing=='none'
-        or movement.delivery=='stationary') then
+    -- R2-APR-02: keyed on the template-derived marker, never on a raw
+    -- caller-authored enum (the factory reserves the stationary vocabulary for
+    -- `stationary_sequence` at build time).
+    if type(movement)=='table' and movement.stationary==true then
         annotation.confidence='source_stationary_program'
         annotation.reasons[#annotation.reasons+1]='caster_does_not_move'
         return annotation
@@ -391,7 +393,8 @@ local function nativeLandingAnnotation(movement,anchor,origin)
     movement=movement or {}
     -- A′ §6.5: a stationary program has no mover landing; the annotation reports
     -- the projectile target grid as a deterministic aim point (nobody moves).
-    if movement.delivery=='stationary' or movement.landing=='none' then
+    -- R2-APR-02: keyed on the template-derived marker, never on a raw enum.
+    if movement.stationary==true then
         local target=(type(anchor)=='table') and {x=anchor.x,y=anchor.y} or nil
         if target==nil and type(origin)=='table' then target={x=origin.x,y=origin.y} end
         return {landing={kind='deterministic',x=target and target.x,y=target and target.y},
@@ -616,11 +619,12 @@ function M.planSequence(attempt,provider,movement,origin)
     annotation.reasons=annotation.reasons or {}
     annotation.reasons[#annotation.reasons+1]='ordered_prompt_sequence'
     -- A′ §6.5/§6.6: a stationary program is annotated as such from the RESOLVED
-    -- template (the leaf's fixed `delivery`), never from a manifest boolean, and
-    -- the per-projectile random crit is published as an annotation (never a
-    -- refusal): the k-th answer is always followed by the native k-th projectile
-    -- and its own crit roll (`spells/stone.lua:38-56`; `Combat.lua:2025-2056`).
-    if movement and movement.delivery=='stationary' then
+    -- template (the template-derived marker, R2-APR-02 — never from a manifest
+    -- boolean or a raw caller-authored enum), and the per-projectile random crit
+    -- is published as an annotation (never a refusal): the k-th answer is always
+    -- followed by the native k-th projectile and its own crit roll
+    -- (`spells/stone.lua:38-56`; `Combat.lua:2025-2056`).
+    if movement and movement.stationary==true then
         annotation.stationary=true
         annotation.delivery='stationary'
         annotation.outcome_uncertainty='per_projectile_random_crit'

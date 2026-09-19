@@ -420,8 +420,19 @@ from signature equality, and it is validated mechanically at BOTH boundaries:
   `group_stationary_not_grid` / `group_stationary_value_source` /
   `group_not_contiguous`) and is never published.
 - `Actions.normalizeSequence` re-validates the SAME invariants on the internal
-  carrier (`Factory.groupMembership`), so a hand-authored carrier cannot forge or
-  weaken factory-validated membership — it is `invalid_sequence`.
+  carrier (`Factory.groupMembership` with `{carrier=true}`), so a hand-authored
+  carrier cannot forge or weaken factory-validated membership — it is
+  `invalid_sequence`. R2-APR-03 (rev): the carrier re-validation uses the
+  factory's SHARED machinery with the same options where expressible: the
+  observed signature is normalized by the factory's canonical `normalizeObserved`
+  (identical grammar and bounds — a 65-byte `first_target` the factory refuses is
+  refused on the carrier too), and group membership enforces every
+  carrier-expressible invariant including CONTIGUITY (an interleaved group the
+  factory rejects as `group_not_contiguous` is refused on the carrier too). The
+  stationary `grid`/`value_source` closure itself is a build-time template
+  property (the carrier's entries carry no `value_source`); stationary routing
+  is gated by the template-derived marker (R2-APR-02), so the enum is never a
+  caller-authorable routing input.
 - An entry declaring a group is exempt from the build-time subsumption rejection
   **for its own group members only**; every ungrouped pair keeps today's
   behaviour exactly (including the presence-distinguishable `{cursor_type='hit'}`
