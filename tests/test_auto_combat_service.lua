@@ -248,6 +248,74 @@ do
         'the settle-time deviation detail reaches the service policy log')
 end
 
+-- S3 X-U4: a synchronous movement-postcondition mismatch (delivered inside the
+-- step via the controller's typed outcome) and a delayed one (a later-settling
+-- native_pending root, delivered through nativePostconditionMismatch) EACH
+-- produce exactly one pause/log, stop the run, revoke the lease, never
+-- increment the budget and never resubmit.
+do
+    local mismatch={reason='movement_postcondition_mismatch',uncertain=true,
+        outcome='outside_landing_envelope',expected={kind='bounded',radius=1},
+        observed={x=1,y=1}}
+    -- Synchronous: the outcome itself carries the mismatch.
+    local calls=0
+    local svc=Service.new({host_factory=function()
+        local h=fakeHost()
+        h.request=function()
+            calls=calls+1
+            return {status='ok',energy_spent=0,postcondition_mismatch=mismatch}
+        end
+        return h
+    end})
+    local d=Service.handle(svc,'set_draft',{policy=policy({rules={{id='shadowstep',priority=1,
+        when={enemy_count={ge=1}},['then']={action='use_talent',talent='T_SHADOWSTEP',
+            target='nearest_hostile'}}}})})
+    local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
+    Service.handle(svc,'start',{})
+    local stepped=Service.step(svc)
+    check(stepped.ok and stepped.step.action=='paused'
+        and stepped.step.reason=='movement_postcondition_mismatch'
+        and stepped.handoff==true,
+        'a synchronous mismatch is a safety-pause handoff (X-U4)',tostring(stepped.step))
+    check(svc.arbiter.owner=='manual' and svc.controller.state=='stopped'
+        and svc.controller.reason=='movement_postcondition_mismatch',
+        'the safety pause stops the run and revokes the lease')
+    check(calls==1,'the mismatched action is never resubmitted (X-U4)')
+    local log=Service.handle(svc,'log',{limit=16})
+    local typed=0
+    for _,event in ipairs(log.events or {}) do
+        if event.kind=='paused' and event.reason=='movement_postcondition_mismatch' then
+            typed=typed+1
+        end
+    end
+    check(typed==1,'exactly one typed pause/log event for the synchronous mismatch')
+    -- Delayed (Path 2): the reaper delivers a root mismatch through the service.
+    local svc2=Service.new({host_factory=fakeHost})
+    local d2=Service.handle(svc2,'set_draft',{policy=policy()})
+    local ap2=Service.handle(svc2,'approve',{expected_hash=d2.draft_hash})
+    Service.handle(svc2,'activate',{expected_hash=ap2.approved_hash})
+    Service.handle(svc2,'start',{})
+    local entry2=Service.nativePostconditionMismatch(svc2,mismatch)
+    check(entry2 and entry2.kind=='paused'
+        and entry2.reason=='movement_postcondition_mismatch',
+        'the delayed mismatch records the typed paused event (X-U4)')
+    check(svc2.arbiter.owner=='manual' and svc2.controller.state=='stopped'
+        and svc2.controller.reason=='movement_postcondition_mismatch',
+        'the delayed mismatch stops the run and revokes the lease')
+    local log2=Service.handle(svc2,'log',{limit=16})
+    local typed2=0
+    for _,event in ipairs(log2.events or {}) do
+        if event.kind=='paused' and event.reason=='movement_postcondition_mismatch' then
+            typed2=typed2+1
+        end
+    end
+    check(typed2==1,'exactly one typed pause/log event for the delayed mismatch')
+    -- SAFETY_PAUSES membership is the reason the handoff exists.
+    check(Service.SAFETY_PAUSES.movement_postcondition_mismatch==true,
+        'movement_postcondition_mismatch is an internal safety-pause reason beside the S2 reasons')
+end
+
 do
     -- #46c: an explicit stop records the run boundary in the decision log.
     local svc=Service.new({host_factory=fakeHost})

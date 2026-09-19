@@ -61,6 +61,11 @@ TALENTS = {
     # S1 movement-adapter factory admissions.
     "T_SKIRMISHER_VAULT": ("data/talents/techniques/acrobatics.lua", "Vault"),
     "T_DIMENSIONAL_STEP": ("data/talents/chronomancy/spacetime-weaving.lua", "Dimensional Step"),
+    # S3 movement/effect composition admissions (Shadowstep first).
+    "T_SHADOWSTEP": ("data/talents/cunning/shadow-magic.lua", "Shadowstep"),
+    "T_GIANT_LEAP": ("data/talents/uber/str.lua", "Giant Leap"),
+    # NOTE: T_VAULT (techniques/agility.lua) is added with its own commit in the
+    # S3 admission order; T_SKIRMISHER_VAULT above is the acrobatics Vault.
 }
 
 # Talents whose `t.target` builder the guard reads. The generator pins the exact
@@ -73,6 +78,9 @@ BUILDER_TALENTS = {
     "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL",
     # S1 movement adapters expose a native target builder.
     "T_SKIRMISHER_VAULT", "T_DIMENSIONAL_STEP",
+    # S3 mixed entries: the real raised spec feeds the guard precheck and (for
+    # projected components) the guard footprint flags.
+    "T_SHADOWSTEP", "T_GIANT_LEAP",
 }
 
 # Movement talents whose `action` body the adapter semantics depend on. The
@@ -81,6 +89,8 @@ BUILDER_TALENTS = {
 ACTION_TALENTS = {
     "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL", "T_PHASE_DOOR",
     "T_SKIRMISHER_VAULT", "T_DIMENSIONAL_STEP",
+    # S3 mixed movement/effect actions.
+    "T_SHADOWSTEP", "T_GIANT_LEAP",
 }
 
 # Per-talent dynamic getters used by the movement factory's envelope
@@ -96,6 +106,9 @@ TALENT_GETTERS = {
 TALENT_RANGES = [
     "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL", "T_SKIRMISHER_VAULT",
     "T_DIMENSIONAL_STEP",
+    # Shadowstep's live builder range is a function (`getTalentRange`); Giant
+    # Leap/Vault declare static `range` fields, which are not function pins.
+    "T_SHADOWSTEP",
 ]
 
 # Engine / module semantics files the filter and footprint model is pinned to.

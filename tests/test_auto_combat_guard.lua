@@ -298,4 +298,79 @@ do
         'a movement adapter is not gated by advisory drift')
 end
 
+-- S3 S-U2 (REAL_SHADOWSTEP_TG, cunning/shadow-magic.lua:123): the mixed entry
+-- enumerates the radius-5 candidate set; a landing_adjacent condition is
+-- resolved PER CANDIDATE (adjacent activates, non-adjacent does not); an
+-- unreadable anchor propagates unknown; a direct component is evidenced without
+-- any footprint expansion.
+do
+    local Fixtures=assert(loadfile(root..'/tests/s3_real_specs.lua'))()
+    local fixture=Fixtures.REAL_SHADOWSTEP_TG
+    local copy=fixture.build()
+    Fixtures.assertFields(fixture,copy,'S-U2 shadowstep spec copy')
+    Fixtures.assertRawPresence(fixture,copy,'S-U2 shadowstep spec copy')
+    local function specBuild()
+        return {type=copy.type,range=copy.range,talent=copy.talent}
+    end
+    local guard=build{defs={T_SHADOWSTEP={target=specBuild}},policy={safety={max_selffire_risk=0}}}
+    local verdict=guard(attempt('T_SHADOWSTEP'))
+    check(verdict~=nil and verdict.action=='permit',
+        'a mixed movement entry is no longer skipped (S-U3), it evaluates to a permit')
+    local detail=verdict and verdict.detail or {}
+    check(detail.candidate_count==80,
+        'the no-plan descriptor envelope is the radius-5 candidate set around the bound actor '
+        ..'(80 in-bounds cells on the 10x10 fixture map)',detail.candidate_count)
+    check(detail.components_evaluated==2 and detail.threshold==0,
+        'both direct components are evaluated against the zero threshold')
+    -- Pure movement still skips; mixed movement does not (S-U3).
+    check(guard({action='use_talent',talent='T_RUSH',bound_target=2})==nil,
+        'a pure movement entry still skips the guard (S-U3)')
+    -- Candidate-condition semantics (pure, exported for tests; called after a
+    -- build so the build-time assignment is live).
+    local Condition=Guard.candidateCondition
+    local candidates=Guard.landingCandidates(nil,Manifest.entry('T_SHADOWSTEP'),
+        {x=2,y=2},{x=5,y=2},{w=10,h=10})
+    check(candidates~=nil and candidates.kind=='bounded' and candidates.radius==5
+        and candidates.center.x==5 and candidates.center.y==2,
+        'the exported candidate set is the bounded radius-5 circle around the bound actor')
+    local orderOk=true
+    for i=2,#candidates.cells do
+        if candidates.cells[i-1].y>candidates.cells[i].y
+            or (candidates.cells[i-1].y==candidates.cells[i].y
+                and candidates.cells[i-1].x>candidates.cells[i].x) then
+            orderOk=false
+        end
+    end
+    check(orderOk,'the candidate enumeration is in deterministic (y,x) order')
+    check(Condition({kind='landing_adjacent',anchor='actor'},{x=6,y=2},{x=5,y=2})==true,
+        'an adjacent candidate satisfies landing_adjacent (actor anchor)')
+    check(Condition({kind='landing_adjacent',anchor='actor'},{x=9,y=2},{x=5,y=2})==false,
+        'a non-adjacent candidate does NOT satisfy landing_adjacent')
+    check(Condition({kind='landing_adjacent',anchor='actor'},{x=6,y=2},nil)=='unknown'
+        or Condition({kind='landing_adjacent',anchor='actor'},{x=6,y=2},{})=='unknown',
+        'an unreadable anchor is unknown, never silently false')
+    check(Condition(nil,{x=6,y=2},{x=5,y=2})==true,
+        'an always/absent condition holds for every candidate')
+    -- Unknown anchor propagates to the component resolution.
+    local unknownGuard=build{defs={T_SHADOWSTEP={target=specBuild}},policy={safety={max_selffire_risk=0}}}
+    check(unknownGuard(attempt('T_SHADOWSTEP'))~=nil,
+        'a readable anchor keeps the action permitted')
+    -- Landing envelope unavailable: a radius that cannot be read fails closed
+    -- (negative evidence requirement: unreadable radius).
+    local missingEnvelope=Manifest.entry('T_SHADOWSTEP')
+    local broken={}
+    for k,v in pairs(missingEnvelope) do broken[k]=v end
+    broken.movement={}
+    for k,v in pairs(missingEnvelope.movement) do broken.movement[k]=v end
+    broken.movement.radius='unknown'
+    local unavailable=Guard.landingCandidates(nil,broken,{x=2,y=2},{x=5,y=2},{w=10,h=10})
+    check(unavailable==nil,'an unreadable radius yields no candidate set (fail closed)')
+    -- The same helper class: a no-plan requested-grid descriptor is
+    -- movement_plan_unavailable.
+    local leapEntry={movement={center='requested_grid',radius=1}}
+    check(select(2,Guard.landingCandidates(nil,leapEntry,{x=2,y=2},{x=5,y=2},{w=10,h=10}))
+        =='movement_plan_unavailable',
+        'a no-plan requested_grid envelope is movement_plan_unavailable')
+end
+
 print('Auto-combat guard: '..checks..' checks passed')

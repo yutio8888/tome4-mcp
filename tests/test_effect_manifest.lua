@@ -161,7 +161,7 @@ do
         return nil
     end
     for _,talent in ipairs({'T_BLINK_RUNE',
-        'T_DIMENSIONAL_STEP','T_SHADOWSTEP','T_GIANT_LEAP','T_DISPLACEMENT_SHIELD'}) do
+        'T_DIMENSIONAL_STEP','T_GIANT_LEAP','T_DISPLACEMENT_SHIELD'}) do
         local entry=unsupportedEntry(talent)
         check(entry~=nil and entry.missing and entry.reason and entry.scope,
             talent..' has a structured unsupported entry')

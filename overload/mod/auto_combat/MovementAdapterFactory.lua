@@ -821,6 +821,209 @@ function M.resolveBuilder(movement,talent,reads)
     return out
 end
 
+M.AUDITED_SHAPES={hit=true,ball=true,beam=true,bolt=true,widebeam=true,cone=true}
+
+-- S3 closed mixed-entry composition (design §5.1/§6.1). A published mixed entry
+-- is a closed record with exactly these declaration keys (`source` is attached
+-- after construction and is generated/advisory metadata, not a declaration key).
+M.COMPOSITION_KEYS={kind=true,target=true,resource=true,movement=true,components=true,
+    movement_postcondition=true,conformance=true}
+-- Each component is a closed record with these keys only.
+M.COMPONENT_KEYS={id=true,phase=true,delivery=true,shape=true,center=true,range=true,
+    radius=true,angle=true,direction=true,selffire=true,friendlyfire=true,
+    player_selffire=true,when=true,provenance=true,duration=true,per_grid=true}
+M.COMPONENT_PHASES={melee=true,instant=true,projectile=true,secondary=true,ground=true}
+M.COMPONENT_DELIVERIES={attackTarget=true,project=true,projectile=true,map_effect=true}
+M.COMPONENT_CENTERS={target=true,actor=true,self=true,actual_landing=true}
+-- A `center='actual_landing'` component is admitted only for the two shapes the
+-- post-move cell can anchor (design §5.1).
+M.ACTUAL_LANDING_SHAPES={hit=true,ball=true}
+-- The projected (multi-actor) delivery path applies the raised projection
+-- filters; a direct bound-actor effect does not (ActorProject never runs).
+M.RAISED_FLAG_KEYS={friendlyblock=true,friendlyfire=true,selffire=true,
+    pass_terrain=true,no_restrict=true,actorblock=true,stop_block=true}
+M.POSTCONDITION_MODES={fizzle=true,mismatch=true}
+
+local function validStaticFilter(value)
+    -- A curated static filter is a boolean, a finite percentage, the string
+    -- 'unknown', or exactly the audited dynamic input record `{dynamic='...'}`.
+    if type(value)=='boolean' then return true end
+    if value=='unknown' then return true end
+    if finite(value) then return value>=0 and value<=100 end
+    if type(value)=='table' then
+        local extra=0
+        for key in pairs(value) do
+            if key~='dynamic' then return false end
+            extra=extra+1
+        end
+        return extra==1 and type(value.dynamic)=='string' and #value.dynamic>0
+    end
+    return false
+end
+
+local function validComponentRadius(value)
+    if finite(value) then return value>=0 end
+    if type(value)~='table' then return false end
+    for key in pairs(value) do
+        if key~='from' then return false end
+    end
+    return value.from=='target'
+end
+
+-- Validate one S3 component record. Returns true or `nil, cause`.
+function M.validateComponent(component)
+    if type(component)~='table' then return nil,{detail='component_not_table'} end
+    for key in pairs(component) do
+        if not M.COMPONENT_KEYS[key] then
+            return nil,{detail='unknown_component_key',key=tostring(key)}
+        end
+    end
+    if type(component.id)~='string' or #component.id==0 then
+        return nil,{detail='bad_component_id'}
+    end
+    if not checkEnum(component.phase,M.COMPONENT_PHASES) then
+        return nil,{detail='bad_component_phase',value=tostring(component.phase)}
+    end
+    if not checkEnum(component.delivery,M.COMPONENT_DELIVERIES) then
+        return nil,{detail='bad_component_delivery',value=tostring(component.delivery)}
+    end
+    if type(component.shape)~='string' or not M.AUDITED_SHAPES[component.shape] then
+        return nil,{detail='bad_component_shape',value=tostring(component.shape)}
+    end
+    if not checkEnum(component.center,M.COMPONENT_CENTERS) then
+        return nil,{detail='bad_component_center',value=tostring(component.center)}
+    end
+    -- `actual_landing` is admitted only for the post-move-anchored shapes with a
+    -- resolved radius, on the projection delivery, and never as a melee phase.
+    if component.center=='actual_landing' then
+        if not M.ACTUAL_LANDING_SHAPES[component.shape] then
+            return nil,{detail='actual_landing_shape',value=component.shape}
+        end
+        if component.delivery~='project' then
+            return nil,{detail='actual_landing_delivery',value=tostring(component.delivery)}
+        end
+        if component.phase=='melee' then
+            return nil,{detail='actual_landing_melee'}
+        end
+        if not validComponentRadius(component.radius) then
+            return nil,{detail='actual_landing_radius_missing'}
+        end
+    end
+    if component.shape=='ball' and component.radius==nil then
+        return nil,{detail='ball_radius_missing'}
+    end
+    if component.radius~=nil and not validComponentRadius(component.radius) then
+        return nil,{detail='bad_component_radius'}
+    end
+    if component.angle~=nil and not finite(component.angle) then
+        return nil,{detail='bad_component_angle'}
+    end
+    if component.range~=nil and not validBound(component.range) then
+        return nil,{detail='bad_component_range'}
+    end
+    if component.direction~=nil and type(component.direction)~='string' then
+        return nil,{detail='bad_component_direction'}
+    end
+    if component.when~=nil then
+        if type(component.when)~='table' then return nil,{detail='bad_component_when'} end
+        for key in pairs(component.when) do
+            if key~='kind' and key~='anchor' then
+                return nil,{detail='unknown_when_key',key=tostring(key)}
+            end
+        end
+        if component.when.kind~='always' and component.when.kind~='landing_adjacent' then
+            return nil,{detail='bad_when_kind',value=tostring(component.when.kind)}
+        end
+        if component.when.kind=='landing_adjacent' and component.when.anchor~='actor' then
+            return nil,{detail='bad_when_anchor',value=tostring(component.when.anchor)}
+        end
+    end
+    -- Direct bound-actor effects never run ActorProject, so the projection
+    -- filters are meaningless on them (declaring one would imply a filter that
+    -- does not exist); a projected effect must declare its filters explicitly.
+    if component.delivery=='attackTarget' then
+        if component.selffire~=nil or component.friendlyfire~=nil
+            or component.player_selffire~=nil then
+            return nil,{detail='direct_actor_forbids_projection_filters'}
+        end
+    elseif component.delivery=='project' then
+        if not validStaticFilter(component.selffire) then
+            return nil,{detail='projected_selffire_required'}
+        end
+        if not validStaticFilter(component.friendlyfire) then
+            return nil,{detail='projected_friendlyfire_required'}
+        end
+        if type(component.provenance)~='table' then
+            return nil,{detail='projected_provenance_required'}
+        end
+    end
+    if component.duration~=nil and not finite(component.duration) then
+        return nil,{detail='bad_component_duration'}
+    end
+    if component.per_grid~=nil and type(component.per_grid)~='boolean' then
+        return nil,{detail='bad_component_per_grid'}
+    end
+    return true
+end
+
+-- Validate a whole mixed movement entry (closed declaration keys, dense
+-- non-empty components, movement descriptor present, closed postcondition,
+-- `conformance={builder=true|false}` only). Returns true or `nil, cause`.
+function M.validateComposition(entry)
+    if type(entry)~='table' then return nil,{detail='entry_not_table'} end
+    for key in pairs(entry) do
+        -- `source` is generated/advisory metadata attached after construction
+        -- (never a declaration key), so it is ignored here.
+        if key~='source' and not M.COMPOSITION_KEYS[key] then
+            return nil,{detail='unknown_entry_key',key=tostring(key)}
+        end
+    end
+    if entry.kind~='movement' then return nil,{detail='bad_kind',value=tostring(entry.kind)} end
+    if entry.target~='hostile' then return nil,{detail='bad_target',value=tostring(entry.target)} end
+    if type(entry.movement)~='table' then return nil,{detail='movement_missing'} end
+    local ok,cause=validateArray(entry.components,1)
+    if not ok then return nil,{detail='bad_components',cause=cause} end
+    local ids={}
+    for index,component in ipairs(entry.components) do
+        local componentOk,why=M.validateComponent(component)
+        if not componentOk then
+            why=why or {}
+            why.index=index
+            why.component=component.id
+            return nil,why
+        end
+        if ids[component.id] then
+            return nil,{detail='duplicate_component_id',index=index,component=component.id}
+        end
+        ids[component.id]=true
+    end
+    local post=entry.movement_postcondition
+    if type(post)~='table' then return nil,{detail='bad_postcondition'} end
+    for key in pairs(post) do
+        if key~='mover' and key~='endpoint' and key~='unchanged' then
+            return nil,{detail='unknown_postcondition_key',key=tostring(key)}
+        end
+    end
+    if post.mover~='self' then
+        return nil,{detail='bad_postcondition_mover',value=tostring(post.mover)}
+    end
+    if post.endpoint~='landing_envelope' then
+        return nil,{detail='bad_postcondition_endpoint',value=tostring(post.endpoint)}
+    end
+    if not M.POSTCONDITION_MODES[post.unchanged] then
+        return nil,{detail='bad_postcondition_unchanged',value=tostring(post.unchanged)}
+    end
+    local conformance=entry.conformance
+    if type(conformance)~='table' then return nil,{detail='bad_conformance'} end
+    for key in pairs(conformance) do
+        if key~='builder' then return nil,{detail='unknown_conformance_key',key=tostring(key)} end
+    end
+    if conformance.builder~=true and conformance.builder~=false then
+        return nil,{detail='bad_conformance_builder',value=tostring(conformance.builder)}
+    end
+    return true
+end
+
 -- Turn a player-known occupancy read into the admitted non-swap descriptor, the
 -- typed S4 swap gap, or a typed unknown. `occupancy` is 'empty'|'actor'|'unknown';
 -- the caller obtains it from player-known observation only.
