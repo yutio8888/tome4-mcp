@@ -158,6 +158,16 @@ function M:stop(reason)
     if self.state=='stopped' and self.reason==reason then
         return {ok=true,state=self.state,generation=self.generation,action='release',deduplicated=true}
     end
+    -- S3-A2-FIX1-04: converting the SAME logical handoff from paused to stopped
+    -- is not a second externally-visible transition. The pause already advanced
+    -- the generation and logged the typed reason, so the stop that the safety
+    -- handoff issues with that same reason is folded into it (exactly one
+    -- generation advance per handoff).
+    if self.state=='paused' and self.reason==reason then
+        self.state='stopped'
+        self.known_enemies=nil
+        return {ok=true,state=self.state,generation=self.generation,action='release',deduplicated=true}
+    end
     self.generation=self.generation+1
     self.state='stopped'; self.reason=reason
     self.known_enemies=nil
@@ -714,7 +724,10 @@ function M:step()
                 -- no detail and no rule, because `pause`'s bare notify was the
                 -- only event the log ever saw). Mirror `nativeDeviated`:
                 -- notify the detailed entry, move to paused, and let `pause`
-                -- deduplicate so exactly one typed event is logged.
+                -- deduplicate so exactly one typed event is logged. The
+                -- service's safety handoff then issues `stop(step.reason)`,
+                -- which `AutoCombat:stop` folds into the SAME paused transition
+                -- (S3-A2-FIX1-04) instead of advancing the generation twice.
                 local entry={kind='paused',reason=reason,rule=decision.rule,
                     detail=boundedDetail(outcome.sequence_deviation),
                     handed_back=outcome.handed_back==true or nil}

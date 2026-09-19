@@ -619,4 +619,39 @@ do
     check(Evaluator.newEnemyMode({})=='pause','the conservative default is pause')
 end
 
+-- S3-A2-FIX1-03 (class A, reviewer's regression): a SPARSE `when.all`/`when.any`
+-- array must be rejected by the schema AND the catalog, and the evaluator must
+-- treat a non-dense logical array as unknown — it may never silently drop the
+-- hidden condition and act. `Schema.denseCount` is the ONE validated count
+-- shared by both layers.
+do
+    local sparse={[1]={always={}},[3]={enemy_count={ge=999}}}
+    local p=basePolicy()
+    p.rules={{id='attack',priority=1,when={all=sparse},
+        ['then']={action='attack',target='nearest_hostile'}}}
+    local ok,errors=Schema.validate(p)
+    check(not ok,'a sparse when.all is rejected by the schema (FIX1-03)')
+    local code=errors and errors[1] and errors[1].code
+    check(code=='invalid_all','the sparse when.all error is typed invalid_all (FIX1-03)',code)
+    -- A policy-level sparse `rules` array is likewise rejected (not truncated).
+    local sparseRules={[1]={id='r1',priority=1,when={always={}},['then']={action='wait'}},
+        [3]={id='r3',priority=1,when={always={}},['then']={action='wait'}}}
+    local p2=basePolicy();p2.rules=sparseRules
+    check(not Schema.validate(p2),'a sparse rules array is rejected by the schema (FIX1-03)')
+    -- A sparse tie_break is rejected too.
+    local p3=basePolicy();p3.targeting.tie_break={[1]='distance',[3]='hp'}
+    check(not Schema.validate(p3),'a sparse tie_break is rejected (FIX1-03)')
+    -- The evaluator refuses to truncate a sparse logical array: it is unknown,
+    -- never a TRUE conjunction that drops the hidden false condition.
+    check(Evaluator.evalCondition({all=sparse},{hp_pct=80,enemy_count=1})=='unknown',
+        'a sparse when.all evaluates to unknown, never a truncated act (FIX1-03)')
+    check(Evaluator.evalCondition({all={{always={}}}},{hp_pct=80,enemy_count=1})=='true',
+        'a dense when.all still evaluates normally (FIX1-03)')
+    -- The complete, dense condition is false, so the complete condition forbids
+    -- the action: the schema/evaluator agreement is what closes the bypass.
+    check(Evaluator.evalCondition({all={{always={}},{always={}},{enemy_count={ge=999}}}},
+        {hp_pct=80,enemy_count=1})=='false',
+        'the complete dense conjunction is false (the hidden condition was false) (FIX1-03)')
+end
+
 print('Auto-combat policy: '..checks..' checks passed')

@@ -47,13 +47,21 @@ end
 function M.evalCondition(cond,ctx)
     if type(cond)~='table' then return UNKNOWN end
     if cond.all then
+        -- S3-A2-FIX1-03: the shared validated count is the ONLY iteration
+        -- bound. A non-dense list (a hole or a hidden key beyond the dense end)
+        -- is UNKNOWN, never a truncated smaller conjunction that would silently
+        -- drop a hidden false condition and let the rule act.
+        local count=Schema.denseCount(cond.all)
+        if not count then return UNKNOWN end
         local result=TRUE
-        for _,child in ipairs(cond.all) do result=tri_and(result,M.evalCondition(child,ctx)) end
+        for i=1,count do result=tri_and(result,M.evalCondition(cond.all[i],ctx)) end
         return result
     end
     if cond.any then
+        local count=Schema.denseCount(cond.any)
+        if not count then return UNKNOWN end
         local result=FALSE
-        for _,child in ipairs(cond.any) do result=tri_or(result,M.evalCondition(child,ctx)) end
+        for i=1,count do result=tri_or(result,M.evalCondition(cond.any[i],ctx)) end
         return result
     end
     if cond['not']~=nil then return tri_not(M.evalCondition(cond['not'],ctx)) end
@@ -133,11 +141,15 @@ end
 local function isSafety(cond)
     if type(cond)~='table' then return false end
     if cond.all then
-        for _,c in ipairs(cond.all) do if isSafety(c) then return true end end
+        local count=Schema.denseCount(cond.all)
+        if not count then return true end
+        for i=1,count do if isSafety(cond.all[i]) then return true end end
         return false
     end
     if cond.any then
-        for _,c in ipairs(cond.any) do if isSafety(c) then return true end end
+        local count=Schema.denseCount(cond.any)
+        if not count then return true end
+        for i=1,count do if isSafety(cond.any[i]) then return true end end
         return false
     end
     if cond['not']~=nil then return isSafety(cond['not']) end

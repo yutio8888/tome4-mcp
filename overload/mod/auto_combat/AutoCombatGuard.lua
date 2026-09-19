@@ -33,6 +33,51 @@ M.PLAN_KINDS={step=true,grid=true,sequence=true,native_landing=true,
     native_random=true,none=true,self=true,actor=true}
 M.LANDING_KEYS={kind=true,center=true,x=true,y=true,direction=true,
     radius=true,min_radius=true,fallback=true,source=true,range=true}
+-- S3-A2-FIX1-01: the plan/annotation/landing record is a DISCRIMINATED UNION.
+-- `M.LANDING_KINDS` is the closed discriminant vocabulary and
+-- `M.ANNOTATION_KEYS` closes the annotation record over every key the planner
+-- can emit. Both are validated BEFORE any member is read, so a scalar
+-- annotation, an unknown key or a landing outside the vocabulary is a typed
+-- unknown (`landing_envelope_unavailable`) — never a throw and never a
+-- silently-read smaller measured set. `native` means "the native code decides";
+-- it carries no readable geometry and therefore fails closed below.
+M.LANDING_KINDS={deterministic=true,bounded=true,random=true,native=true}
+-- S3-A2-FIX1-01: which landing kinds each plan kind admits. A landing outside
+-- its plan-kind's vocabulary is the cross-kind malformed case and fails closed
+-- rather than being read as a one-cell set.
+M.PLAN_LANDING_KINDS={
+    grid={deterministic=true,bounded=true,random=true},
+    step={deterministic=true},
+    sequence={deterministic=true,bounded=true,random=true,native=true},
+    native_landing={deterministic=true,bounded=true},
+    native_random={random=true,native=true},
+    self={deterministic=true,bounded=true,random=true},
+    actor={deterministic=true,bounded=true,random=true},
+    -- A `none` plan hands the landing entirely to native code; any landing
+    -- record on it is informational, and unreadable geometry still fails closed
+    -- in `fromLanding`.
+    none={deterministic=true,bounded=true,random=true,native=true},
+}
+M.ANNOTATION_KEYS={landing=true,x=true,y=true,in_bounds=true,visible=true,
+    remembered=true,known_passable=true,known_hazard=true,confidence=true,
+    reasons=true,rejection=true,selector=true,requests=true,sequence=true}
+
+-- S3-A2-FIX1-02: `act_exclude` is consulted BY UID exactly like the engine
+-- (`ActorProject.lua:217-222` indexes `type.act_exclude[a.uid]`). A value that
+-- indexes to nil is "no exclusion"; a non-table `act_exclude` (or an actor
+-- whose uid is unreadable) cannot reproduce the native indexing and is a typed
+-- `unknown` (the engine would error), never "no exclusion". Exported pure for
+-- tests.
+function M.exclusionOf(actExclude,actor)
+    if actExclude==nil then return false end
+    -- A non-table `act_exclude` would error in the engine's indexing
+    -- (`ActorProject.lua:217-222`) for any actor on a projected grid: it cannot
+    -- be reproduced and is a typed unknown (fail closed).
+    if type(actExclude)~='table' then return 'unknown' end
+    -- Any key indexes safely in Lua: a missing key yields nil => no exclusion
+    -- (exactly the engine's semantics).
+    return actExclude[actor and actor.uid] and true or false
+end
 
 -- Dense/closed array validation over ALL keys: every key must be a positive
 -- integer, the key set must be exactly `1..n` (no holes, no keys beyond the
@@ -148,8 +193,16 @@ local function memberships(component,set,ctx,typ)
     local p=ctx.source
     local m={}
     m.player_override=playerOverride(component,typ,ctx)
+    -- The engine consumes the raised spec's own `act_exclude`; the risk model
+    -- must honour the same value (by uid), not count every visible ally.
+    local actExclude=(type(typ)=='table') and typ.act_exclude or nil
+    local selfExcluded=M.exclusionOf(actExclude,p)
     if set==nil then return {self='unknown',friendlies='unknown',player_override=m.player_override} end
-    m.self=Footprint.at(set,p.x,p.y) and true or false
+    if selfExcluded=='unknown' then
+        m.self='unknown'
+    else
+        m.self=(not selfExcluded) and Footprint.at(set,p.x,p.y) and true or false
+    end
     local ff=Risk.flag(component.friendlyfire)
     if ff==0 then
         m.friendlies=0
@@ -158,7 +211,12 @@ local function memberships(component,set,ctx,typ)
     local count=0
     local unknown=false
     for _,ally in ipairs(ctx.allies() or {}) do
-        if finite(ally.x) and finite(ally.y) then
+        local excluded=M.exclusionOf(actExclude,ally)
+        if excluded=='unknown' then
+            -- The exclusion cannot be reproduced for this actor: the friendly
+            -- membership is uncertain and fails closed (never measured empty).
+            unknown=true
+        elseif not excluded and finite(ally.x) and finite(ally.y) then
             if Footprint.at(set,ally.x,ally.y) then count=count+1 end
         end
     end
@@ -250,9 +308,21 @@ function M.build(ctx)
         local movement=type(entry)=='table' and entry.movement or {}
         local function fromLanding(landing)
             if type(landing)~='table' then return nil end
-            if landing.kind=='deterministic' and type(landing.center)=='table'
-                and finite(landing.center.x) and finite(landing.center.y) then
-                local cell={x=landing.center.x,y=landing.center.y}
+            -- A deterministic record is readable through EITHER the coordinate
+            -- pair (`{x,y}`, the planner's `annotate` shape) or `center`. Both
+            -- are closed finite coordinates; anything else fails closed.
+            if landing.kind=='deterministic' then
+                local lx,ly
+                if landing.x~=nil or landing.y~=nil then
+                    if not (finite(landing.x) and finite(landing.y)) then return nil end
+                    lx,ly=landing.x,landing.y
+                elseif type(landing.center)=='table' and finite(landing.center.x)
+                    and finite(landing.center.y) then
+                    lx,ly=landing.center.x,landing.center.y
+                else
+                    return nil
+                end
+                local cell={x=lx,y=ly}
                 if not inBounds(cell,mapBounds) then return nil,'out_of_bounds' end
                 return {kind='deterministic',cells={cell},center=cell,radius=0}
             end
@@ -276,29 +346,58 @@ function M.build(ctx)
             return nil
         end
         if type(plan)=='table' then
-            -- S3-A2-R1: the plan is a CLOSED record. An unknown/garbage kind or
-            -- non-finite grid coordinates are unreadable and fail closed — the
-            -- descriptor envelope is NOT substituted for a malformed plan.
+            -- S3-A2-FIX1-01: validate the WHOLE plan/annotation/landing
+            -- discriminated union BEFORE reading any member. Every failure is a
+            -- typed unknown (`landing_envelope_unavailable`); a scalar
+            -- annotation must never throw and a malformed landing must never be
+            -- read as a smaller (one-cell) measured set.
+            -- (1) the plan kind is the union's discriminant and must be closed.
             if not M.PLAN_KINDS[plan.kind] then
                 return nil,'landing_envelope_unavailable'
             end
-            local annotation=plan.annotation or {}
+            -- (2) the annotation is a table or nil; unknown annotation keys are
+            -- rejected (the planner emits a closed record).
+            local annotation=plan.annotation
+            if annotation~=nil and type(annotation)~='table' then
+                return nil,'landing_envelope_unavailable'
+            end
+            if type(annotation)=='table' then
+                for key in pairs(annotation) do
+                    if not M.ANNOTATION_KEYS[key] then
+                        return nil,'landing_envelope_unavailable'
+                    end
+                end
+            end
+            local landing=type(annotation)=='table' and annotation.landing or nil
+            -- (3) a landing, when present, is a closed record whose kind is in
+            -- the closed vocabulary AND admitted for this plan kind. A landing
+            -- on a plan kind that does not define it (the cross-kind case) is
+            -- unknown, never a one-cell set.
+            if landing~=nil then
+                if type(landing)~='table' then return nil,'landing_envelope_unavailable' end
+                for key in pairs(landing) do
+                    if not M.LANDING_KEYS[key] then
+                        return nil,'landing_envelope_unavailable'
+                    end
+                end
+                if not M.LANDING_KINDS[landing.kind] then
+                    return nil,'landing_envelope_unavailable'
+                end
+                local allowed=M.PLAN_LANDING_KINDS[plan.kind]
+                if not (allowed and allowed[landing.kind]) then
+                    return nil,'landing_envelope_unavailable'
+                end
+            end
             if plan.kind=='grid' then
                 if not (finite(plan.x) and finite(plan.y)) then
                     return nil,'landing_envelope_unavailable'
                 end
-                local landing=annotation.landing
-                if type(landing)~='table' then
+                if landing==nil then
                     -- A grid plan with NO readable landing annotation is never
                     -- reclassified as a deterministic one-cell landing: the
                     -- landing envelope is unknown and fails closed (never a
                     -- smaller deterministic measured set; design §2.3).
                     return nil,'landing_envelope_unavailable'
-                end
-                for key in pairs(landing) do
-                    if not M.LANDING_KEYS[key] then
-                        return nil,'landing_envelope_unavailable'
-                    end
                 end
                 if landing.kind=='deterministic' then
                     -- A deterministic landing is admitted only as a closed
@@ -328,11 +427,11 @@ function M.build(ctx)
                 -- cannot read (missing/malformed centre or radius) returns nil
                 -- and is rejected below as `landing_envelope_unavailable`.
             end
-            local fromAnnotation=fromLanding(annotation.landing)
+            local fromAnnotation=fromLanding(landing)
             if fromAnnotation then return fromAnnotation end
-            -- The landing annotation was present but is not a readable closed
-            -- record (unknown kind, missing/malformed centre or radius, or no
-            -- annotation at all on a non-grid plan): unknown, fail closed.
+            -- The landing annotation was absent or is not a readable closed
+            -- record (unknown kind/admitted-kind mismatch, missing/malformed
+            -- centre or radius): unknown, fail closed.
             return nil,'landing_envelope_unavailable'
         end
         -- No plan (or an unusable one): derive the envelope from the descriptor.
@@ -537,13 +636,31 @@ function M.build(ctx)
                 componentsEvaluated=componentsEvaluated+1
                 local radius=resolveRadius(component.radius,typ)
                 resolved.radius=radius
+                -- S3-A2-FIX1-02: membership/risk is derived from the SAME
+                -- effective raised values the engine consumes. A live raised
+                -- value (for example an explicit `friendlyfire=false`) WINS
+                -- over the manifest's static curated default; only an absent
+                -- raised key falls back to the curated value, and a field
+                -- declared as an audited dynamic input keeps its provider
+                -- (the raw builder must never overwrite an unknown/failed
+                -- provider). `false` is preserved as a VALUE here, not merely
+                -- during transport.
+                local function effectiveRaised(flag,declared,curated)
+                    if type(typ)=='table' and typ[flag]~=nil and not isDynamicInput(declared) then
+                        return typ[flag]
+                    end
+                    return curated
+                end
                 -- Curated static filters resolve through the audited dynamic
                 -- input providers (an unavailable dynamic read stays unknown
                 -- and fails closed on its own value).
-                resolved.selffire=resolveDynamic(component.selffire,ctx,talent,
+                local curatedSelffire=resolveDynamic(component.selffire,ctx,talent,
                     ctx.getDef(talent))
-                resolved.friendlyfire=resolveDynamic(component.friendlyfire,ctx,talent,
+                local curatedFriendlyfire=resolveDynamic(component.friendlyfire,ctx,talent,
                     ctx.getDef(talent))
+                resolved.selffire=effectiveRaised('selffire',component.selffire,curatedSelffire)
+                resolved.friendlyfire=effectiveRaised('friendlyfire',component.friendlyfire,
+                    curatedFriendlyfire)
                 resolved.player_selffire=component.player_selffire
                 if radius=='unknown' then
                     return disable('selffire_risk',{unknown=true,talent=talent,
@@ -722,6 +839,16 @@ function M.build(ctx)
             end
         elseif expectsBuilder==true then
             return disable('adapter_builder_missing',{talent=talent})
+        end
+        -- S3-A2-FIX1-02: a non-nil raised `act_exclude` that is not a table
+        -- cannot reproduce the engine's per-actor indexing
+        -- (`ActorProject.lua:217-222` indexes `type.act_exclude[a.uid]`); the
+        -- engine would error, so the guard fails closed instead of modelling
+        -- "no exclusion" and permitting. By-uid exclusion semantics for a real
+        -- table are honoured by the risk model (`M.exclusionOf`).
+        if type(typ)=='table' and typ.act_exclude~=nil and type(typ.act_exclude)~='table' then
+            return disable('selffire_risk',{unknown=true,talent=talent,
+                reason='act_exclude_not_a_table'})
         end
         local range=entry.range
         if typ and finite(typ.range) then range=typ.range end
