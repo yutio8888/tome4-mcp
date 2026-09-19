@@ -89,8 +89,8 @@ consumes no action budget. New signals
 
 | Check | Result | Command / evidence |
 | --- | --- | --- |
-| Lua suite 42/42 | PASS | `TOME_MCP_ADDON_DIR=<wt> bash tests/run.sh` → exit 0, 42 suites; `tmp/mcp-play-support/s2fix6/lua-suite.log` sha256 `1b6db7922406c78aa42634ce9ad62232105cc076b9a68f5ad65cf3b7f1b536dc` |
-| Python 39 | PASS | `PYTHONPATH=<wt>/server/src tmp/tome-mcp-venv/bin/python -m unittest discover -s <wt>/server/tests` → `Ran 39 tests ... OK`; `tmp/mcp-play-support/s2fix6/python-tests.log` sha256 `ad3d28423c0b164ec69325b1498dd1ff77cf692607290101adb2c95ee6f6d479` |
+| Lua suite 42/42 | PASS | `TOME_MCP_ADDON_DIR=<wt> bash tests/run.sh` → exit 0, 42 suites; `tmp/mcp-play-support/s2fix6/lua-suite.log` sha256 `bd3f13509fc0f9c5532bcc926a465db5c5480b224b4b1bf1f83b5d422e2618e7` |
+| Python 39 | PASS | `PYTHONPATH=<wt>/server/src tmp/tome-mcp-venv/bin/python -m unittest discover -s <wt>/server/tests` → `Ran 39 tests ... OK`; `tmp/mcp-play-support/s2fix6/python-tests.log` sha256 `c778f05ed6d61f2b24cdd8d5376c8cf1cdb98f98539da74b735a903d88e7bc13` |
 | three `--check` | PASS | `tools/generate_native_seams.py --check`, `tools/generate_effect_manifest.py --check`, `tools/generate_protocol.py --check` → all exit 0; `tmp/mcp-play-support/s2fix6/generator-checks.log` sha256 `e1d5e9521ee532cfe6509322435578424e093e09c0e3c98c42d70c6edde878d1` |
 | package parity | 68/68 | `python3 tools/package.py` → 68 files; dist `tome-mcp-bridge.teaa` sha256 `453b3f56c2e40054e0f75d2ffb13f72e5f58da6b9601a12d3c55b7688d5f1ebe`; independently re-hashed 68/68 archive entries against the source tree, 0 divergent |
 | auto-combat probe source | 177/177 PASS | `TOME_MCP_ADDON_DIR=<wt> python3 tests/native/auto_combat_run.py s2fix6-probe-src-01`; session `tmp/tome-mcp-validation/sessions/s2fix6-probe-src-01` (result.json sha256 `c08a1e2ee611f699c3cfdf4cec30c1a2835a5ff7204dbaa158d62ea6675c0201`, game.log sha256 `4d767acaf03d05bc8b0c982e7168be465ffa780a49589b3ed47995894183483e`); log `tmp/mcp-play-support/s2fix6/probe-source.log` sha256 `dcaae721e4c60135e39a56991b1102937c739b0a9dd31361cc8ac12e686b8441` |
