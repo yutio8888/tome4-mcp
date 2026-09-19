@@ -284,3 +284,4 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 3. **更新 `VALIDATION.md`**：记录 v1.6 原则在**代码与文档两侧**的落地——"不追求运行期入口=原生入口的
    严格审计"、"读取无纯度/RNG 门"、"无插件级策略门（限制属 preset 默认）"，并注明本条为现行验收口径。
 4. **账本写入** S1 rev8 的最终 loop 结果（该 loop 仍是 A 任务的延续；下一个独立任务起用 B）。
+| 41 | 边界 lint rev2（BND-REV-01..05：ingress 密集化 + 注册表 provenance + 语义 Rule B + 漂移双向 + 门禁强制） | **B**（Dev，接续 feat/boundary-selfcheck） | 待派（Review 全新） | Dev 交付（ready for review；probe 177/177、acceptance 101/101 source+dist、parity 68/68、head f059aaf） | 0 | — | — | — | — |
