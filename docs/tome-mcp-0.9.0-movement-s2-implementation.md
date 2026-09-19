@@ -310,18 +310,18 @@ reason — a capability boundary, never a strategy judgement:
 
 | Talent | Typed reason | Why (file:line) |
 | --- | --- | --- |
-| `T_PHASE_DOOR` | — (supported) | two-entry: `hit`+`default_target=self` (conveyance.lua:79) then `ball`+`nolock` (:106); distinguishable by cursor type |
-| `T_VAULT` | `movement_effect_composition_required` | the agility Vault (agility.lua:83-150) is a MIXED talent: its sequence (`hit`-without-nolock at :113 then `hit`+`nolock` at :119) is distinguishable, but the first (actor) prompt's target is attacked (:137-138) and may be dazed (:140-145) before the move (:149-150); component-free movement admission would bind that actor prompt and hide the effect from the guard. Reserved for S3 (review S2-R4-01) |
-| `T_MERGE`, `T_STONE` | `signature_not_distinguishable` | both prompts share `type='hit'`, separated only by `first_target`/`start_x`/`source_actor` (cursed/advanced-shadowmancy.lua:43-46,80-83); `start_x`/`source_actor` are outside the curated allowlist and `first_target` is raised nondeterministically elsewhere |
-| `T_CURSED_BOLT` | `dynamic_prompt_count` | a `getTarget` inside a per-shadow loop (cursed/advanced-shadowmancy.lua:245); the prompt count is runtime-dynamic |
-| `T_WORMHOLE` | `cross_prompt_postcondition` | the entrance prompt is a `simple_dir_request` direction step and the entrance/exit pair is coupled by native trap-placement and `distance>=2` postconditions the per-request guard cannot verify (chronomancy/spacetime-weaving.lua:145,153) |
+| `T_PHASE_DOOR` | — (supported) | two-entry: `hit`+`default_target=self` (spells/conveyance.lua:84) then `ball`+`nolock` (:114); distinguishable by cursor type |
+| `T_VAULT` | `movement_effect_composition_required` | the agility Vault (techniques/agility.lua:82-161) is a MIXED talent: its sequence (first `hit` prompt, target def at :92 / `getTarget` at :114, then `hit`+`nolock` at :118) is distinguishable, but the first (actor) prompt's target is attacked (:137-138) and may be dazed (:140-145) before the move (:149-150); component-free movement admission would bind that actor prompt and hide the effect from the guard. Reserved for S3 (review S2-R4-01) |
+| `T_MERGE`, `T_STONE` | `moving_or_swapping_another_actor` | the effect targets/moves another actor: Merge kills the caster's own doomed shadow (`target.die(target)` at cursed/advanced-shadowmancy.lua:51) before acting on the second actor (:52); Stone relocates that shadow (`target:move(sx,sy,true)` at :88) and attacks through it (`target:project(...)` at :100). The second spec differs by the ALLOWLISTED `pass_terrain=true` (:45,:82) plus `friendlyblock=false` for Stone (:82), so the signature axis was **not** the blocker |
+| `T_CURSED_BOLT` | `nondeterministic_prompt_subject` | each loop iteration picks a random shadow as the bolt origin (`rng.table(shadows)` at cursed/advanced-shadowmancy.lua:242) and the entry is order-sensitive (first success consumes the crit roll :248-251, first failure aborts :255-258); the prompt count itself is bounded and player-known (cap 4, cursed/shadows.lua:350-352), so the count was **not** the blocker |
+| `T_WORMHOLE` | `effect_is_a_later_triggered_trap_pair` | activation moves nobody: it creates a pair of later-triggered traps (chronomancy/spacetime-weaving.lua:164-207, added at :209-224) whose third-party trigger teleports whoever steps on one later (:179-194, `teleportRandom` at :183). The prompts ARE distinguishable by cursor_type (:144 `bolt` vs :152 `hit`) and `distance>=2` (:157) is checkable pre-commit, so neither was the blocker |
 | `T_EARTHEN_MISSILES`, `T_DWARVEN_HALF_EARTHEN_MISSILES` | `same_shape_equivalent` | three same-shape `bolt` prompts whose order is semantically irrelevant; the third is level-dependent (spells/stone.lua:39-54; gifts/dwarven-nature.lua:35-50) — not a fixed order |
 
 Note: the talent called "Stone Shards" in the survey is the dwarven
 "Earthen Missiles" (`T_DWARVEN_HALF_EARTHEN_MISSILES`,
 gifts/dwarven-nature.lua:21); there is no talent of that name in 1.7.6.
-`T_SKIRMISHER_VAULT` (techniques/acrobatics.lua:29) is a DIFFERENT talent — the
-acrobatics Vault, a genuine single-prompt `beam` landing — and is correctly
+`T_SKIRMISHER_VAULT` (techniques/acrobatics.lua:27, single `beam` prompt at :53) is a DIFFERENT talent — the
+acrobatics Vault, a genuine single-prompt landing — and is correctly
 modelled single-prompt; it is not re-modelled.
 
 ## 5. Planner, annotations and dry run

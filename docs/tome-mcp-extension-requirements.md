@@ -108,7 +108,7 @@
 
 ### R3.2 现状与差距
 
-- [`Progression.lua`](../overload/mod/mcp_bridge/Progression.lua) 目前用 `addCategory(...)` 硬编码 11 个类别及源文件/行号校验；其他职业/类别只能只读摘要。
+- [`Progression.lua`](../overload/mod/mcp_bridge/Progression.lua) 目前用 `addCategory(...)` 硬编码 11 个类别；R7（loop 38，2026-09）已移除学习/花费路径上的**源文件/行号身份审计**（原 `D.native`/`sourceLine` 门禁）：定义与玩家方法一律按**结构性检查（存在/可调用/类型）+ 实时调用**处理——被替换但可用的函数会被使用，原生对话框为最终裁判；来源仅作重审遥测（见 `docs/tome-mcp-0.9.0-review-disposition.md` D11 superseded 注）。其他职业/类别仍只能只读摘要。
 - v2 已有 `dialog.confirm` / `dialog.choice` / `inventory.select` 等 provider，但学习相关 UI 没有统一接入。
 
 ### R3.3 接口需求

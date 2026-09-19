@@ -180,13 +180,29 @@ check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupp
         check(u~=nil and u.missing and u.reason and u.scope,
             talent..' has a structured unsupported entry')
     end
-    check(unsupportedEntry('T_MERGE').missing=='signature_not_distinguishable'
-        and unsupportedEntry('T_STONE').missing=='signature_not_distinguishable',
-        'Merge and Stone are the signature-not-distinguishable typed reason')
-    check(unsupportedEntry('T_CURSED_BOLT').missing=='dynamic_prompt_count',
-        'Cursed Bolt is the dynamic-prompt-count typed reason')
-    check(unsupportedEntry('T_WORMHOLE').missing=='cross_prompt_postcondition',
-        'Wormhole is the cross-prompt-postcondition typed reason')
+    -- Loop 38 audit: the dispositions stand but the typed reasons were
+    -- corrected to the honest ones (the signature/postcondition claims were
+    -- factually wrong — see unsupported-audit.md §2.3-2.5).
+    check(unsupportedEntry('T_MERGE').missing=='moving_or_swapping_another_actor'
+        and unsupportedEntry('T_STONE').missing=='moving_or_swapping_another_actor',
+        'Merge and Stone are the moving-or-swapping-another-actor typed reason')
+    check(unsupportedEntry('T_MERGE').reason:find('target.die(target)',1,true)
+        and unsupportedEntry('T_STONE').reason:find('target:move(sx,sy,true)',1,true)
+        and unsupportedEntry('T_STONE').reason:find('pass_terrain=true and friendlyblock=false',1,true),
+        'Merge/Stone reasons cite the multi-actor engine lines and the corrected signature fact')
+    check(unsupportedEntry('T_CURSED_BOLT').missing=='nondeterministic_prompt_subject',
+        'Cursed Bolt is the nondeterministic-prompt-subject typed reason')
+    check(unsupportedEntry('T_CURSED_BOLT').reason:find('rng.table(shadows)',1,true)
+        and unsupportedEntry('T_CURSED_BOLT').reason:find('advanced-shadowmancy.lua:242',1,true)
+        and unsupportedEntry('T_CURSED_BOLT').reason:find('player-known',1,true),
+        'Cursed Bolt reason cites the random per-iteration subject at the correct engine line (:242) and withdraws the bounded-count claim')
+    check(unsupportedEntry('T_WORMHOLE').missing=='effect_is_a_later_triggered_trap_pair',
+        'Wormhole is the later-triggered-trap-pair typed reason')
+    check(unsupportedEntry('T_WORMHOLE').reason:find('164-207',1,true)
+        and unsupportedEntry('T_WORMHOLE').reason:find('teleportRandom at :183',1,true)
+        and not unsupportedEntry('T_WORMHOLE').reason:find('simple_dir_request',1,true)
+        and not unsupportedEntry('T_WORMHOLE').reason:find('cross_prompt_postcondition',1,true),
+        'Wormhole reason cites the trap pair (correct ranges) and withdraws the simple_dir_request/cross-prompt claims')
     check(unsupportedEntry('T_EARTHEN_MISSILES').missing=='same_shape_equivalent'
         and unsupportedEntry('T_DWARVEN_HALF_EARTHEN_MISSILES').missing=='same_shape_equivalent',
         'Earthen Missiles variants are the same-shape-equivalent typed reason')

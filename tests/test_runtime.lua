@@ -319,6 +319,61 @@ reconnect()
 check(act('after-partial',stat_action).error.code=='not_ready','reconnect cannot bypass failed mutation quarantine')
 check(executed==3 and p.unused_stats==6,'failed partial mutation is not rolled back or repeated')
 Actions.execute=original_execute
+
+-- NEW-03 (P1): a replaced-but-callable on_levelup_close can schedule the undo
+-- with the real native pattern game:onTickEnd (official talents do this too,
+-- e.g. data/talents/psionic/solipsism.lua:48). Both synchronous checks inside
+-- Progression.execute see the requested delta, so Runtime stores the already
+-- successful result while the queued callback later restores the
+-- pre-operation state. The settlement path must re-validate the recorded
+-- postcondition AFTER the native tick-end queue drained and settle a mismatch
+-- as a typed uncertain failure, never as success.
+local Progression=require 'mod.mcp_bridge.Progression'
+local Json=require 'mod.mcp_bridge.Json'
+local deferred_undo=false
+local deferred_recheck=false
+Actions.execute=function(game,action,target,metadata)
+    local pl=game.player
+    pl.talents={T_RUSH=(pl.talents and pl.talents.T_RUSH or 0)+1}
+    pl.unused_talents=(pl.unused_talents or 5)-1
+    -- The real native scheduling pattern: an owned callback queued for the
+    -- end of the current tick, after execute's own postcondition checks.
+    game:onTickEnd(function()
+        if deferred_undo then pl.talents.T_RUSH=pl.talents.T_RUSH-1;pl.unused_talents=pl.unused_talents+1 end
+    end)
+    return {ok=true,code='progression_applied',energy_spent=0,points_spent=1,point_pool='class',
+        previous_value=pl.talents.T_RUSH-1,new_value=pl.talents.T_RUSH,
+        postcondition={pool='unused_talents',expected_points=pl.unused_talents,
+            operation='learn_talent',target='T_RUSH',expected_value=pl.talents.T_RUSH}}
+end
+g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+p.unused_talents=5
+deferred_undo=true
+rev=observe().revision
+check(act('deferred-undo',{type='learn_talent',talent_id='T_RUSH'},rev).result.status=='queued','deferred-undo growth queued')
+g:tick();g:display()
+check(status('deferred-undo').status=='settling' and p.talents.T_RUSH==1 and p.unused_talents==4,
+    'the owned deferred callback keeps the command settling after the accepted mutation')
+g:tick();g:display()
+local deferred=status('deferred-undo')
+check(deferred.status=='failed' and deferred.uncertain and deferred.code=='native_progression_mismatch'
+    and deferred.action_ok==false and p.talents.T_RUSH==0 and p.unused_talents==5,
+    'a deferred game:onTickEnd undo settles as a typed uncertain failure through the Runtime settlement path: '..Json.encode(deferred))
+check(observe().phase=='unavailable' and observe().control_source=='manual','a settled progression mismatch quarantines the session')
+reconnect()
+check(act('after-deferred',{type='wait'}).error.code=='not_ready','reconnect cannot bypass a settled mismatch quarantine')
+
+g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+p.unused_talents=5
+deferred_undo=false
+rev=observe().revision
+check(act('deferred-keep',{type='learn_talent',talent_id='T_RUSH'},rev).result.status=='queued','deferred-keep growth queued')
+g:tick();g:display()
+g:tick();g:display()
+local kept=status('deferred-keep')
+check(kept.status=='completed' and kept.action_ok==true and p.talents.T_RUSH==1 and p.unused_talents==4,
+    'success is published only when the drained final state still matches the claim: '..Json.encode(kept))
+Actions.execute=original_execute
 -- M3: tome.list frozen collection pagination.
 g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
 p.talents={T_X=1,T_Y=2}

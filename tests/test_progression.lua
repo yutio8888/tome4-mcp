@@ -244,7 +244,9 @@ check(Progression.execute(g,{type='spend_stat',stat='str'}).code=='levelup_acces
 p.no_levelup_access=nil;g.dialogs={{}}
 check(Progression.execute(g,{type='spend_stat',stat='str'}).code=='player_busy','growth cannot pass an existing dialog')
 
--- Query sentinels must never run even for unknown/modded requirements/info.
+-- Query sentinels must never run during a READ query, even for replaced
+-- definitions; v1.6 (D11 superseded): a replaced-but-callable definition/method
+-- is USED and the native dialog judges — only a missing/erroring one fails typed.
 g,p=fixture()
 local forbidden_calls=0
 local function forbidden() forbidden_calls=forbidden_calls+1;error('query invoked a callback') end
@@ -252,17 +254,73 @@ local old_info=definitions.T_VITALITY.info;definitions.T_VITALITY.info=forbidden
 local old_require=definitions.T_STUNNING_BLOW_ASSAULT.require;definitions.T_STUNNING_BLOW_ASSAULT.require=forbidden
 p.canLearnTalent=forbidden;p.clone=forbidden
 tree=Progression.describe(g,p)
-check(forbidden_calls==0 and talent(tree,'T_STUNNING_BLOW_ASSAULT').requirements.status=='unknown','dynamic query callbacks remain untouched')
-check(Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'}).code=='progression_native_modified','modified native learning entry rejected')
+check(forbidden_calls==0 and talent(tree,'T_STUNNING_BLOW_ASSAULT').supported
+    and talent(tree,'T_STUNNING_BLOW_ASSAULT').readiness=='available',
+    'describing growth never invokes the replaced definition callbacks and a replaced-but-callable talent stays supported')
+result=Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'})
+check(not result.ok and result.code=='progression_execution_error' and result.uncertain
+    and forbidden_calls>0 and result.error:find('query invoked a callback',1,true),
+    'a replaced-but-callable native entrypoint is actually invoked; an erroring one fails typed instead of a pre-identity refusal')
+check(p.unused_talents==5 and p.talents.T_STUNNING_BLOW_ASSAULT==1,'the erroring callback spends no point')
 definitions.T_VITALITY.info=old_info;definitions.T_STUNNING_BLOW_ASSAULT.require=old_require
 p.canLearnTalent=nil;p.clone=nil
+forbidden_calls=0
 p.cloned=forbidden
-check(Progression.execute(g,{type='spend_stat',stat='str'}).code=='progression_native_modified' and forbidden_calls==0,'unknown clone hook rejected before native mutation')
+result=Progression.execute(g,{type='spend_stat',stat='str'})
+check(not result.ok and result.uncertain and result.code=='progression_execution_error'
+    and result.error:find('query invoked a callback',1,true) and p.unused_stats==9,
+    'a callable clone hook is used natively and an erroring one fails typed before any mutation')
 p.cloned=nil
 local original=definitions.T_STUNNING_BLOW_ASSAULT.require
 definitions.T_STUNNING_BLOW_ASSAULT.require=defenv.techs_req4
-check(not talent(Progression.describe(g,p),'T_STUNNING_BLOW_ASSAULT').supported,'swapped native requirement family rejected')
+local swapped=talent(Progression.describe(g,p),'T_STUNNING_BLOW_ASSAULT')
+check(swapped.supported and swapped.readiness=='available',
+    'a swapped-but-callable reviewed requirement family is used; hints stay advisory and the native dialog judges')
+result=Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'})
+check(not result.ok and result.code=='native_progression_rejected' and p.unused_talents==5 and not result.uncertain,
+    'the native dialog is the judge: the swapped requirement rejects the spend with no source-identity audit')
 definitions.T_STUNNING_BLOW_ASSAULT.require=original
+
+-- R7 regressions (v1.6): replaced-but-callable reviewed player methods and
+-- definitions are USED; missing/erroring ones fail with the typed vocabulary.
+g,p=fixture()
+getstat_delegate=actor.getStat
+p.getStat=native('/third_party/replaced-stat.lua','return getstat_delegate(self,...)')
+local replaced_tree=Progression.describe(g,p)
+local replaced_str=find(replaced_tree.stats,'stat','str')
+check(replaced_str.supported and replaced_str.readiness=='available'
+    and replaced_str.effective==p:getStat(stats.STAT_STR),
+    'a replaced-but-callable player getter is called and used, never refused by source identity')
+result=Progression.execute(g,{type='spend_stat',stat='str'})
+check(result.ok and p.unused_stats==8 and p.stats[stats.STAT_STR]==16,
+    'a replaced-but-callable player getter executes the native stat spend: '..Json.encode(result))
+p.getStat=false
+local missing_str=find(Progression.describe(g,p).stats,'stat','str')
+check(not missing_str.supported and missing_str.readiness_reason=='progression_native_modified'
+    and missing_str.effective=='unknown','a non-callable player getter fails typed unknown')
+check(Progression.execute(g,{type='spend_stat',stat='str'}).code=='progression_native_modified',
+    'a non-callable player getter refuses the spend typed')
+p.getStat=forbidden
+result=Progression.execute(g,{type='spend_stat',stat='str'})
+check(not result.ok and result.code=='progression_state_unknown' and p.unused_stats==8,
+    'an erroring player getter fails typed unknown before any native mutation')
+p.getStat=nil;getstat_delegate=nil
+g,p=fixture()
+local replaced_action=definitions.T_RUSH.action
+definitions.T_RUSH.action=native('/third_party/replaced-action.lua','return nil')
+check(talent(Progression.describe(g,p),'T_RUSH').supported,
+    'a replaced-but-callable reviewed definition function is not refused by source identity')
+result=Progression.execute(g,{type='learn_talent',talent_id='T_RUSH'})
+check(result.ok and p.talents.T_RUSH==1 and p.unused_talents==4,
+    'a replaced-but-callable reviewed definition function is used for learning: '..Json.encode(result))
+definitions.T_RUSH.action=replaced_action
+g,p=fixture()
+local old_inc=dialog.incStat
+dialog.incStat=nil
+result=Progression.execute(g,{type='spend_stat',stat='str'})
+check(not result.ok and result.code=='levelup_dialog_unavailable' and p.unused_stats==9,
+    'a missing native dialog method is a typed structural refusal before any mutation')
+dialog.incStat=old_inc
 local empty=Progression.describe({}, {})
 check(#empty.stats==6 and #empty.categories==0 and empty.points.stats=='unknown','missing actor fields yield unknown safely')
 
@@ -293,6 +351,51 @@ definitions.T_STUNNING_BLOW_ASSAULT.on_levelup_changed=native('data/talents/tech
 result=Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'})
 check(result.ok and p.close_calls==1 and p.close_dialog==true and p.changed_calls==1,'native finish callbacks run once with dialog semantics')
 definitions.T_STUNNING_BLOW_ASSAULT.on_levelup_close=old_close;definitions.T_STUNNING_BLOW_ASSAULT.on_levelup_changed=old_changed
+
+-- NEW-01 (P1): a replaced-but-callable native callback is used, so the spend
+-- may be undone AFTER the point/target delta was checked. Success must only be
+-- published when the post-callback and post-unload state still matches; any
+-- disagreement is a typed uncertain failure, never ok=true.
+g,p=fixture();p.level=10;p.stats[stats.STAT_STR]=40
+local close_undo=definitions.T_STUNNING_BLOW_ASSAULT.on_levelup_close
+definitions.T_STUNNING_BLOW_ASSAULT.on_levelup_close=native('/third_party/replaced-close.lua',
+    'self.talents.T_STUNNING_BLOW_ASSAULT=1;self.unused_talents=5')
+result=Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'})
+check(not result.ok and result.code=='native_progression_mismatch' and result.uncertain
+    and result.points_spent==nil and p.talents.T_STUNNING_BLOW_ASSAULT==1 and p.unused_talents==5,
+    'a callback undoing the spend during finish is a typed uncertain failure, not success: '..Json.encode(result))
+definitions.T_STUNNING_BLOW_ASSAULT.on_levelup_close=close_undo
+
+g,p=fixture();p.level=10;p.stats[stats.STAT_STR]=40
+local unload_undo=dialog.unload
+dialog.unload=native('/third_party/replaced-unload.lua',
+    'local actor=self.actor;actor.talents.T_STUNNING_BLOW_ASSAULT=1;actor.unused_talents=5;return true')
+result=Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'})
+check(not result.ok and result.code=='native_progression_mismatch' and result.uncertain
+    and p.talents.T_STUNNING_BLOW_ASSAULT==1 and p.unused_talents==5,
+    'a replaced-but-callable unload undoing the spend after finish is a typed uncertain failure: '..Json.encode(result))
+dialog.unload=unload_undo
+
+g,p=fixture()
+local unload_stat_undo=dialog.unload
+dialog.unload=native('/third_party/replaced-unload.lua',
+    'local actor=self.actor;actor.unused_stats=9;actor.stats['..stats.STAT_STR..']=15;return true')
+result=Progression.execute(g,{type='spend_stat',stat='str'})
+check(not result.ok and result.code=='native_progression_mismatch' and result.uncertain
+    and p.unused_stats==9 and p.stats[stats.STAT_STR]==15,
+    'a replaced unload undoing a stat spend is a typed uncertain failure: '..Json.encode(result))
+dialog.unload=unload_stat_undo
+
+g,p=fixture()
+check(Progression.execute(g,{type='learn_talent',talent_id='T_RUSH'}).ok,'learned T_RUSH for the respec postcondition')
+local changed_undo=definitions.T_RUSH.on_levelup_changed
+definitions.T_RUSH.on_levelup_changed=native('/third_party/replaced-changed.lua',
+    'self.talents.T_RUSH=1;self.unused_talents=(self.unused_talents or 0)-1')
+result=Progression.execute(g,{type='unlearn_talent',talent_id='T_RUSH'})
+check(not result.ok and result.code=='native_progression_mismatch' and result.uncertain
+    and p.talents.T_RUSH==1 and p.unused_talents==4,
+    'a callback undoing a respec refund during finish is a typed uncertain failure: '..Json.encode(result))
+definitions.T_RUSH.on_levelup_changed=changed_undo
 g,p=fixture();p.level=50;p.stats[stats.STAT_STR]=40
 for _,tid in ipairs{'T_STUNNING_BLOW_ASSAULT','T_WARSHOUT_BERSERKER','T_STUNNING_BLOW_ASSAULT','T_WARSHOUT_BERSERKER','T_RUSH'} do
     check(Progression.execute(g,{type='learn_talent',talent_id=tid}).ok,'native class history allocation '..tid)
@@ -379,5 +482,92 @@ config.settings.tome_mcp_bridge.allow_respec=nil
 check(Progression.execute(g,{type='unlearn_talent',talent_id='T_RUSH'}).code=='respec_not_enabled',
     'unlearn_talent requires the settings opt-in')
 config.settings.tome_mcp_bridge.allow_respec=true
+
+-- NEW-03 (P1): a replaced-but-callable on_levelup_close can schedule the undo
+-- with the real native pattern game:onTickEnd (official talents do this too,
+-- e.g. data/talents/psionic/solipsism.lua:48), so the synchronous checks inside
+-- execute can all pass while a queued callback later restores the
+-- pre-operation state. An accepted mutation therefore carries the expected
+-- postcondition (pool, target, expected value, operation) on the outcome for
+-- the settlement-time re-validation in Runtime (end-to-end: tests/test_runtime.lua).
+g,p=fixture()
+result=Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'})
+check(result.ok and type(result.postcondition)=='table'
+    and result.postcondition.pool=='unused_talents' and result.postcondition.expected_points==p.unused_talents
+    and result.postcondition.operation=='learn_talent' and result.postcondition.target=='T_STUNNING_BLOW_ASSAULT'
+    and math.abs(result.postcondition.expected_value-2)<0.000001,
+    'an accepted learn_talent carries its expected postcondition: '..tostring(result.postcondition and result.postcondition.expected_points))
+check(Progression.checkPostcondition(p,result.postcondition)==nil,'the settlement recheck passes on the matching final state')
+local recorded=result.postcondition
+p.unused_talents=p.unused_talents+1
+check(Progression.checkPostcondition(p,recorded)=='points','a pool restored after the accept is a typed settlement mismatch')
+p.unused_talents=p.unused_talents-1;p.talents.T_STUNNING_BLOW_ASSAULT=1
+check(Progression.checkPostcondition(p,recorded)=='target','a target restored after the accept is a typed settlement mismatch')
+p.talents.T_STUNNING_BLOW_ASSAULT='corrupt'
+check(Progression.checkPostcondition(p,recorded)=='target','a wrong-typed raw level is a typed settlement mismatch, not an error')
+p.talents.T_STUNNING_BLOW_ASSAULT=2
+
+g,p=fixture()
+result=Progression.execute(g,{type='spend_stat',stat='str'})
+check(result.ok and result.postcondition.pool=='unused_stats' and result.postcondition.operation=='spend_stat'
+    and result.postcondition.target==stats.STAT_STR and result.postcondition.expected_value==16
+    and Progression.checkPostcondition(p,result.postcondition)==nil,
+    'an accepted stat spend carries its expected postcondition')
+
+g,p=fixture()
+result=Progression.execute(g,{type='learn_category',category_id='cunning/dirty'})
+check(result.ok and result.postcondition.pool=='unused_talents_types' and result.postcondition.operation=='learn_category'
+    and result.postcondition.target=='cunning/dirty' and math.abs(result.postcondition.expected_value-1)<0.000001
+    and Progression.checkPostcondition(p,result.postcondition)==nil,
+    'an accepted category unlock carries its expected postcondition: '..tostring(result.postcondition and result.postcondition.expected_value))
+g,p=fixture();p.talents_types_mastery['technique/2hweapon-assault']=0.3
+result=Progression.execute(g,{type='learn_category',category_id='technique/2hweapon-assault'})
+check(result.ok and math.abs(result.postcondition.expected_value-1.5)<0.000001
+    and Progression.checkPostcondition(p,result.postcondition)==nil,
+    'an accepted mastery improvement carries its expected postcondition')
+g,p=fixture()
+Progression.execute(g,{type='learn_talent',talent_id='T_RUSH'})
+result=Progression.execute(g,{type='unlearn_talent',talent_id='T_RUSH'})
+check(result.ok and result.postcondition.pool=='unused_talents' and result.postcondition.expected_points==p.unused_talents
+    and result.postcondition.operation=='unlearn_talent' and result.postcondition.target=='T_RUSH'
+    and result.postcondition.expected_value==0 and Progression.checkPostcondition(p,result.postcondition)==nil,
+    'an accepted refund carries its expected postcondition')
+check(Progression.checkPostcondition(nil,{})=='invalid_postcondition' and Progression.checkPostcondition(p,nil)=='invalid_postcondition',
+    'a malformed settlement descriptor is typed, never an error')
+g,p=fixture();p.talents_types['cunning/dirty']=true;p.talents_types_mastery['cunning/dirty']='corrupt'
+check(Progression.checkPostcondition(p,{pool='unused_talents_types',expected_points=1,operation='learn_category',
+        target='cunning/dirty',expected_value=1})=='target',
+    'a wrong-typed mastery is a typed settlement mismatch, never an escaping error')
+
+-- NEW-04 (P1): the category target value is computed without unvalidated
+-- arithmetic and the after-unload recheck is pcall-protected, so a callable
+-- unload that leaves the category known with a string mastery settles as a
+-- typed uncertain failure instead of an escaping arithmetic error (the old
+-- code crashed AFTER the category point was spent).
+g,p=fixture()
+local unload_mastery=dialog.unload
+dialog.unload=native('/third_party/replaced-unload.lua',
+    'local actor=self.actor;actor.talents_types_mastery["technique/2hweapon-assault"]="corrupt";return true')
+result=Progression.execute(g,{type='learn_category',category_id='technique/2hweapon-assault'})
+check(not result.ok and result.code=='native_progression_mismatch' and result.uncertain
+    and p.talents_types_mastery['technique/2hweapon-assault']=='corrupt' and p.unused_talents_types==0,
+    'a callable unload writing a string mastery is a typed uncertain failure, not an escaping error: '..Json.encode(result))
+dialog.unload=unload_mastery
+
+g,p=fixture()
+local hook_corrupt=dialog.triggerHook
+dialog.triggerHook=native('/third_party/replaced-hook.lua',
+    'self.actor.talents_types_mastery["cunning/dirty"]="corrupt"')
+result=Progression.execute(g,{type='learn_category',category_id='cunning/dirty'})
+check(not result.ok and result.code=='native_progression_mismatch' and result.uncertain
+    and p.talents_types_mastery['cunning/dirty']=='corrupt' and p.unused_talents_types==0,
+    'a live hook corrupting the category mastery type between mutation and check is a typed uncertain failure: '..Json.encode(result))
+dialog.triggerHook=hook_corrupt
+
+g,p=fixture();p.talents_types_mastery['cunning/dirty']='corrupt'
+result=Progression.execute(g,{type='learn_category',category_id='cunning/dirty'})
+check(not result.ok and result.code=='progression_state_unknown' and not result.uncertain
+    and p.unused_talents_types==1,
+    'a wrong-typed mastery on a locked category is refused typed before any mutation: '..Json.encode(result))
 
 print('Progression: '..checks..' checks passed')

@@ -1,5 +1,17 @@
 -- GPL-3.0-or-later. Single-point adapters for the native LevelupDialog.
 -- Queries never call canLearnTalent, talent info/require functions, or clone.
+-- v1.6 (review-disposition D11 superseded): every reviewed definition/player
+-- method is called as a LIVE entrypoint with structural (presence/callable/type)
+-- checks only — a replaced-but-callable function is used, a missing/erroring/
+-- non-finite one fails typed. Source identity is never an availability gate;
+-- provenance stays advisory telemetry (NativeCompatibility).
+-- v1.7 (NEW-01): because a replaced-but-callable entrypoint is genuinely called,
+-- a success is only published after the point pool AND the target are re-read
+-- after the last live native call that can still mutate them: the dialog method
+-- (incStat/learnTalent/learnType), the finish callbacks
+-- (on_levelup_close/on_levelup_changed) and the unload cleanup
+-- (capLastLearntTalents). Any final disagreement is a typed, uncertain failure
+-- (`native_progression_mismatch`, uncertain=true), never ok=true.
 local Json = require 'mod.mcp_bridge.Json'
 local D = require 'mod.mcp_bridge.ObservationDetails'
 local M = {}
@@ -10,8 +22,6 @@ local STAT='/engine/interface/ActorStats.lua'
 local TALENT='/engine/interface/ActorTalents.lua'
 local ACTOR='/mod/class/Actor.lua'
 local LEVELUP='/mod/dialogs/LevelupDialog.lua'
-local TECH='data/talents/techniques/techniques.lua'
-local CUN='data/talents/cunning/cunning.lua'
 local categories,talents={},{}
 local function addCategory(id,file,requirement,ids,generic,minimum)
     local c={id=id,file='data/talents/'..file,requirement=requirement,generic=generic==true,minimum=minimum or 0}
@@ -61,6 +71,17 @@ local function field(p,name,key)
     if type(value)=='table' then return value[key] end
 end
 local function known(p,category) return field(p,'talents_types',category) and true or false end
+-- NEW-04 (NEW-03 shared read): the category target value is computed without
+-- any unvalidated arithmetic. A known category needs a finite number mastery
+-- to be comparable; a missing one means 1 (the native default); a wrong-typed
+-- or non-finite one is `nil` (typed mismatch), never an escaping error.
+local function categoryTargetValue(p,category)
+    if not known(p,category) then return false end
+    local mastery=field(p,'talents_types_mastery',category)
+    if mastery==nil then return 1 end
+    if D.finite(mastery) then return mastery+1 end
+    return nil
+end
 local function rawLevel(p,tid)
     local value=field(p,'talents',tid)
     if value==nil then return 0 end
@@ -98,10 +119,7 @@ local function rejectionFields(p,aid)
     return {missing=staticMissing(p,t),
         missing_scope='static require fields only; special/lua prerequisites are checked natively'}
 end
-local function sourceLine(fn,source,line)
-    if not D.native(fn,source) then return false end
-    return debug.getinfo(fn,'S').linedefined==line
-end
+local function callable(value) return type(value)=='function' end
 local function onlyKeys(t,allowed)
     if type(t)~='table' then return false end
     for key in pairs(t) do if not allowed[key] then return false end end
@@ -132,10 +150,18 @@ local function statValues(p,name)
     local def=field(p,'stats_def',name)
     if type(def)~='table' or not integer(def.id) then return nil,nil,nil,nil end
     local base,bonus=field(p,'stats',def.id),field(p,'inc_stats',def.id)
+    -- v1.6: the live native getter is the entrypoint. A replaced-but-callable
+    -- getStat is called and used; only a missing/non-callable getter or a
+    -- non-finite result is a typed unknown. Source identity is not consulted.
     if not D.finite(base) or not D.finite(bonus) or not D.finite(def.min) or not D.finite(def.max)
-        or not D.native(p.getStat,STAT) then return D.number(base),D.number(bonus),nil,def end
-    local raw=def.no_max and math.max(base,def.min) or math.max(def.min,math.min(def.max,base))
-    return base,bonus,math.max(raw+bonus,def.min),def,raw
+        or type(p.getStat)~='function' then return D.number(base),D.number(bonus),nil,def end
+    local ok,value,raw=pcall(function()
+        return p:getStat(def.id),p:getStat(def.id,nil,nil,true)
+    end)
+    if not ok or not D.finite(value) or not D.finite(raw) then
+        return D.number(base),D.number(bonus),nil,def
+    end
+    return base,bonus,value,def,raw
 end
 local function maxPoints(p,t)
     if not integer(t.points) or t.points<1 or not integer(p.level) then return nil end
@@ -155,25 +181,25 @@ local function visibleTalent(p,t)
 end
 local function requirementAudit(t,spec)
     local req=t.require
-    local kind,tier=spec.requirement,spec.tier
-    -- These exact declaration lines identify the reviewed arithmetic formulas.
-    -- A changed/moved native requirement is deliberately unknown until reviewed.
-    if kind=='str' then return sourceLine(req,TECH,99+(tier-1)*4)
-    elseif kind=='str_high' then return sourceLine(req,TECH,119+(tier-1)*4)
-    elseif kind=='strdex' then return sourceLine(req,TECH,184+(tier-1)*4)
+    local kind=spec.requirement
+    -- Structural shape checks against the reviewed declaration families only.
+    -- v1.6 (D11 superseded): the reviewed arithmetic is NOT re-verified by
+    -- source identity at runtime — a replaced-but-callable requirement function
+    -- is used, the native LevelupDialog judges the real requirements, and the
+    -- computed hints below stay advisory (native recheck governs execution).
+    -- Only a missing/mis-shaped/non-callable declaration fails typed.
+    if kind=='str' or kind=='str_high' or kind=='strdex' then return callable(req)
     elseif kind=='con' or kind=='cun' then
-        local source=kind=='con' and TECH or CUN
-        local first=kind=='con' and 207 or 47
-        return onlyKeys(req,{stat=true,level=true}) and onlyKeys(req.stat,{[kind]=true})
-            and sourceLine(req.stat[kind],source,first+(tier-1)*4)
-            and sourceLine(req.level,source,first+1+(tier-1)*4)
+        return type(req)=='table' and onlyKeys(req,{stat=true,level=true})
+            and onlyKeys(req.stat,{[kind]=true})
+            and callable(req.stat[kind]) and callable(req.level)
     elseif kind=='training' then
         local plan=training[t.id]
         if not plan or not onlyKeys(req,{stat=true,level=true}) then return false end
-        if plan.level then return req.stat==nil and sourceLine(req.level,spec.file,plan.line) end
+        if plan.level then return req.stat==nil and callable(req.level) end
         local keys={[plan.stat]=true};if plan.second_stat then keys[plan.second_stat]=true end
-        return req.level==nil and onlyKeys(req.stat,keys) and sourceLine(req.stat[plan.stat],spec.file,plan.line)
-            and (not plan.second_stat or sourceLine(req.stat[plan.second_stat],spec.file,plan.line))
+        return req.level==nil and onlyKeys(req.stat,keys) and callable(req.stat[plan.stat])
+            and (not plan.second_stat or callable(req.stat[plan.second_stat]))
     end
     return false
 end
@@ -183,13 +209,9 @@ local function auditTalent(p,t)
     if type(t.type)~='table' or t.type[1]~=spec.category or t.type[2]~=(spec.requirement=='training' and 1 or spec.tier)
         or t.points~=5 or t.generic~=nil and type(t.generic)~='boolean' or (t.generic==true)~=spec.generic or t.is_class_evolution or t.is_race_evolution
         or not requirementAudit(t,spec) then return nil,'progression_talent_modified' end
-    -- Core getters/callbacks on these reviewed talent definitions all originate
-    -- in their source file. Generated _helpers and info wrappers are never run
-    -- by this adapter's queries and are not evidence for their learning path.
-    for key,value in pairs(t) do
-        if type(key)=='string' and key:sub(1,1)~='_' and key~='info' and key~='require'
-            and type(value)=='function' and not D.native(value,spec.file) then return nil,'progression_talent_modified' end
-    end
+    -- v1.6 (D11 superseded): the definition's function fields are live
+    -- entrypoints, not identity-gated. A replaced-but-callable function is
+    -- used (the native dialog settles the action); no source audit here.
     return spec
 end
 local function auditCategory(p,c)
@@ -202,6 +224,9 @@ local function auditCategory(p,c)
     end
     return spec
 end
+-- v1.6: structural availability only. Each listed player method must exist and
+-- be callable; the source column is advisory provenance documentation, never a
+-- gate (a replaced-but-callable method is used).
 local player_methods={
     attr='/engine/Entity.lua',clone='/engine/class.lua',getStat=STAT,getStr=STAT,getDex=STAT,isStatMax=STAT,incStat=STAT,
     onStatChange=ACTOR,udpateSustains=ACTOR,capLastLearntTalents=ACTOR,lastLearntTalentsMax=ACTOR,
@@ -215,9 +240,9 @@ local function playerAudit(p)
     if type(p.energy)~='table' or not D.finite(p.energy.value) then return nil,'progression_energy_unavailable' end
     if active(p.no_levelup_access) then return nil,'levelup_access_blocked' end
     if active(p.is_dialog_talent_leveling) or active(p.no_last_learnt_talents_cap) then return nil,'progression_player_busy' end
-    if p.cloned~=nil and not D.native(p.cloned,'/engine/Entity.lua') then return nil,'progression_native_modified' end
-    for method,source in pairs(player_methods) do
-        if not D.native(p[method],source) then return nil,'progression_native_modified' end
+    if p.cloned~=nil and type(p.cloned)~='function' then return nil,'progression_native_modified' end
+    for method in pairs(player_methods) do
+        if type(p[method])~='function' then return nil,'progression_native_modified' end
     end
     return true
 end
@@ -419,11 +444,38 @@ function M.describe(g,p)
     end
     return result
 end
+-- NEW-03: settlement-time postcondition. `checkPostcondition` re-reads the
+-- LIVE player state with the same total, type-safe reads used during execute
+-- and compares them against the descriptor recorded when the mutation was
+-- accepted. It returns nil when the drained final state still matches, a
+-- mismatch reason ('points'/'target'/'invalid_postcondition') otherwise, and
+-- never raises: missing/wrong-typed values are mismatches, not errors. No
+-- identity/digest/source gate is involved — the reads are live entrypoints.
+local function postconditionTarget(p,operation,target)
+    if operation=='spend_stat' then
+        return type(p.stats)=='table' and p.stats[target] or nil
+    elseif operation=='learn_talent' or operation=='unlearn_talent' then
+        return rawLevel(p,target)
+    elseif operation=='learn_category' then
+        return categoryTargetValue(p,target)
+    end
+end
+function M.checkPostcondition(p,spec)
+    if type(p)~='table' or type(spec)~='table' then return 'invalid_postcondition' end
+    local points=p[spec.pool]
+    if not integer(points) or points~=spec.expected_points then return 'points' end
+    local value=postconditionTarget(p,spec.operation,spec.target)
+    if not D.finite(value) or not D.finite(spec.expected_value)
+        or math.abs(value-spec.expected_value)>0.000001 then return 'target' end
+end
+
 local dialog_methods={'incStat','learnTalent','learnType','getMaxTPoints','checkDeps','finish','unload'}
 local function dialogAudit(dialog)
     if type(dialog)~='table' then return false end
-    for _,method in ipairs(dialog_methods) do if not D.native(dialog[method],LEVELUP) then return false end end
-    return D.native(dialog.triggerHook,'/engine/class.lua')
+    -- v1.6: structural presence/callable checks only; source identity of the
+    -- dialog methods is advisory, never an availability decision.
+    for _,method in ipairs(dialog_methods) do if type(dialog[method])~='function' then return false end end
+    return type(dialog.triggerHook)=='function'
 end
 local function busy(g,p)
     return p.dead or g.dialogs and #g.dialogs>0 or g.target_co or g.target and g.target.active
@@ -440,6 +492,14 @@ local function executeUnlearn(g,p,a)
     if not loaded or not dialogAudit(dialog) then return {ok=false,code='levelup_dialog_unavailable',energy_spent=0} end
     local host,native_message,entered=false,nil,false
     local function message(_,title,text) native_message=D.text(text or title,512) end
+    -- NEW-01: the refund postcondition (`before_points+1`, raw level exactly one
+    -- lower) is re-read after finish and after unload, because the live
+    -- on_levelup_close/on_levelup_changed callbacks and the cleanup can undo it.
+    local function postconditionMismatch()
+        if p[pools[pool]]~=before_points+1 then return 'points' end
+        local value=rawLevel(p,a.talent_id)
+        if not D.finite(value) or value~=before_value-1 then return 'target' end
+    end
     local ok,outcome=pcall(function()
         entered=true
         p.is_dialog_talent_leveling=true;p.no_last_learnt_talents_cap=true
@@ -460,8 +520,13 @@ local function executeUnlearn(g,p,a)
                 missing=staticMissing(p,p.talents_def and p.talents_def[a.talent_id])}
         end
         if not dialog.finish(host) then return {ok=false,code='native_progression_finish_failed',uncertain=true} end
+        if postconditionMismatch() then return {ok=false,code='native_progression_mismatch',uncertain=true} end
+        -- NEW-03: the refund was accepted; the command carries the expected
+        -- postcondition for the settlement-time re-validation.
         return {ok=true,code='progression_applied',points_returned=1,point_pool=pool,
-            previous_value=before_value,new_value=after_value}
+            previous_value=before_value,new_value=after_value,
+            postcondition={pool=pools[pool],expected_points=before_points+1,operation='unlearn_talent',
+                target=a.talent_id,expected_value=before_value-1}}
     end)
     local cleanup_ok,cleanup_error=true,nil
     if entered then
@@ -471,6 +536,18 @@ local function executeUnlearn(g,p,a)
     if not ok or not cleanup_ok then
         outcome={ok=false,code='progression_execution_error',uncertain=entered or nil,
             error=D.text(tostring(not ok and outcome or cleanup_error),512)}
+    elseif outcome.ok then
+        -- NEW-04: the after-unload recheck cannot escape; an erroring final
+        -- read is a typed uncertain progression failure, never ok=true.
+        local checked,mismatch=pcall(postconditionMismatch)
+        if not checked then
+            outcome={ok=false,code='progression_execution_error',uncertain=true,
+                error=D.text(tostring(mismatch),512)}
+        elseif mismatch then
+            -- unload (the native capLastLearntTalents) and any replaced-but-callable
+            -- cleanup ran after finish; the final refund must still hold.
+            outcome={ok=false,code='native_progression_mismatch',uncertain=true}
+        end
     end
     outcome.native_message=outcome.error or native_message
     local after_energy=type(p.energy)=='table' and D.number(p.energy.value)
@@ -555,6 +632,37 @@ function M.execute(g,action)
     local before_energy=p.energy.value
     local host,native_message,mutated,entered=false,nil,false,false
     local function message(_,title,text) native_message=D.text(text or title,512) end
+    -- NEW-01: compute the expected post-state once, then re-read it after every
+    -- live native call that can still mutate the player (the dialog method, the
+    -- finish callbacks and the unload cleanup). `targetValue` is the same raw
+    -- read used for the pre-finish check, so both agree on what "changed" means.
+    local function targetValue()
+        if a.type=='spend_stat' then return field(p,'stats',target)
+        elseif a.type=='learn_talent' then return rawLevel(p,a.talent_id)
+        else return categoryTargetValue(p,a.category_id) end
+    end
+    -- NEW-04: every arithmetic step validates its operand first. A wrong-typed
+    -- mastery read before the mutation is a clean typed refusal (nothing has
+    -- been spent yet), not a crash.
+    local expected
+    if a.type=='learn_category' then
+        if before_value==false then
+            local base_mastery=field(p,'talents_types_mastery',a.category_id)
+            if base_mastery~=nil and not D.finite(base_mastery) then
+                return {ok=false,code='progression_state_unknown',energy_spent=0}
+            end
+            expected=1+(base_mastery or 0)
+        else
+            expected=before_value+0.2
+        end
+    else
+        expected=before_value+1
+    end
+    local function postconditionMismatch()
+        if p[pool]~=before_points-1 then return 'points' end
+        local value=targetValue()
+        if not D.finite(value) or math.abs(value-expected)>0.000001 then return 'target' end
+    end
     local ok,outcome=pcall(function()
         entered=true
         -- Same bookkeeping as LevelupDialog:init, without UI generation. The
@@ -572,21 +680,26 @@ function M.execute(g,action)
         if a.type=='spend_stat' then dialog.incStat(host,target,1)
         elseif a.type=='learn_talent' then dialog.learnTalent(host,a.talent_id,true)
         else dialog.learnType(host,a.category_id,true) end
-        local after_value
-        if a.type=='spend_stat' then after_value=field(p,'stats',target)
-        elseif a.type=='learn_talent' then after_value=rawLevel(p,a.talent_id)
-        else after_value=known(p,a.category_id) and ((field(p,'talents_types_mastery',a.category_id) or 0)+1) or false end
+        local after_value=targetValue()
         mutated=p[pool]~=before_points or after_value~=before_value
         if p[pool]~=before_points-1 then return {ok=false,code='native_progression_rejected',uncertain=mutated or nil,
             missing=staticMissing(p,a.talent_id and p.talents_def and p.talents_def[a.talent_id])} end
-        local expected=a.type=='learn_category' and (before_value==false and 1+(field(backup,'talents_types_mastery',a.category_id) or 0) or before_value+0.2)
-            or before_value+1
         if not D.finite(after_value) or math.abs(after_value-expected)>0.000001 then
             return {ok=false,code='native_progression_mismatch',uncertain=true}
         end
         if not dialog.finish(host) then return {ok=false,code='native_progression_finish_failed',uncertain=true} end
+        -- finish runs the live on_levelup_close/on_levelup_changed callbacks;
+        -- a replaced-but-callable one can undo the spend here.
+        if postconditionMismatch() then return {ok=false,code='native_progression_mismatch',uncertain=true} end
+        -- NEW-03: the mutation was accepted, so the command carries the expected
+        -- postcondition. Runtime re-validates it at settlement time, after the
+        -- native tick-end queue (the real `game:onTickEnd` undo pattern used by
+        -- official talents too) has drained, before any success is published.
         return {ok=true,code='progression_applied',points_spent=1,point_pool=description.point_cost.pool,
-            previous_value=before_value,new_value=after_value}
+            previous_value=before_value,new_value=after_value,
+            postcondition={pool=pool,expected_points=before_points-1,operation=a.type,
+                target=a.type=='spend_stat' and target or (a.talent_id or a.category_id),
+                expected_value=expected}}
     end)
     local cleanup_ok,cleanup_error=true,nil
     if entered then
@@ -598,6 +711,20 @@ function M.execute(g,action)
     if not ok or not cleanup_ok then
         outcome={ok=false,code='progression_execution_error',uncertain=entered or nil,
             error=D.text(tostring(not ok and outcome or cleanup_error),512)}
+    elseif outcome.ok then
+        -- NEW-04: the after-unload recheck itself must never escape; unload and
+        -- any replaced-but-callable cleanup may leave a wrong-typed state whose
+        -- read errors. Any failure here is a typed uncertain progression
+        -- failure, never an uncaught error and never ok=true.
+        local checked,mismatch=pcall(postconditionMismatch)
+        if not checked then
+            outcome={ok=false,code='progression_execution_error',uncertain=true,
+                error=D.text(tostring(mismatch),512)}
+        elseif mismatch then
+            -- unload (the native capLastLearntTalents) and any replaced-but-callable
+            -- cleanup ran after finish; the final spend/learn must still match.
+            outcome={ok=false,code='native_progression_mismatch',uncertain=true}
+        end
     end
     outcome.native_message=outcome.error or native_message
     local after_energy=type(p.energy)=='table' and D.number(p.energy.value)

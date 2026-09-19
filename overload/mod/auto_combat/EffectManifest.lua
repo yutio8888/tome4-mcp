@@ -417,14 +417,28 @@ M.UNSUPPORTED={
     -- S2-R3-01 rev5: the officially-decided multi-prompt unsupported set. Each
     -- entry carries its own typed reason (never a strategy judgement); the
     -- survey of every official 1.7.6 multi-prompt talent backs the disposition.
-    {talent='T_MERGE',scope='any',missing='signature_not_distinguishable',
-        reason='two hit prompts separated only by first_target/start_x/source_actor (cursed/advanced-shadowmancy.lua:43-46); start_x/source_actor are outside the curated allowlist and first_target is raised nondeterministically elsewhere'},
-    {talent='T_STONE',scope='any',missing='signature_not_distinguishable',
-        reason='two hit prompts separated only by first_target/start_x/source_actor (cursed/advanced-shadowmancy.lua:80-83); start_x/source_actor are outside the curated allowlist and first_target is raised nondeterministically elsewhere'},
-    {talent='T_CURSED_BOLT',scope='any',missing='dynamic_prompt_count',
-        reason='a getTarget inside a per-shadow loop (cursed/advanced-shadowmancy.lua:245); the prompt count is runtime-dynamic, so no fixed ordered program can be curated'},
-    {talent='T_WORMHOLE',scope='any',missing='cross_prompt_postcondition',
-        reason='the entrance prompt is a simple_dir_request direction step and the entrance/exit pair is coupled by native trap-placement and distance>=2 postconditions the per-request guard cannot verify (chronomancy/spacetime-weaving.lua:145,153)'},
+    -- Loop 38 audit (unsupported-audit.md §2.3): the disposition stands — these
+    -- are multi-actor effects — but the old `signature_not_distinguishable`
+    -- reason was factually wrong: the second spec differs by the ALLOWLISTED
+    -- `pass_terrain=true` in both talents (advanced-shadowmancy.lua:45/:82) plus
+    -- `friendlyblock=false` for Stone (:82), so the signature axis is not the
+    -- blocker and must not be "fixed" by extending the allowlist.
+    {talent='T_MERGE',scope='any',missing='moving_or_swapping_another_actor',
+        reason='the effect targets another actor: the first prompt is the caster\'s own doomed shadow and Merge kills it (cursed/advanced-shadowmancy.lua:51 target.die(target)) before acting on the second actor (:52); multi-actor semantics are a typed capability gap — the prompts differ by the allowlisted pass_terrain flag, so the signature is not the blocker'},
+    {talent='T_STONE',scope='any',missing='moving_or_swapping_another_actor',
+        reason='the effect moves another actor: Stone relocates the doomed shadow to the requested grid (cursed/advanced-shadowmancy.lua:88 target:move(sx,sy,true)) and attacks through it (:100 target:project(...)); multi-actor semantics are a typed capability gap — the second spec differs by the allowlisted pass_terrain=true and friendlyblock=false flags, so the signature is not the blocker'},
+    -- Loop 38 audit (unsupported-audit.md §2.4): the prompt count is NOT the
+    -- blocker — it is player-known and capped at 4 (cursed/shadows.lua:350-352).
+    -- The real blocker is the per-iteration random subject.
+    {talent='T_CURSED_BOLT',scope='any',missing='nondeterministic_prompt_subject',
+        reason='each loop iteration picks a random shadow as the bolt origin (cursed/advanced-shadowmancy.lua:242 rng.table(shadows)) and the entry is order-sensitive: the first failure aborts (:255-258) and the first success consumes the crit roll (:248-251); the prompt count itself is bounded and player-known, so it is not the blocker'},
+    -- Loop 38 audit (unsupported-audit.md §2.5): the two prompts ARE
+    -- distinguishable by cursor_type (:144 bolt vs :152 hit) and the distance>=2
+    -- relation is expressible pre-commit over the two planned grids; the real
+    -- blocker is that activation moves nobody and creates a pair of
+    -- later-triggered traps with a third-party trigger.
+    {talent='T_WORMHOLE',scope='any',missing='effect_is_a_later_triggered_trap_pair',
+        reason='activation moves nobody: the talent creates a pair of traps (chronomancy/spacetime-weaving.lua:164-207, added at :209-224) whose third-party trigger teleports whoever steps on either trap later (:179-194 teleportRandom at :183), so the landing/mover model does not describe it; the two prompts are distinguishable by cursor_type (:144 vs :152) and distance>=2 is checkable pre-commit, so neither is the blocker'},
     {talent='T_EARTHEN_MISSILES',scope='any',missing='same_shape_equivalent',
         reason='three same-shape bolt prompts whose order is semantically irrelevant (spells/stone.lua:39-54); the third is level-dependent, so the program is not a fixed order'},
     {talent='T_DWARVEN_HALF_EARTHEN_MISSILES',scope='any',missing='same_shape_equivalent',
