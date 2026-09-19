@@ -110,4 +110,25 @@ do
     check(cause=='non_integer_key' and key==-1,
         'numeric offenders are ordered ascending')
 end
+-- R2-APR5-01: the dense-fault diagnostic names the checklist-A shape and the
+-- offending key for every non-dense caller array.
+do
+    check(Json.denseFault({1,2,3})==nil,'a dense array has no density fault')
+    check(Json.denseFault({})==nil,'an empty array has no density fault')
+    check(Json.denseFault('x')==nil,'a scalar has no density fault to name')
+    local cause,key=Json.denseFault({[1]='a',[100]='b'})
+    check(cause=='key_beyond_dense_end' and key==100,
+        'a dense prefix plus one detached key is key_beyond_dense_end with that key')
+    cause,key=Json.denseFault({[1]='a',[3]='c'})
+    check(cause=='key_beyond_dense_end' and key==3,
+        'a single key after the dense prefix is key_beyond_dense_end with that key')
+    cause,key=Json.denseFault({[1]='a',[3]='c',[5]='e'})
+    check(cause=='hole' and key==2,'a multi-key gap is a hole at the first missing index')
+    cause,key=Json.denseFault({[1]='a',oops='b'})
+    check(cause=='non_integer_key' and key=='oops',
+        'a string key is non_integer_key with the offending key')
+    cause,key=Json.denseFault({[1]='a',[1.5]='b'})
+    check(cause=='non_integer_key' and key==1.5,
+        'a fractional key is non_integer_key with the offending key')
+end
 print(('json: %d checks passed'):format(checks))

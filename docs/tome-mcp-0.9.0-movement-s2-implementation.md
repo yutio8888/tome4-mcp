@@ -547,8 +547,10 @@ precheck/expansion calls.
   `#`/`ipairs`:
   - `EffectManifest.verify` (R2-APR4-01) dense-validates the top-level `rules`/
     `sustains` and each rule's `target_plan` at the boundary entry; a sparse
-    plan is the typed `invalid_target_plan` and a sparse rules list is
-    `invalid_rules`, never measured as the shorter prefix.
+    plan is the typed `target_plan_not_dense` with a diagnosable `cause`
+    (`hole|non_integer_key|key_beyond_dense_end`) and the offending `key`
+    (R2-APR4-01 rev5), a sparse rules list is `invalid_rules`, never measured
+    as the shorter prefix.
   - `PolicySchema` (R2-APR4-02) dense-validates `rules`, `sustains`,
     `cond.all`, `cond.any` and `targeting.tie_break`. The **canonical encoding
     used for the content hash** is key-driven (not `#`-driven): a sparse/mixed/
