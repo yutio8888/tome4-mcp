@@ -20,6 +20,21 @@ local M={}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 
+-- S3-A2-FIX1-05: the closed set of projection shapes this backend can expand.
+-- The engine has more native types (notably `wall`, Target.lua:620-626, and
+-- `triangle`); those are NOT modelled here, so a spec asking for them must
+-- return nil (unknown) instead of silently degrading to a single-cell hit.
+-- `Target:getType` matches by substring, so `widebeam`/`bolt` are covered by
+-- the tokens below.
+local SHAPE_TOKENS={'hit','ball','beam','bolt','cone','widebeam'}
+function M.supportsShape(shape)
+    if type(shape)~='string' then return false end
+    for _,token in ipairs(SHAPE_TOKENS) do
+        if shape:find(token,1,true) then return true end
+    end
+    return false
+end
+
 -- A grid set is `{[x]={[y]=true}}`. `M.at(hits,x,y)` is the membership test.
 function M.newSet()
     local set={}
@@ -220,6 +235,9 @@ function M.native(ctx,spec)
         for key,value in pairs(spec) do typeSpec[key]=value end
         typeSpec.type=spec.shape
     end
+    -- S3-A2-FIX1-05: fail closed on a shape this backend cannot expand (for
+    -- example a real `wall` raised spec): never a measured single-cell set.
+    if typeSpec.type~=nil and not M.supportsShape(typeSpec.type) then return nil end
     local ok,value=pcall(Target.getType,Target,typeSpec)
     if not ok or type(value)~='table' then return nil end
     typ=value

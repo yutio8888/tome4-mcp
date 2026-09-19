@@ -242,6 +242,20 @@ do
     check(sparseOk==nil and sparseCode,
         'a sparse target_plan with a hidden key-5 entry is rejected by the catalogue (R3)',
         sparseErrors and sparseErrors[1] and sparseErrors[1].code)
+    -- S3-A2-FIX1-03: the catalogue's own `rules`/`sustains` walks are
+    -- dense-and-closed BEFORE iteration; a hidden rule beyond a hole must not be
+    -- silently dropped from the compatibility check.
+    local sparseRulesPolicy=policy({id='sparse-rules',priority=1,when={always={}},['then']={action='wait'}})
+    sparseRulesPolicy.rules={[1]={id='a',priority=1,when={always={}},['then']={action='wait'}},
+        [3]={id='c',priority=1,when={always={}},['then']={action='wait'}}}
+    local srOk,srErrors=Catalog.verify(sparseRulesPolicy)
+    local srCode=false
+    for _,error in ipairs(srErrors or {}) do
+        if error.code=='rules_not_dense' then srCode=true end
+    end
+    check(srOk==nil and srCode,
+        'the catalogue rejects a sparse rules array (FIX1-03)',
+        srErrors and srErrors[1] and srErrors[1].code)
     local summary=Catalog.summary()
     check(#summary.actions>=6 and summary.adapter_version==Catalog.VERSION,
         'the capability summary lists the action adapters and the adapter version')

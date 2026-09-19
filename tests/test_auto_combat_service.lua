@@ -252,6 +252,79 @@ do
         'the settle-time deviation detail reaches the service policy log')
 end
 
+-- S3-A2-FIX1-04: EVERY externally-visible handoff advances the generation
+-- exactly once. The ordinary Option-A safety handoff (`flee_below_hp_pct`),
+-- the synchronous `unexpected_target_request` deviation and the asynchronous
+-- settled-time deviation all used to compose pause + stop for delta=2; each is
+-- now ONE transition (the same-reason stop folds into the pause).
+do
+    -- Ordinary low-HP safety handoff.
+    local flee=policy({safety={min_hp_pct=35,flee_below_hp_pct=25}})
+    local svc=Service.new({host_factory=fakeHost})
+    local d=Service.handle(svc,'set_draft',{policy=flee})
+    local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+    Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
+    Service.handle(svc,'start',{})
+    svc.controller.host.snapshot=function() return {hp_pct=10,enemy_count=1} end
+    local before=svc.controller.generation
+    local stepped=Service.step(svc)
+    check(stepped.ok and stepped.handoff==true,'the ordinary safety handoff reports a handoff')
+    check(svc.controller.generation==before+1,
+        'the ordinary safety handoff advances the generation exactly once (FIX1-04)',
+        svc.controller.generation..' vs '..before)
+    local log=Service.handle(svc,'log',{limit=16})
+    local pauses=0
+    for _,e in ipairs(log.events or {}) do if e.kind=='paused' then pauses=pauses+1 end end
+    check(pauses==1,'exactly one pause event is logged for the ordinary handoff')
+    -- Synchronous sequence deviation.
+    local svc2=Service.new({host_factory=fakeHost})
+    local d2=Service.handle(svc2,'set_draft',{policy=policy()})
+    local ap2=Service.handle(svc2,'approve',{expected_hash=d2.draft_hash})
+    Service.handle(svc2,'activate',{expected_hash=ap2.approved_hash})
+    Service.handle(svc2,'start',{})
+    svc2.controller.host.request=function()
+        return {status='native_pending',energy_spent=true,handed_back=true,
+            sequence_deviation={reason='unexpected_target_request',expected={index=1,request='actor'},
+                observed={index=1,request='grid'},skippable=false}}
+    end
+    local before2=svc2.controller.generation
+    local stepped2=Service.step(svc2)
+    check(stepped2.ok and stepped2.handoff==true,'the synchronous deviation hands off')
+    check(svc2.controller.generation==before2+1,
+        'the synchronous sequence deviation advances the generation exactly once (FIX1-04)',
+        svc2.controller.generation..' vs '..before2)
+    check(svc2.controller.state=='stopped','the synchronous deviation ends stopped')
+    -- Asynchronous settled-time deviation.
+    local svc3=Service.new({host_factory=fakeHost})
+    local d3=Service.handle(svc3,'set_draft',{policy=policy()})
+    local ap3=Service.handle(svc3,'approve',{expected_hash=d3.draft_hash})
+    Service.handle(svc3,'activate',{expected_hash=ap3.approved_hash})
+    Service.handle(svc3,'start',{})
+    local before3=svc3.controller.generation
+    Service.nativeDeviation(svc3,{reason='unexpected_target_request',handed_back=true,
+        expected={index=1,request='actor'}})
+    check(svc3.controller.generation==before3+1,
+        'the asynchronous deviation advances the generation exactly once (FIX1-04)',
+        svc3.controller.generation..' vs '..before3)
+    check(svc3.controller.state=='stopped' and svc3.arbiter.owner=='manual',
+        'the asynchronous deviation stops and revokes the lease')
+    -- A plain native_pending opportunity is not a handoff and does not compose
+    -- a second transition; its generation is unchanged (single transition only).
+    local svc4=Service.new({host_factory=fakeHost})
+    local d4=Service.handle(svc4,'set_draft',{policy=policy()})
+    local ap4=Service.handle(svc4,'approve',{expected_hash=d4.draft_hash})
+    Service.handle(svc4,'activate',{expected_hash=ap4.approved_hash})
+    Service.handle(svc4,'start',{})
+    local before4=svc4.controller.generation
+    svc4.controller.host.request=function()
+        return {status='native_pending',code='native_pending',energy_spent=true}
+    end
+    Service.step(svc4)
+    check(svc4.controller.generation==before4 and svc4.controller.state=='waiting_native',
+        'a plain native_pending does not compose an extra generation transition',
+        svc4.controller.generation..' vs '..before4)
+end
+
 -- S3 X-U4: a synchronous movement-postcondition mismatch (delivered inside the
 -- step via the controller's typed outcome) and a delayed one (a later-settling
 -- native_pending root, delivered through nativePostconditionMismatch) EACH

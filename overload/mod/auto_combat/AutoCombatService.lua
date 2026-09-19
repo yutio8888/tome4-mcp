@@ -598,9 +598,13 @@ function M.nativeDeviation(svc,deviation)
     local reason=deviation.reason or 'unexpected_target_request'
     local entry
     if svc.controller then
+        -- S3-A2-FIX1-04: exactly ONE externally-visible transition. The typed
+        -- event and the pause transition happen inside `nativeDeviated`; the
+        -- terminal stop with the SAME reason is folded into it by
+        -- `AutoCombat:stop` (same-reason paused->stopped) instead of advancing
+        -- the generation a second time.
         entry=svc.controller:nativeDeviated(deviation)
-        svc.controller:pause(reason)
-        if svc.controller.state~='stopped' then svc.controller:stop(reason) end
+        svc.controller:stop(reason)
     end
     if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,reason) end
     return entry

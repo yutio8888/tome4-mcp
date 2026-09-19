@@ -780,4 +780,101 @@ do
         'the composition evidence is unchanged by the threshold (X-U2)')
 end
 
+-- S3-A2-FIX1-01/FIX1-02 regressions: the plan/annotation/landing discriminated
+-- union is validated BEFORE any member read (a scalar annotation must not throw;
+-- a cross-kind malformed landing must be unknown, never a measured one-cell
+-- set), and the risk model honours the raised `act_exclude` BY UID plus the
+-- effective live `friendlyfire` VALUE (not only its transport).
+-- The reviewer's exact falsification lines are reproduced here through the
+-- production guard.
+do
+    local Fixtures=assert(loadfile(root..'/tests/s3_real_specs.lua'))()
+    local fixture=Fixtures.REAL_GIANT_LEAP_TG
+    local caster={uid=1,x=2,y=2,canProject=function() return true end}
+    local hostile={uid=2,x=5,y=2}
+    local friendly={uid=3,x=4,y=2}
+    local function makeGuard(spec,allies)
+        return Guard.build{
+            game={player=caster,level={map={w=10,h=10}}},source=caster,
+            policy={safety={max_selffire_risk=0}},
+            resolve=function() return hostile end,
+            allies=function() return allies or {} end,
+            known=function() return true end,
+            getDef=function(id)
+                if id=='T_GIANT_LEAP' then return {target=function() return spec end} end
+            end,
+            blockPath=function() return false end,details=Details}
+    end
+    local fullPlan={kind='grid',x=6,y=2,annotation={landing={kind='bounded',
+        center={x=6,y=2},radius=1}}}
+    -- FIX1-01(a): a SCALAR annotation must not throw; it is a typed unknown.
+    local okScalar,scalarVerdict=pcall(function()
+        return makeGuard(fixture.build(),{})({action='use_talent',talent='T_GIANT_LEAP',
+            bound_target=2,plan={kind='grid',x=6,y=2,annotation=true}})
+    end)
+    check(okScalar and scalarVerdict and scalarVerdict.action=='reject'
+        and scalarVerdict.reason=='selffire_risk' and scalarVerdict.detail
+        and scalarVerdict.detail.unknown==true
+        and scalarVerdict.detail.reason=='landing_envelope_unavailable',
+        'a scalar annotation is a typed unknown, never a throw (FIX1-01)',
+        tostring(okScalar)..' '..tostring(scalarVerdict and scalarVerdict.detail and scalarVerdict.detail.reason))
+    -- FIX1-01(b): a cross-kind malformed landing (a `sequence` plan carrying an
+    -- unknown-key landing) is unknown, never a measured one-cell set.
+    local crossKind=makeGuard(fixture.build(),{friendly})({action='use_talent',
+        talent='T_GIANT_LEAP',bound_target=2,
+        plan={kind='sequence',annotation={landing={kind='bounded',center={x=6,y=2},radius=0,garbage=true}}}})
+    check(crossKind and crossKind.action=='reject' and crossKind.reason=='selffire_risk'
+        and crossKind.detail and crossKind.detail.unknown==true
+        and crossKind.detail.reason=='landing_envelope_unavailable'
+        and crossKind.detail.candidate_count==nil,
+        'a cross-kind malformed landing is unknown, never a measured one-cell set (FIX1-01)',
+        crossKind and crossKind.detail and crossKind.detail.reason)
+    -- A landing admitted by the vocabulary but not for the plan kind is
+    -- likewise unknown (a `step` plan defines only a deterministic landing).
+    local wrongKindPlan={kind='step',direction=6,annotation={landing={kind='random',
+        center={x=6,y=2},radius=1}}}
+    local wrongKind=makeGuard(fixture.build(),{})({action='use_talent',talent='T_GIANT_LEAP',
+        bound_target=2,plan=wrongKindPlan})
+    check(wrongKind and wrongKind.action=='reject' and wrongKind.detail
+        and wrongKind.detail.reason=='landing_envelope_unavailable',
+        'a landing kind not admitted for the plan kind fails closed (FIX1-01)',
+        wrongKind and wrongKind.detail and wrongKind.detail.reason)
+    -- FIX1-02(a): the raised act_exclude is honoured BY UID; an excluded ally is
+    -- not counted, exactly as the engine skips `type.act_exclude[a.uid]`.
+    local excluded=makeGuard({type='ball',range=10,radius=1,selffire=false,
+        act_exclude={[friendly.uid]=true}},{friendly})({action='use_talent',
+        talent='T_GIANT_LEAP',bound_target=2,plan=fullPlan})
+    check(excluded and excluded.action=='permit' and excluded.detail
+        and excluded.detail.measurement==0,
+        'act_exclude by uid removes the excluded ally from the risk model (FIX1-02)',
+        excluded and tostring(excluded.detail and excluded.detail.measurement))
+    -- The same ally NOT excluded still measures the friendly risk.
+    local notExcluded=makeGuard({type='ball',range=10,radius=1,selffire=false,
+        act_exclude={[999]=true}},{friendly})({action='use_talent',
+        talent='T_GIANT_LEAP',bound_target=2,plan=fullPlan})
+    check(notExcluded and notExcluded.action=='reject'
+        and notExcluded.detail and notExcluded.detail.measurement==100,
+        'an ally not listed in act_exclude is still measured (FIX1-02)',
+        notExcluded and tostring(notExcluded.detail and notExcluded.detail.measurement))
+    -- FIX1-02(b): a malformed (non-table) act_exclude cannot reproduce the
+    -- engine's indexing; it is a typed unknown and fails closed (never permit).
+    local malformed=makeGuard({type='ball',range=10,radius=1,selffire=false,
+        act_exclude=true},{})({action='use_talent',talent='T_GIANT_LEAP',bound_target=2,
+        plan=fullPlan})
+    check(malformed and malformed.action=='reject' and malformed.reason=='selffire_risk'
+        and malformed.detail and malformed.detail.unknown==true
+        and malformed.detail.reason=='act_exclude_not_a_table',
+        'a non-table act_exclude is a typed unknown and fails closed (FIX1-02)',
+        malformed and malformed.detail and malformed.detail.reason)
+    -- FIX1-02(c): a LIVE friendlyfire=false overrides the manifest's static
+    -- harmful default; membership/risk is derived from the effective raised
+    -- value, so the same action permits (not 100).
+    local liveFF=makeGuard({type='ball',range=10,radius=1,selffire=false,friendlyfire=false},
+        {friendly})({action='use_talent',talent='T_GIANT_LEAP',bound_target=2,plan=fullPlan})
+    check(liveFF and liveFF.action=='permit' and liveFF.detail
+        and liveFF.detail.measurement==0,
+        'a live friendlyfire=false overrides the static manifest default (FIX1-02)',
+        liveFF and tostring(liveFF.detail and liveFF.detail.measurement))
+end
+
 print('Auto-combat guard: '..checks..' checks passed')

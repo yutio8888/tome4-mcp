@@ -661,9 +661,39 @@ M.ACTIONS={
 }
 function M.actionSupported(action) return action~=nil and M.ACTIONS[action]~=nil end
 
+-- S3-A2-FIX1-03: dense-and-closed count for the catalogue's own array walks.
+-- Returns the count or nil for a hole/hidden-key/non-integer-key list.
+local function densePolicyArray(t)
+    if t==nil then return 0 end
+    if type(t)~='table' then return nil end
+    local maxKey=0
+    local count=0
+    for key in pairs(t) do
+        if type(key)~='number' or key<1 or key%1~=0 then return nil end
+        if key>maxKey then maxKey=key end
+        count=count+1
+    end
+    if count~=maxKey then return nil end
+    for i=1,maxKey do if t[i]==nil then return nil end end
+    return count
+end
+
 function M.verify(policy)
     local errors={}
-    for index,rule in ipairs((policy and policy.rules) or {}) do
+    -- S3-A2-FIX1-03: the catalogue consumes `#`/`ipairs` over the caller-supplied
+    -- `rules` and `sustains` arrays. Validate them dense-and-closed BEFORE the
+    -- iteration so a hidden entry beyond a hole is never silently dropped from
+    -- the compatibility check (the schema rejects it independently).
+    local ruleCount=densePolicyArray(policy and policy.rules)
+    if (policy and policy.rules)~=nil and ruleCount==nil then
+        errors[#errors+1]={path='rules',code='rules_not_dense'}
+    end
+    local sustainCount=densePolicyArray(policy and policy.sustains)
+    if (policy and policy.sustains)~=nil and sustainCount==nil then
+        errors[#errors+1]={path='sustains',code='sustains_not_dense'}
+    end
+    for index=1,(ruleCount or 0) do
+        local rule=(policy and policy.rules)[index]
         local action=rule['then'] and rule['then'].action
         local path='rules['..index..']'
         if action~=nil and not M.ACTIONS[action] then
@@ -762,7 +792,8 @@ function M.verify(policy)
             errors[#errors+1]={path=path,code='unsupported_talent',talent=rule['then'].talent}
         end
     end
-    for index,sustain in ipairs((policy and policy.sustains) or {}) do
+    for index=1,(sustainCount or 0) do
+        local sustain=(policy and policy.sustains)[index]
         if not M.isSustain(sustain.talent) then
             errors[#errors+1]={path='sustains['..index..']',code='not_a_sustain',talent=sustain.talent}
         end

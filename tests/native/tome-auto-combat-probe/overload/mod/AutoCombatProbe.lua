@@ -76,7 +76,7 @@ M.EXPECTED={
         'mismatch_handoff'},
     ['movement-composition']={'mc_shadowstep_guard','mc_shadowstep_planned',
         'mc_giant_leap_guard','mc_giant_leap_plan_unavailable','mc_vault_planned',
-        'mc_footprint_parity_flags'},
+        'mc_footprint_parity_flags','mc_wall_expansion_unknown'},
     ['handback-answer']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt'},
     ['handback-timeout']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_unanswered_cancelled'},
     ['handback-reorder']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt','hb_same_kind_reorder'},
@@ -2655,6 +2655,78 @@ local function movementCompositionChecks()
     end
     signals[#signals+1]=parityOk and 'mc_footprint_parity_flags' or 'mc_footprint_parity_missing'
     check('movement-composition:footprint-parity',parityOk,{spec=realSpec and 'REAL_GIANT_LEAP_TG'})
+    -- S3-A2-FIX1-05: the wall target type is REAL, not infeasible. Two real
+    -- talents raise it (gifts/cold-drake.lua:127-133 Ice Wall;
+    -- chronomancy/matter.lua:172-177 Materialize Barrier) and the engine has a
+    -- native wall expansion (Target.lua:620-626 + ActorProject.lua:199-216).
+    -- EffectFootprint.native has no wall backend, so a REAL wall raised spec
+    -- must make the PRODUCTION guard fail closed to unknown — never a
+    -- measured/zero-risk result. A test-only manifest admission/mutation (like
+    -- the existing mismatch probe) forces the wall shape onto a component; the
+    -- raised spec itself is the REAL talent builder output.
+    local wallDef=p.talents_def and (p.talents_def.T_ICE_WALL or p.talents_def.T_MATERIALIZE_BARRIER)
+    local realWall
+    if wallDef and type(wallDef.target)=='function' then
+        local wallOk,wallValue=pcall(wallDef.target,p,wallDef)
+        if wallOk and type(wallValue)=='table' then realWall=wallValue end
+    end
+    check('movement-composition:wall-spec-real',
+        realWall~=nil and realWall.type=='wall' and realWall.halflength~=nil,
+        {source=wallDef and wallDef.name,wall_type=realWall and realWall.type,
+            halflength=realWall and realWall.halflength})
+    local nativeWall=nil
+    if realWall then
+        local spec={}
+        for key,value in pairs(realWall) do spec[key]=value end
+        spec.shape='wall'
+        spec.origin={x=p.x,y=p.y}
+        spec.target={x=p.x+3,y=p.y}
+        nativeWall=EffectFootprint.native({game=game,source=p},spec)
+    end
+    check('movement-composition:wall-native-unsupported',realWall~=nil and nativeWall==nil,
+        {native=type(nativeWall)})
+    -- Production guard: a wall-shaped projected component must propagate the
+    -- native expansion failure to a typed unknown (never permit/zero-risk).
+    local wallName='T_MCP_WALL_PROBE'
+    local savedWallEntry=EffectManifest.ENTRIES[wallName]
+    local savedWallSchema=Schema.TALENTS[wallName]
+    local savedWallDef=p.talents_def and p.talents_def[wallName]
+    local leapSource=EffectManifest.ENTRIES.T_GIANT_LEAP
+    local wallEntry={}
+    for key,value in pairs(leapSource) do wallEntry[key]=value end
+    wallEntry.components={{id='wall_probe',phase='secondary',delivery='project',
+        shape='wall',center='target',radius=1,selffire=0,friendlyfire=100,
+        provenance={selffire='explicit',friendlyfire='target_default'}}}
+    EffectManifest.ENTRIES[wallName]=wallEntry
+    Schema.TALENTS[wallName]=true
+    if p.talents_def and realWall then
+        p.talents_def[wallName]={id=wallName,name='MCP wall probe',
+            target=function() return realWall end}
+    end
+    local wallGuardOk=false
+    local wallDetail=nil
+    if realWall then
+        local wallHost=Runtime.buildAutoCombatHostFor(game,policy({WAIT}),
+            {drift=function() return true end})
+        local wallPlan={kind='grid',x=p.x+3,y=p.y,
+            annotation={landing={kind='bounded',center={x=p.x+3,y=p.y},radius=1}}}
+        local wallVerdict=wallHost.guard({action='use_talent',talent=wallName,
+            bound_target=bound,plan=wallPlan})
+        wallDetail=wallVerdict and wallVerdict.detail or nil
+        wallGuardOk=wallVerdict~=nil and wallVerdict.action=='reject'
+            and wallVerdict.reason=='selffire_risk' and wallDetail
+            and wallDetail.unknown==true and wallDetail.reason=='native_failed'
+            and (wallDetail.measurement==nil)
+    end
+    signals[#signals+1]=wallGuardOk and 'mc_wall_expansion_unknown'
+        or 'mc_wall_expansion_not_failed_closed'
+    check('movement-composition:wall-expansion-unknown',wallGuardOk,
+        {action=wallDetail and wallDetail.reason,reason=wallDetail and wallDetail.reason,
+            unknown=wallDetail and wallDetail.unknown,measurement=wallDetail and wallDetail.measurement})
+    -- Restore the test-only manifest/schema/talent mutations.
+    EffectManifest.ENTRIES[wallName]=savedWallEntry
+    if savedWallSchema==nil then Schema.TALENTS[wallName]=nil else Schema.TALENTS[wallName]=savedWallSchema end
+    if p.talents_def then p.talents_def[wallName]=savedWallDef end
     p.damage_log=saved_damage_log
     return compare('movement-composition',signals)
 end
