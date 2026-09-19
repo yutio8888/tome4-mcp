@@ -413,8 +413,9 @@ from signature equality, and it is validated mechanically at BOTH boundaries:
 
 - `MovementAdapterFactory.normalizeRequestSequence` requires, per group: ≥2
   members, one `request` kind, EXACTLY EQUAL normalised signature records
-  (`M.signatureEquals`), and — on a stationary program — `request='grid'` +
-  `value_source='target_plan'` with contiguous members. Any violation is
+  (`M.signatureEquals`), and CONTIGUOUS members (`group_not_contiguous`
+  otherwise); on a stationary program it additionally requires
+  `request='grid'` + `value_source='target_plan'`. Any violation is
   `movement_adapter_invalid` (`bad_group_key` / `group_too_small` /
   `group_kind_mismatch` / `group_signature_mismatch` /
   `group_stationary_not_grid` / `group_stationary_value_source` /
@@ -423,16 +424,21 @@ from signature equality, and it is validated mechanically at BOTH boundaries:
   carrier (`Factory.groupMembership` with `{carrier=true}`), so a hand-authored
   carrier cannot forge or weaken factory-validated membership — it is
   `invalid_sequence`. R2-APR-03 (rev): the carrier re-validation uses the
-  factory's SHARED machinery with the same options where expressible: the
-  observed signature is normalized by the factory's canonical `normalizeObserved`
-  (identical grammar and bounds — a 65-byte `first_target` the factory refuses is
-  refused on the carrier too), and group membership enforces every
-  carrier-expressible invariant including CONTIGUITY (an interleaved group the
-  factory rejects as `group_not_contiguous` is refused on the carrier too). The
-  stationary `grid`/`value_source` closure itself is a build-time template
-  property (the carrier's entries carry no `value_source`); stationary routing
-  is gated by the template-derived marker (R2-APR-02), so the enum is never a
-  caller-authorable routing input.
+  factory's SHARED machinery: the observed signature is normalized by the
+  factory's canonical `normalizeObserved` (identical grammar and bounds — a
+  65-byte `first_target` the factory refuses is refused on the carrier too), and
+  group membership enforces every carrier-expressible invariant including
+  CONTIGUITY. R2-APR2-02 (rev): contiguity is now enforced **unconditionally at
+  both boundaries** — the previously generic-only `stationary or carrier`
+  contiguity gate was widened, so an interleaved group is refused at BUILD time
+  as `group_not_contiguous` (and on the carrier, unchanged). The two boundaries
+  therefore accept **exactly the same language**; the semantic chosen is
+  *forbid interleaving*, because the carrier is a re-validation of the
+  factory's published language and must never ACCEPT a membership the factory
+  would refuse. The stationary `grid`/`value_source` closure itself is a
+  build-time template property (the carrier's entries carry no `value_source`);
+  stationary routing is gated by the template-derived marker (R2-APR-02), so the
+  enum is never a caller-authorable routing input.
 - An entry declaring a group is exempt from the build-time subsumption rejection
   **for its own group members only**; every ungrouped pair keeps today's
   behaviour exactly (including the presence-distinguishable `{cursor_type='hit'}`
@@ -472,18 +478,38 @@ malformed value is rejected, never filtered. The program is lowered by the
 **existing** sequence planner into the same `{kind='sequence'}` plan — no second
 queue — and the guard marker `stationary` is a **validated consequence of the
 resolved template**, never an independently authorable manifest boolean.
+R2-APR2-01 (rev): the guard REQUIRES the planner-attached resolved
+`plan.request_sequence` and DENSE-validates it over ALL keys before using its
+length (a sparse `{1,3}` sequence reports `#declared==1` and could otherwise
+pair with one dense grid to bypass the declared program). The length is then
+cross-checked against the dense `plan.values` and compared entry-by-entry on
+kind. An absent, sparse or length-mismatching sequence is a typed
+`movement_plan_unavailable` (`plan_sequence_missing` / `bad_plan_shape` /
+`plan_sequence_length_mismatch` / `plan_sequence_kind_mismatch`) with **zero**
+precheck/expansion calls.
 
 ### 8.4 Guard: Dwarven projection fidelity and footprint closure (§6.4/§6.5)
 
 - These talents have LOCAL `tg` tables, not a callable `t.target` builder, so
   "the real shape" is a curated copy of those local flags
   (`AutoCombatGuard.STATIONARY_SPECS`). The `canProject` precheck and the native
-  footprint input carry the **actual static flags** (`friendlyblock`,
-  `friendlyfire`, `nolock`, `pass_terrain`, `nowarning`); the engine uses
+  footprint input carry the **actual static flags**; the engine uses
   `friendlyblock` to let a friendly actor NOT block the projection
   (`engines/default/engine/Target.lua:527-535,588-607,657-664`), so a probe
   rebuilt from `{type,range,talent}` alone can manufacture a false
   `no_line_of_sight`. `friendlyfire=false` also reaches risk/effect modelling.
+  R2-APR2-03 (rev): the forwarded allowlist is now the **complete** set of
+  engine-consulted STATIC projection fields — `selffire`, `friendlyfire`,
+  `friendlyblock`, `stop_block`, `actorblock`, `nolock`, `pass_terrain`,
+  `nowarning`, `no_restrict`, `requires_knowledge`, `force_max_range`,
+  `min_range`, `grid_exclude`, `filter`, and a raised `block_path`/`block_radius`
+  callback (or an explicit `false`, which the engine honours and which disables
+  the default blocker). A value is forwarded whenever it is present (`~=nil`, so
+  `false` is admitted). NOT forwarded, and not needed: the per-projection
+  instance fields the caller sets (`source_actor`, `start_x`/`start_y`,
+  `x`/`y`, `line_function`, `bypass`, `multiple`, `act_exclude`) and the
+  shape/radius geometry the guard derives from the manifest component
+  (`Target.getType` supplies those itself).
 - **Every** applicable component × planned-grid footprint must expand; an
   unreadable one propagates `unknown` and the guard fails closed
   (`footprint_unavailable`, `unknown=true`). A partially-readable union is never

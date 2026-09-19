@@ -1156,13 +1156,19 @@ do
     check(ok64 and ok64.sequence[1].observed.first_target==string.rep('a',64),
         'a 64-byte first_target stays admitted on the carrier (factory-identical bounds)')
     -- (b) An interleaved group — members at 1 and 3 around an ungrouped entry —
-    -- is the factory's `group_not_contiguous`; the carrier must refuse it too
-    -- (the reviewer's CARRIER_INTERLEAVED reproduction).
+    -- is `group_not_contiguous` at BOTH boundaries (R2-APR2-02); the carrier
+    -- must refuse it too (the reviewer's CARRIER_INTERLEAVED reproduction). The
+    -- build-time half of the same shape is covered in
+    -- `test_auto_combat_movement_factory.lua`.
     check(not Actions.validate({type='use_talent',talent_id='T_A',
         sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='g1'},
             {kind='grid',x=6,y=3,observed=BOLT_SIG},
             {kind='grid',x=7,y=3,observed=BOLT_SIG,group='g1'}}}),
-        'an interleaved group the factory rejects is invalid_sequence on the carrier (R2-APR-03)')
+        'an interleaved group is invalid_sequence on the carrier (R2-APR2-02, both boundaries)')
+    -- The reviewer's GENERIC_INTERLEAVED_FACTORY reproduction: the factory now
+    -- REFUSES the same interleaved generic group at build time, so the two
+    -- boundaries accept the same language. (The build-time assertion lives in
+    -- the factory suite; this is the carrier-side half of the pair.)
     local valid=Actions.validate({type='use_talent',talent_id='T_A',
         sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='g1'},
             {kind='grid',x=6,y=3,observed=BOLT_SIG,group='g1'}}})

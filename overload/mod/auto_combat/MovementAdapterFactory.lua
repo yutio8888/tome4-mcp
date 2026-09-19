@@ -257,20 +257,25 @@ end
 --     silently behaving as ungrouped);
 --   * every member declares the same `request` kind;
 --   * the members' signatures compare EXACTLY EQUAL (`M.signatureEquals`);
---   * on a `stationary_sequence` program every member is `request='grid'` with
---     `value_source='target_plan'` and the members are CONTIGUOUS (the runtime
---     gate requires the expected arrival index inside the matched set, so an
---     interleaved group could never be answered in order).
+--   * the members are CONTIGUOUS (`group_not_contiguous` otherwise);
+--   * on a `stationary_sequence` program every member is additionally
+--     `request='grid'` with `value_source='target_plan'`.
 -- Returns a fresh list `{{key=,indexes={...}}, ...}` or a typed error.
--- R2-APR-03: `options.carrier==true` selects the RUNTIME-CARRIER mode (the
--- internal `action.sequence` carrier has no `value_source` field, so the
--- stationary value-source proof stays a build-time template property). The
--- carrier still enforces every expressible membership invariant, including
--- CONTIGUITY, so an interleaved declaration the factory rejects cannot be
--- accepted on the carrier either.
+-- R2-APR2-02 (semantics chosen: FORBID INTERLEAVING AT BUILD TIME): contiguity
+-- is enforced on EVERY group at BOTH boundaries — the closed factory language
+-- and the runtime carrier. The carrier is a re-validation of the factory's
+-- published language, so it must never ACCEPT a membership the factory would
+-- REFUSE (an accepting carrier is the asymmetry class R2-APR-03 closed). No
+-- admitted/curated group is interleaved, so this costs nothing today; a future
+-- need is admitted by relaxing both boundaries together under review.
+-- R2-APR-03/R2-APR2-02: the `options.carrier` flag (passed by
+-- `Actions.normalizeSequence`) no longer alters any rule: contiguity is now
+-- unconditional, and the only other carrier-mode difference (the stationary
+-- `value_source` proof) was always selected by `options.stationary`, never by
+-- `options.carrier`. The carrier therefore accepts EXACTLY the factory's
+-- language, and the flag is accepted for call-site compatibility.
 local function validateGroups(sequence,options)
     options=options or {}
-    local carrier=options.carrier==true
     local stationary=options.stationary==true
     local members={}
     local order={}
@@ -303,25 +308,21 @@ local function validateGroups(sequence,options)
                 return nil,{detail='group_signature_mismatch',group=key,indexes=list}
             end
         end
-        if stationary or carrier then
+        -- R2-APR2-02: contiguity is UNCONDITIONAL, so the build-time language
+        -- and the runtime carrier accept exactly the same group shapes.
+        for step=2,#list do
+            if list[step]~=list[step-1]+1 then
+                return nil,{detail='group_not_contiguous',group=key,indexes=list}
+            end
+        end
+        if stationary then
             for _,index in ipairs(list) do
                 local entry=sequence[index]
-                if stationary then
-                    if entry.request~='grid' then
-                        return nil,{detail='group_stationary_not_grid',group=key,index=index}
-                    end
-                    if entry.value_source~='target_plan' then
-                        return nil,{detail='group_stationary_value_source',group=key,index=index}
-                    end
+                if entry.request~='grid' then
+                    return nil,{detail='group_stationary_not_grid',group=key,index=index}
                 end
-            end
-            -- Contiguity is enforced on BOTH boundaries: build time (the
-            -- stationary gate answers the expected arrival index inside the
-            -- matched set, so an interleaved group could never be answered in
-            -- order) and the runtime carrier (R2-APR-03).
-            for step=2,#list do
-                if list[step]~=list[step-1]+1 then
-                    return nil,{detail='group_not_contiguous',group=key,indexes=list}
+                if entry.value_source~='target_plan' then
+                    return nil,{detail='group_stationary_value_source',group=key,index=index}
                 end
             end
         end
@@ -341,10 +342,10 @@ M.normalizeObserved=normalizeObserved
 -- Public helper for the RUNTIME CARRIER boundary (A′ §6.3): the executor
 -- re-validates the same invariants on the internal carrier, so a hand-authored
 -- malformed carrier cannot weaken the gate. Returns `index -> group_key`.
--- R2-APR-03: pass `{carrier=true}` — the carrier has no `value_source` field,
--- but every expressible membership invariant (>=2 members, one request kind,
--- exactly-equal signatures, CONTIGUITY) is enforced, matching the factory for
--- the grouped programs that exist.
+-- R2-APR-03/R2-APR2-02: pass `{carrier=true}` — the carrier has no
+-- `value_source` field, but every membership invariant (>=2 members, one
+-- request kind, exactly-equal signatures, CONTIGUITY) is enforced identically
+-- to the factory, so the two boundaries accept the same language.
 function M.groupMembership(sequence,options)
     local groups,err=validateGroups(sequence,options)
     if not groups then return nil,err end

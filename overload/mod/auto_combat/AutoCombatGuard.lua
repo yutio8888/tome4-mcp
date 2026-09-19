@@ -74,6 +74,46 @@ local function resolveRadius(value,typ)
     return value
 end
 
+-- R2-APR2-03: the EXACT set of engine-consulted STATIC projection fields the
+-- guard forwards from the REAL raised spec. `ActorProject:project` (and the
+-- `Target:getType`/`Target.block_path`/`Target.block_radius` helpers it calls)
+-- consults all of these when building the grid set, so dropping any of them can
+-- silently change the measured footprint:
+--   * `selffire`/`friendlyfire` filter the affected actors
+--     (ActorProject.lua:248-255,493-494); `selffire`/`friendlyfire` and
+--     `player_selffire` are also mirrored into risk modelling;
+--   * `stop_block`/`actorblock`/`friendlyblock` decide entity blocking in
+--     `Target.block_path` (Target.lua:490-555,564-610);
+--   * `nolock`/`pass_terrain`/`nowarning`/`no_restrict`/`requires_knowledge`
+--     are the default blocker's terrain/knowledge switches
+--     (Target.lua:652-695);
+--   * `force_max_range` controls the line iterator's stepping
+--     (ActorProject.lua:78,113-114,307,331-332);
+--   * `min_range` can EMPTY the result and `grid_exclude` can remove grids
+--     (ActorProject.lua:226-239);
+--   * `filter` removes grids (ActorProject.lua:59-63);
+--   * a raised `block_path`/`block_radius` callback (or an explicit `false`)
+--     REPLACES the default blocker (ActorProject.lua:78-80,113-114,226-239 —
+--     `if typ.block_path then` is false for `false`, so the default is disabled).
+-- `getType` fills these only as DEFAULTS and `table.update` never overwrites a
+-- raised field, including a boolean `false` (engine/utils.lua:559-569), so a
+-- value is forwarded when it is present (`~=nil`, which admits `false`).
+-- NOT forwarded here: the per-projection instance fields the caller sets
+-- (`source_actor`, `start_x`/`start_y`, `x`/`y`, `line_function`, `bypass`,
+-- `multiple`, `act_exclude`) and the shape/radius geometry the guard derives
+-- from the manifest component; `Target.getType` supplies those itself.
+local FOOTPRINT_FLAGS={'friendlyblock','friendlyfire','nolock','pass_terrain',
+    'nowarning','no_restrict','requires_knowledge','selffire','actorblock',
+    'stop_block','force_max_range','min_range','grid_exclude','filter',
+    'block_path','block_radius'}
+function M.copyFootprintFlags(spec,flags)
+    if type(flags)~='table' then return spec end
+    for _,key in ipairs(FOOTPRINT_FLAGS) do
+        if flags[key]~=nil then spec[key]=flags[key] end
+    end
+    return spec
+end
+
 -- Map a component's AoE centre and aim direction to a pure footprint spec.
 -- `center='self'` centres the effect on the caster; `direction='target'` keeps
 -- the bound target as the aim vector. The source-centred Burning Wake cone is
@@ -91,26 +131,9 @@ function M.footprintSpec(component,origin,bound,flags)
     -- A′ §6.4: the raised spec's ACTUAL static flags must reach the native
     -- footprint input. The engine uses `friendlyblock` to let a friendly actor
     -- NOT block the projection (Target.lua:527-535,588-607,657-664), so a probe
-    -- rebuilt from geometry alone can manufacture a false blocked line.
-    -- R2-APR-04: the full set of engine-consulted static flags is forwarded.
-    -- Verified against the engine projection inputs:
-    --   * `selffire`/`friendlyfire` filter the affected actors
-    --     (ActorProject.lua:254-255,493-494); a REAL raised spec carries them
-    --     (Giant Leap's builder explicitly sets `selffire=false`,
-    --     uber/str.lua:38-40; bow-threading.lua:143 sets `stop_block=true`);
-    --   * `stop_block`/`actorblock`/`friendlyblock` decide entity blocking in
-    --     `Target.block_path` (Target.lua:518-535,578-600) and
-    --     `getType` fills them only as DEFAULTS (Target.lua:679-684);
-    --     `table.update` never overwrites a raised field
-    --     (engine/utils.lua:559-569), so forwarding them preserves the real
-    --     raised semantics exactly.
-    if type(flags)=='table' then
-        for _,key in ipairs({'friendlyblock','friendlyfire','nolock',
-                'pass_terrain','nowarning','no_restrict','requires_knowledge',
-                'selffire','actorblock','stop_block'}) do
-            if flags[key]~=nil then spec[key]=flags[key] end
-        end
-    end
+    -- rebuilt from geometry alone can manufacture a false blocked line. The
+    -- complete engine-consulted allowlist (R2-APR2-03) is forwarded verbatim.
+    M.copyFootprintFlags(spec,flags)
     return spec
 end
 
@@ -210,12 +233,9 @@ function M.build(ctx)
         local shape=curated and curated.type
             or (entry.cursor and entry.cursor.shape) or 'bolt'
         local spec={type=shape,range=range,talent=talent}
-        if curated then
-            for _,key in ipairs({'friendlyfire','friendlyblock','nolock',
-                    'pass_terrain','nowarning','selffire','actorblock','stop_block'}) do
-                if curated[key]~=nil then spec[key]=curated[key] end
-            end
-        end
+        -- The curated copy IS the real local `tg` table of these talents, so the
+        -- same engine-consulted allowlist is forwarded (R2-APR2-03).
+        M.copyFootprintFlags(spec,curated)
         return spec
     end
 
@@ -293,10 +313,12 @@ function M.build(ctx)
     --     key, hole or trailing gap is a typed `movement_plan_unavailable`
     --     BEFORE any precheck/expansion — `ipairs`-style iteration would
     --     silently truncate a sparse plan into a complete-looking one;
-    --   * the plan carries EXACTLY ONE grid per declared entry of the resolved
-    --     request sequence (the planner attaches the resolved sequence to the
-    --     plan; absent that, the plan length must still match a DECLARED
-    --     executable sequence of the entry) — never a measured risk from a
+    --   * the plan carries EXACTLY ONE grid per entry of the planner-attached
+    --     RESOLVED request sequence (R2-APR2-01: the resolved sequence is
+    --     REQUIRED and is DENSE-validated over all keys, then compared
+    --     entry-by-entry on kind — an absent or sparse attached sequence is a
+    --     typed `movement_plan_unavailable` before any measurement, so it can
+    --     never "match any variant length") — never a measured risk from a
     --     partial set;
     --   * the one measure is compared with the policy's `max_selffire_risk`.
     local function guardStationary(entry,talent,threshold,disable,attempt,providers)
@@ -319,28 +341,62 @@ function M.build(ctx)
                 reason='a stationary program needs a dense planned grid array',
                 detail='bad_plan_shape',cause=planCause})
         end
-        -- R2-APR-01: the resolved request-sequence length is cross-checked
-        -- BEFORE any precheck/expansion: the plan must carry exactly one grid
-        -- per declared entry. The planner attaches the RESOLVED sequence to the
-        -- plan; when it is absent the plan length must still match one of the
-        -- entry's declared executable sequences (a pure manifest read — no
-        -- runtime scalar, so an unresolved variant matrix cannot weaken this).
+        -- R2-APR-01/R2-APR2-01: the resolved request-sequence is REQUIRED and
+        -- cross-checked BEFORE any precheck/expansion. The planner attaches the
+        -- RESOLVED sequence (`MovementPlanner.planSequence`), so a stationary
+        -- plan always carries it; an ABSENT sequence is `movement_plan_unavailable`
+        -- (an absent sequence must never "match any variant length", which is
+        -- exactly how a one-grid partial measurement could slip through). The
+        -- attached sequence is DENSE-validated over ALL keys first — Lua `#`
+        -- reports 1 for keys {1,3}, so a `#`-based length check is forgeable
+        -- (the reviewer's SPARSE_DECLARED_BYPASS). Only after the shape is dense
+        -- is its length used, and the length is then cross-checked AND compared
+        -- entry-by-entry (kind) against the planned values.
         local declared=plan.request_sequence
-        if type(declared)~='table' or #declared==0 then
-            local matched=false
-            for _,sequence in ipairs(Manifest.requestSequences(entry) or {}) do
-                if #sequence==planLength then matched=true end
-            end
-            if not matched then
-                return disable('movement_plan_unavailable',{talent=talent,
-                    reason='a stationary plan must have one grid per declared entry',
-                    detail='plan_sequence_length_mismatch',declared=planLength})
-            end
-        elseif #declared~=planLength then
+        if declared==nil then
+            return disable('movement_plan_unavailable',{talent=talent,
+                reason='a stationary program needs its resolved request sequence',
+                detail='plan_sequence_missing',got=planLength})
+        end
+        local seqOk,seqLengthOrCause=Factory.validateArray(declared,1)
+        if not seqOk then
+            return disable('movement_plan_unavailable',{talent=talent,
+                reason='a stationary program needs a dense resolved request sequence',
+                detail='bad_plan_shape',cause=seqLengthOrCause})
+        end
+        local declaredLength=seqLengthOrCause
+        if declaredLength~=planLength then
             return disable('movement_plan_unavailable',{talent=talent,
                 reason='a stationary plan must have one grid per declared entry',
-                detail='plan_sequence_length_mismatch',declared=#declared,
+                detail='plan_sequence_length_mismatch',declared=declaredLength,
                 got=planLength})
+        end
+        -- The attached sequence length must also be one of the entry's DECLARED
+        -- executable program lengths (a pure manifest read — no runtime scalar,
+        -- so an unresolved variant matrix cannot weaken it). A caller-supplied
+        -- plan cannot invent a program length the descriptor never declared.
+        local matchedLength=false
+        for _,sequence in ipairs(Manifest.requestSequences(entry) or {}) do
+            local seqShape,seqLen=Factory.validateArray(sequence,1)
+            if seqShape and seqLen==declaredLength then matchedLength=true end
+        end
+        if not matchedLength then
+            return disable('movement_plan_unavailable',{talent=talent,
+                reason='a stationary plan must have one grid per declared entry',
+                detail='plan_sequence_length_mismatch',declared=declaredLength,
+                got=planLength})
+        end
+        for index=1,declaredLength do
+            local entry=declared[index]
+            local kind=type(entry)=='table' and (entry.request or entry.kind) or nil
+            local value=plan.values[index]
+            local valueKind=type(value)=='table' and (value.request or value.kind) or nil
+            if kind==nil or valueKind==nil or kind~=valueKind then
+                return disable('movement_plan_unavailable',{talent=talent,
+                    reason='a stationary plan must match its resolved request sequence',
+                    detail='plan_sequence_kind_mismatch',index=index,
+                    declared=kind,got=valueKind})
+            end
         end
         local grids={}
         for index=1,planLength do
@@ -420,15 +476,12 @@ function M.build(ctx)
                         local spec={shape=resolved.shape,range=resolved.range,
                             radius=resolved.radius,angle=resolved.angle,
                             map_effect=resolved.delivery=='map_effect',
-                            friendlyfire=flags.friendlyfire,
-                            friendlyblock=flags.friendlyblock,nolock=flags.nolock,
-                            pass_terrain=flags.pass_terrain,nowarning=flags.nowarning,
-                            -- R2-APR-04: the full engine-consulted static flag
-                            -- set reaches the footprint input here too.
-                            selffire=flags.selffire,actorblock=flags.actorblock,
-                            stop_block=flags.stop_block,
                             talent=talent,
                             origin={x=origin.x,y=origin.y},target={x=grid.x,y=grid.y}}
+                        -- R2-APR2-03: the SAME engine-consulted allowlist reaches
+                        -- the stationary footprint input, including an explicit
+                        -- `false` (which the engine honours).
+                        M.copyFootprintFlags(spec,flags)
                         if resolved.center=='self' then
                             spec.target={x=origin.x,y=origin.y}
                         end
