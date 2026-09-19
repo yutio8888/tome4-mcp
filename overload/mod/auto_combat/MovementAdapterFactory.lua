@@ -51,19 +51,9 @@ M.TARGET_REQUESTS={none=true,actor=true,grid=true,self=true}
 -- the source of its decided value. Both are closed vocabularies.
 M.REQUEST_SUBJECTS={self=true,actor=true}
 M.REQUEST_VALUE_SOURCES={subject=true,target_plan=true}
-M.DELIVERIES={step=true,line_move=true,leap=true,teleport=true,scene_change=true,
-    -- R2: a STATIONARY delivery — the effect leaves the caster but the caster
-    -- never moves (a projectile/multi-target effect program). It is deliberately
-    -- distinct from every mover delivery so a descriptor can never claim a
-    -- relocation that does not happen.
-    stationary=true}
-M.LANDINGS={exact=true,bounded_alternatives=true,random=true,source_defined=true,
-    -- R2: no mover landing at all (the caster does not move).
-    none=true}
-M.CENTERS={self=true,actor=true,requested_grid=true,
-    -- R2: the program's centre is the policy-chosen grid of each prompt, not a
-    -- mover landing.
-    none=true}
+M.DELIVERIES={step=true,line_move=true,leap=true,teleport=true,scene_change=true}
+M.LANDINGS={exact=true,bounded_alternatives=true,random=true,source_defined=true}
+M.CENTERS={self=true,actor=true,requested_grid=true}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 
@@ -148,79 +138,8 @@ end
 -- `movement_adapter_invalid`/`request_signature_ambiguous`.
 -- Returns a fresh array of normalised entries (no shared reference with the
 -- caller's declaration).
---
--- Interchangeable-group vocabulary (closed).
---
--- A `request_sequence` entry may carry one `group` key: entries declaring the
--- same value form a **declared interchangeable group**. The group is *curated
--- data*, never inferred from equality of signatures: it is the source review's
--- statement that answering the k-th raised prompt with the k-th entry's decided
--- value has no observable consequence, because the reviewed native flow
--- computes one effect value and performs the same effect for every prompt (for
--- example Earthen Missiles, `spells/stone.lua:40-56`: one `damage` computed once,
--- the same projectile and the same `DamageType.SPLIT_BLEED` for each prompt).
---
--- Normative rules (all enforced here, fail closed as
--- `movement_adapter_invalid`):
---   * a group must contain **>=2 entries**;
---   * every member must declare the **same `request` kind**;
---   * every member must carry an **identical curated equivalence proof**
---     (`equiv`), which must be a non-empty bounded string citing at least one
---     reviewed `*.lua:<line>` source location;
---   * a member without a proof, a proof without a group, and members whose
---     proofs disagree are all malformed;
---   * the build-time subsumption rule applies **only across different groups**:
---     two entries that declare the same group are admitted even when their
---     curated signatures are identical (that is the point), while every pair
---     that is not in one declared group keeps today's behaviour exactly.
--- This is a plugin-completeness boundary (the declaration is data), never a
--- strategy judgement, and it introduces no identity/digest/closure gate.
-M.MAX_GROUP_INDEX=32
-M.MAX_EQUIV_PROOF=512
-local function validateGroupValue(value)
-    if type(value)=='number' then
-        return value==value and value%1==0 and value>=1 and value<=M.MAX_GROUP_INDEX
-    end
-    if type(value)=='string' then
-        return #value>=1 and #value<=32 and value:match('^[a-z][a-z0-9_]*$')~=nil
-    end
-    return false
-end
-M.validateGroupValue=validateGroupValue
-
-local function validateEquivalenceProof(text)
-    if type(text)~='string' or #text==0 or #text>M.MAX_EQUIV_PROOF then return false end
-    -- The proof is curated prose, but it must cite the reviewed source it rests
-    -- on (`path.lua:line`), so a naked boolean cannot pose as a review output.
-    return text:match('%.lua:%d')~=nil
-end
-M.validateEquivalenceProof=validateEquivalenceProof
-
--- The declared members of `index`'s group, in arrival order. An ungrouped (or
--- absent) entry is its own single-member set. This is the one normative helper
--- the runtime relaxation consumes.
-function M.groupMembers(sequence,index)
-    local out={}
-    local entry=sequence and sequence[index]
-    if type(entry)~='table' then return out end
-    if entry.group==nil then out[1]=index; return out end
-    for i=1,#sequence do
-        if type(sequence[i])=='table' and sequence[i].group==entry.group then
-            out[#out+1]=i
-        end
-    end
-    return out
-end
-
--- Do two entries declare the same group value? A nil group never matches.
-function M.sameGroup(a,b)
-    if type(a)~='table' or type(b)~='table' then return false end
-    if a.group==nil or b.group==nil then return false end
-    return a.group==b.group
-end
-
 local SEQUENCE_KEYS={index=true,request=true,subject=true,value_source=true,
-    landing_from=true,optional=true,observed=true,group=true,equiv=true}
+    landing_from=true,optional=true,observed=true}
 -- The closed `observed` signature allowlist: `cursor_type` plus the static
 -- discriminators. Dynamic numerics (`range`/`radius`) and closures are never
 -- signature fields.
@@ -353,22 +272,6 @@ function M.normalizeRequestSequence(list)
         if entry.optional==true and i~=maxKey then
             return nil,{detail='optional_not_trailing',index=i}
         end
-        -- Interchangeable-group membership: closed value, and a member must
-        -- carry the curated equivalence proof (identical text across the
-        -- group, enforced below).
-        if entry.group~=nil then
-            if not validateGroupValue(entry.group) then
-                return nil,{detail='bad_group',index=i}
-            end
-            if entry.equiv==nil then
-                return nil,{detail='missing_equivalence_proof',index=i}
-            end
-        elseif entry.equiv~=nil then
-            return nil,{detail='equivalence_proof_without_group',index=i}
-        end
-        if entry.equiv~=nil and not validateEquivalenceProof(entry.equiv) then
-            return nil,{detail='bad_equivalence_proof',index=i}
-        end
         -- S2 rev3: every published sequence entry carries a curated observed
         -- signature (the runtime evidence the executor matches).
         local observed,observedErr=normalizeObserved(entry.observed,i)
@@ -377,66 +280,22 @@ function M.normalizeRequestSequence(list)
             value_source=valueSource,observed=observed}
         if entry.landing_from~=nil then copy.landing_from=entry.landing_from end
         if entry.optional==true then copy.optional=true end
-        if entry.group~=nil then copy.group=entry.group;copy.equiv=entry.equiv end
         out[i]=copy
     end
-    -- Declared-group validation (fail closed, `movement_adapter_invalid`):
-    -- >=2 members of the same `request` kind with one identical curated
-    -- equivalence proof. Membership is explicit; it is never inferred from
-    -- equality of signatures. The rule is checked for EVERY sequence length, so
-    -- a lone grouped entry (a "group of one") can never be published.
-    local groups={}
-    local order={}
-    for i=1,maxKey do
-        local group=out[i].group
-        if group~=nil then
-            local record=groups[group]
-            if record==nil then
-                record={indexes={},request=out[i].request,equiv=out[i].equiv}
-                groups[group]=record
-                order[#order+1]=group
-            end
-            record.indexes[#record.indexes+1]=i
-            if out[i].request~=record.request then
-                return nil,{detail='group_kind_mismatch',group=group,
-                    index=i,expected=record.request,got=out[i].request}
-            end
-            if out[i].equiv~=record.equiv then
-                return nil,{detail='group_proof_mismatch',group=group,index=i}
-            end
-        end
-    end
-    for _,group in ipairs(order) do
-        local record=groups[group]
-        if #record.indexes<2 then
-            return nil,{detail='group_too_small',group=group,
-                indexes=record.indexes,count=#record.indexes}
-        end
-    end
+    -- S2-R3-01 rev5: for N≥2 no entry's curated signature may SUBSUME another's
+    -- (presence-explicit match semantics; see `signatureSubsumes`): a subsumed
+    -- entry can never be the unique match of any raised prompt, so the
+    -- descriptor is refused at build time (a plugin-completeness boundary,
+    -- never a strategy judgement). Pairs that are merely distinguishable under
+    -- presence semantics (Vault's hit-without-nolock vs hit+nolock) are
+    -- admitted; the runtime EXACTLY-ONE gate is the normative safety net.
     if maxKey>=2 then
-        -- S2-R3-01 rev5: for N>=2 no entry's curated signature may SUBSUME
-        -- another's (presence-explicit match semantics; see
-        -- `signatureSubsumes`): a subsumed entry can never be the unique match
-        -- of any raised prompt, so the descriptor is refused at build time (a
-        -- plugin-completeness boundary, never a strategy judgement). Pairs that
-        -- are merely distinguishable under presence semantics (Vault's
-        -- hit-without-nolock vs hit+nolock) are admitted; the runtime
-        -- EXACTLY-ONE gate is the normative safety net.
-        --
-        -- Interchangeable groups are the ONE declared exception: two entries
-        -- that declare the same group are admitted even with IDENTICAL
-        -- signatures, because the review states either answer is a legal
-        -- outcome. Only pairs inside one declared group are exempt; every other
-        -- pair (including a grouped entry against an ungrouped one) keeps
-        -- exactly the previous rule.
         for i=1,maxKey-1 do
             for j=i+1,maxKey do
-                if not M.sameGroup(out[i],out[j]) then
-                    if signatureSubsumes(out[i].observed,out[j].observed)
-                        or signatureSubsumes(out[j].observed,out[i].observed) then
-                        return nil,{detail='request_signature_ambiguous',
-                            indexes={i,j},signature=out[i].observed.cursor_type}
-                    end
+                if signatureSubsumes(out[i].observed,out[j].observed)
+                    or signatureSubsumes(out[j].observed,out[i].observed) then
+                    return nil,{detail='request_signature_ambiguous',
+                        indexes={i,j},signature=out[i].observed.cursor_type}
                 end
             end
         end
@@ -563,21 +422,6 @@ local TEMPLATES={
             builder_shape=true,fallback_center=true,fallback_radius=true,
             fallback_when=true,occupancy_dependent=true,landing_proof=true},
         fixed={},
-    },
-    -- R2: stationary multi-prompt effect program (a projectile fired at each
-    -- policy-chosen grid; the caster NEVER moves). There is no landing envelope,
-    -- no radius and no traversal because no pawn is relocated — the mechanical
-    -- invariants say so explicitly, so a caller cannot smuggle in mover
-    -- semantics. The ordered `request_sequence` (each entry a `grid` prompt
-    -- answered from the plan) plus the reusable `group` key express the
-    -- interchangeable multi-projectile program (for example Earthen Missiles,
-    -- spells/stone.lua:37-58). The executor consumes it through the SAME S2
-    -- queue; no second queue is introduced.
-    stationary_sequence={
-        required={request_sequence=true},
-        optional={target_requests=true,range=true},
-        fixed={delivery='stationary',landing='none',center='none',
-            traverses=false,relocates_other=false},
     },
 }
 

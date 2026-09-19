@@ -97,9 +97,7 @@ M.TALENTS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_HEALING_LIGHT=true,
     -- S2-R4-01: T_VAULT (agility) is deliberately absent — it is a MIXED
     -- movement/effect talent reserved for the S3 composition slice (typed reason
     -- `movement_effect_composition_required` in EffectManifest.UNSUPPORTED).
-    T_SKIRMISHER_VAULT=true,T_DIMENSIONAL_STEP=true,
-    -- R2 stationary multi-projectile programs (declared interchangeable group).
-    T_EARTHEN_MISSILES=true,T_DWARVEN_HALF_EARTHEN_MISSILES=true}
+    T_SKIRMISHER_VAULT=true,T_DIMENSIONAL_STEP=true}
 M.SUSTAINS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_WEAPON_OF_LIGHT=true,
     T_ARCANE_POWER=true,T_SHIELDING=true,T_DARK_RITUAL=true,T_BERSERKER_RAGE=true,
     T_DAUNTING_PRESENCE=true}

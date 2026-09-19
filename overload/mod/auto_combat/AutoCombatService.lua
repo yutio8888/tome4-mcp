@@ -247,7 +247,7 @@ function M.dryRun(svc,args)
                 trace[#trace+1]={rule=d.rule,reason=plan_fail,annotation=plan_fail_err}
             else
                 local guard=host.guard and host.guard({rule=d.rule,action=d.action,talent=d.talent,
-                    target=d.target,bound_target=bt,plan=plan,emergency=d.emergency==true})
+                    target=d.target,bound_target=bt,emergency=d.emergency==true})
                 if guard and guard.action=='pause' then
                     decision={decision='pause',reason=guard.reason,rule=d.rule,results=d.results,layer=d.layer}
                     risk_detail=guard.detail

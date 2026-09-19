@@ -61,9 +61,6 @@ TALENTS = {
     # S1 movement-adapter factory admissions.
     "T_SKIRMISHER_VAULT": ("data/talents/techniques/acrobatics.lua", "Vault"),
     "T_DIMENSIONAL_STEP": ("data/talents/chronomancy/spacetime-weaving.lua", "Dimensional Step"),
-    # R2 stationary multi-projectile programs (declared interchangeable group).
-    "T_EARTHEN_MISSILES": ("data/talents/spells/stone.lua", "Earthen Missiles"),
-    "T_DWARVEN_HALF_EARTHEN_MISSILES": ("data/talents/gifts/dwarven-nature.lua", "Earthen Missiles"),
 }
 
 # Talents whose `t.target` builder the guard reads. The generator pins the exact
@@ -84,8 +81,6 @@ BUILDER_TALENTS = {
 ACTION_TALENTS = {
     "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL", "T_PHASE_DOOR",
     "T_SKIRMISHER_VAULT", "T_DIMENSIONAL_STEP",
-    # R2 stationary programs: the reviewed action body is the pinned semantics.
-    "T_EARTHEN_MISSILES", "T_DWARVEN_HALF_EARTHEN_MISSILES",
 }
 
 # Per-talent dynamic getters used by the movement factory's envelope

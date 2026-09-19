@@ -7,10 +7,6 @@ local Tracker = require 'mod.mcp_bridge.InvocationTracker'
 local Compat = require 'mod.mcp_bridge.NativeCompatibility'
 local Distance = require 'mod.mcp_bridge.Distance'
 local Details = require 'mod.mcp_bridge.ObservationDetails'
--- Interchangeable groups are **declared data** in the movement factory's closed
--- `request_sequence` vocabulary; the executor reads the curated membership only
--- (never an identity/digest/closure property of the live flow).
-local Factory = require 'mod.auto_combat.MovementAdapterFactory'
 local M = {}
 local attack_spec={target='actor',source='data/talents/misc/misc.lua',action_adapter='attack',
     description='Use the attack action with target_id to make a native ordinary attack, including native alternate attacks.'}
@@ -210,33 +206,24 @@ function M.normalizeSequence(list)
             if type(entry.optional)~='boolean' then return nil,'invalid_sequence' end
             if entry.optional then copy.optional=true end
         end
-        -- Declared interchangeable-group membership rides the internal carrier
-        -- exactly as the curated observed signature does: the runtime exactly-one
-        -- gate reads it to accept a matched set whose members are all in the
-        -- expected entry's declared group. Membership is curated movement-factory
-        -- data, validated with the same closed predicate.
-        if entry.group~=nil then
-            if not Factory.validateGroupValue(entry.group) then return nil,'invalid_sequence' end
-            copy.group=entry.group
-        end
         if kind=='grid' then
             if not coordinate(entry.x) or not coordinate(entry.y) then return nil,'invalid_sequence' end
             for key in pairs(entry) do
                 if key~='kind' and key~='request' and key~='x' and key~='y' and key~='optional'
-                    and key~='observed' and key~='group' then return nil,'invalid_sequence' end
+                    and key~='observed' then return nil,'invalid_sequence' end
             end
             copy.x,copy.y=entry.x,entry.y
         elseif kind=='actor' then
             if entry.target_id~=nil and not stringId(entry.target_id) then return nil,'invalid_sequence' end
             for key in pairs(entry) do
                 if key~='kind' and key~='request' and key~='target_id' and key~='optional'
-                    and key~='observed' and key~='group' then return nil,'invalid_sequence' end
+                    and key~='observed' then return nil,'invalid_sequence' end
             end
             if entry.target_id~=nil then copy.target_id=entry.target_id end
         else
             for key in pairs(entry) do
                 if key~='kind' and key~='request' and key~='optional'
-                    and key~='observed' and key~='group' then return nil,'invalid_sequence' end
+                    and key~='observed' then return nil,'invalid_sequence' end
             end
         end
         out[i]=copy
@@ -736,49 +723,7 @@ function M.execute(g, action, target, meta, command)
                                     matched_indexes[#matched_indexes+1]=i
                                 end
                             end
-                            -- Interchangeable-group relaxation (declared data):
-                            -- when the entry curated for this arrival position
-                            -- declares a group, a raised prompt may be answered
-                            -- as long as EVERY matched position is a member of
-                            -- that same declared group — the review states the
-                            -- members are interchangeable (one computed value,
-                            -- the same projectile/DamageType; e.g. Earthen
-                            -- Missiles, spells/stone.lua:40-56), so answering
-                            -- the arrival position's decided value has no
-                            -- observable consequence. Everything else keeps the
-                            -- strict contract: several matches are accepted only
-                            -- when all of them are members of the expected
-                            -- entry's group AND the expected position itself
-                            -- matches; a match crossing groups, an ambiguous
-                            -- UNGROUPED match, and a non-member match remain
-                            -- typed `unexpected_target_request` deviations with
-                            -- expected/observed/matched_indexes. No value
-                            -- comparison is performed and no signature is
-                            -- inferred: membership is the curated `group`.
-                            local groupMembers=Factory and Factory.groupMembers
-                                and Factory.groupMembers(queue,observed) or nil
-                            local sameGroupSet={}
-                            if groupMembers then
-                                for _,index in ipairs(groupMembers) do sameGroupSet[index]=true end
-                            end
-                            local expectedIsGroup=(groupMembers~=nil and #groupMembers>=2)
-                            -- In a declared group every member's signature is
-                            -- identical, so a raised member prompt matches every
-                            -- member (including the arrival position). The gate
-                            -- therefore requires a NON-EMPTY matched set
-                            -- contained in the expected group — a prompt matching
-                            -- nothing (an unreadable/undeclared shape) is never
-                            -- answered. The arrival position need not be the
-                            -- first matched index (unlike the strict rule).
-                            local groupOk=false
-                            if expectedIsGroup and #matched_indexes>0
-                                and sameGroupSet[observed] then
-                                groupOk=true
-                                for _,index in ipairs(matched_indexes) do
-                                    if not sameGroupSet[index] then groupOk=false break end
-                                end
-                            end
-                            if not groupOk and (#matched_indexes~=1 or matched_indexes[1]~=observed) then
+                            if #matched_indexes~=1 or matched_indexes[1]~=observed then
                                 deviate(observed,entry.request,nil,
                                     {observed_shape=typ.type,handback=true,
                                         matched_indexes=matched_indexes})

@@ -13,6 +13,7 @@ root_probe:close()
 package.path=root..'/overload/?.lua;'..package.path
 local Manifest=require 'mod.auto_combat.EffectManifest'
 local Schema=require 'mod.auto_combat.PolicySchema'
+local Factory=require 'mod.auto_combat.MovementAdapterFactory'
 local checks=0
 local function check(value,message) checks=checks+1;assert(value,message) end
 
@@ -174,7 +175,8 @@ do
 check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupported')
     -- S2-R3-01 rev5: the officially-decided multi-prompt unsupported set, each
     -- with its own typed reason.
-    for _,talent in ipairs({'T_MERGE','T_STONE','T_CURSED_BOLT','T_WORMHOLE'}) do
+    for _,talent in ipairs({'T_MERGE','T_STONE','T_CURSED_BOLT','T_WORMHOLE',
+        'T_EARTHEN_MISSILES','T_DWARVEN_HALF_EARTHEN_MISSILES'}) do
         local u=unsupportedEntry(talent)
         check(u~=nil and u.missing and u.reason and u.scope,
             talent..' has a structured unsupported entry')
@@ -202,33 +204,47 @@ check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupp
         and not unsupportedEntry('T_WORMHOLE').reason:find('simple_dir_request',1,true)
         and not unsupportedEntry('T_WORMHOLE').reason:find('cross_prompt_postcondition',1,true),
         'Wormhole reason cites the trap pair (correct ranges) and withdraws the simple_dir_request/cross-prompt claims')
-    -- Loop 39 (R2 / option A + stationary descriptor): the interchangeable-group
-    -- mechanism landed AND the stationary multi-projectile program is now
-    -- expressible, so both talents are ADMITTED and their unsupported rows are
-    -- gone. Each keeps an honest stationary entry with the declared group and a
-    -- damage component the guard can see.
+    -- R2-REV-03 rev2 (DO_NOT_MERGE withdrawal): the interchangeable-group
+    -- admission is WITHDRAWN. Each native action rolls `self:spellCrit(damage)`
+    -- separately before EVERY projectile, so each prompt position consumes a
+    -- distinct random crit outcome and exchanging answers between missiles can
+    -- exchange a crit and a non-crit between targets. Both talents return to
+    -- M.UNSUPPORTED with the typed `nondeterministic_prompt_outcome` reason
+    -- citing the per-missile engine lines, and have NO manifest entry (the
+    -- `group`/`stationary` relaxation surface is removed entirely).
+    check(unsupportedEntry('T_EARTHEN_MISSILES').missing=='nondeterministic_prompt_outcome'
+        and unsupportedEntry('T_DWARVEN_HALF_EARTHEN_MISSILES').missing=='nondeterministic_prompt_outcome',
+        'Earthen Missiles variants carry the typed nondeterministic_prompt_outcome reason')
     for _,talent in ipairs{'T_EARTHEN_MISSILES','T_DWARVEN_HALF_EARTHEN_MISSILES'} do
-        local entry=Manifest.entry(talent)
-        check(entry~=nil,talent..' is admitted (no longer in M.UNSUPPORTED)')
-        check(unsupportedEntry(talent)==nil,talent..' has no unsupported row')
-        check(entry.stationary==true,talent..' is declared stationary (guard must not skip it)')
-        local sawStationary=false
-        local lengths={}
-        for _,variant in ipairs(entry.movement.variants or {}) do
-            if variant.movement then
-                if variant.movement.delivery=='stationary' and variant.movement.landing=='none' then
-                    sawStationary=true
-                end
-                lengths[#lengths+1]=#variant.movement.request_sequence
-            end
-        end
-        check(sawStationary,talent..' declares a stationary delivery and no mover landing')
-        check(#lengths==2 and lengths[1]==2 and lengths[2]==3,
-            talent..' expresses the TL5 third missile via the talent_level matrix (2 below, 3 at TL5+)')
-        local effect=false
-        for _,c in ipairs(entry.components or {}) do if c.phase~='cursor' then effect=true end end
-        check(effect,talent..' declares its damage component (visible to the guard)')
+        local u=unsupportedEntry(talent)
+        check(u.reason:find('spellCrit',1,true)~=nil
+            and u.reason:find('rng.percent',1,true)~=nil
+            and u.missing=='nondeterministic_prompt_outcome',
+            talent..' withdrawal reason honestly names the per-missile crit RNG')
+        check(u.reason:find('stone.lua:41-46',1,true)~=nil
+            or u.reason:find('dwarven-nature.lua:37-42',1,true)~=nil,
+            talent..' withdrawal reason cites the engine lines')
+        check(Manifest.entry(talent)==nil,talent..' has no manifest entry (admission withdrawn)')
+        check(Manifest.SOURCES.talents[talent]==nil,
+            talent..' keeps no advisory source pin (no admitted entry)')
     end
+    -- The relaxation surface itself is removed (no unused surface may linger):
+    -- no `stationary_sequence` template, no group vocabulary, no stationary
+    -- delivery/landing/center enum members.
+    check(Factory.TEMPLATES.stationary_sequence==nil,
+        'the stationary_sequence template is removed with the withdrawn admission')
+    check(Factory.validateGroupValue==nil and Factory.groupMembers==nil
+        and Factory.sameGroup==nil and Factory.validateEquivalenceProof==nil,
+        'the interchangeable-group vocabulary is removed with the withdrawn admission')
+    check(Factory.DELIVERIES.stationary==nil and Factory.LANDINGS.none==nil
+        and Factory.CENTERS.none==nil,
+        'the stationary delivery/landing/center enum members are removed')
+    -- The guard no longer routes any movement entry into a damage measurement:
+    -- every movement-kind entry is skipped unconditionally again (the S2
+    -- landing/uncertainty acceptance is the MovementPlanner's policy surface).
+    check(Manifest.entry('T_EARTHEN_MISSILES')==nil
+        and Manifest.entry('T_DWARVEN_HALF_EARTHEN_MISSILES')==nil,
+        'no stationary program can reach the removed guard path')
     -- S2-R4-01: the agility Vault (techniques/agility.lua) is a MIXED
     -- movement/effect talent: its first (actor) prompt's target is attacked and
     -- may be dazed before the move. It must NOT be executable — component-free
