@@ -772,9 +772,18 @@ function M.verify(policy)
                 -- is dense+closed validated over ALL keys BEFORE any `#`/
                 -- index read below. A malformed plan is its own typed shape
                 -- fault, never measured as a shorter complete plan.
-                local planDense,planCount=Json.denseArray(plan,1)
+                local planDense,planLenOrCause=Json.denseArray(plan,1)
                 if not planDense then
-                    errors[#errors+1]={path=path..'.then.target_plan',code='invalid_target_plan'}
+                    -- R2-APR4-01 rev5 (checklist A): the contracted typed
+                    -- density rejection. The cause names the sparse shape
+                    -- (hole|non_integer_key|key_beyond_dense_end, or the raw
+                    -- denseArray cause when no density fault applies) and the
+                    -- offending key, matching the PolicySchema/planner
+                    -- dense-fault shape; never a bare generic code.
+                    local faultCause,faultKey=Json.denseFault(plan)
+                    errors[#errors+1]={path=path..'.then.target_plan',
+                        code='target_plan_not_dense',
+                        cause=faultCause or planLenOrCause,key=faultKey}
                 else
                     local sequences=M.requestSequences(entry)
                     if movement==nil or #sequences==0 then
@@ -789,10 +798,10 @@ function M.verify(policy)
                         local selectorMismatch=nil
                         for _,expected in ipairs(sequences) do
                             local expectedDense,expectedCount=Json.denseArray(expected,1)
-                            if expectedDense and planCount==expectedCount then
+                            if expectedDense and planLenOrCause==expectedCount then
                                 local stepOk=true
                                 local mismatch=nil
-                                for step=1,planCount do
+                                for step=1,planLenOrCause do
                                     if plan[step].request~=expected[step] then stepOk=false break end
                                     if expected[step]=='actor' and plan[step].selector~=nil
                                         and selector~=nil and plan[step].selector~=selector then
@@ -812,7 +821,7 @@ function M.verify(policy)
                                 errors[#errors+1]=selectorMismatch
                             elseif #sequences==1 then
                                 errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_mismatch',
-                                    expected=table.concat(sequences[1],','),got=planCount}
+                                    expected=table.concat(sequences[1],','),got=planLenOrCause}
                             else
                                 errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_mismatch',
                                     expected='one_of_declared_variants'}

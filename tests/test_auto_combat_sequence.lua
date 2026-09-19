@@ -1334,8 +1334,10 @@ do
             sparseCode2=error.code;sparseCause2=error.cause
         end
     end
-    check(sparseOk2==nil and sparseCode2=='invalid_target_plan',
+    check(sparseOk2==nil and sparseCode2=='target_plan_not_dense',
         'a sparse target_plan with a hidden entry beyond the dense end is rejected (R2-APR4-01)')
+    check(sparseCause2=='key_beyond_dense_end',
+        'the sparse target_plan fault names the density cause (R2-APR4-01 rev5)')
     -- A sparse plan whose `#` is 2 (hole at 3) would otherwise be measured as
     -- the complete two-entry Phase Door program; the typed fault carries the
     -- validator cause.
@@ -1343,12 +1345,44 @@ do
         [2]={request='grid',destination={selector='position',x=4,y=4,accept=accept}},
         [4]={request='grid',destination={selector='position',x=9,y=9,accept=accept}}})
     local holedOk,holedErrors=Manifest.verify(holedPlan)
-    local holedCode=nil
+    local holedCode,holedCause,holedKey=nil,nil,nil
     for _,error in ipairs(holedErrors or {}) do
-        if error.path=='rules[1].then.target_plan' then holedCode=error.code end
+        if error.path=='rules[1].then.target_plan' then
+            holedCode=error.code;holedCause=error.cause;holedKey=error.key
+        end
     end
-    check(holedOk==nil and holedCode=='invalid_target_plan',
+    check(holedOk==nil and holedCode=='target_plan_not_dense',
         'a holed target_plan is rejected by Manifest.verify, never measured as a prefix (R2-APR4-01)')
+    check(holedCause=='key_beyond_dense_end' and holedKey==4,
+        'the holed target_plan fault names the cause and the offending key (R2-APR4-01 rev5)')
+    -- The other density faults are typed with their own cause and key: a
+    -- non-integer key, and a gap inside the span (plain hole).
+    local badKeyPlan=doorPolicy({[1]={request='actor',selector='self'},
+        [2]={request='grid',destination={selector='position',x=4,y=4,accept=accept}},
+        extra={request='grid',destination={selector='position',x=9,y=9,accept=accept}}})
+    local badKeyOk,badKeyErrors=Manifest.verify(badKeyPlan)
+    local badKeyCode,badKeyCause,badKeyFaultKey=nil,nil,nil
+    for _,error in ipairs(badKeyErrors or {}) do
+        if error.path=='rules[1].then.target_plan' then
+            badKeyCode=error.code;badKeyCause=error.cause;badKeyFaultKey=error.key
+        end
+    end
+    check(badKeyOk==nil and badKeyCode=='target_plan_not_dense'
+        and badKeyCause=='non_integer_key' and badKeyFaultKey=='extra',
+        'a non-integer plan key is target_plan_not_dense with the offending key (R2-APR4-01 rev5)')
+    local gapPlan=doorPolicy({[1]={request='actor',selector='self'},
+        [3]={request='grid',destination={selector='position',x=4,y=4,accept=accept}},
+        [5]={request='grid',destination={selector='position',x=9,y=9,accept=accept}}})
+    local gapOk,gapErrors=Manifest.verify(gapPlan)
+    local gapCode,gapCause,gapKey=nil,nil,nil
+    for _,error in ipairs(gapErrors or {}) do
+        if error.path=='rules[1].then.target_plan' then
+            gapCode=error.code;gapCause=error.cause;gapKey=error.key
+        end
+    end
+    check(gapOk==nil and gapCode=='target_plan_not_dense'
+        and gapCause=='hole' and gapKey==2,
+        'a multi-hole plan is target_plan_not_dense with the first missing key (R2-APR4-01 rev5)')
     -- The top-level rules array is the same ingress class: a valid rule plus a
     -- hidden rule beyond the dense end is not a one-rule policy.
     local sparseRules=doorPolicy({{request='actor',selector='self'},
