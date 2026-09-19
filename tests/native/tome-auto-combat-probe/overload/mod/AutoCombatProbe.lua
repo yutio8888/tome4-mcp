@@ -65,7 +65,7 @@ M.EXPECTED={
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
     ['movement-fallback']={'blocked_landing','alternative_planned','fallback_moved'},
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
-    ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused'},
+    ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused','sd_cooldown_native_rejected','sd_cooldown_no_pause','sd_zero_prompt_success_deviated','sd_zero_prompt_success_paused'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['handback-answer']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt'},
     ['handback-timeout']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_unanswered_cancelled'},
@@ -1806,6 +1806,129 @@ local function movementSequenceChecks()
     if pR.talents_def then pR.talents_def['T_MCP_SEQ_R']=nil end
     if pR.talents_cd then pR.talents_cd['T_MCP_SEQ_R']=nil end
     if saved_getTarget_R==nil then rawset(pR,'getTarget',nil) else rawset(pR,'getTarget',saved_getTarget_R) end
+    -- (i) S2-FIX5: a native entry that refuses BEFORE any prompt. A REAL
+    -- cooldown (`p.talents_cd[talent]>0`) makes the production `useTalent`
+    -- return false before it creates the coroutine or raises any prompt
+    -- (ActorTalents isTalentCoolingDown), so the ordered queue observes ZERO
+    -- prompts. The auto slot must report the ordinary native rejection — with
+    -- its own cooldown detail and NO sequence_deviation — and the real
+    -- controller must NOT fabricate a paused/unexpected_target_request event.
+    local pC=game.player
+    local entryC,restoreC=movementSequenceFixture('T_MCP_SEQ_CD',{type='ball',range=14,radius=1,nowarning=true},true,false)
+    local polC=policy({{id='seq',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_SEQ_CD',target='self',target_plan=planArgs.target_plan}}})
+    local hostC=Runtime.buildAutoCombatHostFor(game,polC,{drift=function() return true end})
+    pC.x,pC.y=before.x,before.y
+    local planC=hostC.plan({action='use_talent',talent='T_MCP_SEQ_CD',target='self',
+        target_plan=planArgs.target_plan,destination=dest})
+    local outcomeC
+    forceReady()
+    if pC.talents_cd then pC.talents_cd['T_MCP_SEQ_CD']=11 end
+    if planC and planC.plan then
+        -- (i-a) executor layer: the real auto-slot submission of a
+        -- cooldown-refused entry is the ordinary native rejection.
+        outcomeC=hostC.request({action='use_talent',talent='T_MCP_SEQ_CD',plan=planC.plan,rule='seq'})
+    end
+    local cooldownRejected=outcomeC and outcomeC.status=='rejected'
+        and outcomeC.code=='native_rejected'
+        and outcomeC.sequence_deviation==nil
+        and outcomeC.missing and outcomeC.missing[1]
+        and outcomeC.missing[1].kind=='cooldown' and outcomeC.missing[1].remaining==11
+        and outcomeC.target_sequence and #outcomeC.target_sequence==0
+    check('movement-sequence:cooldown-native-rejected',cooldownRejected,
+        {status=outcomeC and outcomeC.status,code=outcomeC and outcomeC.code,
+            deviation=outcomeC and outcomeC.sequence_deviation,
+            missing=outcomeC and outcomeC.missing})
+    signals[#signals+1]=cooldownRejected and 'sd_cooldown_native_rejected' or 'sd_cooldown_missing'
+    -- (i-b) controller layer: through the REAL controller, the same
+    -- cooldown-refused submission produces no paused/unexpected_target_request
+    -- event (no fabricated pause); the ordinary native_rejected denial is
+    -- what the policy log sees.
+    local cdEvents={}
+    -- The other synchronous controller scenarios override `phase` (the real
+    -- `ready` boundary only arrives across display frames); the executor and
+    -- every read stay the production ones.
+    local controllerC=AutoCombat.new(polC,hostFor(polC,{phase=function() return 'ready' end}),
+        {strict=false,notify=function(ev) cdEvents[#cdEvents+1]=ev end})
+    controllerC:start()
+    forceReady()
+    if pC.talents_cd then pC.talents_cd['T_MCP_SEQ_CD']=11 end
+    local stepC=controllerC:onOpportunity()
+    local fabricated=false
+    for _,ev in ipairs(cdEvents) do
+        if ev.kind=='paused' and ev.reason=='unexpected_target_request' then fabricated=true end
+    end
+    local denied=false
+    for _,rejection in ipairs(controllerC.rejections or {}) do
+        if rejection.rule=='seq' and rejection.reason=='native_rejected' then denied=true end
+    end
+    check('movement-sequence:cooldown-no-pause',cooldownRejected and denied and not fabricated
+        and controllerC.state~='paused',
+        {step=stepC and stepC.action,state=controllerC.state,reason=controllerC.reason,
+            events=cdEvents,rejections=controllerC.rejections})
+    signals[#signals+1]=(cooldownRejected and denied and not fabricated)
+        and 'sd_cooldown_no_pause' or 'sd_cooldown_pause_missing'
+    restoreC()
+    -- (j) S2-FIX5-R1: the mirror image of (i) — a REAL native entry that returns
+    -- TRUE without raising any prompt (the pre-prompt refusal exemption must not
+    -- excuse a success). A fixture talent whose `action` returns true before any
+    -- `getTarget` is driven through the production `useTalent` and the auto slot;
+    -- the declared non-optional program was never consumed, so the executor must
+    -- surface the typed missing-sequence deviation (NOT `action_complete`) and the
+    -- real controller must pause on it instead of continuing.
+    local pZ=game.player
+    local entryZ,restoreZ=movementSequenceFixture('T_MCP_SEQ_Z',{type='ball',range=14,radius=1,nowarning=true},true,false)
+    -- The fixture's action raises prompts; replace it with a zero-prompt truthy
+    -- native body (same closed definition otherwise: mana/cooldown/mode).
+    pZ.talents_def['T_MCP_SEQ_Z'].action=function(self) return true end
+    local polZ=policy({{id='seq',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_SEQ_Z',target='self',target_plan=planArgs.target_plan}}})
+    local hostZ=Runtime.buildAutoCombatHostFor(game,polZ,{drift=function() return true end})
+    pZ.x,pZ.y=before.x,before.y
+    local planZ=hostZ.plan({action='use_talent',talent='T_MCP_SEQ_Z',target='self',
+        target_plan=planArgs.target_plan,destination=dest})
+    local outcomeZ
+    forceReady()
+    if pZ.talents_cd then pZ.talents_cd['T_MCP_SEQ_Z']=0 end
+    if planZ and planZ.plan then
+        outcomeZ=hostZ.request({action='use_talent',talent='T_MCP_SEQ_Z',plan=planZ.plan,rule='seq'})
+    end
+    local devZ=outcomeZ and outcomeZ.sequence_deviation
+    local zeroPromptDeviated=outcomeZ and outcomeZ.status~='ok'
+        and outcomeZ.code=='unexpected_target_request'
+        and devZ and devZ.reason=='unexpected_target_request'
+        and devZ.expected.index==1 and devZ.expected.request=='actor'
+        and devZ.observed.index==1 and devZ.observed.request==nil
+        and devZ.skippable==false
+        and outcomeZ.target_sequence and #outcomeZ.target_sequence==0
+    check('movement-sequence:zero-prompt-success-deviated',zeroPromptDeviated,
+        {status=outcomeZ and outcomeZ.status,code=outcomeZ and outcomeZ.code,
+            deviation=devZ,answer=outcomeZ and outcomeZ.target_sequence})
+    signals[#signals+1]=zeroPromptDeviated and 'sd_zero_prompt_success_deviated'
+        or 'sd_zero_prompt_success_missing'
+    -- Controller layer: the same submission pauses on the typed deviation (the
+    -- action is never reported as completed).
+    local zpEvents={}
+    local controllerZ=AutoCombat.new(polZ,hostFor(polZ,{phase=function() return 'ready' end}),
+        {strict=false,notify=function(ev) zpEvents[#zpEvents+1]=ev end})
+    controllerZ:start()
+    forceReady()
+    if pZ.talents_cd then pZ.talents_cd['T_MCP_SEQ_Z']=0 end
+    local stepZ=controllerZ:onOpportunity()
+    local pausedZ=false
+    for _,ev in ipairs(zpEvents) do
+        if ev.kind=='paused' and ev.reason=='unexpected_target_request'
+            and ev.detail and ev.detail.expected and ev.detail.expected.index==1 then
+            pausedZ=true
+        end
+    end
+    check('movement-sequence:zero-prompt-success-paused',zeroPromptDeviated and pausedZ
+        and controllerZ.state=='paused' and controllerZ.attempts==0,
+        {step=stepZ and stepZ.action,state=controllerZ.state,reason=controllerZ.reason,
+            attempts=controllerZ.attempts,events=zpEvents})
+    signals[#signals+1]=(zeroPromptDeviated and pausedZ) and 'sd_zero_prompt_success_paused'
+        or 'sd_zero_prompt_success_pause_missing'
+    restoreZ()
     -- Restore the native seams and the player's previous position/energy so the
     -- later asynchronous stages drive the real production entries.
     restoreSeams()

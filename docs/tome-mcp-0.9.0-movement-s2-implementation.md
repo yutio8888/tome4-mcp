@@ -203,6 +203,18 @@ k-th declared entry's decided value.
 - `command.target_sequence` records one bounded entry per observed request,
   including the **answered value** (`answer={x,y,uid,name}`, rev2/S2-REV-06);
   `command.target_geometry` keeps its meaning (the first observed request).
+- The settle-time missing-entry rule applies only after the invocation actually
+  entered the targeting flow (`raised`), and its zero-prompt exemption is
+  **narrow** (S2-FIX5/S2-FIX5-R1): only a pre-prompt native **FAILURE** (a falsy
+  `useTalent` return before any `getTarget` — cooldown / no energy / `on_pre_use`)
+  settles as the ordinary `native_rejected`/no-energy outcome with no
+  `sequence_deviation`. A zero-prompt **TRUTHY** return for a declared
+  non-optional sequence is **not** exempt: the curated prompts were never
+  consumed, so the typed `unexpected_target_request` missing-sequence deviation is
+  surfaced (`expected={index,request}` at the first missing entry,
+  `observed={index,request=nil}`, `skippable=false`) and the action is never
+  reported as `action_complete`. Fail-closed by default; no curated
+  `zero_prompt_success` allowance exists for any reviewed talent.
 - The queue never resubmits the talent while pending.
 
 Lowering (`Runtime.buildAutoCombatHostFor`'s `reads.execute`) maps a
