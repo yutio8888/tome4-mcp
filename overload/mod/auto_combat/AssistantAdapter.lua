@@ -15,6 +15,7 @@
 -- reported, never silently dropped.
 local Schema=require 'mod.auto_combat.PolicySchema'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
+local Json=require 'mod.mcp_bridge.Json'
 local M={}
 
 M.FORMAT='tome-auto-combat-assistant-export/v1'
@@ -31,12 +32,18 @@ M.TALENT_KEYS={id=true,talent=true,enabled=true,priority=true,emergency=true,
 M.SUSTAIN_KEYS={talent=true,enabled=true,priority=true,min_resource_pct=true}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
-local function isArray(t) return type(t)=='table' and #t>0 end
 
+-- R2-APR5-01 (checklist A): the version tuple is a CALLER-supplied array; it
+-- is dense/closed validated over ALL keys BEFORE any `#`, so a sparse tuple
+-- (a valid prefix plus a hidden key beyond the dense end) is never flattened
+-- to the shorter prefix and pinned as the known version. Returns the joined
+-- key string, or `nil, cause, key` on a density fault.
 function M.versionKey(v)
     if type(v)~='table' then return tostring(v) end
+    local dense,count=Json.denseArray(v,0)
+    if not dense then return nil,Json.denseFault(v) end
     local parts={}
-    for i=1,#v do parts[#parts+1]=tostring(v[i]) end
+    for i=1,count do parts[#parts+1]=tostring(v[i]) end
     return table.concat(parts,'.')
 end
 
@@ -48,15 +55,24 @@ function M.detect(config)
     if assistant.addon~=M.PINNED.addon then
         return nil,{code='unknown_addon',expected=M.PINNED.addon,got=assistant.addon}
     end
-    local got=M.versionKey(assistant.addon_version)
+    local got,gotCause,gotKey=M.versionKey(assistant.addon_version)
+    if got==nil then
+        return nil,{code='sparse_version_array',field='assistant.addon_version',
+            cause=gotCause,key=gotKey}
+    end
     if got~=M.PINNED.addon_version then
         return nil,{code='assistant_version_mismatch',expected=M.PINNED.addon_version,got=got}
     end
     if config.format~=M.FORMAT then
         return nil,{code='unsupported_format',expected=M.FORMAT,got=config.format}
     end
+    local tomeStr,tomeCause,tomeKey=M.versionKey(assistant.tome_version)
+    if tomeStr==nil then
+        return nil,{code='sparse_version_array',field='assistant.tome_version',
+            cause=tomeCause,key=tomeKey}
+    end
     return {version=got,addon=assistant.addon,addon_version=got,
-        tome_version=M.versionKey(assistant.tome_version),format=config.format}
+        tome_version=tomeStr,format=config.format}
 end
 
 local function reportUnsupported(out,path,code,detail)
@@ -86,20 +102,42 @@ local function translateCondition(cond,path,warnings,unsupported,depth)
         reportUnsupported(unsupported,path,'invalid_condition')
         return nil
     end
-    if cond.all~=nil or cond.any~=nil then
-        local key=cond.all~=nil and 'all' or 'any'
-        local list=cond[key]
-        if type(list)~='table' then
-            reportUnsupported(unsupported,path,'invalid_'..key)
+    if cond.all~=nil then
+        -- R2-APR5-01 (checklist A): the caller-supplied branch array is
+        -- dense/closed validated over ALL keys BEFORE the traversal below, so
+        -- a sparse `all` can never be translated as its shorter prefix (the
+        -- whole rule is dropped, with a typed sparse report).
+        local dense,count=Json.denseArray(cond.all,0)
+        if not dense then
+            local cause,faultKey=Json.denseFault(cond.all)
+            reportUnsupported(unsupported,path,'sparse_condition_array',
+                {branch='all',cause=cause or select(2,Json.denseArray(cond.all,0)),key=faultKey})
             return nil
         end
         local out={}
-        for index,child in ipairs(list) do
-            local translated=translateCondition(child,path..'.'..key..'['..index..']',warnings,unsupported,depth+1)
+        for index=1,count do
+            local translated=translateCondition(cond.all[index],path..'.all['..index..']',warnings,unsupported,depth+1)
             if translated==nil then return nil end
             out[#out+1]=translated
         end
-        return {[key]=out}
+        return {all=out}
+    end
+    if cond.any~=nil then
+        -- R2-APR5-01 (checklist A): same dense/closed ingress for `any`.
+        local dense,count=Json.denseArray(cond.any,0)
+        if not dense then
+            local cause,faultKey=Json.denseFault(cond.any)
+            reportUnsupported(unsupported,path,'sparse_condition_array',
+                {branch='any',cause=cause or select(2,Json.denseArray(cond.any,0)),key=faultKey})
+            return nil
+        end
+        local out={}
+        for index=1,count do
+            local translated=translateCondition(cond.any[index],path..'.any['..index..']',warnings,unsupported,depth+1)
+            if translated==nil then return nil end
+            out[#out+1]=translated
+        end
+        return {any=out}
     end
     if cond['not']~=nil then
         local translated=translateCondition(cond['not'],path..'.not',warnings,unsupported,depth+1)
@@ -228,8 +266,40 @@ function M.translate(config)
         default_target=nil
     end
 
+    -- R2-APR5-01 (checklist A): the top-level caller arrays (`config.sustains`,
+    -- `config.talents`) are dense/closed validated over ALL keys BEFORE any
+    -- `#`/`ipairs`/hashing. A PRESENT but sparse (or non-table) list is never
+    -- consumed as its shorter prefix: the whole malformed import is rejected
+    -- with a typed cause and no draft/hash is produced. An ABSENT list stays
+    -- simply empty.
+    local sustainsSrc=config.sustains
+    local sustainsCount=0
+    if sustainsSrc~=nil then
+        local dense,cause=Json.denseArray(sustainsSrc,0)
+        if not dense then
+            local faultCause,faultKey=Json.denseFault(sustainsSrc)
+            return {ok=false,error={code='sparse_import_array',path='sustains',
+                cause=faultCause or cause,key=faultKey,
+                warnings=warnings,unsupported=unsupported}}
+        end
+        sustainsCount=cause
+    end
+    local talentsSrc=config.talents
+    local talentsCount=0
+    if talentsSrc~=nil then
+        local dense,cause=Json.denseArray(talentsSrc,0)
+        if not dense then
+            local faultCause,faultKey=Json.denseFault(talentsSrc)
+            return {ok=false,error={code='sparse_import_array',path='talents',
+                cause=faultCause or cause,key=faultKey,
+                warnings=warnings,unsupported=unsupported}}
+        end
+        talentsCount=cause
+    end
+
     local sustains={}
-    for index,sustain in ipairs(type(config.sustains)=='table' and config.sustains or {}) do
+    for index=1,sustainsCount do
+        local sustain=sustainsSrc[index]
         local path='sustains['..index..']'
         if type(sustain)~='table' then
             reportUnsupported(unsupported,path,'invalid_sustain_entry')
@@ -253,7 +323,8 @@ function M.translate(config)
     end
 
     local rules,used={},{}
-    for index,entry in ipairs(type(config.talents)=='table' and config.talents or {}) do
+    for index=1,talentsCount do
+        local entry=talentsSrc[index]
         local rule=translateTalent(entry,index,used,warnings,unsupported)
         if rule then rules[#rules+1]=rule end
     end
