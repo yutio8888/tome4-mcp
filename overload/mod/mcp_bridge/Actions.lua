@@ -7,6 +7,11 @@ local Tracker = require 'mod.mcp_bridge.InvocationTracker'
 local Compat = require 'mod.mcp_bridge.NativeCompatibility'
 local Distance = require 'mod.mcp_bridge.Distance'
 local Details = require 'mod.mcp_bridge.ObservationDetails'
+-- A′ §6.3 (runtime-carrier boundary): the executor re-validates the closed group
+-- invariants the factory validated, so a hand-authored action carrier cannot
+-- forge or weaken factory-validated membership. No identity/digest gate is
+-- involved — this is mechanical validation of curated declaration data.
+local Factory = require 'mod.auto_combat.MovementAdapterFactory'
 local M = {}
 local attack_spec={target='actor',source='data/talents/misc/misc.lua',action_adapter='attack',
     description='Use the attack action with target_id to make a native ordinary attack, including native alternate attacks.'}
@@ -206,24 +211,33 @@ function M.normalizeSequence(list)
             if type(entry.optional)~='boolean' then return nil,'invalid_sequence' end
             if entry.optional then copy.optional=true end
         end
+        -- A′ §6.3: a declared group key rides the internal carrier, and the FULL
+        -- membership invariants are re-validated below on the normalised list
+        -- (>=2 members, one request kind, exactly-equal signatures). A
+        -- hand-authored malformed carrier is `invalid_sequence` and can never
+        -- relax the runtime gate.
+        if entry.group~=nil then
+            if not Factory.validGroupKey(entry.group) then return nil,'invalid_sequence' end
+            copy.group=entry.group
+        end
         if kind=='grid' then
             if not coordinate(entry.x) or not coordinate(entry.y) then return nil,'invalid_sequence' end
             for key in pairs(entry) do
                 if key~='kind' and key~='request' and key~='x' and key~='y' and key~='optional'
-                    and key~='observed' then return nil,'invalid_sequence' end
+                    and key~='observed' and key~='group' then return nil,'invalid_sequence' end
             end
             copy.x,copy.y=entry.x,entry.y
         elseif kind=='actor' then
             if entry.target_id~=nil and not stringId(entry.target_id) then return nil,'invalid_sequence' end
             for key in pairs(entry) do
                 if key~='kind' and key~='request' and key~='target_id' and key~='optional'
-                    and key~='observed' then return nil,'invalid_sequence' end
+                    and key~='observed' and key~='group' then return nil,'invalid_sequence' end
             end
             if entry.target_id~=nil then copy.target_id=entry.target_id end
         else
             for key in pairs(entry) do
                 if key~='kind' and key~='request' and key~='optional'
-                    and key~='observed' then return nil,'invalid_sequence' end
+                    and key~='observed' and key~='group' then return nil,'invalid_sequence' end
             end
         end
         out[i]=copy
@@ -232,6 +246,16 @@ function M.normalizeSequence(list)
     -- gate is the normative rule and subsumes it: even a directly submitted
     -- overlapping/identical signature pair can never be answered ambiguously,
     -- because a prompt is only answered when exactly the arrival entry matches.
+    -- A′ §6.3: group membership is DECLARED data, so the carrier is held to the
+    -- same mechanical invariants the factory validated (>=2 members, one request
+    -- kind, exactly-equal signatures). This is what stops a hand-authored
+    -- carrier from forging or weakening membership. The stationary
+    -- grid-closure invariant is a template property expressed in the factory's
+    -- `delivery` vocabulary, which the internal carrier does not carry; the
+    -- carrier enforces the part expressible here, and the decided-value kind
+    -- check (`SEQUENCE_VALUE_KINDS`) still applies per entry.
+    local membership=Factory.groupMembership(out)
+    if not membership then return nil,'invalid_sequence' end
     return out
 end
 -- Statistical audit of an attack entry (NO-AUDIT): the only structural
@@ -723,7 +747,43 @@ function M.execute(g, action, target, meta, command)
                                     matched_indexes[#matched_indexes+1]=i
                                 end
                             end
-                            if #matched_indexes~=1 or matched_indexes[1]~=observed then
+                            -- A′ §6.1: relax MATCHING ONLY. A raised prompt may
+                            -- be answered when its matched set CONTAINS the
+                            -- expected arrival index AND every matched entry is
+                            -- a member of the entry declared for that arrival
+                            -- (which is what makes several matches acceptable
+                            -- inside one declared group). Nothing about answer
+                            -- selection changes: the answer is always
+                            -- `action.sequence[observed]`, i.e. arrival k ->
+                            -- plan[k]. No value comparison, no reordering and no
+                            -- interchangeability logic is introduced. A matched
+                            -- set that EXCLUDES the expected arrival index is
+                            -- always a typed deviation — that is the cross-index
+                            -- guard and it is never weakened. Cross-group
+                            -- matches, non-members and ambiguous ungrouped
+                            -- matches also deviate.
+                            local groupMembers=(Factory and Factory.groupOf)
+                                and Factory.groupOf(queue,observed) or nil
+                            local expectedGroup=queue[observed] and queue[observed].group or nil
+                            local groupOk=false
+                            if groupMembers~=nil and expectedGroup~=nil then
+                                local contains=false
+                                for _,index in ipairs(matched_indexes) do
+                                    if index==observed then contains=true end
+                                end
+                                if contains and #matched_indexes>0 then
+                                    local allMembers=true
+                                    for _,index in ipairs(matched_indexes) do
+                                        local memberGroup=queue[index] and queue[index].group or nil
+                                        if memberGroup~=expectedGroup then
+                                            allMembers=false
+                                            break
+                                        end
+                                    end
+                                    groupOk=allMembers
+                                end
+                            end
+                            if not groupOk and (#matched_indexes~=1 or matched_indexes[1]~=observed) then
                                 deviate(observed,entry.request,nil,
                                     {observed_shape=typ.type,handback=true,
                                         matched_indexes=matched_indexes})

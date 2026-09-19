@@ -298,4 +298,168 @@ do
         'a movement adapter is not gated by advisory drift')
 end
 
+
+-- A′ §6.4/§6.5/§6.6: the stationary multi-prompt effect program (Earthen
+-- Missiles). It is NOT movement — the caster never moves — so the guard must
+-- measure the declared damage at EVERY chosen grid instead of skipping it, and
+-- it must carry the raised spec's ACTUAL static flags into the precheck and the
+-- footprint input.
+do
+    local function planOf(grids)
+        local values={}
+        for i,grid in ipairs(grids) do
+            values[i]={kind='grid',request='grid',x=grid[1],y=grid[2],group='earthen_missiles'}
+        end
+        return {kind='sequence',values=values,annotation={landing={kind='deterministic'}}}
+    end
+    local function stationaryAttempt(talent,grids)
+        local a=attempt(talent)
+        a.plan=planOf(grids)
+        return a
+    end
+    -- The routing is a validated consequence of the RESOLVED template: the
+    -- manifest entry's movement leaf carries delivery='stationary', so the guard
+    -- must never take the unconditional movement skip.
+    local guard=build{policy={safety={max_selffire_risk=0}}}
+    local permitted=guard(stationaryAttempt('T_EARTHEN_MISSILES',{{5,2},{6,2}}))
+    check(permitted==nil or (permitted.action=='permit' and permitted.detail.stationary==true),
+        'a self-safe stationary program is permitted with a stationary detail')
+    -- A friendly ally inside a chosen footprint is measured (the regular
+    -- variant has engine-default friendlyfire=true) and rejected at threshold 0.
+    local allyRisk=build{policy={safety={max_selffire_risk=0}},allies={{uid=9,x=5,y=2}}}
+    local rejected=allyRisk(stationaryAttempt('T_EARTHEN_MISSILES',{{5,2},{6,2}}))
+    check(rejected and rejected.action=='reject' and rejected.detail.stationary==true,
+        'a stationary program whose footprint covers an ally is measured and rejected')
+    -- A′ §6.4: the dwarven variant's EXPLICIT `friendlyfire=false` makes the same
+    -- ally footprint safe (0% friendly risk) — the raised spec's flag, not the
+    -- curated default, reaches risk modelling.
+    local dwarf=build{policy={safety={max_selffire_risk=0}},allies={{uid=9,x=5,y=2}}}
+    local dwarfVerdict=dwarf(stationaryAttempt('T_DWARVEN_HALF_EARTHEN_MISSILES',{{5,2},{6,2}}))
+    check(dwarfVerdict==nil or dwarfVerdict.action=='permit',
+        'the dwarven variant does not risk a friendly ally (explicit friendlyfire=false)')
+    -- A′ §6.4 (P1): `friendlyblock=false` must reach `canProject`. The engine
+    -- uses it to let a FRIENDLY actor NOT block the projection
+    -- (Target.lua:527-535,588-607,657-664), so a probe rebuilt from
+    -- {type,range,talent} can report a false `no_line_of_sight`. The double here
+    -- mirrors the engine rule: a friendly actor on the line blocks only when the
+    -- probe does NOT carry friendlyblock=false.
+    local function engineLineProject(probe,x,y)
+        -- The friendly ally at (4,2) blocks the line unless friendlyblock=false.
+        if x==5 and y==2 then
+            if probe.friendlyblock==false then return true end
+            return false
+        end
+        return true
+    end
+    local lineBuild=build{policy={safety={max_selffire_risk=0}},allies={{uid=9,x=4,y=2}},
+        player_fields={canProject=function(self,probe,x,y)
+            return engineLineProject(probe,x,y)
+        end}}
+    local dwarfLine=lineBuild(stationaryAttempt('T_DWARVEN_HALF_EARTHEN_MISSILES',{{5,2}}))
+    check(not (dwarfLine and dwarfLine.reason=='no_line_of_sight'),
+        'the dwarven friendlyblock=false probe does not manufacture a false no_line_of_sight')
+    local regularLine=lineBuild(stationaryAttempt('T_EARTHEN_MISSILES',{{5,2},{6,2}}))
+    check(regularLine and regularLine.reason=='no_line_of_sight',
+        'the regular variant (no friendlyblock field) keeps the engine default blocking')
+    -- Fail closed: no plan at all means the chosen grids are unknown.
+    local noPlan=guard(attempt('T_EARTHEN_MISSILES'))
+    check(noPlan and noPlan.action=='reject' and noPlan.reason=='movement_plan_unavailable',
+        'a stationary program without its plan fails closed')
+    -- A′ §6.5: EVERY plan value must be a valid grid — a malformed one is
+    -- rejected, never silently filtered out (the previous partial-plan bug).
+    local malformed=build{policy={safety={max_selffire_risk=0}}}
+    local badValue=malformed(stationaryAttempt('T_EARTHEN_MISSILES',{{5,2},{nil,2}}))
+    check(badValue and badValue.action=='reject'
+        and badValue.reason=='movement_plan_unavailable',
+        'a non-grid plan value fails closed instead of being filtered')
+    -- A′ §6.5: EVERY component x grid footprint must expand. One unreadable
+    -- expansion with another readable one (an ally standing in the readable
+    -- footprint) must never be measured as a partial, complete union.
+    do
+        local mod=require 'mod.auto_combat.EffectFootprint'
+        local realExpand=mod.expand
+        local calls=0
+        mod.expand=function(spec,opts)
+            calls=calls+1
+            if calls==2 then return nil,'native_failed' end
+            return realExpand(spec,opts)
+        end
+        local ok,result=pcall(function()
+            local g=build{policy={safety={max_selffire_risk=0}},allies={{uid=9,x=5,y=2}}}
+            return g(stationaryAttempt('T_EARTHEN_MISSILES',{{5,2},{6,2}}))
+        end)
+        mod.expand=realExpand
+        check(ok and result and result.action=='reject' and result.reason=='selffire_risk'
+            and result.detail.unknown==true and calls==2,
+            'a partially-unreadable footprint union fails closed (never measured as complete)')
+    end
+    -- The readable-union baseline: with both grids measured, the ally in the
+    -- FIRST grid is a known risk (not unknown).
+    local both=build{policy={safety={max_selffire_risk=0}},allies={{uid=9,x=5,y=2}}}
+    local bothVerdict=both(stationaryAttempt('T_EARTHEN_MISSILES',{{5,2},{6,2}}))
+    check(bothVerdict and bothVerdict.action=='reject' and bothVerdict.detail.stationary==true
+        and bothVerdict.detail.unknown~=true,
+        'the full two-grid union measures the known ally risk (baseline for the fail-closed case)')
+    -- An out-of-range chosen grid fails closed per grid.
+    local far=guard(stationaryAttempt('T_EARTHEN_MISSILES',{{2,2},{14,2}}))
+    check(far and far.action=='reject' and far.reason=='target_out_of_range',
+        'a stationary chosen grid outside the range fails closed')
+    -- A′ §6.6: the uncertainty is an annotation on the lowered plan, published by
+    -- the planner and the capability summary, never a refusal.
+    local Manifest=require 'mod.auto_combat.EffectManifest'
+    local em=Manifest.entry('T_EARTHEN_MISSILES')
+    check(em.movement.variants[1].movement.delivery=='stationary'
+        and em.movement.variants[2].movement.delivery=='stationary',
+        'both talent-level branches resolve to the stationary delivery (routing source)')
+end
+
+
+-- A′ §6.5: stationary guard routing is a VALIDATED CONSEQUENCE of the resolved
+-- template, never an independent manifest boolean. A mover declaration that a
+-- caller annotated with a fabricated `stationary=true` field must still be
+-- SKIPPED as movement; a stationary template leaf is measured even without any
+-- entry-level field. This is proven by injecting both shapes into the live
+-- manifest (the same technique `tests/test_auto_combat_catalog.lua` uses).
+do
+    local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+    local saved=Manifest.ENTRIES.T_MOONLIGHT_RAY
+    local function planOf(grids)
+        local values={}
+        for i,grid in ipairs(grids) do
+            values[i]={kind='grid',request='grid',x=grid[1],y=grid[2]}
+        end
+        return {kind='sequence',values=values,annotation={landing={kind='deterministic'}}}
+    end
+    -- (a) A MOVER leaf with a fabricated stationary[] boolean must be skipped.
+    local mover=assert(Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',
+            observed={cursor_type='hit',friendlyblock=false,nowarning=true,default_target='self'}}},
+        delivery='teleport',landing='random',center='self',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10}))
+    Manifest.ENTRIES.T_MOONLIGHT_RAY={kind='movement',target='grid',stationary=true,
+        movement=mover,components={},conformance={builder=false}}
+    local guard=build{policy={safety={max_selffire_risk=0}}}
+    local moverAttempt=attempt('T_MOONLIGHT_RAY')
+    moverAttempt.plan=planOf({{5,2}})
+    check(guard(moverAttempt)==nil,
+        'a fabricated entry-level stationary boolean cannot route a mover leaf into the measurement')
+    -- (b) A STATIONARY template leaf is measured with no entry-level field at all.
+    local stat=assert(Factory.expand('stationary_sequence',{range=10,request_sequence={
+        {index=1,request='grid',subject='self',value_source='target_plan',
+            observed={cursor_type='bolt'},group='probe'},
+        {index=2,request='grid',subject='self',value_source='target_plan',
+            observed={cursor_type='bolt'},group='probe'}}}))
+    Manifest.ENTRIES.T_MOONLIGHT_RAY={kind='movement',target='grid',
+        movement=stat,components={
+            {id='missile',phase='projectile',delivery='projectile',shape='bolt',range=10,
+                center='target',selffire=100,friendlyfire=100}},
+        conformance={builder=false}}
+    local statAttempt=attempt('T_MOONLIGHT_RAY')
+    statAttempt.plan=planOf({{5,2},{6,2}})
+    local measured=guard(statAttempt)
+    check(measured==nil or (measured.action=='permit' and measured.detail.stationary==true),
+        'a stationary template leaf is measured from the resolved template alone')
+    Manifest.ENTRIES.T_MOONLIGHT_RAY=saved
+end
+
 print('Auto-combat guard: '..checks..' checks passed')

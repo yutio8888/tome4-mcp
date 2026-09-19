@@ -65,7 +65,7 @@ M.EXPECTED={
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
     ['movement-fallback']={'blocked_landing','alternative_planned','fallback_moved'},
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
-    ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused','sd_cooldown_native_rejected','sd_cooldown_no_pause','sd_zero_prompt_success_deviated','sd_zero_prompt_success_paused'},
+    ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_phase_door_no_handback','sd_phase_door_tl5_plan','sd_phase_door_tl5_settled','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused','sd_cooldown_native_rejected','sd_cooldown_no_pause','sd_zero_prompt_success_deviated','sd_zero_prompt_success_paused'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['handback-answer']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt'},
     ['handback-timeout']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_unanswered_cancelled'},
@@ -1375,6 +1375,96 @@ local function movementTalentHost()
     return Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end}),accept
 end
 
+-- R2-REV2-NEW-01 (P2 coverage gap, A' scope, second half): the end-to-end
+-- PERMIT path. A guard `permit` verdict must reach the native executor
+-- (`Tracker.startAction`/`Actions.execute`) and produce exactly one submission;
+-- a `reject` verdict must reach none. This runs synchronously (no yielding body)
+-- and doubles as the retained `Runtime` permit-branch regression on real data.
+local function permitPathChecks()
+    forceReady()
+    Runtime.setAutoCombatExecution(game,true)
+    local Tracker=require 'mod.mcp_bridge.InvocationTracker'
+    local NPC=require('mod.class.NPC')
+    local p=game.player
+    local function clearProbeAlly()
+        if M.pp_ally then
+            pcall(function() game.level:removeEntity(M.pp_ally,true) end)
+            M.pp_ally=nil
+        end
+    end
+    local function makeProbeAlly(x,y)
+        clearProbeAlly()
+        local ally=NPC.new{name='permit probe ally',type='humanoid',subtype='human',
+            display='a',color=colors.GREEN,faction='players',level_range={1,1},
+            max_life=100,life_rating=0,rank=1,size_category=1,ai='none',never_move=true,
+            stats={str=10,dex=10,mag=10,con=10},combat={dam=1,atk=1,apr=0},
+            combat_armor=0,combat_def=0,infravision=10}
+        ally:resolve();ally:resolve(nil,true);ally.life=ally.max_life
+        game.zone:addEntity(game.level,ally,'actor',x,y)
+        M.pp_ally=ally
+        return ally
+    end
+    local rules={{id='ray',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MOONLIGHT_RAY',target='nearest_hostile'}}}
+    local function policyWith(threshold)
+        return {schema='tome-auto-combat/v1',id='permit-probe',name='probe',
+            limits={max_actions_per_tick=1},
+            safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=true,
+                pause_on_unknown_safety=true,max_selffire_risk=threshold},
+            targeting={default='nearest_hostile'},rules=rules}
+    end
+    local saved_optin=p.allow_player_selffire
+    p.allow_player_selffire=true
+    local host=Runtime.buildAutoCombatHostFor(game,policyWith(100),{drift=function() return true end})
+    local ctx=host.snapshot('nearest_hostile')
+    local b=ctx and ctx.bound_target
+    -- A friendly actor on the beam's line is a KNOWN 100% friendly risk (the same
+    -- placement `effect-footprint-parity` uses), permitted at threshold 100.
+    if b then makeProbeAlly(p.x+2,p.y) end
+    local verdict
+    if b then
+        verdict=host.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=b})
+    end
+    local permitted=verdict and verdict.action=='permit' and verdict.detail
+        and verdict.detail.threshold==100
+    check('permit-path:guard-permit',permitted,
+        {verdict=verdict and {action=verdict.action,reason=verdict.reason,
+            measurement=verdict.detail and verdict.detail.measurement}})
+    -- The whole production path: permit -> Tracker.startAction -> Actions.execute,
+    -- exactly one native submission (the arena character may not know the talent,
+    -- so the native result is not constrained here).
+    local submissions=0
+    local realStartAction=Tracker.startAction
+    Tracker.startAction=function(...)
+        submissions=submissions+1
+        return realStartAction(...)
+    end
+    if permitted and b then
+        forceReady()
+        host.request({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=b,rule='ray'})
+    end
+    check('permit-path:one-submission',submissions==1,{submissions=submissions})
+    -- A REJECT verdict (threshold 0) never reaches the executor.
+    local strict=Runtime.buildAutoCombatHostFor(game,policyWith(0),{drift=function() return true end})
+    local before=submissions
+    local refused
+    if b then
+        forceReady()
+        refused=strict.request({action='use_talent',talent='T_MOONLIGHT_RAY',
+            bound_target=b,rule='ray'})
+    end
+    check('permit-path:reject-refuses',
+        refused and refused.status=='rejected' and refused.code=='selffire_risk'
+        and submissions==before,
+        {status=refused and refused.status,code=refused and refused.code,
+            submissions=submissions})
+    Tracker.startAction=realStartAction
+    p.allow_player_selffire=saved_optin
+    clearProbeAlly()
+    Runtime.setAutoCombatExecution(game,false)
+    return permitted
+end
+
 local function movementTalentSignal(kind,suffix)
     local base=kind=='rush' and 'rush' or kind=='tumble' and 'tumble' or 'teleport'
     return base..'_'..suffix
@@ -1429,6 +1519,11 @@ local function movementTalentRun(spec)
                 rule='tumble'})
         end
     else
+        -- A leftover native cooldown from an earlier real cast would make the
+        -- native body refuse before raising any prompt; clear it so this probe
+        -- exercises the talent itself.
+        p.talents_cd=p.talents_cd or {}
+        p.talents_cd[spec.talent]=0
         local planned,err=host.plan({action='use_talent',talent=spec.talent,
             target_plan={{request='none'}},destination={selector='native_random',accept=accept}})
         local ok=planned and planned.plan and planned.plan.kind=='none'
@@ -1632,25 +1727,85 @@ local function movementSequenceChecks()
         rawset(p,'getTarget',saved_getTarget)
         p.talents_cd=saved_cd
     end
-    -- (a) The planner lowers a two-entry program into an ordered sequence.
-    local entry,restore=movementSequenceFixture('T_MCP_SEQ_A',{type='ball',range=14,radius=1,nowarning=true},true,false)
+    -- R2-REV2-NEW-01: the REAL TL4 Phase Door (with the precise attribute)
+    -- drives the two-entry ordered program — NO test-only talent and no synthetic
+    -- prompt shapes. The declared signatures are the manifest's curated ones
+    -- (`cursor_type='hit',friendlyblock=false,nowarning=true,default_target='self'`
+    -- then `ball,nolock=true,pass_terrain=true,nowarning=true`), so this case
+    -- catches the whole class of manifest-vs-native signature mismatch that
+    -- R2-REV-01 was. The second stage (the async block) repeats it at TL5, whose
+    -- grid prompt is statically unconditional.
+    p.talents=p.talents or {}
+    p.talents_def=p.talents_def or {}
+    p.talents_cd=p.talents_cd or {}
+    if not p.talents_def.T_PHASE_DOOR and type(p.learnTalent)=='function' then
+        pcall(function() p:learnTalent('T_PHASE_DOOR',true) end)
+    end
+    local realDoor=p.talents_def.T_PHASE_DOOR
+    if type(realDoor)~='table' or type(realDoor.action)~='function' then
+        check('movement-sequence:phase-door-definition',false,
+            {note='the arena character has no native T_PHASE_DOOR definition'})
+        signals[#signals+1]='sd_phase_door_missing'
+        return compare('movement-sequence',signals)
+    end
+    p.talents.T_PHASE_DOOR=4
+    p.talents_cd.T_PHASE_DOOR=0
+    p.phase_door_force_precise=1
     local pol=policy({{id='seq',priority=10,when={always={}},['then']={action='use_talent',
-        talent='T_MCP_SEQ_A',target='self'}}})
+        talent='T_PHASE_DOOR',target='self'}}})
     local host=Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end})
     local before={x=p.x,y=p.y}
-    local dest={selector='position',x=p.x+3,y=p.y,accept=accept}
-    local planArgs={action='use_talent',talent='T_MCP_SEQ_A',target='self',
+    -- Pick a real, in-range grid so the native landing prompt has a legal answer.
+    local map=game.level.map
+    local tx,ty
+    for radius=2,4 do
+        for _,delta in ipairs({{radius,0},{-radius,0},{0,radius},{0,-radius},
+            {radius,radius},{-radius,-radius},{radius,-radius},{-radius,radius}}) do
+            local x,y=p.x+delta[1],p.y+delta[2]
+            if map:isBound(x,y) and Distance.grid(p.x,p.y,x,y)<=10 then tx,ty=x,y break end
+        end
+        if tx then break end
+    end
+    tx,tx=tx or (p.x+2),ty or p.y
+    -- The agent-play arena may have blocked terrain between the caster and the
+    -- candidate; pick the first candidate the live builder accepts so the native
+    -- landing prompt has a legal answer (a blocked one would be the per-request
+    -- native guard, not this case).
+    local dest={selector='position',x=tx,y=ty,accept=accept}
+    local planArgs={action='use_talent',talent='T_PHASE_DOOR',target='self',
         target_plan={{request='actor',selector='self'},{request='grid',destination=dest}},
         destination=dest}
     local planned,planErr=host.plan(planArgs)
+    -- If the straight candidate is blocked in the live arena, the per-grid
+    -- builder validation refuses it; walk the candidate set until the live
+    -- planner accepts one (never synthesising a coordinate).
+    if not planned and type(engine)=='table' and engine.Target and p.canProject then
+        local okProbe,probe=pcall(engine.Target.getType,engine.Target,
+            {type='ball',range=10,radius=1,nolock=true,pass_terrain=true,nowarning=true})
+        for _,delta in ipairs({{1,0},{0,1},{-1,0},{0,-1},{2,0},{0,2},{-2,0},{0,-2},
+                {1,1},{-1,-1},{1,-1},{-1,1}}) do
+            local x,y=p.x+delta[1],p.y+delta[2]
+            if map:isBound(x,y) and Distance.grid(p.x,p.y,x,y)<=10 then
+                local can=okProbe and p:canProject(probe,x,y)
+                if can then
+                    dest={selector='position',x=x,y=y,accept=accept}
+                    planArgs.target_plan[2].destination=dest
+                    planArgs.destination=dest
+                    planned,planErr=host.plan(planArgs)
+                    tx,ty=x,y
+                    if planned then break end
+                end
+            end
+        end
+    end
     local okPlan=planned and planned.plan and planned.plan.kind=='sequence'
         and #planned.plan.steps==2 and planned.plan.values[1].kind=='self'
         and planned.plan.values[2].kind=='grid'
     check('movement-sequence:plan',okPlan,{kind=planned and planned.plan and planned.plan.kind,
-        reason=planErr and planErr.reason})
+        reason=planErr and (planErr.reason or planErr.detail)})
     signals[#signals+1]=okPlan and 'sd_plan_sequence' or 'sd_plan_missing'
     -- (b) A reversed plan is a typed mismatch, never silently reordered.
-    local reversed,reversedErr=host.plan({action='use_talent',talent='T_MCP_SEQ_A',target='self',
+    local reversed,reversedErr=host.plan({action='use_talent',talent='T_PHASE_DOOR',target='self',
         target_plan={{request='grid',destination=dest},{request='actor',selector='self'}},
         destination=dest})
     local okReverse=reversed==nil and reversedErr and reversedErr.reason=='target_plan_mismatch'
@@ -1665,10 +1820,13 @@ local function movementSequenceChecks()
     check('movement-sequence:static-unsupported',okStatic,
         {reason=staticErr and staticErr.reason,missing=staticErr and staticErr.missing})
     signals[#signals+1]=okStatic and 'sd_static_unsupported' or 'sd_static_missing'
-    -- (d) The ordered queue answers both prompts distinct in one submission.
+    -- (d) R2-REV2-NEW-01: the ordered queue answers BOTH REAL native Phase Door
+    -- prompts in one submission, with the curated signatures matching the raised
+    -- specs, and no handback.
     local outcome
     if planned then
-        outcome=host.request({action='use_talent',talent='T_MCP_SEQ_A',plan=planned.plan,rule='seq'})
+        p.talents_cd.T_PHASE_DOOR=0
+        outcome=host.request({action='use_talent',talent='T_PHASE_DOOR',plan=planned.plan,rule='seq'})
     end
     local settled=outcome and outcome.status=='ok'
     local seq=outcome and outcome.target_sequence
@@ -1681,16 +1839,59 @@ local function movementSequenceChecks()
     -- distinct: the actor prompt was answered with the caster cell/player uid,
     -- the landing prompt with its own distinct coordinate and no entity.
     local answers=ordered and seq[1].answer and seq[2].answer or nil
-    local distinct=ordered and seq[2].radius==1 and seq[1].radius==nil
+    local distinct=ordered and seq[1].shape=='hit' and seq[2].shape=='ball'
+        and seq[2].radius~=nil and seq[1].radius==nil
         and answers
-        and seq[1].answer.x==p.x and seq[1].answer.y==p.y
+        and seq[1].answer.x==before.x and seq[1].answer.y==before.y
         and seq[1].answer.uid==p.uid
-        and seq[2].answer.x==p.x+3 and seq[2].answer.y==p.y
-        and seq[2].answer.uid==nil
+        and seq[2].answer.x==tx and seq[2].answer.y==ty and seq[2].answer.uid==nil
     check('movement-sequence:distinct-values',settled and distinct,
-        {first=seq and seq[1],second=seq and seq[2]})
+        {first=seq and seq[1],second=seq and seq[2],x=tx,y=ty})
     signals[#signals+1]=(settled and distinct) and 'sd_distinct_values' or 'sd_distinct_missing'
-    restore()
+    -- R2-REV2-NEW-01: no handback — the REAL prompts were answered by the
+    -- manifest-declared program, proving the curated signatures match the raised
+    -- specs (the class of defect R2-REV-01 was).
+    check('movement-sequence:phase-door-no-handback',
+        outcome and outcome.handed_back~=true and outcome.sequence_deviation==nil,
+        {handed_back=outcome and outcome.handed_back,status=outcome and outcome.status,
+            deviation=outcome and outcome.sequence_deviation})
+    signals[#signals+1]=(outcome and outcome.handed_back~=true and outcome.sequence_deviation==nil)
+        and 'sd_phase_door_no_handback' or 'sd_phase_door_handback'
+    -- R2-REV2-NEW-01 (TL5 half): at effective TL5 the landing prompt is
+    -- statically unconditional (the first disjunct of the native gate), so repeat
+    -- the same REAL two-prompt program with no precise attribute.
+    p.phase_door_force_precise=nil
+    p.talents.T_PHASE_DOOR=5
+    p.talents_cd.T_PHASE_DOOR=0
+    local plan5,plan5Err=host.plan(planArgs)
+    local okPlan5=plan5 and plan5.plan and plan5.plan.kind=='sequence'
+        and #plan5.plan.steps==2
+    check('movement-sequence:phase-door-tl5-plan',okPlan5,
+        {kind=plan5 and plan5.plan and plan5.plan.kind,
+            reason=plan5Err and (plan5Err.reason or plan5Err.detail)})
+    signals[#signals+1]=okPlan5 and 'sd_phase_door_tl5_plan' or 'sd_phase_door_tl5_plan_missing'
+    local outcome5
+    if plan5 and plan5.plan then
+        forceReady()
+        outcome5=host.request({action='use_talent',talent='T_PHASE_DOOR',
+            plan=plan5.plan,rule='seq'})
+    end
+    local seq5=outcome5 and outcome5.target_sequence
+    local tl5ok=outcome5 and outcome5.status=='ok' and outcome5.handed_back~=true
+        and outcome5.sequence_deviation==nil and type(seq5)=='table' and #seq5==2
+        and seq5[1].shape=='hit' and seq5[2].shape=='ball'
+    check('movement-sequence:phase-door-tl5',tl5ok,
+        {status=outcome5 and outcome5.status,code=outcome5 and outcome5.code,
+            count=seq5 and #seq5,deviation=outcome5 and outcome5.sequence_deviation})
+    signals[#signals+1]=tl5ok and 'sd_phase_door_tl5_settled' or 'sd_phase_door_tl5_missing'
+    p.phase_door_force_precise=nil
+    p.talents.T_PHASE_DOOR=1
+    -- This case drives the REAL talent, so it leaves the native cooldown set
+    -- (12 turns at TL5 without the precise attribute). Clear it so the later
+    -- movement-talents teleport probe exercises the talent rather than its
+    -- cooldown, then restore the seam state the fixture replaced.
+    p.talents_cd.T_PHASE_DOOR=0
+    restoreSeams()
     -- (e) The per-request native guard: a landing 3 tiles away with a range-1
     -- second prompt is refused as the typed native cancel (never bypassed).
     local entry2,restore2=movementSequenceFixture('T_MCP_SEQ_B',{type='ball',range=1,radius=1,nowarning=true},true,false)
@@ -1961,6 +2162,9 @@ local function runAll()
         movementPlan()
         movementFactoryChecks()
         movementSequenceChecks()
+        -- R2-REV2-NEW-01 (second half): the end-to-end guard permit path. This is
+        -- synchronous (the talent body does not yield here).
+        permitPathChecks()
     end)
     if not ok then check('scenarios:exception',false,{error=tostring(err)}) end
     return ok
