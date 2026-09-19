@@ -86,7 +86,7 @@ M.FIXTURES={REAL_SHADOWSTEP_TG=M.REAL_SHADOWSTEP_TG,
 function M.assertRawPresence(fixture,spec,message)
     assert(type(fixture)=='table' and type(spec)=='table','assertRawPresence: bad fixture/spec')
     for _,flag in ipairs(D3_FLAGS) do
-        local expected=fixture.raw_presence and fixture.raw_presence[flag] or nil
+        local expected=fixture.raw_presence and fixture.raw_presence[flag]
         if expected~=nil then
             assert(spec[flag]==expected,(message or fixture.source)
                 ..': raw flag '..flag..' must be present and equal')

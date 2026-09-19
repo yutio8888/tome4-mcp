@@ -309,6 +309,31 @@ M.ENTRIES={
         },
         movement_postcondition={mover='self',endpoint='landing_envelope',unchanged='fizzle'},
         conformance={builder=true}},
+    -- S3 admission 2 (Giant Leap, uber/str.lua:20-74): a MIXED movement/effect
+    -- uber talent. The movement half is the requested-grid leap: an empty
+    -- request lands exactly; an occupied request falls back to the nearest free
+    -- grid within radius one; a blocked grid refuses (uber/str.lua:47-55). The
+    -- effect half is the actual-centered radius-1 weapon/daze projection
+    -- (`self:project(tg, self.x, self.y, ...)`, uber/str.lua:63-71), whose
+    -- raised/reused tg explicitly has selffire=false with friendlyfire and
+    -- friendlyblock absent (D3). D1: the pre-commit union is the COMPLETE
+    -- component x landing-candidate expansion (one ball per candidate), never
+    -- the analytic circle. The mover is excluded in both the spec and the
+    -- callback (selffire=false plus `target ~= self`), so a true self
+    -- membership yields zero self risk — evidence, not a special veto.
+    T_GIANT_LEAP=mixedMovementEntry{kind='movement',target='hostile',resource='stamina',
+        movement=movementAdapter('grid_move_bounded',{delivery='leap',traverses=false,
+            radius=1,min_radius=0,builder_shape='ball',
+            landing_proof='occupied request falls back to findFreeGrid radius 1; '
+                ..'block_move refuses the landing (uber/str.lua:47-55)'}),
+        components={
+            {id='giant_leap_weapon_daze',phase='secondary',delivery='project',shape='ball',
+                center='actual_landing',radius={from='target'},
+                selffire=0,friendlyfire=100,
+                provenance={selffire=EXPLICIT,friendlyfire=TARGET_DEFAULT}},
+        },
+        movement_postcondition={mover='self',endpoint='landing_envelope',unchanged='mismatch'},
+        conformance={builder=true}},
     -- S2-R4-01: the agility Vault (techniques/agility.lua:83-150, T_VAULT) is
     -- deliberately NOT published here. Its two prompts are distinguishable
     -- (hit-without-nolock then hit+nolock), but the talent is MIXED: the first
@@ -437,8 +462,6 @@ M.UNSUPPORTED={
     {talent='T_DIMENSIONAL_STEP',scope='effective_talent_level>=5 and requested_grid_occupied',
         missing='moving_or_swapping_another_actor',
         reason='a player-known empty requested grid uses the admitted non-swap teleport; a known occupied grid is the typed S4 swap gap; unknown occupancy fails closed'},
-    {talent='T_GIANT_LEAP',scope='any',missing='source_reviewed_movement_adapter',
-        reason='requested-grid movement with an alternate landing and radius effect; movement/effect composition is a later slice'},
     -- S2-R4-01: the agility Vault is a MIXED talent whose sequence is
     -- distinguishable but whose first (actor) prompt's target is attacked and may
     -- be dazed before the move. Component-free grid-movement admission would let
