@@ -19,6 +19,31 @@
 > `docs/tome-mcp-auto-combat-plugin-design.md` §8.3（及 §0.1/§1.2/§5.3/§5.4）。下方各节在相关处已加
 > **局部 supersession 注解**；未加注解的普通功能/协议验收仍有效。
 
+## 0.9.0：S3 movement/effect composition —— Arm 2（Designer 方案实现，`feat/s3-arm2`，off `main@3dcc683`，dev 待评审）
+
+日期：2026-09-18。Role `[Dev]`（**Arm 2**，model B, rotation；配对实验：`[Designer]` 先出绑定方案
+`tmp/mcp-play-support/s3-design-arm2.md`（sha256 `4c2d3bffd12c323036e83fc86ec1d714cdfa08eb4ff0a083917cf4a5ae771a28`），
+Dev 只实现，不重新裁决契约）。交付三个独立绿提交：Shadowstep（`b7d1c14`）→ Giant Leap（`1ec12a9`）
+→ 敏捷 Vault（`d807f05`）。`T_SKIRMISHER_VAULT`（杂技 Vault）字节级保持基线不变。
+
+| 决策 | 结果 | 实现与证据 |
+| --- | --- | --- |
+| D1（完整组件×落点候选对展开，禁止解析圆） | **PASS** | Guard 混合路径：`landingCandidates`（确定性单格 / bounded / random 信封 + 插件自有半径上限，确定性 (y,x) 顺序，无 plan 的 `requested_grid` ⇒ `movement_plan_unavailable`）+ `expandComplete`：每个适用 (组件,候选) 对经原生 backend 展开，**全部成功才保留并集**；任一 `nil`/`native_failed`/`unsupported` 对、未知条件或不可读半径 ⇒ 丢弃部分并集、成员未知（`selffire_risk unknown=true`），**从不度量部分并集**；`completed==required` 在成员/风险计算前断言。解析圆仅作为测试 oracle（并集 ⊆ 半径 2 方块，G-U3） |
+| D2（直击效果复用 `delivery='attackTarget'`） | **PASS** | Shadowstep 两组件与 Vault 两组件均为 `delivery='attackTarget'`（strike/daze），无新 token、无新风险公式；`EffectRisk` 豁免复用；组件**声明并记录**（decision trace 携带 `components` 证据），不假称 AoE 投影 |
+| D3（真实 raised spec 旗标作为 guard 输入） | **PASS** | 真实 raised spec（live `def.target`）的 `friendlyblock/friendlyfire/selffire/pass_terrain/no_restrict/actorblock/stop_block`（仅**显式存在**的键）复制进每个投影 footprint spec；raw presence map 与归一化默认值分开断言（G-U6：`selffire=false` 显式存在 vs `friendlyfire` 缺省缺席）；Giant Leap `selffire=0` 的自排除为 `self_excluded` 证据 |
+| D4（无合成 shape 测试） | **PASS** | 单元/原生全部钉定 `REAL_SHADOWSTEP_TG`/`REAL_GIANT_LEAP_TG`/`REAL_VAULT_ACTOR_TG`/`REAL_VAULT_LANDING_TG`（`tests/s3_real_specs.lua` 策展精确副本 + 原生层 live builder）；raw presence 与 normalized 默认分开断言；Vault 落点提示是 action-local 表的策展精确拷贝（无可调用 builder） |
+| D5（`movement_postcondition_mismatch` 内部安全暂停原因） | **PASS** | 服务内部 `SAFETY_PAUSES`（非 protocol/v4 code，紧邻 S2 原因）；Runtime 预提交构建不可变期望（talent/before/mover/landing 信封/unchanged 模式），**同步结算**在映射前求值（Path 1，controller 紧随 `sequence_deviation` 检查、先于预算与 native_pending 分支），**延迟结算**的 `native_pending` root 由 `reapAutoInvocation` 在释放前求值（Path 2，`AutoCombatService.nativePostconditionMismatch` 镜像 `nativeDeviation`）。原生证据：Shadowstep 信封内 pass；强制信封缩到半径 0 时生产 service 一次 pause + lease 释放 + 恰好一条 typed 事件（`mismatch_handoff`），动作永不重提交 |
+| 准入 | **PASS** | Shadowstep → Giant Leap → Vault 三个绿提交，各有独立 descriptor/guard 组合/postcondition 与测试（S-U1..U4、G-U1..U7、V-U1..U6、X-U1..U4）；S2 队列、`Actions.lua`、协议/server 无 diff |
+| 证据 | **PASS** | Lua 42 套全绿（`tmp/s3-arm2/s3-arm2-lua-suite.log` sha256 `b7c3428bc2cfaecc4f88849b9a22d61896dd3a480ec669dc41a29786509b11be`）、Python 39 OK（`tmp/s3-arm2/s3-arm2-python.log` `5c2a3a9727ab7402d6223e2c392f5da3a4c9246e02315596e7b36847f397c994`）、三个 `--check` 退 0（`tmp/s3-arm2/generator-*.log`）、auto-combat 探针 source `s3-arm2-source6` 与 dist `s3-arm2-dist` 各 **197/197**（game.log sha256 `9a1e31d459b5d76a08fe36435a1a4917e7df3200c4d9a3be50245d36ca89def7` / `3a0e9bb66b08132760cb143f8ae93c24bd28909f9f54c4bca507dc69d20d07ce`）、原生验收 source `s3-arm2-accept-source` 与 dist `s3-arm2-accept-dist` 各 **101/101**。dist sha256 `3cb9cbbffd036db096830d261a6d703d0c725585555a5243e64f1874d92e8fc6`，parity 68/68（0 处不符） |
+
+原生探针新增场景 `movement-composition`（守卫组合证据、候选计数、raised flags、`movement_plan_unavailable`、
+真实 `ActorProject:project` footprint parity 的 friendlyblock true/false 命名旗标子例）与
+`movement-talents` 的三个混合同步/异步端到端执行（Shadowstep 信封内执行、Giant Leap 精确落点、
+Vault 无盾原生 pre-use 拒绝且无伪造缺失提示偏差、强制信封外结算的生产 service 一次 pause/撤销租约）。
+Giant Leap 解锁的 UNVERIFIED 项按方案 §5 处置：探针以 `damage_log.weapon.other=50000` 测试夹具满足真实
+requirement 并经真实 live action 执行（未弱化生产需求检查）；每轮 `movement_postcondition_mismatch`
+的 P1 玩法由策略阈值决定，插件只报告。
+
 ## 0.9.0：anor-reg-01 修复二轮 R-1（P1 limit-1 活锁）+ R-2（P3 replay 窗口）（`fix/emergency-deny-livelock`，off `2348556`，dev 待评审）
 
 日期：2026-09-18。Role `[Dev]`（model B, rotation）。来源评审：`tmp/mcp-play-support/review-anor-reg-01-fixes.md`
