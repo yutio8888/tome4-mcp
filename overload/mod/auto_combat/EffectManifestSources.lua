@@ -45,5 +45,6 @@ return {
         T_DIMENSIONAL_STEP={files={{path='/data/talents/chronomancy/spacetime-weaving.lua',md5='ada142a71339308098bd056b96ed9a08'}},line=23,builder={path='/data/talents/chronomancy/spacetime-weaving.lua',line=32},action={path='/data/talents/chronomancy/spacetime-weaving.lua',line=38},ranges={range={path='/data/talents/chronomancy/spacetime-weaving.lua',line=30}}},
         T_SHADOWSTEP={files={{path='/data/talents/cunning/shadow-magic.lua',md5='e272ec979e44edafb3bda5811aced61c'}},line=110,builder={path='/data/talents/cunning/shadow-magic.lua',line=123},action={path='/data/talents/cunning/shadow-magic.lua',line=127},ranges={range={path='/data/talents/cunning/shadow-magic.lua',line=118}}},
         T_GIANT_LEAP={files={{path='/data/talents/uber/str.lua',md5='6bc83e78c2966328551aea0d2e0e3237'}},line=21,builder={path='/data/talents/uber/str.lua',line=38},action={path='/data/talents/uber/str.lua',line=41}},
+        T_VAULT={files={{path='/data/talents/techniques/agility.lua',md5='a987a797a4f0369f7d66aacfca0d7c39'}},line=83,builder={path='/data/talents/techniques/agility.lua',line=92},action={path='/data/talents/techniques/agility.lua',line=106},getters={getDist={path='/data/talents/techniques/agility.lua',line=105}}},
     },
 }

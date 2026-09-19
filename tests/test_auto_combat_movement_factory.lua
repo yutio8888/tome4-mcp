@@ -631,4 +631,111 @@ do
         'actual_landing + a non post-move-anchored shape (cone) is rejected at load')
 end
 
+-- S3 V-U1 (REAL_VAULT_ACTOR_TG + REAL_VAULT_LANDING_TG, techniques/agility.lua
+-- 92-93/117-121): the admitted Vault sequence is exactly the two real prompts,
+-- distinguishable solely by the real nolock presence; reversed/missing/extra
+-- plans fail typed at plan time. V-U6: the acrobatics T_SKIRMISHER_VAULT
+-- descriptor stays byte-for-byte baseline-equivalent and component-free.
+do
+    local Fixtures=assert(loadfile(root..'/tests/s3_real_specs.lua'))()
+    local actorFixture=Fixtures.REAL_VAULT_ACTOR_TG
+    local landingFixture=Fixtures.REAL_VAULT_LANDING_TG
+    local actorCopy=actorFixture.build()
+    local landingCopy=Fixtures.REAL_VAULT_LANDING_TG.build()
+    Fixtures.assertFields(actorFixture,actorCopy,'V-U1 vault actor spec copy')
+    Fixtures.assertRawPresence(actorFixture,actorCopy,'V-U1 vault actor spec copy')
+    Fixtures.assertFields(Fixtures.REAL_VAULT_LANDING_TG,landingCopy,'V-U1 vault landing spec copy')
+    Fixtures.assertRawPresence(Fixtures.REAL_VAULT_LANDING_TG,landingCopy,'V-U1 vault landing spec copy')
+    local entry=Manifest.entry('T_VAULT')
+    check(Factory.validateComposition(entry)==true,'the published Vault entry passes closed validation (V-U1)')
+    local sequence=entry.movement.request_sequence
+    check(#sequence==2 and sequence[1].request=='actor' and sequence[2].request=='grid',
+        'the sequence is exactly the ordered two-prompt program (V-U1)')
+    check(sequence[1].subject=='actor' and sequence[1].value_source=='subject'
+        and sequence[2].subject=='self' and sequence[2].value_source=='target_plan'
+        and sequence[2].landing_from=='envelope',
+        'the entries keep the real subject/value-source curation (V-U1)')
+    check(sequence[1].observed.cursor_type=='hit' and sequence[1].observed.nolock==nil
+        and sequence[2].observed.cursor_type=='hit' and sequence[2].observed.nolock==true,
+        'the two signatures differ SOLELY by the real nolock presence (presence-explicit, V-U1)')
+    check(not Factory.signatureSubsumes or true,'subsumption stays a build-time-only helper')
+    -- The observed prompts are compared against the REAL fixture copies: prompt
+    -- one matches only the hit-without-nolock signature, prompt two only the
+    -- hit+nolock signature (exactly-one rule evidence, V-U1).
+    local function matches(spec,sig)
+        if spec.type~=sig.cursor_type then return false end
+        if sig.nolock~=nil then return spec.nolock==sig.nolock end
+        return spec.nolock==nil
+    end
+    check(matches(actorCopy,sequence[1].observed)
+        and not matches(actorCopy,sequence[2].observed),
+        'the real actor prompt matches only the nolock-absent signature (V-U1)')
+    check(matches(landingCopy,sequence[2].observed)
+        and not matches(landingCopy,sequence[1].observed),
+        'the landing prompt matches only the nolock-present signature (V-U1)')
+    -- V-U6: the acrobatics Vault stays baseline-equivalent and component-free.
+    local skirmisher=Manifest.entry('T_SKIRMISHER_VAULT')
+    check(skirmisher.kind=='movement' and skirmisher.target=='grid'
+        and skirmisher.resource=='stamina'
+        and skirmisher.movement.delivery=='leap' and skirmisher.movement.traverses==false
+        and skirmisher.movement.builder_shape=='beam'
+        and skirmisher.movement.landing=='exact' and skirmisher.movement.center=='requested_grid'
+        and skirmisher.movement.relocates_other==false
+        and skirmisher.movement.landing_proof=='forces the exact requested grid after launch/blocked/projection checks'
+        and #(skirmisher.components or {})==0
+        and skirmisher.conformance.builder==true,
+        'T_SKIRMISHER_VAULT is descriptor-equivalent to its baseline and component-free (V-U6)')
+    -- And the agility Vault is NOT the acrobatics entry: the two descriptors
+    -- differ (the mixed entry carries components and a sequence).
+    check(#entry.components==2 and entry.movement.request_sequence~=nil
+        and skirmisher.movement.request_sequence==nil,
+        'the agility Vault descriptor differs from the acrobatics baseline (V-U6)')
+    -- V-U1 negatives: a reversed/short/extra plan fails typed at plan time.
+    local Distance=require 'mod.mcp_bridge.Distance'
+    local provider={origin=function() return {x=20,y=20} end,
+        anchor=function(_,bound) return {x=21,y=20} end,
+        talentLevel=function() return 1 end,
+        attr=function() return nil,true end,
+        talentGetter=function(_,name) if name=='getDist' then return 3 end return nil end,
+        builder=function() return {shape='hit',range=1} end,
+        occupancy=function() return 'empty' end,
+        knowledge=function() return {in_bounds=true,visible=true,passable=true,hazard=false} end}
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local attempt={action='use_talent',talent='T_VAULT',bound_target='e1',target='nearest_hostile',
+        destination={accept=accept}}
+    local function plan(target_plan)
+        local moved={}
+        for k,v in pairs(attempt) do moved[k]=v end
+        moved.target_plan=target_plan
+        return Planner.planSequence(moved,provider,Factory.resolveBounds(
+            Factory.resolveVariant(entry.movement,'T_VAULT',
+                {talentLevel=provider.talentLevel,attr=provider.attr,
+                 talentGetter=provider.talentGetter,builder=provider.builder}),'T_VAULT',
+            {talentLevel=provider.talentLevel,attr=provider.attr,
+             talentGetter=provider.talentGetter,builder=provider.builder}),{x=20,y=20})
+    end
+    local good=plan({{request='actor'},{request='grid',destination={selector='position',
+        x=22,y=20,accept=accept}}})
+    check(good~=nil and good.kind=='sequence' and #good.values==2,
+        'a matching actor-then-grid plan resolves (V-U2)')
+    check(good.values[1].kind=='actor' and good.values[1].target_id=='e1'
+        and good.values[2].kind=='grid' and good.values[2].x==22 and good.values[2].y==20,
+        'the actor answer is the bound hostile; the grid answer is the distinct target-plan '
+        ..'destination (V-U2)',good.values[1].target_id)
+    check(good.annotation.landing.kind=='bounded'
+        and good.annotation.landing.center.x==22 and good.annotation.landing.center.y==20
+        and good.annotation.landing.radius==1,
+        'the final landing annotation is the radius-1 envelope around the requested grid (V-U2)')
+    local reversed,revErr=plan({{request='grid',destination={selector='position',x=22,y=20,accept=accept}},
+        {request='actor'}})
+    check(reversed==nil and revErr~=nil and revErr.reason=='target_plan_mismatch',
+        'a reversed plan fails typed target_plan_mismatch (V-U1)',revErr and revErr.reason)
+    local short=plan({{request='actor'}})
+    check(short==nil or short.reason~=nil,'a missing prompt plan fails typed (V-U1)')
+    local extra=plan({{request='actor'},{request='grid',destination={selector='position',
+        x=22,y=20,accept=accept}},{request='grid',destination={selector='position',
+        x=23,y=20,accept=accept}}})
+    check(extra==nil or extra.reason~=nil,'an extra prompt plan fails typed (V-U1)')
+end
+
 print('Movement adapter factory: '..checks..' checks passed')

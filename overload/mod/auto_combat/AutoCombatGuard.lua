@@ -385,6 +385,12 @@ function M.build(ctx)
     -- the candidate envelope is enumerated; projected (actual_landing)
     -- components are expanded in the Giant Leap commit.
     local function mixedComposition(entry,attempt,typ,builderSource,target,talent,threshold)
+        -- A hostile mixed entry bound to the player itself is not executable:
+        -- the strike/leap subjects are another actor (policy-level binding is
+        -- already validated; this is the plugin's own integrity boundary).
+        if target==p then
+            return disable('target_lost',{talent=talent,reason='bound_actor_is_self'})
+        end
         local mapBounds=bounds()
         local plan=attempt.plan
         local candidates,envReason=M.landingCandidates(plan,entry,p,target,mapBounds)

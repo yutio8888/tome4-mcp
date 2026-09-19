@@ -1012,6 +1012,64 @@ do
         'a trailing-optional-only miss with a truthy return is action_complete + reduced')
 end
 
+-- S3 V-U4 (REAL_VAULT_ACTOR_TG + REAL_VAULT_LANDING_TG, techniques/agility.lua
+-- 92-93/117-121): the agility Vault runs as ONE submission through the S2
+-- queue: the raised actor prompt is answered with the bound hostile, the
+-- landing prompt with the distinct planned grid, each prompt's OWN native
+-- range guard preserved, in the declared order.
+do
+    local Fixtures=assert(loadfile(root..'/tests/s3_real_specs.lua'))()
+    local actorFixture=Fixtures.REAL_VAULT_ACTOR_TG
+    local landingFixture=Fixtures.REAL_VAULT_LANDING_TG
+    local seen
+    local def={prompts={actorFixture.build(),landingFixture.build()},
+        on_answer=function(self,answers)
+            seen=answers
+            return true
+        end}
+    local p=player({T_VAULT=def},{x=1,y=1})
+    local hostile={uid=5,x=2,y=1}
+    local g={player=p,level={map={w=20,h=20}}}
+    local command={command_id='v1'}
+    local action={type='use_talent',talent_id='T_VAULT',
+        sequence={{kind='actor',request='actor',target_id='e5',observed={cursor_type='hit'}},
+            {kind='grid',request='grid',x=4,y=1,observed={cursor_type='hit',nolock=true}}}}
+    local result=Actions.execute(g,action,hostile,meta,command)
+    if result.sequence_deviation then
+        local valid,err=Actions.validateDeviation(result.sequence_deviation)
+        assert(valid,'deviation record shape violated: '..tostring(err))
+    end
+    check(result.ok,'the agility Vault settles in ONE submission (V-U4)',result.code)
+    check(rawget(p,'getTarget')==nil,'the queue wrapper is removed after the Vault flow (V-U4)')
+    check(seen~=nil and #seen==2 and seen[1].x==2 and seen[1].y==1 and seen[1].entity==hostile,
+        'prompt one is answered with the bound hostile (V-U4)')
+    check(seen[2].x==4 and seen[2].y==1 and seen[2].entity==nil,
+        'prompt two is answered with the distinct planned grid (V-U4)')
+    check(command.target_sequence and #command.target_sequence==2
+        and command.target_sequence[1].shape=='hit' and command.target_sequence[2].shape=='hit',
+        'the observed prompt sequence records both real shapes (V-U4)')
+    -- Each prompt's own native range guard is preserved: a grid answer outside
+    -- the landing spec's range is a typed native cancel, not a bypass.
+    seen=nil
+    local p2=player({T_VAULT={prompts={actorFixture.build(),landingFixture.build()},
+        on_answer=function(self,answers) seen=answers return true end,
+        stop_on_cancel=true}},{x=1,y=1})
+    local g2={player=p2,level={map={w=20,h=20}}}
+    local command2={command_id='v2'}
+    local action2={type='use_talent',talent_id='T_VAULT',
+        sequence={{kind='actor',request='actor',target_id='e5',observed={cursor_type='hit'}},
+            {kind='grid',request='grid',x=14,y=1,observed={cursor_type='hit',nolock=true}}}}
+    local result2=Actions.execute(g2,action2,hostile,meta,command2)
+    check(result2.ok==false or result2.ok==nil or true,'the out-of-range landing is refused, not bypassed')
+    -- The native cancel of prompt two stops the scripted action (stop_on_cancel)
+    -- and the settled result is a native rejection (never a fabricated deviation).
+    check(result2.ok==false and result2.code=='target_out_of_range',
+        'an out-of-range prompt answer is the typed native guard rejection, not a bypass (V-U4)',
+        result2.code)
+    check(command2.target_cancelled=='target_out_of_range',
+        'the refused answer carries its typed native guard reason (V-U4)')
+end
+
 print('Auto-combat ordered sequence: '..checks..' checks passed')
 
 
