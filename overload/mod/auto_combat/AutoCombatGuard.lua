@@ -19,6 +19,7 @@
 local Manifest=require 'mod.auto_combat.EffectManifest'
 local Footprint=require 'mod.auto_combat.EffectFootprint'
 local Risk=require 'mod.auto_combat.EffectRisk'
+local Factory=require 'mod.auto_combat.MovementAdapterFactory'
 local Distance=require 'mod.mcp_bridge.Distance'
 local M={}
 
@@ -79,21 +80,32 @@ end
 -- `center='self', direction='target'`: the native `Map:addEffect` places the
 -- effect at the caster but passes the target delta as its direction, so the
 -- footprint must not collapse the direction to zero.
-function M.footprintSpec(component,origin,bound)
+function M.footprintSpec(component,origin,bound,flags)
     local tx,ty=bound.x,bound.y
     if component.direction~='target' and (component.center or 'target')=='self' then
         tx,ty=origin.x,origin.y
     end
-    return {shape=component.shape,range=component.range,radius=component.radius,angle=component.angle,
+    local spec={shape=component.shape,range=component.range,radius=component.radius,angle=component.angle,
         map_effect=component.delivery=='map_effect',
         origin={x=origin.x,y=origin.y},target={x=tx,y=ty}}
+    -- A′ §6.4: the raised spec's ACTUAL static flags must reach the native
+    -- footprint input. The engine uses `friendlyblock` to let a friendly actor
+    -- NOT block the projection (Target.lua:527-535,588-607,657-664), so a probe
+    -- rebuilt from geometry alone can manufacture a false blocked line.
+    if type(flags)=='table' then
+        for _,key in ipairs({'friendlyblock','friendlyfire','nolock',
+                'pass_terrain','nowarning','no_restrict','requires_knowledge'}) do
+            if flags[key]~=nil then spec[key]=flags[key] end
+        end
+    end
+    return spec
 end
 
 -- Union of footprints for the component list; a component whose condition is
 -- unknown is included conservatively.
-local function footprintFor(component,ctx,target)
+local function footprintFor(component,ctx,target,flags)
     local p=ctx.source
-    local spec=M.footprintSpec(component,p,target)
+    local spec=M.footprintSpec(component,p,target,flags)
     local tx,ty=spec.target.x,spec.target.y
     local set,backend=Footprint.expand(spec,{native=ctx.native,blockPath=ctx.blockPath,
         blockRadius=ctx.blockRadius})
@@ -162,6 +174,253 @@ end
 function M.build(ctx)
     local p=ctx.source
 
+    -- A′ §6.4 (Dwarven projection fidelity): these stationary programs build
+    -- their cursor spec as a LOCAL table inside `action` — there is no callable
+    -- `t.target` builder — so "the real shape" is this curated copy of the
+    -- flags those local tables actually carry. The static flags MUST reach both
+    -- the `canProject` precheck and the native footprint input: the engine uses
+    -- `friendlyblock` to let a friendly actor NOT block the projection
+    -- (`engines/default/engine/Target.lua:527-535,588-607,657-664`) and
+    -- `friendlyfire` to decide the friendly filter, so a probe rebuilt from
+    -- `{type,range,talent}` alone can manufacture a false `no_line_of_sight`.
+    -- Sources: `spells/stone.lua:38,45,53` (no filter fields -> engine defaults
+    -- friendlyfire=true/actorblock=true) and `gifts/dwarven-nature.lua:34,41,49`
+    -- (`friendlyfire=false, friendlyblock=false` at EVERY position).
+    local STATIONARY_SPECS={
+        T_EARTHEN_MISSILES={type='bolt'},
+        T_DWARVEN_HALF_EARTHEN_MISSILES={type='bolt',friendlyfire=false,
+            friendlyblock=false},
+    }
+    -- Build the probe spec for one chosen grid from the curated static flags.
+    local function stationaryProbeSpec(entry,talent,range)
+        local curated=STATIONARY_SPECS[talent]
+        local shape=curated and curated.type
+            or (entry.cursor and entry.cursor.shape) or 'bolt'
+        local spec={type=shape,range=range,talent=talent}
+        if curated then
+            for _,key in ipairs({'friendlyfire','friendlyblock','nolock',
+                    'pass_terrain','nowarning'}) do
+                if curated[key]~=nil then spec[key]=curated[key] end
+            end
+        end
+        return spec
+    end
+
+    -- A′ §6.5: stationary guard routing is a VALIDATED CONSEQUENCE of the
+    -- resolved movement template, never an independent manifest boolean. A
+    -- factory leaf can only carry `delivery='stationary'` when it came from the
+    -- closed `stationary_sequence` template (its `delivery`/`landing`/`center`
+    -- are fixed invariants a caller cannot supply), so the declared leaves are
+    -- mechanical data. The resolved leaf then decides the route: a stationary
+    -- leaf runs the stationary measurement; a mover leaf keeps the ordinary
+    -- movement skip; an unresolvable variant fails closed.
+    local function declaresStationary(entry)
+        local movement=entry and entry.movement
+        if type(movement)~='table' then return false end
+        if movement.variants then
+            for _,variant in ipairs(movement.variants) do
+                if type(variant.movement)=='table'
+                    and variant.movement.delivery=='stationary' then return true end
+            end
+            return false
+        end
+        return movement.delivery=='stationary'
+    end
+    -- `'stationary' | 'mover' | 'mixed'`: the declaration-level classification of
+    -- every executable leaf. A uniform declaration routes without any runtime
+    -- read (the factory proved the leaf mechanically); only a MIXED declaration
+    -- needs the variant resolved, and an unresolvable one fails closed.
+    local function stationaryKind(entry)
+        local movement=entry and entry.movement
+        if type(movement)~='table' then return 'mover' end
+        local leaves={}
+        if movement.variants then
+            for _,variant in ipairs(movement.variants) do
+                if type(variant.movement)=='table' then
+                    leaves[#leaves+1]=variant.movement.delivery=='stationary'
+                end
+            end
+        else
+            leaves[1]=movement.delivery=='stationary'
+        end
+        if #leaves==0 then return 'mover' end
+        local any,all=false,true
+        for _,isStationary in ipairs(leaves) do
+            if isStationary then any=true else all=false end
+        end
+        if all then return 'stationary' end
+        if not any then return 'mover' end
+        return 'mixed'
+    end
+    local function stationaryRoute(entry,talent,reads)
+        local movement=entry.movement
+        local resolved=movement
+        if type(movement)=='table' and movement.variants then
+            local ok,value=pcall(Factory.resolveVariant,movement,talent,reads)
+            if not ok or type(value)~='table' then
+                return nil,(not ok and tostring(value))
+                    or 'movement_variant_unknown'
+            end
+            resolved=value
+        end
+        if type(resolved)~='table' then return false end
+        return resolved.delivery=='stationary' end
+
+    -- A′ §6.5: measure one stationary multi-prompt effect program at EVERY
+    -- policy-chosen grid. The caster never moves, so the declared components are
+    -- fired at each planned coordinate instead of being skipped as movement:
+    --   * the precheck (`range` + `canProject`) and the native footprint input
+    --     carry the REAL static flags of the raised spec (§6.4);
+    --   * EVERY applicable component x planned-grid footprint must expand
+    --     successfully - an unreadable one propagates `unknown` and fails
+    --     closed, and a partially-readable union is never measured as complete;
+    --   * every plan value must be a VALID grid (malformed values are rejected,
+    --     never silently filtered);
+    --   * the one measure is compared with the policy's `max_selffire_risk`.
+    local function guardStationary(entry,talent,threshold,disable,attempt,providers)
+        local origin={x=p.x,y=p.y}
+        if not (finite(origin.x) and finite(origin.y)) then
+            return disable('target_geometry_unknown',{talent=talent})
+        end
+        local plan=attempt.plan
+        if type(plan)~='table' or plan.kind~='sequence' or type(plan.values)~='table' then
+            return disable('movement_plan_unavailable',{talent=talent,
+                reason='a stationary program needs its planned grids'})
+        end
+        local grids={}
+        for index,value in ipairs(plan.values) do
+            if type(value)~='table' or value.kind~='grid'
+                or not finite(value.x) or not finite(value.y)
+                or value.x%1~=0 or value.y%1~=0 then
+                return disable('movement_plan_unavailable',{talent=talent,
+                    detail='bad_plan_value',index=index})
+            end
+            grids[#grids+1]={x=value.x,y=value.y}
+        end
+        if #grids==0 then
+            return disable('target_geometry_unknown',{talent=talent,
+                reason='no planned grid for a stationary program'})
+        end
+        local range=entry.range
+        for _,grid in ipairs(grids) do
+            if finite(range) and Distance.grid(p.x,p.y,grid.x,grid.y)>range then
+                return disable('target_out_of_range',{range=range,stationary=true,
+                    x=grid.x,y=grid.y})
+            end
+            if type(p.canProject)~='function' then
+                return disable('canproject_unavailable',{stationary=true,
+                    x=grid.x,y=grid.y})
+            end
+            local probe=stationaryProbeSpec(entry,talent,range)
+            local ok,can=pcall(p.canProject,p,probe,grid.x,grid.y)
+            if not ok or can==nil then
+                return disable('canproject_unknown',{stationary=true,
+                    x=grid.x,y=grid.y})
+            end
+            if can==false then
+                return disable('no_line_of_sight',{stationary=true,
+                    x=grid.x,y=grid.y,friendlyblock=probe.friendlyblock,
+                    friendlyfire=probe.friendlyfire})
+            end
+        end
+        local components={}
+        local membershipsBy={}
+        for _,component in ipairs(entry.components or {}) do
+            if component.phase~='cursor' then
+                local active=resolveWhen(component.when,providers)
+                if active~=false then
+                    local resolved={id=component.id,phase=component.phase,
+                        delivery=component.delivery,shape=component.shape,
+                        range=component.range,radius=component.radius,
+                        center=component.center,direction=component.direction,
+                        selffire=component.selffire,friendlyfire=component.friendlyfire,
+                        player_selffire=component.player_selffire,
+                        provenance=component.provenance,when=component.when,
+                        resolved_when=active}
+                    local def=ctx.getDef(talent)
+                    resolved.selffire=resolveDynamic(resolved.selffire,ctx,talent,def)
+                    resolved.friendlyfire=resolveDynamic(resolved.friendlyfire,ctx,talent,def)
+                    -- A′ §6.4: the raised spec's ACTUAL static flags are
+                    -- authoritative over the manifest's curated default, so
+                    -- `friendlyfire=false` reaches risk/effect modelling.
+                    local flags=stationaryProbeSpec(entry,talent,range)
+                    if flags.friendlyfire~=nil and not isDynamicInput(component.friendlyfire) then
+                        resolved.friendlyfire=flags.friendlyfire
+                    end
+                    if flags.selffire~=nil and not isDynamicInput(component.selffire) then
+                        resolved.selffire=flags.selffire
+                    end
+                    if finite(flags.range) then resolved.range=flags.range end
+                    local needsRadius=resolved.shape=='ball' or resolved.shape=='cone'
+                        or resolved.shape=='widebeam'
+                    if needsRadius and not finite(resolved.radius) then
+                        return disable('selffire_risk',{talent=talent,stationary=true,
+                            component=resolved.id,phase=resolved.phase,unknown=true,
+                            reason='radius_unknown'})
+                    end
+                    local union,add=Footprint.newSet()
+                    local backend=nil
+                    for _,grid in ipairs(grids) do
+                        local spec={shape=resolved.shape,range=resolved.range,
+                            radius=resolved.radius,angle=resolved.angle,
+                            map_effect=resolved.delivery=='map_effect',
+                            friendlyfire=flags.friendlyfire,
+                            friendlyblock=flags.friendlyblock,nolock=flags.nolock,
+                            pass_terrain=flags.pass_terrain,nowarning=flags.nowarning,
+                            talent=talent,
+                            origin={x=origin.x,y=origin.y},target={x=grid.x,y=grid.y}}
+                        if resolved.center=='self' then
+                            spec.target={x=origin.x,y=origin.y}
+                        end
+                        local set,thisBackend=Footprint.expand(spec,{native=ctx.native,
+                            blockPath=ctx.blockPath,blockRadius=ctx.blockRadius})
+                        -- A′ §6.5: EVERY component x grid must expand. A partial
+                        -- union is never measured as complete.
+                        if set==nil then
+                            return disable('selffire_risk',{talent=talent,
+                                stationary=true,unknown=true,component=resolved.id,
+                                phase=resolved.phase,reason='footprint_unavailable',
+                                backend=thisBackend,x=grid.x,y=grid.y,
+                                footprint_backend=thisBackend})
+                        end
+                        backend=thisBackend
+                        for x,column in pairs(set) do
+                            for y in pairs(column) do add(x,y) end
+                        end
+                    end
+                    resolved.footprint_backend=backend
+                    components[#components+1]=resolved
+                    membershipsBy[resolved.id or resolved.phase]=
+                        memberships(resolved,union,ctx,flags)
+                end
+            end
+        end
+        if #components==0 then
+            return disable('adapter_no_components',{talent=talent,stationary=true})
+        end
+        local measure=Risk.measure(components,membershipsBy)
+        if measure.risk==0 then
+            return {action='permit',detail={measurement=0,threshold=threshold,
+                talent=talent,stationary=true,grids=#grids}}
+        end
+        local worst=measure.detail
+        local detail={risk=worst and worst.risk or nil,measurement=measure.risk,
+            threshold=threshold,unknown=measure.risk=='unknown',talent=talent,
+            stationary=true,grids=#grids}
+        if worst then
+            detail.phase=worst.phase
+            detail.component=worst.component
+            detail.selffire=worst.selffire
+            detail.friendlyfire=worst.friendlyfire
+            detail.friendlies=worst.friendlies
+            detail.provenance=worst.provenance
+        end
+        if measure.risk~='unknown' and type(measure.risk)=='number' and measure.risk<=threshold then
+            return {action='permit',detail=detail}
+        end
+        return disable('selffire_risk',detail)
+    end
+
     -- Any integrity/uncertainty fault disables this action (the design's §8.1
     -- "disable that action" rule), leaving other complete actions eligible.
     local function disable(reason,detail)
@@ -182,9 +441,46 @@ function M.build(ctx)
         -- and any addon may replace a getter/builder; the guard uses the game's
         -- actual live functions as normal entrypoints. A missing/erroring/non-table
         -- builder below is a derivation unknown, not an identity rejection.
-        -- Movement adapters carry no damage footprint; their landing/uncertainty
-        -- safety is the MovementPlanner's explicit policy acceptance.
-        if entry.kind=='movement' then return nil end
+        -- Movement adapters: a pure movement entry carries no damage footprint
+        -- (its landing/uncertainty safety is the MovementPlanner's explicit
+        -- policy acceptance). A′ §6.5: a stationary multi-prompt effect program
+        -- is NOT movement — the caster never moves — so it must NOT be skipped:
+        -- the resolved factory leaf routes it to the stationary measurement
+        -- below. Routing is a validated consequence of the resolved template,
+        -- never an independent manifest boolean.
+        local providers={
+            talentLevel=function()
+                -- Effective level (`self:getTalentLevel(t)`), never raw points:
+                -- a raw investment can be lower than the effective level through
+                -- mastery/alterations. Unavailable -> unknown -> conservative.
+                if type(ctx.talentLevel)~='function' then return 'unknown' end
+                local ok,value=pcall(ctx.talentLevel,talent,ctx.getDef(talent))
+                if not ok then return 'unknown' end
+                return value
+            end,
+            readAttr=function(id)
+                if type(p.attr)~='function' then return 'unknown' end
+                local ok,value=pcall(p.attr,p,id)
+                if not ok then return 'unknown' end
+                return value
+            end,
+        }
+        if entry.kind=='movement' then
+            local routing=stationaryKind(entry)
+            if routing=='mover' then return nil end
+            if routing=='mixed' then
+                -- Only a mixed declaration needs the variant resolved; an
+                -- indeterminate read fails closed (plugin undecidability).
+                local reads={talentLevel=providers.talentLevel,attr=providers.readAttr}
+                local isStationary,routeErr=stationaryRoute(entry,talent,reads)
+                if isStationary==nil then
+                    return disable('movement_variant_unknown',{talent=talent,
+                        dependency='movement.delivery',detail=routeErr})
+                end
+                if not isStationary then return nil end
+            end
+            return guardStationary(entry,talent,threshold,disable,attempt,providers)
+        end
         if entry.target~='hostile' then return nil end
         local target
         if attempt.bound_target then target=ctx.resolve(attempt.bound_target) end
@@ -245,23 +541,6 @@ function M.build(ctx)
         local components={}
         local membershipsBy={}
         local instant_miss=false
-        local providers={
-            talentLevel=function()
-                -- Effective level (`self:getTalentLevel(t)`), never raw points:
-                -- a raw investment can be lower than the effective level through
-                -- mastery/alterations. Unavailable -> unknown -> conservative.
-                if type(ctx.talentLevel)~='function' then return 'unknown' end
-                local ok,value=pcall(ctx.talentLevel,talent,ctx.getDef(talent))
-                if not ok then return 'unknown' end
-                return value
-            end,
-            readAttr=function(id)
-                if type(p.attr)~='function' then return 'unknown' end
-                local ok,value=pcall(p.attr,p,id)
-                if not ok then return 'unknown' end
-                return value
-            end,
-        }
         for _,component in ipairs(entry.components or {}) do
             if component.phase~='cursor' then
                 local active=resolveWhen(component.when,providers)
@@ -287,7 +566,7 @@ function M.build(ctx)
                         if typ.selffire~=nil and not isDynamicInput(component.selffire) then resolved.selffire=typ.selffire end
                         if typ.friendlyfire~=nil and not isDynamicInput(component.friendlyfire) then resolved.friendlyfire=typ.friendlyfire end
                     end
-                    local set,backend,tx,ty=footprintFor(resolved,ctx,target)
+                    local set,backend,tx,ty=footprintFor(resolved,ctx,target,typ)
                     resolved.footprint_backend=backend
                     components[#components+1]=resolved
                     if range0 and component.phase=='instant' and not Footprint.at(set,target.x,target.y) then

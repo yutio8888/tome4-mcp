@@ -1507,4 +1507,69 @@ do
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
     Runtime.reset(g);g:display()
 end
+
+-- R2-REV2-NEW-02 (P2 coverage gap, A′ scope): a guard PERMIT verdict must reach
+-- the native executor. The retained `Runtime.lua` fix lets nil and
+-- `action='permit'` proceed while valid `reject`/`pause` verdicts refuse; this
+-- asserts the whole path on the PRODUCTION host (guard -> permit -> real
+-- Tracker.startAction/Actions.execute -> one native submission).
+do
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=true
+    g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+    Runtime.reset(g);g:display()
+    local Tracker=require 'mod.mcp_bridge.InvocationTracker'
+    local Compat=require 'mod.mcp_bridge.NativeCompatibility'
+    local realMatches,realCheck=Compat.matches,Compat.check
+    Compat.matches=function(name,fn) if name=='useTalent' then return true end return realMatches(name,fn) end
+    Compat.check=function() return true end
+    -- Record the executor seam the host calls.
+    local submissions=0
+    local realStartAction=Tracker.startAction
+    Tracker.startAction=function(...)
+        submissions=submissions+1
+        return realStartAction(...)
+    end
+    -- (a) A PERMIT verdict (a known risk within the policy threshold) proceeds
+    --     and submits the native action exactly once.
+    local ally={uid=99,name='ally',__is_actor=true,x=3,y=2,life=100,max_life=100,
+        reaction=1,attr=p.attr}
+    enemy.x,enemy.y=4,2;enemy.reaction=-1
+    g.level.entities={[1]=p,[2]=ally,[3]=enemy}
+    g.level.map.map[12][3]=p;g.level.map.map[13][3]=ally;g.level.map.map[14][3]=enemy
+    p.talents_def=p.talents_def or {}
+    p.talents_def.T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',mode='activated',
+        target=function() return {type='beam',range=10} end,
+        action=function(self) return true end}
+    p.talents.T_MOONLIGHT_RAY=p.talents.T_MOONLIGHT_RAY or 1
+    function p:useTalent(id) return true end
+    local pl={schema='tome-auto-combat/v1',id='permit',name='unit',limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35,max_selffire_risk=100},targeting={default='nearest_hostile'},
+        rules={{id='ray',priority=1,when={always={}},['then']={action='use_talent',
+            talent='T_MOONLIGHT_RAY',target='nearest_hostile'}}}}
+    local host=Runtime.buildAutoCombatHostFor(g,pl,{drift=function() return true end})
+    local ctx=host.snapshot('nearest_hostile')
+    local bound=ctx and ctx.bound_target
+    local verdict=host.guard({action='use_talent',talent='T_MOONLIGHT_RAY',bound_target=bound})
+    check(verdict and verdict.action=='permit' and verdict.detail.threshold==100,
+        'the production guard returns a permit verdict for a tolerated risk (P2 setup)')
+    local outcome=host.request({action='use_talent',talent='T_MOONLIGHT_RAY',
+        bound_target=bound,rule='ray'})
+    check(submissions==1,'a guard PERMIT verdict reaches Tracker.startAction exactly once')
+    check(outcome and outcome.status~='rejected',
+        'a guard PERMIT verdict is not refused by the pre-execution guard check')
+    -- (b) A REJECT verdict never submits.
+    local strict=Runtime.buildAutoCombatHostFor(g,{schema='tome-auto-combat/v1',id='strict',
+        name='unit',limits={max_actions_per_tick=1},safety={min_hp_pct=35,max_selffire_risk=0},
+        targeting={default='nearest_hostile'},rules=pl.rules},{drift=function() return true end})
+    local before=submissions
+    local refused=strict.request({action='use_talent',talent='T_MOONLIGHT_RAY',
+        bound_target=bound,rule='ray'})
+    check(refused and refused.status=='rejected' and refused.code=='selffire_risk',
+        'a guard REJECT verdict refuses before the native executor')
+    check(submissions==before,'a guard REJECT verdict submits nothing')
+    Tracker.startAction=realStartAction
+    Compat.matches,Compat.check=realMatches,realCheck
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+    Runtime.reset(g);g:display()
+end
 print('Runtime: '..count..' checks passed')

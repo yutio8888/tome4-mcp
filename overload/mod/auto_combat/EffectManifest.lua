@@ -383,6 +383,95 @@ M.ENTRIES={
                     landing_proof='TL5+: actor prompt then the unconditional landing grid prompt'}},
         },{{kind='attr',id='phase_door_force_precise'}}),
         components={},conformance={builder=false}},
+    -- A′ (§6.1-§6.7): the two Earthen Missiles variants are STATIONARY
+    -- multi-projectile programs. The caster never moves; the action fires the
+    -- same projectile at each policy-chosen grid
+    -- (`self:projectile(tg, x, y, DamageType.SPLIT_BLEED, ...)`,
+    -- spells/stone.lua:40-56). Each of the up-to-three prompts is raised with the
+    -- SAME local spec shape, so no positional discriminator exists: they are
+    -- declared as one mechanically validated **group** (`group='...'`), which is
+    -- exactly the case the A′ mechanism was added for. The group is admitted
+    -- because the executor is arrival-ordered BY CONSTRUCTION: the k-th OBSERVED
+    -- prompt is answered with `plan[k]` (`Actions.lua`), so no declared value is
+    -- ever re-mapped. What stays UNOBSERVABLE is *source-slot* identity inside a
+    -- same-signature group (a hypothetical replaced native body raising its
+    -- identical prompts in another source order cannot be detected); that is
+    -- published as a limitation (`outcome_uncertainty`), never used as a refusal,
+    -- and source drift is advisory under AGENTS.md (no identity/digest gate).
+    --
+    -- The per-missile `self:spellCrit(damage)` roll (stone.lua:42,48,56;
+    -- dwarven-nature.lua:38,44,52) is an ANNOTATION:
+    -- `outcome_uncertainty='per_projectile_random_crit'`, and a crit may change
+    -- projectile damage AND trigger caster on-crit behaviour
+    -- (modules/tome/class/interface/Combat.lua:2025-2056).
+    --
+    -- Residual limitations: per-projectile crit/on-crit stochasticity; the
+    -- inability to observe same-signature intra-group source order; and
+    -- fail-closed ONLY for the plugin's own unreadable values/footprints or for
+    -- position-specific non-random semantics found by source review.
+    --
+    -- Provenance: the regular spec carries no filter fields, so the engine's
+    -- `Target:getType` defaults apply (selffire=true/friendlyfire=true); the
+    -- dwarven spec sets `friendlyfire=false, friendlyblock=false` at EVERY
+    -- position (:34,:41,:49), which the guard's probe and footprint input carry
+    -- verbatim (a probe rebuilt from `{type,range,talent}` alone could
+    -- manufacture a false `no_line_of_sight`).
+    T_EARTHEN_MISSILES={kind='movement',target='grid',resource='mana',range=10,
+        movement=movementMatrix({
+            {when={kind='talent_level',below=5},template='stationary_sequence',
+                params={range=10,
+                    request_sequence={
+                        {index=1,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='earthen_missiles'},
+                        {index=2,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='earthen_missiles'}}}},
+            {when={kind='talent_level',at_least=5},template='stationary_sequence',
+                params={range=10,
+                    request_sequence={
+                        {index=1,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='earthen_missiles'},
+                        {index=2,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='earthen_missiles'},
+                        {index=3,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='earthen_missiles'}}}},
+        }),
+        cursor={shape='bolt',range=10},
+        components={
+            {id='missile',phase='projectile',delivery='projectile',shape='bolt',range=10,
+                center='target',selffire=100,friendlyfire=100,
+                provenance={selffire=TARGET_DEFAULT,friendlyfire=TARGET_DEFAULT}},
+        },
+        conformance={builder=false}},
+    -- The dwarven half variant (`gifts/dwarven-nature.lua:33-52`): the same
+    -- stationary program and projectile, but each local spec sets
+    -- `friendlyfire=false, friendlyblock=false`, so the friendly filter is 0
+    -- (self stays default-true) and a friendly actor does not block the line.
+    T_DWARVEN_HALF_EARTHEN_MISSILES={kind='movement',target='grid',resource='mana',range=10,
+        movement=movementMatrix({
+            {when={kind='talent_level',below=5},template='stationary_sequence',
+                params={range=10,
+                    request_sequence={
+                        {index=1,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt',friendlyblock=false},group='dwarven_missiles'},
+                        {index=2,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt',friendlyblock=false},group='dwarven_missiles'}}}},
+            {when={kind='talent_level',at_least=5},template='stationary_sequence',
+                params={range=10,
+                    request_sequence={
+                        {index=1,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt',friendlyblock=false},group='dwarven_missiles'},
+                        {index=2,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt',friendlyblock=false},group='dwarven_missiles'},
+                        {index=3,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt',friendlyblock=false},group='dwarven_missiles'}}}},
+        }),
+        cursor={shape='bolt',range=10},
+        components={
+            {id='missile',phase='projectile',delivery='projectile',shape='bolt',range=10,
+                center='target',selffire=100,friendlyfire=0,
+                provenance={selffire=TARGET_DEFAULT,friendlyfire=EXPLICIT}},
+        },
+        conformance={builder=false}},
 }
 
 -- Attach the generated source identity to every entry so a component can
@@ -439,24 +528,12 @@ M.UNSUPPORTED={
     -- later-triggered traps with a third-party trigger.
     {talent='T_WORMHOLE',scope='any',missing='effect_is_a_later_triggered_trap_pair',
         reason='activation moves nobody: the talent creates a pair of traps (chronomancy/spacetime-weaving.lua:164-207, added at :209-224) whose third-party trigger teleports whoever steps on either trap later (:179-194 teleportRandom at :183), so the landing/mover model does not describe it; the two prompts are distinguishable by cursor_type (:144 vs :152) and distance>=2 is checkable pre-commit, so neither is the blocker'},
-    -- R2-REV-03 (rev2, DO_NOT_MERGE withdrawal): the R2 "declared
-    -- interchangeable group" admission is WITHDRAWN. The curated proof claimed
-    -- the prompts were semantically equivalent, but the native action rolls
-    -- spellCrit SEPARATELY immediately before EACH projectile
-    -- (spells/stone.lua:41-46,48-52,54-56; gifts/dwarven-nature.lua:37-42,44-47,49-52)
-    -- and spellCrit does `rng.percent(chance)`
-    -- (modules/tome/class/interface/Combat.lua:2012-2032), so every prompt
-    -- position consumes a DISTINCT random crit outcome. Exchanging which answer
-    -- belongs to which missile can exchange a crit and a non-crit between two
-    -- different targets — an observable damage/kill difference. Shared base
-    -- damage/projectile/damage-type does NOT establish interchangeability, and
-    -- the prompts themselves are indistinguishable, so the executor cannot even
-    -- pin an answer to a position it can name. That is a plugin-completeness
-    -- boundary, never a strategy judgement: the tactic stays legal for a player.
-    {talent='T_EARTHEN_MISSILES',scope='any',missing='nondeterministic_prompt_outcome',
-        reason='the three bolt prompts are indistinguishable AND each carries an independent random crit outcome: the native action calls self:spellCrit(damage) separately before EACH projectile (spells/stone.lua:41-46,48-52,54-56) and spellCrit does rng.percent(chance) (modules/tome/class/interface/Combat.lua:2012-2032), so exchanging which answer belongs to which missile can exchange a crit and a non-crit between targets — the answers are not interchangeable and the plugin cannot execute the program honestly'},
-    {talent='T_DWARVEN_HALF_EARTHEN_MISSILES',scope='any',missing='nondeterministic_prompt_outcome',
-        reason='the three bolt prompts are indistinguishable AND each carries an independent random crit outcome: the native action calls self:spellCrit(damage) separately before EACH projectile (gifts/dwarven-nature.lua:37-42,44-47,49-52; the spec also sets friendlyfire=false,friendlyblock=false at :34/:41/:49) and spellCrit does rng.percent(chance) (modules/tome/class/interface/Combat.lua:2012-2032), so exchanging which answer belongs to which missile can exchange a crit and a non-crit between targets — the answers are not interchangeable and the prompts carry no positional signature to bind them'},
+    -- A′: the R2-REV-03 withdrawal is SUPERSEDED for these two talents. The
+    -- per-missile crit roll is an ANNOTATION, not a refusal: the native body rolls
+    -- the k-th crit only AFTER receiving the k-th answer, and the executor is
+    -- arrival-ordered by construction (`Actions.lua`), so no declared crit-bearing
+    -- value is swapped. The admission and its residual limitations are documented
+    -- on the manifest entries above.
     {talent='*',scope='any',missing='moving_or_swapping_another_actor',
         reason='typed multi-actor destination/effect semantics are not implemented'},
 }
@@ -524,13 +601,38 @@ end
 -- never disagree with the guard's source of truth.
 function M.summary()
     local talents={}
+    local function stationaryMovement(entry)
+        local movement=entry and entry.movement
+        if type(movement)~='table' then return nil end
+        if movement.variants then
+            for _,variant in ipairs(movement.variants) do
+                if type(variant.movement)=='table' and variant.movement.delivery=='stationary' then
+                    return variant.movement
+                end
+            end
+            return nil
+        end
+        return movement.delivery=='stationary' and movement or nil
+    end
     for talent,entry in pairs(M.ENTRIES) do
         local compat=M.compat(entry)
-        talents[#talents+1]={talent=talent,kind=entry.kind,target=entry.target,
+        -- §6.6: a stationary program publishes its delivery and the
+        -- per-projectile random-crit annotation through the capability summary
+        -- (never buried in prose), so a policy author sees the uncertainty.
+        local stationary=stationaryMovement(entry)
+        local item={talent=talent,kind=entry.kind,target=entry.target,
             delivery=compat.delivery,shape=compat.shape,range=compat.range,radius=compat.radius,
             resource=entry.resource,selffire=compat.selffire,friendlyfire=compat.friendlyfire,
             friendlyfire_risk=compat.friendlyfire_risk,
             has_ground=compat.ground~=nil,has_secondary=compat.secondary~=nil}
+        if stationary then
+            item.stationary=true
+            item.outcome_uncertainty='per_projectile_random_crit'
+            item.limitations={'same_signature_source_slot_order_unobservable',
+                'per_projectile_crit_may_differ_and_trigger_on_crit',
+                'aim_grid_is_not_a_promise_about_the_damaged_actor'}
+        end
+        talents[#talents+1]=item
     end
     table.sort(talents,function(a,b) return a.talent<b.talent end)
     return {schema=M.SCHEMA,adapter_version=M.VERSION,game_version=M.GAME_VERSION,

@@ -1012,10 +1012,180 @@ do
         'a trailing-optional-only miss with a truthy return is action_complete + reduced')
 end
 
+
+-- 15. A′ §6.1/§6.3: in-group matching relaxation, arrival index preserved -----
+-- The native body raises the SAME prompt shape N times (the real Earthen
+-- Missiles local bolt specs, `spells/stone.lua:38,45,53` / the Dwarven twin at
+-- `gifts/dwarven-nature.lua:34,41,49`). The declared group says those prompts
+-- are mutually unidentifiable, so the executor may answer the k-th OBSERVED
+-- prompt with plan[k] even when it also matches its siblings. Nothing is
+-- re-mapped: arrival k -> plan[k], always. A matched set that EXCLUDES the
+-- expected arrival index is always a typed deviation.
+local BOLT_SIG={cursor_type='bolt'}
+local function boltGroupMovement(count,group)
+    local seq={}
+    for i=1,count do
+        seq[i]={index=i,request='grid',subject='self',value_source='target_plan',
+            observed=BOLT_SIG,group=group}
+    end
+    return assert(Factory.expand('stationary_sequence',{request_sequence=seq,range=10}))
+end
+local function boltPlayer()
+    local seen={}
+    -- The native body raises the same-shape bolt prompt once per declared answer
+    -- and records every answer, exactly like the reviewed missile loop
+    -- (`spells/stone.lua:46-56` raises the next bolt only while the previous
+    -- answer was non-nil). The recorded answers live in a shared holder table.
+    local def={stop_on_cancel=true,
+        on_answer=function(self,answers) seen.answers=answers;return true end}
+    def.prompts={}
+    for _=1,3 do def.prompts[#def.prompts+1]={type='bolt',range=10} end
+    return def,seen
+end
+do
+    -- The observed answer record is exactly arrival 1->V1, 2->V2, 3->V3.
+    local def,seen=boltPlayer()
+    local result,command=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=5,y=3,observed=BOLT_SIG,group='em'},
+                {kind='grid',request='grid',x=6,y=3,observed=BOLT_SIG,group='em'},
+                {kind='grid',request='grid',x=7,y=3,observed=BOLT_SIG,group='em'}}})
+    check(result.ok and result.sequence_deviation==nil,
+        'a three-member in-group program settles in one submission with no deviation')
+    local answers=seen.answers
+    check(answers and answers[1] and answers[1].x==5 and answers[1].y==3
+        and answers[2] and answers[2].x==6 and answers[2].y==3
+        and answers[3] and answers[3].x==7 and answers[3].y==3,
+        'arrival k is answered with plan[k] for every member (no re-mapping)')
+    local seq=result.target_sequence
+    check(seq and #seq==3 and seq[1].answer.x==5 and seq[2].answer.x==6 and seq[3].answer.x==7,
+        'the observed sequence records the positional answers')
+    check(seq[1].answer.x<seq[2].answer.x and seq[2].answer.x<seq[3].answer.x,
+        'the answered coordinates follow the arrival order exactly')
+end
+do
+    -- A non-member match inside a declared group is a typed deviation: at
+    -- arrival 1 the matched set is {1,2,3} and entry 3 is not a member of g1.
+    local def,seen=boltPlayer()
+    def.prompts={def.prompts[1]}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=5,y=3,observed=BOLT_SIG,group='g1'},
+                {kind='grid',request='grid',x=6,y=3,observed=BOLT_SIG,group='g1'},
+                {kind='grid',request='grid',x=7,y=3,observed=BOLT_SIG}}})
+    check(result.ok==false and result.code=='unexpected_target_request'
+        and result.sequence_deviation.handed_back==true,
+        'a non-member match inside a group is a typed unexpected_target_request handback')
+    check(result.sequence_deviation.matched_indexes
+        and result.sequence_deviation.matched_indexes[1]==1
+        and result.sequence_deviation.matched_indexes[2]==2
+        and result.sequence_deviation.matched_indexes[3]==3,
+        'the deviation reports every matched index')
+    check(seen.answers and seen.answers[1] and seen.answers[1].x==99,
+        'the non-member prompt was never answered with a declared value')
+end
+do
+    -- Cross-group: a raised prompt matching only ANOTHER group at this arrival
+    -- is a deviation (the expected arrival index is not in the matched set).
+    local def,seen=boltPlayer()
+    def.prompts={def.prompts[1]}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=5,y=3,
+                    observed={cursor_type='bolt',nolock=true},group='g1'},
+                {kind='grid',request='grid',x=6,y=3,
+                    observed={cursor_type='bolt',nolock=true},group='g1'},
+                {kind='grid',request='grid',x=7,y=3,
+                    observed={cursor_type='bolt'},group='g2'},
+                {kind='grid',request='grid',x=8,y=3,
+                    observed={cursor_type='bolt'},group='g2'}}})
+    check(result.ok==false and result.code=='unexpected_target_request',
+        'a raised prompt matching only another group at the expected arrival is a deviation')
+    check(result.sequence_deviation.matched_indexes
+        and #result.sequence_deviation.matched_indexes==2
+        and result.sequence_deviation.matched_indexes[1]==3
+        and result.sequence_deviation.matched_indexes[2]==4,
+        'the cross-group deviation reports the OTHER group indexes')
+    check(seen.answers and seen.answers[1] and seen.answers[1].x==99,
+        'the cross-group prompt was never answered')
+end
+do
+    -- Ambiguous UNGROUPED match (the pre-A′ behaviour) is unchanged: two
+    -- identical ungrouped signatures hand the prompt back.
+    local def,seen=boltPlayer()
+    def.prompts={def.prompts[1]}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=5,y=3,observed=BOLT_SIG},
+                {kind='grid',request='grid',x=6,y=3,observed=BOLT_SIG}}})
+    check(result.ok==false and result.code=='unexpected_target_request'
+        and #result.sequence_deviation.matched_indexes==2,
+        'an ambiguous UNGROUPED match keeps the pre-existing handback behaviour')
+    check(seen.answers and seen.answers[1] and seen.answers[1].x==99,
+        'the ambiguous ungrouped prompt was never answered')
+end
+do
+    -- A′ §6.3: the runtime carrier re-validates group membership, so a forged or
+    -- weakened carrier is invalid_sequence and can never relax the gate.
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='g1'}}}),
+        'a forged single-member group on the carrier is invalid_sequence')
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='g1'},
+            {kind='grid',x=6,y=3,observed={cursor_type='bolt',nolock=true},group='g1'}}}),
+        'a forged group whose signatures differ is invalid_sequence')
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='Earthen Missiles (stone.lua)'},
+            {kind='grid',x=6,y=3,observed=BOLT_SIG,group='Earthen Missiles (stone.lua)'}}}),
+        'a forged group key carrying prose is invalid_sequence')
+    local valid=Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='g1'},
+            {kind='grid',x=6,y=3,observed=BOLT_SIG,group='g1'}}})
+    check(valid and valid.sequence[1].group=='g1',
+        'a mechanically valid group rides the carrier unchanged')
+    -- Case 9 (documenting, not detecting): a same-signature S1/S3/S2 source order
+    -- is UNOBSERVABLE. The contract asserted here is arrival preservation, not
+    -- source-slot identification: the k-th arrival is answered with plan[k].
+    local def,seen=boltPlayer()
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=5,y=3,observed=BOLT_SIG,group='em'},
+                {kind='grid',request='grid',x=6,y=3,observed=BOLT_SIG,group='em'},
+                {kind='grid',request='grid',x=7,y=3,observed=BOLT_SIG,group='em'}}})
+    check(result.ok and seen.answers and seen.answers[2] and seen.answers[2].x==6,
+        'a same-signature sequence preserves the ARRIVAL index (source-slot identity is not claimed)')
+end
+
+-- 16. Stationary lowering + plan-value closure (A′ §6.5) ----------------------
+do
+    local movement=boltGroupMovement(2,'em')
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local provider={origin=function() return {x=2,y=2} end,
+        anchor=function() return {x=2,y=2} end,
+        knowledge=function() return {in_bounds=true,visible=true,passable=true,hazard=false} end}
+    local plan=assert(Planner.planSequence({talent='T_EARTHEN_MISSILES',target='self',
+        target_plan={{request='grid',destination={selector='position',x=5,y=2,accept=accept}},
+            {request='grid',destination={selector='position',x=6,y=2,accept=accept}}}},
+        provider,movement,{x=2,y=2}))
+    check(plan.kind=='sequence' and #plan.steps==2,
+        'the stationary program lowers into the SAME kind=sequence plan (no second queue)')
+    check(plan.values[1].group=='em' and plan.values[2].group=='em',
+        'declared group membership rides the internal carrier')
+    check(plan.annotation.stationary==true
+        and plan.annotation.outcome_uncertainty=='per_projectile_random_crit',
+        'the plan annotates the stationary delivery and the per-projectile crit uncertainty')
+    check(plan.annotation.landing.kind=='deterministic',
+        'a stationary aim grid stays a deterministic annotation (the caster does not move)')
+    for i,value in ipairs(plan.values) do
+        check(value.kind=='grid' and type(value.x)=='number' and type(value.y)=='number',
+            'plan value '..i..' is a valid grid')
+    end
+end
+
 print('Auto-combat ordered sequence: '..checks..' checks passed')
-
-
 Tracker.start,Compat.check,Compat.matches=realStart,realCheck,realMatches
+
+
 
 -- 12. Policy validation: the ordered plan validates against the declared
 -- sequence; a reversed plan is the existing target_plan_mismatch.
