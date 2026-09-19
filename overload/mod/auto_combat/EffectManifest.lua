@@ -56,6 +56,19 @@ local function movementMatrix(branches,axes)
     return movement
 end
 
+-- S3: construct a MIXED movement/effect entry through the closed composition
+-- validator. A malformed composition is a load-time error: a mixed entry that
+-- publishes with an invalid component record would silently reach the guard
+-- (or worse, skip it) — the same fail-loudly contract as `movementAdapter`.
+local function mixedMovementEntry(entry)
+    local ok,err=Factory.validateComposition(entry)
+    if not ok then
+        error('movement adapter composition invalid: '
+            ..tostring(err and (err.detail or err.cause or err)),2)
+    end
+    return entry
+end
+
 -- Every hostile entry keeps `cursor` (targeting geometry) separate from the
 -- damaging components. `conformance` is the subset expected from the real
 -- native target builder at the getTarget seam.
@@ -273,6 +286,29 @@ M.ENTRIES={
             builder_shape='beam',
             landing_proof='forces the exact requested grid after launch/blocked/projection checks'}),
         components={},conformance={builder=true}},
+    -- S3 admission 1 (Shadowstep, cunning/shadow-magic.lua:109-151): a MIXED
+    -- movement/effect talent. The movement half is the actor-anchored teleport
+    -- (`teleportRandom(target.x,target.y,0)` -> a bounded radius-5 native
+    -- choice around the bound actor). The effect half is two DIRECT bound-actor
+    -- effects (`attackTarget` strike + conditional `setEffect` daze) that run
+    -- only when the mover's final cell ends at distance 1 from the bound actor
+    -- (`shadow-magic.lua:142-149`); the existing `delivery='attackTarget'` token
+    -- is the closed risk-exempt direct class (EffectRisk), and the components
+    -- stay declared/evidenced instead of invisible. A fizzle (no move) returns
+    -- true before any attack (`:139`), so `unchanged='fizzle'` is a settled
+    -- outcome, never a postcondition mismatch.
+    T_SHADOWSTEP=mixedMovementEntry{kind='movement',target='hostile',resource='stamina',
+        movement=movementAdapter('actor_anchor_teleport',{radius=5,min_radius=0,
+            landing_proof='teleportRandom(x,y,0): dist-0 findFreeGrid within radius 5 of the bound actor '
+                ..'(mod/class/Actor.lua, engine/utils.lua findFreeGrid)'}),
+        components={
+            {id='shadowstep_strike',phase='secondary',delivery='attackTarget',shape='hit',
+                center='actor',when={kind='landing_adjacent',anchor='actor'}},
+            {id='shadowstep_daze',phase='secondary',delivery='attackTarget',shape='hit',
+                center='actor',when={kind='landing_adjacent',anchor='actor'}},
+        },
+        movement_postcondition={mover='self',endpoint='landing_envelope',unchanged='fizzle'},
+        conformance={builder=true}},
     -- S2-R4-01: the agility Vault (techniques/agility.lua:83-150, T_VAULT) is
     -- deliberately NOT published here. Its two prompts are distinguishable
     -- (hit-without-nolock then hit+nolock), but the talent is MIXED: the first
@@ -401,8 +437,6 @@ M.UNSUPPORTED={
     {talent='T_DIMENSIONAL_STEP',scope='effective_talent_level>=5 and requested_grid_occupied',
         missing='moving_or_swapping_another_actor',
         reason='a player-known empty requested grid uses the admitted non-swap teleport; a known occupied grid is the typed S4 swap gap; unknown occupancy fails closed'},
-    {talent='T_SHADOWSTEP',scope='any',missing='source_reviewed_movement_adapter',
-        reason='actor-anchored random teleport plus an attack; movement/effect composition is a later slice'},
     {talent='T_GIANT_LEAP',scope='any',missing='source_reviewed_movement_adapter',
         reason='requested-grid movement with an alternate landing and radius effect; movement/effect composition is a later slice'},
     -- S2-R4-01: the agility Vault is a MIXED talent whose sequence is

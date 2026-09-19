@@ -168,6 +168,240 @@ function M.build(ctx)
         return {action='reject',reason=reason,detail=detail}
     end
 
+    -- S3: the candidate envelope is bounded by the map dimensions; a radius
+    -- beyond this plugin-own resource bound cannot be expanded honestly within
+    -- one action opportunity, so it is unavailable (never invented).
+    local CANDIDATE_RADIUS_CAP=16
+
+    local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
+
+    -- Bounded map dimensions for the candidate enumeration (a plugin-own
+    -- enumeration bound, never a strategy filter).
+    local function bounds()
+        local map=ctx.game and ctx.game.level and ctx.game.level.map
+        if type(map)=='table' and finite(map.w) and finite(map.h)
+            and map.w>0 and map.h>0 then return {w=map.w,h=map.h} end
+        return nil
+    end
+
+    local function inBounds(cell,mapBounds)
+        if not mapBounds then return false end
+        return cell.x>=0 and cell.y>=0 and cell.x<mapBounds.w and cell.y<mapBounds.h
+    end
+
+    -- Every in-bounds integer cell within `radius` of `center`, in
+    -- deterministic (y,x) order. Pure enumeration for repeatable evidence;
+    -- never a tactical choice.
+    local function circle(center,radius,mapBounds)
+        local cells={}
+        local rl=math.floor(radius)
+        for dy=-rl,rl do
+            for dx=-rl,rl do
+                local cell={x=center.x+dx,y=center.y+dy}
+                if Distance.grid(center.x,center.y,cell.x,cell.y)<=radius
+                    and inBounds(cell,mapBounds) then
+                    cells[#cells+1]=cell
+                end
+            end
+        end
+        return cells
+    end
+
+    -- S3 landing-candidate set (design §2.3). Returns the record
+    -- `{kind,cells,center,radius}` or `nil, reason` where the reason is
+    -- 'landing_envelope_unavailable' or (specifically: no plan and a
+    -- `center='requested_grid'` descriptor) 'movement_plan_unavailable'.
+    function M.landingCandidates(plan,entry,source,bound,mapBounds)
+        local movement=type(entry)=='table' and entry.movement or {}
+        local function fromLanding(landing)
+            if type(landing)~='table' then return nil end
+            if landing.kind=='deterministic' and type(landing.center)=='table'
+                and finite(landing.center.x) and finite(landing.center.y) then
+                local cell={x=landing.center.x,y=landing.center.y}
+                if not inBounds(cell,mapBounds) then return nil,'out_of_bounds' end
+                return {kind='deterministic',cells={cell},center=cell,radius=0}
+            end
+            if (landing.kind=='bounded' or landing.kind=='random')
+                and type(landing.center)=='table' and finite(landing.center.x)
+                and finite(landing.center.y) and finite(landing.radius) then
+                if landing.radius>CANDIDATE_RADIUS_CAP then return nil,'unbounded' end
+                local center={x=landing.center.x,y=landing.center.y}
+                return {kind=landing.kind,cells=circle(center,landing.radius,mapBounds),
+                    center=center,radius=landing.radius}
+            end
+            -- A random native choice without a resolved centre is anchored on
+            -- the caster (the only player-known centre the plugin has).
+            if landing.kind=='random' and finite(source.x) and finite(source.y)
+                and finite(landing.radius) then
+                if landing.radius>CANDIDATE_RADIUS_CAP then return nil,'unbounded' end
+                local center={x=source.x,y=source.y}
+                return {kind='random',cells=circle(center,landing.radius,mapBounds),
+                    center=center,radius=landing.radius}
+            end
+            return nil
+        end
+        if type(plan)=='table' then
+            local annotation=plan.annotation or {}
+            if plan.kind=='grid' and finite(plan.x) and finite(plan.y)
+                and (type(annotation.landing)~='table'
+                    or annotation.landing.kind=='deterministic') then
+                -- A deterministic landing: exactly the planned cell.
+                local cell={x=plan.x,y=plan.y}
+                if not inBounds(cell,mapBounds) then return nil,'out_of_bounds' end
+                return {kind='deterministic',cells={cell},center=cell,radius=0}
+            end
+            local fromAnnotation=fromLanding(annotation.landing)
+            if fromAnnotation then return fromAnnotation end
+            if annotation.landing~=nil then return nil,'landing_envelope_unavailable' end
+            -- A grid plan whose annotation could not be read falls back to the
+            -- declared envelope around the requested grid (conservative).
+            if plan.kind=='grid' and finite(plan.x) and finite(plan.y)
+                and finite(movement.radius) and movement.radius<=CANDIDATE_RADIUS_CAP then
+                local center={x=plan.x,y=plan.y}
+                return {kind='bounded',cells=circle(center,movement.radius,mapBounds),
+                    center=center,radius=movement.radius}
+            end
+        end
+        -- No plan (or an unusable one): derive the envelope from the descriptor.
+        local center=movement.center
+        if center=='requested_grid' then return nil,'movement_plan_unavailable' end
+        local anchor
+        if center=='actor' then
+            if not (finite(bound.x) and finite(bound.y)) then return nil,'landing_envelope_unavailable' end
+            anchor={x=bound.x,y=bound.y}
+        else
+            anchor={x=source.x,y=source.y}
+            if not (finite(anchor.x) and finite(anchor.y)) then return nil,'landing_envelope_unavailable' end
+        end
+        local radius=movement.radius
+        if not finite(radius) or radius>CANDIDATE_RADIUS_CAP then
+            return nil,'landing_envelope_unavailable'
+        end
+        return {kind='bounded',cells=circle(anchor,radius,mapBounds),center=anchor,radius=radius}
+    end
+
+    -- Resolve ONE candidate against a `landing_adjacent` condition (exported
+    -- pure for tests): the component is active only when the mover's FINAL
+    -- cell is at distance 1 from the named anchor. An unreadable anchor is
+    -- 'unknown' (fail closed), never silently dropped.
+    function M.candidateCondition(when,cell,anchor)
+        if when==nil or when.kind==nil or when.kind=='always' then return true end
+        if when.kind~='landing_adjacent' or when.anchor~='actor' then return 'unknown' end
+        if type(anchor)~='table' or not finite(anchor.x) or not finite(anchor.y) then
+            return 'unknown'
+        end
+        return Distance.grid(cell.x,cell.y,anchor.x,anchor.y)==1
+    end
+
+    -- Aggregate a candidate-aware `landing_adjacent` condition over the whole
+    -- candidate set: `true` when any candidate may satisfy it (conservative),
+    -- `false` when none can, 'unknown' when the anchor itself is unreadable.
+    local function resolveAdjacentCondition(when,candidates,anchor)
+        if when==nil or when.kind==nil or when.kind=='always' then return true end
+        local unknown=false
+        for _,cell in ipairs(candidates.cells or {}) do
+            local value=M.candidateCondition(when,cell,anchor)
+            if value==true then return true end
+            if value=='unknown' then unknown=true end
+        end
+        if unknown then return 'unknown' end
+        return false
+    end
+
+    -- S3 mixed-entry composition. `typ` is the real raised spec (raw table)
+    -- already read by the shared prelude; `builderSource` records where the
+    -- raised spec came from. Commit-1 scope: DIRECT bound-actor components
+    -- (`delivery='attackTarget'`) are validated, evidenced and left risk-exempt;
+    -- the candidate envelope is enumerated; projected (actual_landing)
+    -- components are expanded in the Giant Leap commit.
+    local function mixedComposition(entry,attempt,typ,builderSource,target,talent,threshold)
+        local mapBounds=bounds()
+        local plan=attempt.plan
+        local candidates,envReason=M.landingCandidates(plan,entry,p,target,mapBounds)
+        if not candidates then
+            if envReason=='movement_plan_unavailable' then
+                return disable('movement_plan_unavailable',{talent=talent})
+            end
+            return disable('selffire_risk',{unknown=true,talent=talent,
+                reason=envReason or 'landing_envelope_unavailable'})
+        end
+        local components={}
+        local membershipsBy={}
+        local componentsEvaluated=0
+        local candidateCount=#candidates.cells
+        for _,component in ipairs(entry.components) do
+            local resolved={id=component.id,phase=component.phase,delivery=component.delivery,
+                shape=component.shape,center=component.center,radius=component.radius,
+                when=component.when,provenance=component.provenance,
+                candidate_count=candidateCount,builder_source=builderSource}
+            if component.delivery=='attackTarget' then
+                -- D2: a direct, already-bound actor effect keeps the existing
+                -- closed `attackTarget` token. Its center must resolve to the
+                -- bound hostile; it is recorded in evidence and never expanded
+                -- (no ActorProject footprint exists and EffectRisk intentionally
+                -- exempts the class).
+                componentsEvaluated=componentsEvaluated+1
+                if component.center=='actor' or component.center=='target' then
+                    if not (finite(target.x) and finite(target.y)) then
+                        return disable('target_geometry_unknown',{talent=talent,
+                            component=resolved.id})
+                    end
+                else
+                    return disable('target_geometry_unknown',{talent=talent,
+                        component=resolved.id,
+                        reason='direct_component_center_unboundable'})
+                end
+                resolved.required_expansions=0
+                resolved.completed_expansions=0
+                resolved.footprint_count=0
+                resolved.condition=component.when
+                resolved.resolved_condition=resolveAdjacentCondition(component.when,
+                    candidates,target)
+                -- Direct bound-hostile components contribute zero self/friendly
+                -- risk but stay declared (they are never invisible).
+                membershipsBy[resolved.id]={self=false,friendlies=0,player_override=true}
+            else
+                -- Projected/actual_landing components: complete per-pair
+                -- expansion lands with the Giant Leap commit; nothing before it
+                -- publishes such a component.
+                return disable('selffire_risk',{unknown=true,talent=talent,
+                    component=resolved.id,reason='composition_unavailable'})
+            end
+            components[#components+1]=resolved
+        end
+        if componentsEvaluated==0 then
+            return disable('adapter_no_components',{talent=talent})
+        end
+        -- Measure only after every non-exempt component union is complete.
+        local measure=Risk.measure(components,membershipsBy)
+        local detail={talent=talent,source=builderSource,candidate_count=candidateCount,
+            components_evaluated=componentsEvaluated,threshold=threshold,
+            unknown=measure.risk=='unknown'}
+        if measure.risk~=0 then
+            local worst=measure.detail
+            if worst then
+                detail.risk=worst.risk
+                detail.measurement=measure.risk
+                detail.phase=worst.phase
+                detail.component=worst.component
+                detail.selffire=worst.selffire
+                detail.friendlyfire=worst.friendlyfire
+                detail.friendlies=worst.friendlies
+                detail.provenance=worst.provenance or nil
+                detail.footprint_backend=worst.footprint_backend
+            end
+            if measure.risk~='unknown' and type(measure.risk)=='number'
+                and measure.risk<=threshold then
+                return {action='permit',detail=detail}
+            end
+            return disable('selffire_risk',detail)
+        end
+        -- A zero-risk mixed entry still publishes its composition evidence so
+        -- the decision trace shows the complete evaluation (never invisible).
+        detail.measurement=0
+        return {action='permit',detail=detail}
+    end
+
     local function guard(attempt)
         local action=attempt.action
         if action~='attack' and action~='use_talent' then return nil end
@@ -183,17 +417,26 @@ function M.build(ctx)
         -- actual live functions as normal entrypoints. A missing/erroring/non-table
         -- builder below is a derivation unknown, not an identity rejection.
         -- Movement adapters carry no damage footprint; their landing/uncertainty
-        -- safety is the MovementPlanner's explicit policy acceptance.
-        if entry.kind=='movement' then return nil end
-        if entry.target~='hostile' then return nil end
+        -- safety is the MovementPlanner's explicit policy acceptance. A MIXED
+        -- movement entry (S3) falls through to the composition path below; a
+        -- component-free movement entry is still skipped.
+        local isMovement=entry.kind=='movement'
+        local isMixed=isMovement and #(entry.components or {})>0
+        if isMovement then
+            if not isMixed then return nil end
+        elseif entry.target~='hostile' then
+            return nil
+        end
         local target
         if attempt.bound_target then target=ctx.resolve(attempt.bound_target) end
         if not target then return disable('target_lost') end
         if not (finite(target.x) and finite(target.y) and finite(p.x) and finite(p.y)) then
             return disable('target_geometry_unknown')
         end
-        -- Melee delivery never consults ActorProject filters.
-        if entry.melee then return nil end
+        -- Melee delivery never consults ActorProject filters. The entry-level
+        -- shortcut is not taken for a mixed entry: exemption is component-local
+        -- (EffectRisk), never entry-level.
+        if entry.melee and not isMixed then return nil end
         -- Real target spec from the audited native builder when available; the
         -- manifest remains the canonical source for secondary/ground/variants.
         local typ,builderSource=nil,'manifest'
@@ -239,6 +482,11 @@ function M.build(ctx)
             if can==false then return disable('no_line_of_sight',{source=builderSource}) end
         elseif type(p.canProject)~='function' and not range0 then
             return disable('canproject_unavailable')
+        end
+        -- S3: a mixed movement entry takes the composition path before any
+        -- hostile component loop; the plan is passed through unmodified.
+        if isMixed then
+            return mixedComposition(entry,attempt,typ,builderSource,target,talent,threshold)
         end
         -- Resolve every canonical component. Variants come only from audited
         -- scalar reads; an unresolved branch stays in the conservative union.
