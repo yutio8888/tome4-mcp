@@ -43,5 +43,7 @@ return {
         T_PHASE_DOOR={files={{path='/data/talents/spells/conveyance.lua',md5='14abb31aa46683e7543a927780c35f6c'}},line=66,action={path='/data/talents/spells/conveyance.lua',line=78},getters={getRange={path='/data/talents/spells/conveyance.lua',line=74},getRadius={path='/data/talents/spells/conveyance.lua',line=76}}},
         T_SKIRMISHER_VAULT={files={{path='/data/talents/techniques/acrobatics.lua',md5='8d3984902d07c74a95fe2a66fbd8e906'}},line=29,builder={path='/data/talents/techniques/acrobatics.lua',line=52},action={path='/data/talents/techniques/acrobatics.lua',line=61},ranges={range={path='/data/talents/techniques/acrobatics.lua',line=49}}},
         T_DIMENSIONAL_STEP={files={{path='/data/talents/chronomancy/spacetime-weaving.lua',md5='ada142a71339308098bd056b96ed9a08'}},line=23,builder={path='/data/talents/chronomancy/spacetime-weaving.lua',line=32},action={path='/data/talents/chronomancy/spacetime-weaving.lua',line=38},ranges={range={path='/data/talents/chronomancy/spacetime-weaving.lua',line=30}}},
+        T_EARTHEN_MISSILES={files={{path='/data/talents/spells/stone.lua',md5='f21931e38808f47e16ab165d0be5b76d'}},line=21,action={path='/data/talents/spells/stone.lua',line=37}},
+        T_DWARVEN_HALF_EARTHEN_MISSILES={files={{path='/data/talents/gifts/dwarven-nature.lua',md5='c417f41189b0dc5bc6f86d693d482d08'}},line=21,action={path='/data/talents/gifts/dwarven-nature.lua',line=33}},
     },
 }

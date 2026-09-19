@@ -51,9 +51,19 @@ M.TARGET_REQUESTS={none=true,actor=true,grid=true,self=true}
 -- the source of its decided value. Both are closed vocabularies.
 M.REQUEST_SUBJECTS={self=true,actor=true}
 M.REQUEST_VALUE_SOURCES={subject=true,target_plan=true}
-M.DELIVERIES={step=true,line_move=true,leap=true,teleport=true,scene_change=true}
-M.LANDINGS={exact=true,bounded_alternatives=true,random=true,source_defined=true}
-M.CENTERS={self=true,actor=true,requested_grid=true}
+M.DELIVERIES={step=true,line_move=true,leap=true,teleport=true,scene_change=true,
+    -- R2: a STATIONARY delivery — the effect leaves the caster but the caster
+    -- never moves (a projectile/multi-target effect program). It is deliberately
+    -- distinct from every mover delivery so a descriptor can never claim a
+    -- relocation that does not happen.
+    stationary=true}
+M.LANDINGS={exact=true,bounded_alternatives=true,random=true,source_defined=true,
+    -- R2: no mover landing at all (the caster does not move).
+    none=true}
+M.CENTERS={self=true,actor=true,requested_grid=true,
+    -- R2: the program's centre is the policy-chosen grid of each prompt, not a
+    -- mover landing.
+    none=true}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 
@@ -553,6 +563,21 @@ local TEMPLATES={
             builder_shape=true,fallback_center=true,fallback_radius=true,
             fallback_when=true,occupancy_dependent=true,landing_proof=true},
         fixed={},
+    },
+    -- R2: stationary multi-prompt effect program (a projectile fired at each
+    -- policy-chosen grid; the caster NEVER moves). There is no landing envelope,
+    -- no radius and no traversal because no pawn is relocated — the mechanical
+    -- invariants say so explicitly, so a caller cannot smuggle in mover
+    -- semantics. The ordered `request_sequence` (each entry a `grid` prompt
+    -- answered from the plan) plus the reusable `group` key express the
+    -- interchangeable multi-projectile program (for example Earthen Missiles,
+    -- spells/stone.lua:37-58). The executor consumes it through the SAME S2
+    -- queue; no second queue is introduced.
+    stationary_sequence={
+        required={request_sequence=true},
+        optional={target_requests=true,range=true},
+        fixed={delivery='stationary',landing='none',center='none',
+            traverses=false,relocates_other=false},
     },
 }
 

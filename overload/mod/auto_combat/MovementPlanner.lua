@@ -202,6 +202,15 @@ end
 -- deterministic; a random landing stays an ANNOTATION the policy decides on,
 -- never a plugin refusal.
 local function applyLandingEnvelope(annotation,movement,origin,x,y)
+    -- R2: a stationary program has NO mover landing. The requested cell is the
+    -- projectile target, not a landing, so the annotation stays deterministic
+    -- (the projectile is fired AT this cell; nobody moves).
+    if type(movement)=='table' and (movement.landing=='none'
+        or movement.delivery=='stationary') then
+        annotation.confidence='source_stationary_projectile'
+        annotation.reasons[#annotation.reasons+1]='caster_does_not_move'
+        return annotation
+    end
     if type(movement)~='table' or movement.landing=='exact' or movement.landing==nil then
         return annotation
     end
@@ -380,6 +389,16 @@ end
 -- is reported here too (the sequence per-step annotations share this builder).
 local function nativeLandingAnnotation(movement,anchor,origin)
     movement=movement or {}
+    -- R2: a stationary program has no mover landing; the annotation reports the
+    -- projectile target grid as a deterministic aim point (nobody moves).
+    if movement.delivery=='stationary' or movement.landing=='none' then
+        local target=(type(anchor)=='table') and {x=anchor.x,y=anchor.y} or nil
+        if target==nil and type(origin)=='table' then target={x=origin.x,y=origin.y} end
+        return {landing={kind='deterministic',x=target and target.x,y=target and target.y},
+            visible=true,remembered=true,known_passable='unknown',known_hazard='unknown',
+            confidence='source_stationary_projectile',
+            reasons={'caster_does_not_move','projectile_aim_grid'}}
+    end
     if movement.landing=='random' then
         local bounds={kind='random',source='native'}
         if finite(movement.radius) then bounds.radius=movement.radius end

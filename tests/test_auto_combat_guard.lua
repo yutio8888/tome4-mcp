@@ -298,4 +298,60 @@ do
         'a movement adapter is not gated by advisory drift')
 end
 
+-- R2: a stationary multi-prompt effect program (Earthen Missiles) is NOT
+-- movement — the guard must measure the declared damage at every chosen grid
+-- instead of skipping it.
+do
+    local function planOf(grids)
+        local values={}
+        for i,grid in ipairs(grids) do
+            values[i]={kind='grid',request='grid',x=grid[1],y=grid[2],group='earthen_missiles'}
+        end
+        return {kind='sequence',values=values,
+            annotation={landing={kind='deterministic'}}}
+    end
+    local function stationaryAttempt(grids)
+        local a=attempt('T_EARTHEN_MISSILES')
+        a.plan=planOf(grids)
+        return a
+    end
+    -- A self-safe cast (both missiles land on empty grids away from the caster)
+    -- is permitted, and the verdict SHOWS the stationary measurement.
+    local guard=build{policy={safety={max_selffire_risk=0}}}
+    local permitted=guard(stationaryAttempt({{5,2},{6,2}}))
+    check(permitted==nil or (permitted.action=='permit' and permitted.detail.stationary==true),
+        'a self-safe stationary program is permitted with a stationary detail')
+    -- A projectile fired by the player is suppressed for SELF unless the caster
+    -- opts in (the audited `player_selffire` rule), so an aim grid on the
+    -- caster's own cell is not misreported as self-risk; the guard still measures
+    -- the program at both grids (never skips it).
+    local onSelf=guard(stationaryAttempt({{2,2},{5,2}}))
+    check(onSelf==nil or (onSelf.action=='permit' and onSelf.detail.stationary==true
+        and onSelf.detail.grids==2),
+        'a stationary aim grid on the caster is measured (projectile self-suppression applies)')
+    -- A friendly ally inside one of the chosen footprints is measured too (the
+    -- stone variant's friendlyfire filter is default-true), and rejected at
+    -- threshold 0.
+    local allyRisk=build{policy={safety={max_selffire_risk=0}},allies={{uid=9,x=5,y=2}}}
+    local rejected=allyRisk(stationaryAttempt({{5,2},{6,2}}))
+    check(rejected and rejected.action=='reject' and rejected.detail.stationary==true,
+        'a stationary program whose footprint covers an ally is measured and rejected')
+    -- The dwarven variant's explicit `friendlyfire=false` makes the same ally
+    -- footprint safe (0% friendly risk).
+    local dwarf=build{policy={safety={max_selffire_risk=0}},allies={{uid=9,x=5,y=2}}}
+    local dwarfAttempt=attempt('T_DWARVEN_HALF_EARTHEN_MISSILES')
+    dwarfAttempt.plan=planOf({{5,2},{6,2}})
+    local dwarfVerdict=dwarf(dwarfAttempt)
+    check(dwarfVerdict==nil or dwarfVerdict.action=='permit',
+        'the dwarven variant does not risk a friendly ally (explicit friendlyfire=false)')
+    -- Undecidability fails closed: no plan means the chosen grids are unknown.
+    local noPlan=guard(attempt('T_EARTHEN_MISSILES'))
+    check(noPlan and noPlan.action=='reject' and noPlan.reason=='movement_plan_unavailable',
+        'a stationary program without its plan fails closed')
+    -- Grid out of range fails closed per grid.
+    local far=guard(stationaryAttempt({{2,2},{14,2}}))
+    check(far and far.action=='reject' and far.reason=='target_out_of_range',
+        'a stationary chosen grid outside the range fails closed')
+end
+
 print('Auto-combat guard: '..checks..' checks passed')

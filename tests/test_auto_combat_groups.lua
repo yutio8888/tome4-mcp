@@ -322,77 +322,120 @@ do
         'carrier entries without a declared group never gain one by inference')
 end
 
--- 9. STOP-condition evidence (item 7 of the brief). Admitting Earthen Missiles
--- as a `movement` entry would require the descriptor vocabulary to express "fire
--- N projectiles at N chosen grids WITHOUT moving the player" and the guard to
--- see the declared damage. Neither holds on this branch, so the brief's STOP
--- clause applies: the talents stay UNSUPPORTED with an honest typed reason and
--- this suite records the exact, runnable gap instead of forcing a template.
+-- 9. Admission of both talents through the stationary program (dispatcher's
+-- follow-up). The caster never moves; the declared damage is visible to the
+-- guard at every chosen grid; the TL5 third missile is the existing
+-- talent_level variant matrix; and the interchangeable group expresses the
+-- indistinguishable-but-equivalent prompts.
 do
-    -- (a) The closed `delivery` vocabulary has no stationary-project member:
-    -- every admitted value denotes the MOVER relocating (step/line_move/leap/
-    -- teleport/scene_change). `landing`/`center` likewise describe a mover
-    -- landing, and `request_then_landing` requires both.
-    check(Factory.DELIVERIES.project~=true and Factory.DELIVERIES.projectile~=true
-        and Factory.DELIVERIES.cast~=true and Factory.DELIVERIES.stationary~=true,
-        'the closed delivery vocabulary has no stationary-project member')
-    check(Factory.DELIVERIES.step==true and Factory.DELIVERIES.line_move==true
-        and Factory.DELIVERIES.leap==true and Factory.DELIVERIES.teleport==true
-        and Factory.DELIVERIES.scene_change==true,
-        'every admitted delivery value denotes a mover relocation')
-    check(Factory.CENTERS.requested_grid==true and Factory.LANDINGS.exact==true
-        and Factory.LANDINGS.source_defined==true,
-        'center/landing are mover-landing concepts only')
-    -- (b) The only template with no fixed movement invariant is
-    -- `request_then_landing`, yet it still REQUIRES delivery/landing/center. The
-    -- closest available value (`step`) would assert the caster steps, which is
-    -- false for a projectile-only action — i.e. the vocabulary cannot express it
-    -- honestly.
-    local spec=Factory.TEMPLATES.request_then_landing
-    check(spec.fixed and next(spec.fixed)==nil,
-        'request_then_landing fixes no movement invariant')
-    check(spec.required.delivery==true and spec.required.landing==true
-        and spec.required.center==true,
-        'request_then_landing still REQUIRES delivery/landing/center (mover concepts)')
-    local movement,err=Factory.expand('request_then_landing',{request_sequence={
-        {index=1,request='grid',subject='self',value_source='target_plan',
-            observed=BOLT,group=1,equiv=PROOF},
-        {index=2,request='grid',subject='self',value_source='target_plan',
-            observed=BOLT,group=1,equiv=PROOF}},
-        delivery='step',landing='source_defined',center='self',
-        traverses=false,relocates_other=false,range=10})
-    -- The group mechanism itself expands; the STOP is about the MOVEMENT
-    -- semantics being false, not about the group declaration.
-    check(movement~=nil and movement.delivery=='step' and movement.center=='self',
-        'the group declaration expands, but only under a mover delivery value')
-    check(movement.landing=='source_defined',
-        'the landing class is a mover-landing annotation')
-    -- (c) The guard would skip a movement-kind entry unconditionally, so declared
-    -- damage components would be invisible on this branch; the mixed-composition
-    -- machinery (S3 `guardMixed`/`actual_landing`) is not present here.
-    local guardSource=io.open(root..'/overload/mod/auto_combat/AutoCombatGuard.lua'):read('*a')
-    check(guardSource:find("if entry.kind=='movement' then return nil end",1,true)~=nil,
-        'the guard skips every movement-kind entry (declared damage would be invisible)')
-    check(guardSource:find('guardMixed',1,true)==nil
-        and guardSource:find('actual_landing',1,true)==nil,
-        'the S3 mixed movement/effect composition guard is not on this branch')
-    -- (d) Both talents therefore stay UNSUPPORTED, with an honest typed reason
-    -- naming the descriptor gap (not the now-solved signature ambiguity).
     for _,talent in ipairs{'T_EARTHEN_MISSILES','T_DWARVEN_HALF_EARTHEN_MISSILES'} do
-        check(Manifest.entry(talent)==nil,
-            talent..' stays unexecutable until the descriptor gap is closed')
-        local row
-        for _,candidate in ipairs(Manifest.UNSUPPORTED) do
-            if candidate.talent==talent then row=candidate end
+        local entry=Manifest.entry(talent)
+        check(entry~=nil,talent..' is executable (has a manifest entry)')
+        check(entry.stationary==true,talent..' is declared stationary')
+        check(entry.target=='grid',talent..' is a grid-target program (the policy picks each grid)')
+        check(#(entry.components or {})>0,talent..' declares its damage components')
+        local effect
+        for _,component in ipairs(entry.components or {}) do
+            if component.phase~='cursor' then effect=component end
         end
-        check(row~=nil,talent..' keeps a structured unsupported row')
-        check(row.missing=='stationary_project_delivery',
-            talent..' carries the honest stationary-project typed reason')
-        check(row.reason:find('spells/stone.lua:40-56',1,true)
-            or row.reason:find('gifts/dwarven-nature.lua:35-50',1,true),
-            talent..' reason cites the reviewed source')
+        check(effect~=nil and effect.phase=='projectile' and effect.shape=='bolt'
+            and effect.delivery=='projectile',
+            talent..' declares a bolt projectile component the guard can measure')
+        -- Every executable branch is a stationary program (no mover semantics)
+        -- with one declared interchangeable group, and the lengths are 2 (below
+        -- TL5) then 3 (TL5+).
+        local lengths={}
+        for _,variant in ipairs(entry.movement.variants or {}) do
+            local m=variant.movement
+            if m then
+                check(m.delivery=='stationary' and m.landing=='none' and m.center=='none'
+                    and m.traverses==false and m.relocates_other==false,
+                    talent..' branch declares stationary/no-landing/no-traversal')
+                local sequence=m.request_sequence
+                lengths[#lengths+1]=#sequence
+                for _,item in ipairs(sequence) do
+                    check(item.request=='grid' and item.value_source=='target_plan',
+                        talent..' program entries are grid prompts answered from the plan')
+                    check(item.group~=nil and item.group==sequence[1].group,
+                        talent..' program entries share one declared group')
+                end
+            end
+        end
+        check(#lengths==2 and lengths[1]==2 and lengths[2]==3,
+            talent..' expresses the TL5 third missile via the talent_level matrix (2 below, 3 at TL5+)')
+        local unsupported=false
+        for _,row in ipairs(Manifest.UNSUPPORTED) do
+            if row.talent==talent then unsupported=true end
+        end
+        check(not unsupported,talent..' is no longer in M.UNSUPPORTED')
+        check(Manifest.SOURCES.talents[talent]~=nil,talent..' keeps its advisory source pin')
     end
 end
+
+-- 10. The new stationary template is validated exactly as strictly as the
+-- movement templates: closed keys, fixed-invariant rejection, malformed values
+-- all yield movement_adapter_invalid.
+do
+    local PROOF='one computed damage and the same projectile/DamageType.SPLIT_BLEED '
+        ..'for every prompt (spells/stone.lua:40-56)'
+    local function stationary(extra)
+        local params={range=10,request_sequence={
+            {index=1,request='grid',subject='self',value_source='target_plan',
+                observed=BOLT,group='g',equiv=PROOF},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                observed=BOLT,group='g',equiv=PROOF}}}
+        for k,v in pairs(extra or {}) do params[k]=v end
+        return Factory.expand('stationary_sequence',params)
+    end
+    local movement=assert(stationary())
+    check(movement.delivery=='stationary' and movement.landing=='none'
+        and movement.center=='none' and movement.traverses==false
+        and movement.relocates_other==false,
+        'the stationary template fixes no-mover invariants')
+    check(movement.target_requests[1]=='grid' and movement.target_requests[2]=='grid',
+        'the stationary template derives its target_requests from the sequence')
+    check(movement.request_sequence[1].group=='g',
+        'the stationary template keeps the declared interchangeable group')
+    -- Fixed-invariant rejection (a caller cannot smuggle in mover semantics).
+    for _,fixed in ipairs{'delivery','landing','center','traverses','relocates_other'} do
+        local bad,err=stationary({[fixed]=(fixed=='traverses' and true or 'teleport')})
+        check(bad==nil and err~=nil and err.reason=='movement_adapter_invalid'
+            and err.detail=='fixed_field' and err.key==fixed,
+            'the stationary template rejects a '..fixed..' override')
+    end
+    local bad,err=stationary({not_a_field=1})
+    check(bad==nil and err.detail=='unknown_key','an unknown stationary parameter is rejected')
+    -- A stationary program with an ungrouped multi-entry program keeps the S2
+    -- rule (identical signatures without a group are still ambiguous).
+    local dup,dupErr=Factory.expand('stationary_sequence',{range=10,request_sequence={
+        {index=1,request='grid',subject='self',value_source='target_plan',observed=BOLT},
+        {index=2,request='grid',subject='self',value_source='target_plan',observed=BOLT}}})
+    check(dup==nil and dupErr.detail=='request_signature_ambiguous',
+        'an ungrouped stationary program keeps request_signature_ambiguous')
+end
+
+-- 11. The planner lowers a stationary program into the SAME {kind='sequence'}
+-- plan the S2 queue consumes (no second queue), and the landing annotation
+-- never claims a relocation.
+do
+    local entry=Manifest.entry('T_EARTHEN_MISSILES')
+    -- Resolve the talent_level variant exactly as the runtime provider does.
+    local leaf=assert(Factory.resolveVariant(entry.movement,'T_EARTHEN_MISSILES',
+        {talentLevel=function() return 1 end}))
+    local plan=planOrFail({talent='T_EARTHEN_MISSILES',target='self',target_plan={
+        {request='grid',destination={selector='position',x=3,y=2,accept=accept}},
+        {request='grid',destination={selector='position',x=4,y=2,accept=accept}}}},
+        provider,leaf,{x=2,y=2})
+    check(plan.kind=='sequence' and #plan.steps==2,'a stationary program lowers into the S2 sequence plan')
+    check(plan.values[1].group~=nil,'the decided values carry the declared group')
+    check(plan.annotation.landing.kind=='deterministic',
+        'a stationary landing annotation is deterministic (no mover landing)')
+    local reasons=plan.annotation.reasons or {}
+    local casterStays=false
+    for _,reason in ipairs(reasons) do if reason=='caster_does_not_move' then casterStays=true end end
+    check(casterStays,'the stationary annotation records that the caster does not move')
+end
+
 
 Tracker.start,Compat.check,Compat.matches=realStart,realCheck,realMatches
 

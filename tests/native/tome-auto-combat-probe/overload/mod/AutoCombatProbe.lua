@@ -66,7 +66,7 @@ M.EXPECTED={
     ['movement-fallback']={'blocked_landing','alternative_planned','fallback_moved'},
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
     ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused','sd_cooldown_native_rejected','sd_cooldown_no_pause','sd_zero_prompt_success_deviated','sd_zero_prompt_success_paused'},
-    ['movement-groups']={'grp_carrier','grp_declared_group_settles','grp_ungrouped_handed_back'},
+    ['movement-groups']={'grp_carrier','grp_declared_group_settles','grp_ungrouped_handed_back','grp_stationary_admitted','grp_stationary_lowered','grp_stationary_guard_sees','grp_stationary_settles'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['handback-answer']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt'},
     ['handback-timeout']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_unanswered_cancelled'},
@@ -2087,6 +2087,83 @@ local function interchangeableGroupChecks()
     signals[#signals+1]=ungroupedHandedBack and 'grp_ungrouped_handed_back'
         or 'grp_ungrouped_missing'
     restoreU()
+    -- (c) R2 stationary program: the REAL admitted manifest entry
+    -- (T_EARTHEN_MISSILES). The production planner lowers its declared 2-entry
+    -- (below TL5) interchangeable group, the production guard measures the
+    -- declared damage at each chosen grid (never skipping it as movement), and
+    -- the production executor answers both prompts through the S2 queue.
+    local emEntry=EffectManifest.entry('T_EARTHEN_MISSILES')
+    local stationaryDeclared=emEntry~=nil and emEntry.stationary==true
+        and #(emEntry.components or {})>0
+    check('movement-groups:stationary-admitted',stationaryDeclared,
+        {entry=emEntry and {stationary=emEntry.stationary,components=#(emEntry.components or {})}})
+    signals[#signals+1]=stationaryDeclared and 'grp_stationary_admitted' or 'grp_stationary_missing'
+    if stationaryDeclared then
+        -- Admit the real talent locally (arena character may not know it) and
+        -- pin its effective level below TL5 so the declared 2-entry program is
+        -- the executable one.
+        p.talents=p.talents or {}
+        p.talents_def=p.talents_def or {}
+        p.talents_cd=p.talents_cd or {}
+        if not p.talents['T_EARTHEN_MISSILES'] and type(p.learnTalent)=='function' then
+            pcall(function() p:learnTalent('T_EARTHEN_MISSILES',true) end)
+        end
+        p.talents['T_EARTHEN_MISSILES']=1
+        p.talents_cd['T_EARTHEN_MISSILES']=0
+        local polE=policy({{id='em',priority=10,when={always={}},
+            ['then']={action='use_talent',talent='T_EARTHEN_MISSILES',target='self'}}})
+        local hostE=Runtime.buildAutoCombatHostFor(game,polE,{drift=function() return true end})
+        local destE={selector='position',x=before.x+1,y=before.y,accept=accept}
+        local destE2={selector='position',x=before.x+2,y=before.y,accept=accept}
+        local planE,planEErr=hostE.plan({action='use_talent',talent='T_EARTHEN_MISSILES',
+            target='self',target_plan={{request='grid',destination=destE},
+                {request='grid',destination=destE2}},destination=destE})
+        local lowered=planE and planE.plan and planE.plan.kind=='sequence'
+            and #planE.plan.steps==2
+        check('movement-groups:stationary-lowered',lowered,
+            {kind=planE and planE.plan and planE.plan.kind,
+                reason=planEErr and planEErr.reason})
+        signals[#signals+1]=lowered and 'grp_stationary_lowered' or 'grp_stationary_lower_missing'
+        -- The production guard must MEASURE the damage (a stationary detail), not
+        -- skip the entry. The arena target dummy is the bound target.
+        local guardVerdict
+        if lowered then
+            guardVerdict=hostE.guard({rule='em',action='use_talent',talent='T_EARTHEN_MISSILES',
+                target='self',bound_target=nil,plan=planE.plan})
+        end
+        local guardSees=guardVerdict~=nil and guardVerdict.detail~=nil
+            and guardVerdict.detail.stationary==true
+        check('movement-groups:stationary-guard-sees-damage',guardSees,{verdict=guardVerdict})
+        signals[#signals+1]=guardSees and 'grp_stationary_guard_sees'
+            or 'grp_stationary_guard_missing'
+        -- End-to-end: the real executor answers both prompts through the S2 queue
+        -- and records the observed (identical-signature) prompts.
+        local outcomeE
+        if lowered and guardSees then
+            forceReady()
+            p.x,p.y=before.x,before.y
+            if p.talents_cd then p.talents_cd['T_EARTHEN_MISSILES']=0 end
+            -- The arena character may not carry the mana resource this spell
+            -- costs; grant enough so the probe exercises the program rather than
+            -- a native resource refusal (a fixture limitation, not the plugin).
+            if type(p.mana)=='number' then p.mana=math.max(p.mana,500) end
+            if type(p.max_mana)=='number' then p.max_mana=math.max(p.max_mana,500) end
+            outcomeE=hostE.request({action='use_talent',talent='T_EARTHEN_MISSILES',
+                plan=planE.plan,rule='em'})
+        end
+        local settledE=outcomeE and (outcomeE.status=='ok' or outcomeE.status=='native_pending')
+            and type(outcomeE.target_sequence)=='table' and #outcomeE.target_sequence==2
+            and outcomeE.sequence_deviation==nil
+        check('movement-groups:stationary-settles',settledE,
+            {status=outcomeE and outcomeE.status,code=outcomeE and outcomeE.code,
+                energy=outcomeE and outcomeE.energy_spent,
+                sequence=outcomeE and outcomeE.target_sequence,
+                deviation=outcomeE and outcomeE.sequence_deviation})
+        signals[#signals+1]=settledE and 'grp_stationary_settles'
+            or 'grp_stationary_settle_missing'
+    else
+        signals[#signals+1]='grp_stationary_skipped'
+    end
     p.x,p.y=before.x,before.y
     forceReady()
     return compare('movement-groups',signals)

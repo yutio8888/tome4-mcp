@@ -174,8 +174,7 @@ do
 check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupported')
     -- S2-R3-01 rev5: the officially-decided multi-prompt unsupported set, each
     -- with its own typed reason.
-    for _,talent in ipairs({'T_MERGE','T_STONE','T_CURSED_BOLT','T_WORMHOLE',
-        'T_EARTHEN_MISSILES','T_DWARVEN_HALF_EARTHEN_MISSILES'}) do
+    for _,talent in ipairs({'T_MERGE','T_STONE','T_CURSED_BOLT','T_WORMHOLE'}) do
         local u=unsupportedEntry(talent)
         check(u~=nil and u.missing and u.reason and u.scope,
             talent..' has a structured unsupported entry')
@@ -203,25 +202,32 @@ check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupp
         and not unsupportedEntry('T_WORMHOLE').reason:find('simple_dir_request',1,true)
         and not unsupportedEntry('T_WORMHOLE').reason:find('cross_prompt_postcondition',1,true),
         'Wormhole reason cites the trap pair (correct ranges) and withdraws the simple_dir_request/cross-prompt claims')
-    -- Loop 39 (R2 / option A): the interchangeable-group mechanism landed, so
-    -- the old `same_shape_equivalent` reason is withdrawn. Both talents remain
-    -- unsupported for a DIFFERENT, honest reason: the movement descriptor
-    -- vocabulary cannot express a stationary multi-projectile program (the
-    -- caster never moves while every admitted `delivery` denotes a relocation).
-    check(unsupportedEntry('T_EARTHEN_MISSILES').missing=='stationary_project_delivery'
-        and unsupportedEntry('T_DWARVEN_HALF_EARTHEN_MISSILES').missing=='stationary_project_delivery',
-        'Earthen Missiles variants carry the stationary-project typed reason (R2 STOP clause)')
-    check(unsupportedEntry('T_EARTHEN_MISSILES').reason:find('spells/stone.lua:40-56',1,true)
-        and unsupportedEntry('T_DWARVEN_HALF_EARTHEN_MISSILES').reason:find('gifts/dwarven-nature.lua:35-50',1,true),
-        'both reasons cite their reviewed source')
-    check(unsupportedEntry('T_EARTHEN_MISSILES').reason:find('interchangeable group',1,true)
-        and unsupportedEntry('T_EARTHEN_MISSILES').reason:find('withdrawn',1,true),
-        'the reason records that the signature/order blocker is now solved')
-    -- The reference doc's survey row must agree with the code.
-    do
-        local doc=io.open(root..'/docs/tome-mcp-0.9.0-movement-s2-implementation.md'):read('*a')
-        check(doc:find('stationary_project_delivery',1,true)~=nil,
-            'the S2 survey doc records the corrected R2 disposition')
+    -- Loop 39 (R2 / option A + stationary descriptor): the interchangeable-group
+    -- mechanism landed AND the stationary multi-projectile program is now
+    -- expressible, so both talents are ADMITTED and their unsupported rows are
+    -- gone. Each keeps an honest stationary entry with the declared group and a
+    -- damage component the guard can see.
+    for _,talent in ipairs{'T_EARTHEN_MISSILES','T_DWARVEN_HALF_EARTHEN_MISSILES'} do
+        local entry=Manifest.entry(talent)
+        check(entry~=nil,talent..' is admitted (no longer in M.UNSUPPORTED)')
+        check(unsupportedEntry(talent)==nil,talent..' has no unsupported row')
+        check(entry.stationary==true,talent..' is declared stationary (guard must not skip it)')
+        local sawStationary=false
+        local lengths={}
+        for _,variant in ipairs(entry.movement.variants or {}) do
+            if variant.movement then
+                if variant.movement.delivery=='stationary' and variant.movement.landing=='none' then
+                    sawStationary=true
+                end
+                lengths[#lengths+1]=#variant.movement.request_sequence
+            end
+        end
+        check(sawStationary,talent..' declares a stationary delivery and no mover landing')
+        check(#lengths==2 and lengths[1]==2 and lengths[2]==3,
+            talent..' expresses the TL5 third missile via the talent_level matrix (2 below, 3 at TL5+)')
+        local effect=false
+        for _,c in ipairs(entry.components or {}) do if c.phase~='cursor' then effect=true end end
+        check(effect,talent..' declares its damage component (visible to the guard)')
     end
     -- S2-R4-01: the agility Vault (techniques/agility.lua) is a MIXED
     -- movement/effect talent: its first (actor) prompt's target is attacked and

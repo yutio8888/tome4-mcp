@@ -383,6 +383,92 @@ M.ENTRIES={
                     landing_proof='TL5+: actor prompt then the unconditional landing grid prompt'}},
         },{{kind='attr',id='phase_door_force_precise'}}),
         components={},conformance={builder=false}},
+    -- R2 (option A + stationary descriptor): the two Earthen Missiles variants
+    -- are STATIONARY multi-projectile programs. The caster never moves; the
+    -- action fires the same projectile at each policy-chosen grid
+    -- (`self:projectile(tg, x, y, DamageType.SPLIT_BLEED, ...)`,
+    -- spells/stone.lua:40-56). Their three prompts are indistinguishable by
+    -- curated signature (all `{type='bolt', range=getTalentRange, talent=t}`)
+    -- yet semantically equivalent — one computed `damage`, the same projectile,
+    -- the same `DamageType.SPLIT_BLEED` — so they are declared as one
+    -- **interchangeable group** (`group`+`equiv`), which is exactly the case the
+    -- R2 mechanism was added for. The third missile at effective TL5 is the
+    -- existing `talent_level` variant matrix (2-entry program below, 3-entry at
+    -- TL5+), never a new mechanism. `stationary=true` is what tells the guard
+    -- this is NOT movement: it must measure the declared damage at every chosen
+    -- grid (AutoCombatGuard.guardStationary) instead of skipping it.
+    --
+    -- Provenance: the projectile itself is an unfiltered `self:projectile(...)`
+    -- call, so `Target:getType` supplies selffire=true/friendlyfire=true for
+    -- stone.lua (no filter fields on the spec); dwarven-nature.lua sets
+    -- `friendlyfire=false, friendlyblock=false` explicitly.
+    T_EARTHEN_MISSILES={kind='movement',target='grid',resource='mana',range=10,
+        stationary=true,
+        movement=movementMatrix({
+            {when={kind='talent_level',below=5},template='stationary_sequence',
+                params={range=10,
+                    request_sequence={
+                        {index=1,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='earthen_missiles',
+                            equiv='one computed damage and the same projectile/DamageType.SPLIT_BLEED for every prompt (spells/stone.lua:40-56)'},
+                        {index=2,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='earthen_missiles',
+                            equiv='one computed damage and the same projectile/DamageType.SPLIT_BLEED for every prompt (spells/stone.lua:40-56)'}}}},
+            {when={kind='talent_level',at_least=5},template='stationary_sequence',
+                params={range=10,
+                    request_sequence={
+                        {index=1,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='earthen_missiles',
+                            equiv='one computed damage and the same projectile/DamageType.SPLIT_BLEED for every prompt (spells/stone.lua:40-56)'},
+                        {index=2,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='earthen_missiles',
+                            equiv='one computed damage and the same projectile/DamageType.SPLIT_BLEED for every prompt (spells/stone.lua:40-56)'},
+                        {index=3,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='earthen_missiles',
+                            equiv='one computed damage and the same projectile/DamageType.SPLIT_BLEED for every prompt (spells/stone.lua:40-56)'}}}},
+        }),
+        cursor={shape='bolt',range=10},
+        components={
+            {id='missile',phase='projectile',delivery='projectile',shape='bolt',range=10,
+                center='target',selffire=100,friendlyfire=100,
+                provenance={selffire=TARGET_DEFAULT,friendlyfire=TARGET_DEFAULT}},
+        },
+        conformance={builder=false}},
+    -- The dwarven half variant (`gifts/dwarven-nature.lua:35-50`): identical
+    -- program and projectile, but the spec sets `friendlyfire=false` explicitly
+    -- (`:35`), so the friendly filter is 0 while self remains default-true.
+    T_DWARVEN_HALF_EARTHEN_MISSILES={kind='movement',target='grid',resource='mana',range=10,
+        stationary=true,
+        movement=movementMatrix({
+            {when={kind='talent_level',below=5},template='stationary_sequence',
+                params={range=10,
+                    request_sequence={
+                        {index=1,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='dwarven_missiles',
+                            equiv='one computed damage and the same projectile/DamageType.SPLIT_BLEED for every prompt (gifts/dwarven-nature.lua:35-50)'},
+                        {index=2,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='dwarven_missiles',
+                            equiv='one computed damage and the same projectile/DamageType.SPLIT_BLEED for every prompt (gifts/dwarven-nature.lua:35-50)'}}}},
+            {when={kind='talent_level',at_least=5},template='stationary_sequence',
+                params={range=10,
+                    request_sequence={
+                        {index=1,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='dwarven_missiles',
+                            equiv='one computed damage and the same projectile/DamageType.SPLIT_BLEED for every prompt (gifts/dwarven-nature.lua:35-50)'},
+                        {index=2,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='dwarven_missiles',
+                            equiv='one computed damage and the same projectile/DamageType.SPLIT_BLEED for every prompt (gifts/dwarven-nature.lua:35-50)'},
+                        {index=3,request='grid',subject='self',value_source='target_plan',
+                            observed={cursor_type='bolt'},group='dwarven_missiles',
+                            equiv='one computed damage and the same projectile/DamageType.SPLIT_BLEED for every prompt (gifts/dwarven-nature.lua:35-50)'}}}},
+        }),
+        cursor={shape='bolt',range=10},
+        components={
+            {id='missile',phase='projectile',delivery='projectile',shape='bolt',range=10,
+                center='target',selffire=100,friendlyfire=0,
+                provenance={selffire=TARGET_DEFAULT,friendlyfire=EXPLICIT}},
+        },
+        conformance={builder=false}},
 }
 
 -- Attach the generated source identity to every entry so a component can
@@ -439,24 +525,9 @@ M.UNSUPPORTED={
     -- later-triggered traps with a third-party trigger.
     {talent='T_WORMHOLE',scope='any',missing='effect_is_a_later_triggered_trap_pair',
         reason='activation moves nobody: the talent creates a pair of traps (chronomancy/spacetime-weaving.lua:164-207, added at :209-224) whose third-party trigger teleports whoever steps on either trap later (:179-194 teleportRandom at :183), so the landing/mover model does not describe it; the two prompts are distinguishable by cursor_type (:144 vs :152) and distance>=2 is checkable pre-commit, so neither is the blocker'},
-    -- R2 (option A, loop 39): the interchangeable-group mechanism now exists
-    -- (`request_sequence` `group`/`equiv`, validated by `MovementAdapterFactory`)
-    -- and is exactly what these two talents needed for their SIGNATURE problem:
-    -- the three prompts are indistinguishable yet semantically equivalent (one
-    -- computed `damage`, the same projectile and the same
-    -- `DamageType.SPLIT_BLEED` for every prompt — spells/stone.lua:40-56). The
-    -- signature/order reason is therefore withdrawn. What remains is the
-    -- descriptor-vocabulary gap: both are **stationary projectiles** (the caster
-    -- does not move), while every admitted movement `delivery` denotes a mover
-    -- relocation and `request_then_landing` requires `delivery`/`landing`/`center`
-    -- (mover-landing concepts), and the guard still skips every movement-kind
-    -- entry unconditionally (no S3 mixed composition on this branch). Forcing
-    -- `delivery='step'` would assert a step that never happens, so the honest
-    -- typed reason is recorded instead (audit R2 STOP clause).
-    {talent='T_EARTHEN_MISSILES',scope='any',missing='stationary_project_delivery',
-        reason='a stationary multi-projectile program the movement vocabulary cannot express: the caster never moves, yet every admitted `delivery` denotes a mover relocation and `request_then_landing` requires delivery/landing/center; the three bolt prompts are semantically equivalent (one computed damage, the same projectile and DamageType.SPLIT_BLEED for every prompt, spells/stone.lua:40-56) and are now expressible as a declared interchangeable group, so the signature/order reason is withdrawn'},
-    {talent='T_DWARVEN_HALF_EARTHEN_MISSILES',scope='any',missing='stationary_project_delivery',
-        reason='a stationary multi-projectile program the movement vocabulary cannot express: the caster never moves (gifts/dwarven-nature.lua:35-50), the three TL5-dependent bolt prompts are semantically equivalent (one computed damage, the same projectile and DamageType.SPLIT_BLEED for every prompt) and are expressible as a declared interchangeable group, so the signature/order reason is withdrawn'},
+    -- R2 (option A + stationary descriptor): Earthen Missiles is now ADMITTED as
+    -- a stationary multi-projectile program with a declared interchangeable
+    -- group, so its unsupported row is removed (see the manifest entry).
     {talent='*',scope='any',missing='moving_or_swapping_another_actor',
         reason='typed multi-actor destination/effect semantics are not implemented'},
 }
