@@ -117,8 +117,8 @@ local function isArray(t) return type(t)=='table' and t~=Json.null end
 -- JSON-encodable `{all={hidden={always={}}}}` pass and be traversed as an EMPTY
 -- `all`). `denseList` returns the dense count, or `nil, key` when the value is
 -- not a dense 1..n array.
-local function denseList(value)
-    local ok,count=Json.denseArray(value,0)
+local function denseList(value,minLength)
+    local ok,count=Json.denseArray(value,minLength or 0)
     if ok then return count end
     return nil,select(2,Json.denseFault(value))
 end
@@ -296,9 +296,14 @@ end
 -- but reported as a capability/integrity limit at execution (never silently
 -- ignored).
 local function validateTargetPlan(plan,path,errors)
-    local planCount=denseList(plan)
-    if not planCount or planCount==0 then
-        errors[#errors+1]={path=path,code='invalid_target_plan'};return
+    -- R2-APR3-03 (checklist A, rebased onto X''): the ONE shared dense-array
+    -- validator is `Json.denseArray` (single source of truth; the pre-rebase
+    -- alias `Factory.validateArray` was the same function). Dense-and-closed
+    -- over ALL keys, minLength=1, with the typed fault as `cause` so a sparse
+    -- plan can never be silently accepted as a shorter complete program.
+    local planCount,planCause=denseList(plan,1)
+    if not planCount then
+        errors[#errors+1]={path=path,code='invalid_target_plan',cause=planCause};return
     end
     if planCount>8 then errors[#errors+1]={path=path,code='target_plan_too_long'} end
     for index=1,planCount do

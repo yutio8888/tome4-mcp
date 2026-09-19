@@ -773,4 +773,141 @@ do
         'copyFootprintFlags is the single closed forwarder for both footprint paths (R2-APR2-03)')
 end
 
+-- R2-APR3-01: a raised `act_exclude` ({[uid]=true,...}) reaches the footprint
+-- input AND the membership measurement: the engine admits actors against it
+-- BEFORE the self/friendly-fire filters (ActorProject.lua:248-255, documented
+-- Target.lua:647-650), so an excluded ally must NOT be measured as affected.
+do
+    -- The raised table is forwarded verbatim into the footprint input.
+    local exclude={[9]=true}
+    local forwarded=Guard.footprintSpec({shape='beam',range=7,center='target'},
+        {x=0,y=0},{x=3,y=0},{type='beam',range=7,act_exclude=exclude})
+    check(forwarded.act_exclude==exclude,
+        'a raised act_exclude reaches the footprint input verbatim (R2-APR3-01)')
+    -- An explicit [uid]=false stays a non-exclusion (nil-vs-false admitted).
+    local forwardedFalse=Guard.footprintSpec({shape='beam',range=7,center='target'},
+        {x=0,y=0},{x=3,y=0},{type='beam',range=7,act_exclude={[9]=false}})
+    check(forwardedFalse.act_exclude~=nil and forwardedFalse.act_exclude[9]==false,
+        'an act_exclude table with an explicit false is forwarded (R2-APR3-01)')
+    -- Full guard path: Moonlight Ray's builder raises act_exclude for ally uid
+    -- 9 standing IN the beam line; the engine would not hit that ally, so the
+    -- guard must not reject on it.
+    local allyInLine={uid=9,x=3,y=2}
+    local savedEntry=Manifest.ENTRIES.T_MOONLIGHT_RAY
+    Manifest.ENTRIES.T_MOONLIGHT_RAY={kind='attack',target='hostile',resource='negative',
+        range=7,cursor={shape='beam',range=7},
+        conformance={shape='beam',builder=true},
+        components={
+            {id='cursor',phase='cursor',delivery='project',shape='beam',range=7,center='target'},
+            {id='instant',phase='instant',delivery='project',shape='beam',range=7,center='target',
+                selffire=100,friendlyfire=100}}}
+    local excludedBuilder=function()
+        return {type='beam',range=7,act_exclude={[9]=true}}
+    end
+    local exempt=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=excludedBuilder}},
+        allies={allyInLine}}
+    check(exempt(attempt('T_MOONLIGHT_RAY'))==nil,
+        'a raised act_exclude exempts the excluded ally from the measured risk (R2-APR3-01)')
+    -- A DIFFERENT uid in act_exclude does not exempt ally 9.
+    local otherBuilder=function()
+        return {type='beam',range=7,act_exclude={[8]=true}}
+    end
+    local other=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=otherBuilder}},
+        allies={allyInLine}}
+    local hitOther=other(attempt('T_MOONLIGHT_RAY'))
+    check(hitOther and hitOther.reason=='selffire_risk' and hitOther.detail.risk=='friendly',
+        'act_exclude only exempts the uids it names (R2-APR3-01)')
+    -- An actor whose uid is unreadable under a raised act_exclude keeps the
+    -- membership unknown (conservative union, fail closed).
+    local noUid=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=excludedBuilder}},
+        allies={{x=3,y=2}}}
+    local unknownUid=noUid(attempt('T_MOONLIGHT_RAY'))
+    check(unknownUid and unknownUid.action=='reject' and unknownUid.detail.unknown==true,
+        'an unreadable uid under a raised act_exclude fails closed (R2-APR3-01)')
+    -- A raised NON-TABLE act_exclude makes the engine admission undecidable
+    -- (the engine indexes it per actor): the membership is unknown and the
+    -- action fails closed (rejected, never silently permitted).
+    local badExcludeBuilder=function()
+        return {type='beam',range=7,act_exclude='nope'}
+    end
+    local badExclude=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=badExcludeBuilder}},
+        allies={allyInLine}}
+    local unknownExclude=badExclude(attempt('T_MOONLIGHT_RAY'))
+    check(unknownExclude and unknownExclude.action=='reject'
+        and unknownExclude.reason=='selffire_risk',
+        'a non-table act_exclude keeps the membership unknown and fails closed (R2-APR3-01)')
+    Manifest.ENTRIES.T_MOONLIGHT_RAY=savedEntry
+end
+
+-- R2-APR3-02 (checklist B): the engine INVOKES block_path/block_radius/filter
+-- as functions (ActorProject.lua:60,74,95-96 and the radial typ:block_radius
+-- calls). A non-nil, non-function value is NEVER forwarded: it is an explicit
+-- unknown -> fail-closed rejection BEFORE any expansion. A real callback and an
+-- explicit `false` stay forwarded verbatim.
+do
+    -- The malformed value is not copied into the footprint input...
+    local cb=function() return true,false,false end
+    for _,malformed in ipairs({
+        {field='block_path',value='not_a_function',kind='string'},
+        {field='block_radius',value=3,kind='number'},
+        {field='filter',value=true,kind='boolean'},
+        {field='block_path',value=0,kind='number'},
+        {field='block_radius',value='x',kind='string'},
+        {field='filter',value=7,kind='number'}}) do
+        local spec=Guard.copyFootprintFlags({shape='beam',range=7},
+            {type='beam',range=7,[malformed.field]=malformed.value})
+        check(spec[malformed.field]==nil,
+            'a malformed '..malformed.field..' ('..malformed.kind..') is never forwarded (R2-APR3-02)')
+        check(Guard.malformedFunctionField({[malformed.field]=malformed.value})==malformed.field,
+            'a malformed '..malformed.field..' ('..malformed.kind..') is a typed unknown (R2-APR3-02)')
+    end
+    -- ...while a real callback and an explicit false stay valid (typed nil).
+    check(Guard.malformedFunctionField({block_path=cb,block_radius=false,filter=cb})==nil,
+        'a real callback and an explicit false stay valid (R2-APR3-02)')
+    check(Guard.malformedFunctionField(nil)==nil
+        and Guard.malformedFunctionField({})==nil,
+        'absent function-valued fields stay valid (R2-APR3-02)')
+    -- Full guard path: a builder raising a malformed block_path fails closed
+    -- with the typed reason BEFORE any footprint expansion.
+    local Footprint=require 'mod.auto_combat.EffectFootprint'
+    local savedEntry=Manifest.ENTRIES.T_MOONLIGHT_RAY
+    local realExpand=Footprint.expand
+    local expanded=0
+    Footprint.expand=function(spec,opts)
+        expanded=expanded+1
+        return realExpand(spec,opts)
+    end
+    Manifest.ENTRIES.T_MOONLIGHT_RAY={kind='attack',target='hostile',resource='negative',
+        range=7,cursor={shape='beam',range=7},
+        conformance={shape='beam',builder=true},
+        components={
+            {id='cursor',phase='cursor',delivery='project',shape='beam',range=7,center='target'},
+            {id='instant',phase='instant',delivery='project',shape='beam',range=7,center='target',
+                selffire=100,friendlyfire=100}}}
+    local cases={
+        {field='block_path',value='not_a_function'},
+        {field='block_path',value=3},
+        {field='block_radius',value=3},
+        {field='block_radius',value='x'},
+        {field='filter',value=true},
+        {field='filter',value=7}}
+    for _,case in ipairs(cases) do
+        local raised={type='beam',range=7}
+        raised[case.field]=case.value
+        local builder=function() return raised end
+        local g=build{defs={T_MOONLIGHT_RAY={id='T_MOONLIGHT_RAY',target=builder}}}
+        local ok,verdict=pcall(g,attempt('T_MOONLIGHT_RAY'))
+        check(ok and verdict and verdict.action=='reject'
+            and verdict.reason=='selffire_risk' and verdict.detail.unknown==true
+            and verdict.detail.reason=='malformed_function_field'
+            and verdict.detail.field==case.field,
+            'a malformed function-valued raised field fails closed typed (R2-APR3-02: '
+                ..case.field..')')
+    end
+    check(expanded==0,
+        'a malformed function-valued raised field never reaches the footprint expansion (R2-APR3-02)')
+    Footprint.expand=realExpand
+    Manifest.ENTRIES.T_MOONLIGHT_RAY=savedEntry
+end
+
 print('Auto-combat guard: '..checks..' checks passed')

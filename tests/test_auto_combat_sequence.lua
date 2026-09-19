@@ -287,6 +287,69 @@ do
         'a none program entry is movement_adapter_invalid, not an executable plan')
 end
 
+-- R2-APR3-03 (checklist A, planner defence-in-depth): a caller-supplied
+-- target_plan is dense-validated over ALL keys BEFORE any `#`/`ipairs`. Lua `#`
+-- stops at the first hole, so a sparse plan whose hidden entry sits beyond the
+-- dense end must be rejected, never consumed as a shorter complete program.
+do
+    local movement=assert(Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',observed=ACTOR_SIG},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                landing_from='envelope',observed=GRID_SIG}},
+        delivery='teleport',landing='random',center='requested_grid',
+        traverses=false,relocates_other=false,radius=1,min_radius=0,range={getter='getRange'}}))
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local provider={origin=function() return {x=2,y=2} end,
+        anchor=function(name) return {x=2,y=2} end,
+        knowledge=function() return {in_bounds=true,visible=true,passable=true,hazard=false} end}
+    -- The reviewer's bypass: a plan declared as keys {1,2,4} reports `#plan==2`,
+    -- which matched the 2-entry sequence, and the hidden key 4 was silently
+    -- dropped while the program was measured as complete.
+    local sparse,sparseErr=Planner.planSequence({talent='T_PHASE_DOOR',target='self',
+        target_plan={[1]={request='actor',selector='self'},[2]={request='grid',
+            destination={selector='position',x=5,y=2,accept=accept}},
+            [4]={request='grid'}}},
+        provider,movement,{x=2,y=2})
+    check(sparse==nil and sparseErr and sparseErr.reason=='invalid_target_plan',
+        'a sparse target_plan with a hidden entry beyond the dense end is rejected (R2-APR3-03)')
+    check(sparseErr and sparseErr.detail=='hole',
+        'the sparse-plan rejection carries the validator\'s typed cause (R2-APR3-03)')
+    -- A sparse {1,3} plan is a hole too, not a valid one-entry program.
+    local sparse13,sparse13Err=Planner.planSequence({talent='T_PHASE_DOOR',target='self',
+        target_plan={[1]={request='actor',selector='self'},[3]={request='grid',
+            destination={selector='position',x=5,y=2,accept=accept}}}},
+        provider,movement,{x=2,y=2})
+    check(sparse13==nil and sparse13Err and sparse13Err.reason=='invalid_target_plan',
+        'a sparse {1,3} target_plan is a hole, never a shorter complete program (R2-APR3-03)')
+    -- A non-integer key is rejected at the planner boundary as well.
+    local badKey,badKeyErr=Planner.planSequence({talent='T_PHASE_DOOR',target='self',
+        target_plan={{request='actor',selector='self'},{request='grid',
+            destination={selector='position',x=5,y=2,accept=accept}},extra=true}},
+        provider,movement,{x=2,y=2})
+    check(badKey==nil and badKeyErr and badKeyErr.reason=='invalid_target_plan'
+        and badKeyErr.detail=='non_integer_key',
+        'a non-integer target_plan key is rejected before any #/ipairs (R2-APR3-03)')
+    -- The single-entry lowering (no request_sequence) must not consume a sparse
+    -- plan as a one-entry program either.
+    local single,singleErr=Planner.plan({action='use_talent',talent='T_RUSH',bound_target='a1',
+        target='nearest_hostile',
+        target_plan={[1]={request='actor',selector='nearest_hostile'},[3]={request='actor'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept}},
+        {origin=function() return {x=2,y=2} end,
+            anchor=function(name) if name=='bound_target' then return {x=6,y=2} end end,
+            knowledge=function() return {in_bounds=true} end},
+        {target_requests={'actor'},landing='bounded_alternatives'})
+    check(single==nil and singleErr and singleErr.reason=='invalid_target_plan',
+        'the single-entry lowering rejects a sparse target_plan (R2-APR3-03)')
+    -- A dense two-entry plan over the same movement keeps lowering normally.
+    local dense=assert(Planner.planSequence({talent='T_PHASE_DOOR',target='self',
+        target_plan={{request='actor',selector='self'},
+            {request='grid',destination={selector='position',x=5,y=2,accept=accept}}}},
+        provider,movement,{x=2,y=2}))
+    check(dense.kind=='sequence' and #dense.steps==2,
+        'a dense target_plan keeps lowering normally (R2-APR3-03)')
+end
+
 -- 3. Executor queue: in-order answers, distinct values, recorded sequence -----
 local function runQueue(def,action,target)
     local p=player({T_SEQ=def},{x=1,y=1})

@@ -91,25 +91,65 @@ end
 --     (ActorProject.lua:78,113-114,307,331-332);
 --   * `min_range` can EMPTY the result and `grid_exclude` can remove grids
 --     (ActorProject.lua:226-239);
+--   * `act_exclude` (`{[uid]=true,...}`, R2-APR3-01) is engine-consulted:
+--     documented at Target.lua:647-650 and applied BEFORE the self/friendly
+--     admission (ActorProject.lua:248-255), so any actor whose uid is a key —
+--     INCLUDING the caster — is not hit; the membership measurement honours it
+--     (see `memberships`). Presence is table-valued: a raised table is
+--     forwarded verbatim and an explicit `[uid]=false` stays a non-exclusion;
 --   * `filter` removes grids (ActorProject.lua:59-63);
 --   * a raised `block_path`/`block_radius` callback (or an explicit `false`)
 --     REPLACES the default blocker (ActorProject.lua:78-80,113-114,226-239 —
 --     `if typ.block_path then` is false for `false`, so the default is disabled).
+-- R2-APR3-02 (checklist B): the engine INVOKES `block_path`, `block_radius`
+-- and `filter` as functions (ActorProject.lua:60,74,95-96 and the radial
+-- `typ:block_radius` calls). A non-nil, non-function value of those fields can
+-- never be honoured and must never be forwarded (the engine would call it and
+-- error); `M.malformedFunctionField` reports it so the guard turns it into an
+-- explicit unknown -> fail-closed rejection BEFORE any expansion.
 -- `getType` fills these only as DEFAULTS and `table.update` never overwrites a
 -- raised field, including a boolean `false` (engine/utils.lua:559-569), so a
 -- value is forwarded when it is present (`~=nil`, which admits `false`).
 -- NOT forwarded here: the per-projection instance fields the caller sets
 -- (`source_actor`, `start_x`/`start_y`, `x`/`y`, `line_function`, `bypass`,
--- `multiple`, `act_exclude`) and the shape/radius geometry the guard derives
--- from the manifest component; `Target.getType` supplies those itself.
+-- `multiple`) and the shape/radius geometry the guard derives from the
+-- manifest component; `Target.getType` supplies those itself.
 local FOOTPRINT_FLAGS={'friendlyblock','friendlyfire','nolock','pass_terrain',
     'nowarning','no_restrict','requires_knowledge','selffire','actorblock',
     'stop_block','force_max_range','min_range','grid_exclude','filter',
-    'block_path','block_radius'}
+    'block_path','block_radius','act_exclude'}
+-- The function-valued raised fields (engine-meaningful explicit `false`
+-- included, which disables the default blocker/filter like a raised `false`
+-- does for `block_path`).
+local FUNCTION_FIELDS={block_path=true,block_radius=true,filter=true}
+
+-- R2-APR3-02: the name of a raised function-valued field whose value is a
+-- non-nil, non-function, non-`false` (string/number/boolean/...): the engine
+-- would invoke it and the footprint is not measurable. A real function and an
+-- explicit `false` are valid and are forwarded verbatim.
+function M.malformedFunctionField(flags)
+    if type(flags)~='table' then return nil end
+    for key in pairs(FUNCTION_FIELDS) do
+        local value=flags[key]
+        if value~=nil and value~=false and type(value)~='function' then return key end
+    end
+    return nil
+end
+
 function M.copyFootprintFlags(spec,flags)
     if type(flags)~='table' then return spec end
     for _,key in ipairs(FOOTPRINT_FLAGS) do
-        if flags[key]~=nil then spec[key]=flags[key] end
+        if flags[key]~=nil then
+            -- R2-APR3-02: a malformed function-valued field is NEVER forwarded
+            -- (the caller fails closed through `M.malformedFunctionField`); a
+            -- real callback and an explicit `false` are forwarded verbatim.
+            if FUNCTION_FIELDS[key] and type(flags[key])~='function'
+                and flags[key]~=false then
+                -- skip: explicit unknown -> fail closed upstream
+            else
+                spec[key]=flags[key]
+            end
+        end
     end
     return spec
 end
@@ -162,7 +202,28 @@ local function memberships(component,set,ctx,typ)
     local m={}
     m.player_override=playerOverride(component,typ,ctx)
     if set==nil then return {self='unknown',friendlies='unknown',player_override=m.player_override} end
-    m.self=Footprint.at(set,p.x,p.y) and true or false
+    -- R2-APR3-01: the engine admits actors against `typ.act_exclude` BEFORE the
+    -- self/friendly-fire filters (ActorProject.lua:248-255, documented at
+    -- Target.lua:647-650): an actor whose uid is a key of the raised table —
+    -- INCLUDING the caster — is never hit. The measurement mirrors that
+    -- admission. A raised non-table `act_exclude`, or an actor whose uid is
+    -- unreadable while a raised `act_exclude` is present, makes the engine
+    -- admission undecidable: the membership is unknown (conservative union,
+    -- fail closed). An explicit `[uid]=false` stays a non-exclusion.
+    local actExclude=(typ~=nil and type(typ)=='table') and typ.act_exclude or nil
+    local function actExcluded(actor)
+        if actExclude==nil then return false end
+        if type(actExclude)~='table' then return nil end
+        local uid=type(actor)=='table' and actor.uid or nil
+        if uid==nil then return nil end
+        return actExclude[uid] and true or false
+    end
+    local selfExcluded=actExcluded(p)
+    if selfExcluded==nil then
+        m.self='unknown'
+    else
+        m.self=(not selfExcluded) and Footprint.at(set,p.x,p.y) and true or false
+    end
     local ff=Risk.flag(component.friendlyfire)
     if ff==0 then
         m.friendlies=0
@@ -172,7 +233,9 @@ local function memberships(component,set,ctx,typ)
     local unknown=false
     for _,ally in ipairs(ctx.allies() or {}) do
         if finite(ally.x) and finite(ally.y) then
-            if Footprint.at(set,ally.x,ally.y) then count=count+1 end
+            local excluded=actExcluded(ally)
+            if excluded==nil then unknown=true
+            elseif not excluded and Footprint.at(set,ally.x,ally.y) then count=count+1 end
         end
     end
     -- A harmful footprint that reaches grids the player has not seen has
@@ -413,6 +476,15 @@ function M.build(ctx)
             return disable('target_geometry_unknown',{talent=talent,
                 reason='no planned grid for a stationary program'})
         end
+        -- R2-APR3-02 (checklist B): the curated static flags ARE the raised
+        -- spec here; a malformed function-valued field is an explicit unknown
+        -- -> fail closed BEFORE any precheck/expansion (the engine would
+        -- invoke the non-function value).
+        local malformedField=M.malformedFunctionField(stationaryProbeSpec(entry,talent,range))
+        if malformedField then
+            return disable('selffire_risk',{talent=talent,stationary=true,
+                unknown=true,reason='malformed_function_field',field=malformedField})
+        end
         local range=entry.range
         for _,grid in ipairs(grids) do
             if finite(range) and Distance.grid(p.x,p.y,grid.x,grid.y)>range then
@@ -625,6 +697,17 @@ function M.build(ctx)
             end
         elseif expectsBuilder==true then
             return disable('adapter_builder_missing',{talent=talent})
+        end
+        -- R2-APR3-02 (checklist B): the engine INVOKES `block_path`,
+        -- `block_radius` and `filter` as functions (ActorProject.lua:60,74,95-96
+        -- and the radial `typ:block_radius` calls). A raised non-nil
+        -- non-function value of those fields is never forwarded; it is an
+        -- explicit unknown -> fail closed BEFORE any precheck/expansion.
+        local malformedField=typ and M.malformedFunctionField(typ) or nil
+        if malformedField then
+            return disable('selffire_risk',{talent=talent,unknown=true,
+                reason='malformed_function_field',field=malformedField,
+                source=builderSource})
         end
         local range=entry.range
         if typ and finite(typ.range) then range=typ.range end
