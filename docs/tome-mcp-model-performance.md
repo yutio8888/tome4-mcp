@@ -83,15 +83,30 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 | 29 | S2 rev2 修 REV-01..07 | **B**（Dev）/ **Sol**（Review，复用复核自身） | 同 #28（复核自身发现） | FAIL（**do_not_merge**） | 0 | 2 | 0 | 0 | 2 |
 | 30 | S2 契约修订（Investigation B）+ 应用事故修复 | B（Investigation）/ — | — | BLOCKED→已修复（Dev A 正确拒绝实施） | 0 | 0 | 0 | 0 | 0 |
 | 31 | S2 rev3 按修订契约实现（记录在 main 分支账本 c62c31e） | A（Dev）/ **Sol**（Review，复用复核自身） | 同 #29（复核自身发现） | FAIL（**do_not_merge**） | 0 | 1 | 2 | 0 | 3 |
-| 32 | S2 rev4 修 R3-01..03（Dev B，先按 wildcard 语义交付，后按协调者 carry-over 改为 presence-explicit + 运行期 exactly-one） | **B**（Dev）/ —（待新 Sol 复审） | 全新 Sol 评审 | 待评审（carry-over: R3-02/R3-03 已验收保留） | 0 | 0 | 0 | 0 | 3 |
+| 32 | S2 rev4/rev5 收口（presence-explicit + 运行期 exactly-one + Vault 撤回） | **B**（Dev rev4）→ **A**（Dev rev5）/ **Sol**（Review，复用复核自身） | 同 #29/#31（复核自身发现） | **PASS**（终审 **MERGE**，0 findings） | 0 | 0 | 0 | 1 | 1 |
 
 > A′ 说明：#12/#13 的 Dev 实际以 `commandcode/deepseek/deepseek-v4-flash`（非 v4.1）启动，属**偏离**；
 > 后续统一使用固定 A。
 
 ## 汇总（截至当前）
 - Loop 总数：**32**（含 1 个未进入评审的 BLOCKED 轮；#31 记录于 main 分支账本 c62c31e）。
-- **PASS 10**、**FAIL 19**、BLOCKED 1、PARTIAL 0 → **通过率 10/30 = 33.3%**。
-- Issue 合计：**78**（P0 1 / P1 31 / P2 25 / P3 21）；平均每 loop 2.60。
+- **PASS 11**、**FAIL 19**、BLOCKED 1、PARTIAL 0 → **通过率 11/31 = 35.5%**。
+- Issue 合计：**82**（P0 1 / P1 32 / P2 27 / P3 22）；平均每 loop 2.65。
+- **#32 闭环（S2 交付，PR #23 合并 `e01776e6`）**：S2 经 **4 轮 Sol 评审 + 1 次契约修订 + 1 次应用事故**
+  收敛。转折点：
+  ① 几何分类器（`hit`/`bolt`=actor）**被证伪**——引擎把 `hit` 定义为"命中单个格"，Dimensional Step
+  用 `hit` 表达**网格**、Phase Door 的 actor 提示也用 `hit` → 删除，改用**逐条目策展观测签名**；
+  ② 第一版"签名记录不相等"仍被**重叠**（`{hit}` vs `{hit,nowarning}`）与 **nil/false** 绕过 →
+  经协调者**普查 1.7.6 官方 259 文件**（仅 9 处多段 action，仅 Phase Door 可支持）改判为
+  **presence-explicit 语义 + 运行期"恰好一条"**（取代构建期互斥证明）；
+  ③ 又抓出 **`T_VAULT` 被误当纯移动准入**——实为"攻击+眩晕+移动"的**混合技能**，且 `then.target='self'`
+  可令原生攻击打到玩家而守卫看不见 → **撤回**，归入 S3（`movement_effect_composition_required`）；
+  ④ 另修：auto 交还 `respond` 的指纹/预算、成功应答**不可幂等重放**、"同 kind 乱序"探针实为**零匹配**、
+  文档 "distinguishable by construction" 过度声称。
+  **协调者自身 4 处错误（如实记录）**：Vault 技能 id 张冠李戴（把 Acrobatics 的单段 `T_SKIRMISHER_VAULT`
+  误认作两段技能）、称"Vault 已在准入列表"（`T_VAULT` 其实**从未建模**）、技能名误写（实为
+  `T_DWARVEN_HALF_EARTHEN_MISSILES`）、把**顺序可区分**与**效果可支持**混为一谈（Vault 归类错误）；
+  前两项由 **Dev 主动纠正**（避免"把正常描述符改坏"与"漏建真正需要的技能"）。
 - **#30（契约修订，Investigation=B）**：交付 `s2-contract-revision.md`（sha256 `cd41df23…`）——
   经引擎证据裁决**几何不是 actor/grid 的可靠判别器**（`hit`=单格、`setSpot` 全几何填 `target.entity`、
   Dimensional Step 用 `hit` 表达网格、Phase Door actor 提示用 `hit`），改采**逐条目策展观测签名** +
