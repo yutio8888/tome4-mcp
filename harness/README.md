@@ -69,6 +69,24 @@ x11vnc -display :140 -forever -shared -nopw -rfbport 5900
 Connect a VNC viewer to `127.0.0.1:5900` (or bridge `podman exec` from the host);
 `5901` can serve the same display for a second viewer.
 
+## Rendering profile（低画质档，2026-09-18 起默认）
+
+无 GPU 的 headless 环境里 LÖVE 回退到 Mesa `llvmpipe`，会按核数并行光栅化整帧——**空闲也持续
+占 ~370–400% CPU**。因此 `tests/native/runtime.py` 现在默认写入**低画质渲染档**（唯一 settings 来源）：
+
+| 项 | 值 | 说明 |
+| --- | --- | --- |
+| `display_fps` | 30 → **10** | 帧率降低 ⇒ 每帧成本 ×1/3 |
+| `fbo_active` / `shaders_active` | **false** | 关闭整屏后处理与 shader |
+| `particles_density` | **5** | 粒子大幅减少 |
+| `aa_text` | **false** | 关闭文字抗锯齿 |
+| `window` | **保持 1920×1080** | **刻意不改**：ToME 的 FOV/可见格集由视口尺寸决定，改分辨率会改变观测几何、破坏与历史原生/实机结果的可比性 |
+| `background_saves` | **不动** | 关掉它会让引擎自身 `savefilepipe` 协程报 `cannot resume dead coroutine`，而 runner 把该串计为 Lua 错误 ⇒ 每次 probe 都会因无关原因失败 |
+
+实测：单会话 **375% → 78%（约 −79%）**；已验证 **probe 173/173（source+dist）** 与
+**原生验收 101/101（source+dist）** 全部通过（即观测结果不变）。
+需要复现历史全画质档时：`TOME_MCP_LOW_QUALITY=0`。
+
 ## Teardown（强制流程：会话用后必须回收）
 
 一场实机/原生会话结束后（**报告落盘即算结束**），由**派发方（开发对话）**立刻回收，`[Test]`

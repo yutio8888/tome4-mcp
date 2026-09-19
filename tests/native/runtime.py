@@ -130,13 +130,30 @@ class Runtime:
             sock.bind(("127.0.0.1", 0))
             self.port = sock.getsockname()[1]
         self.token = "native-acceptance-" + os.urandom(16).hex()
+        # Low-draw profile for headless Xvfb: with no GPU, LÖVE falls back to Mesa
+        # llvmpipe, which rasterises the full frame across every core (~370-400% CPU
+        # per live session) even when the game is idle. The window size is DELIBERATELY
+        # left at 1920x1080: ToME derives its FOV / visible-cell set from the viewport,
+        # so changing it would change the observed geometry and break comparability with
+        # every earlier native and live result. Only the frame COST is reduced:
+        # frame rate 30 -> 10, FBO/shaders off, particles sparse. `background_saves`
+        # is deliberately NOT disabled: turning it off makes the engine's own
+        # savefilepipe coroutine report "cannot resume dead coroutine", which the
+        # auto-combat runner counts as a Lua error and would fail every probe for an
+        # unrelated reason. Override with
+        # TOME_MCP_LOW_QUALITY=0 to reproduce the historical full-quality profile.
+        low_quality = os.environ.get("TOME_MCP_LOW_QUALITY", "1") != "0"
+        profile = [
+            "display_fps = 10", "fbo_active = false", "shaders_active = false",
+            "particles_density = 5", "aa_text = false",
+        ] if low_quality else ["display_fps = 30"]
         (settings / "mcp-test.cfg").write_text("\n".join([
             "cheat = true", "audio.enable = false", 'window = {size="1920x1080 Windowed"}',
             "firstrun = true", "firstrun_gdpr = true", "disable_all_connectivity = false",
             "allow_online_events = false", "tome.upload_charsheet = false",
             "tome.autoassign_talents_on_birth = true", 'locale = "en_US"',
             'tome.gfx = {tiles="shockbolt",size="64x64",tiles_custom_dir="",tiles_custom_moddable=false,tiles_custom_adv=false}',
-            "display_fps = 30", "background_saves = true",
+        ] + profile + [
             'tome_mcp_bridge = {enabled=true,port=%d,token="%s"}' % (self.port, self.token), "",
         ]))
         self.display = next(":" + str(n) for n in range(110, 200)
