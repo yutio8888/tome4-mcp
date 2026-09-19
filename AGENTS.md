@@ -136,8 +136,37 @@ python3 tools/package.py
     - A=`commandcode/deepseek/deepseek-v4.1-flash`，B=`opencode-go/glm-5.3-flash`（均 `pi`，thinking high）。
   - 派发简报里必须写明“本轮 Dev/Test 使用模型 X（该序列上次为 Y）”，并在
     `docs/tome-mcp-model-performance.md` 记录每轮 Dev/Test/Review 的**实际**模型。
+  - **`[Designer]` 角色与路径对比实验：已放弃（2026-09-18）。** 配对不成立（两臂任务/基点/规模不等价），
+    且两臂都出现同一族缺陷。恢复原执行流程：`[Investigation]`（可选）→ `[Dev]` → `[Test]` → `[Review]`。
   - 上下文：执行模型在 **600K** 触发自动压缩（`models-store.json` `contextWindow=616384` +
     默认 `reserveTokens=16384`）；Review 模型（Sol）保持其真实 **272K** 窗口。
+
+### 边界输入与引擎字段清单（强制自检，2026-09-18）
+
+最近六轮评审反复出现同一族缺陷，且**每次都只有独立评审发现、作者自查从未发现**。故把该族固化为规则，
+并已做成**可执行自检**：`python3 tools/check_boundary_rules.py --check`（已接入 `tests/run.sh`）。
+
+**A. 调用方提供的数组/枚举**：一律**稠密 + 闭合**校验（拒绝非整数键、空洞、越界尾键），且必须在任何
+`#`/`ipairs`/长度比较**之前**完成。**禁止**直接信任调用方数组——`#` 遇洞即停、`ipairs` 在洞处终止。
+本族已在 `plan.values`、`plan.request_sequence`、`candidates.cells`、`target_plan` **四处**各出现过。
+
+**B. 引擎会读取的 raised spec 字段**：必须**全部转发**（保留显式 `false`，引擎依赖 `false`），或对
+**函数值字段**（`block_path`/`block_radius`/`filter`）转发真实回调、**否则显式 `unknown → fail closed`**；
+**绝不静默丢弃**，且注释/文档必须如实说明转了哪些、没转哪些。以 `Target.lua`、
+`interface/ActorProject.lua` 为准（新增字段须先核引擎）：`friendlyblock`、`friendlyfire`、`selffire`、
+`pass_terrain`、`no_restrict`、`actorblock`、`stop_block`、`force_max_range`、`min_range`、`grid_exclude`、
+`requires_knowledge`、`block_path`、`block_radius`、`filter`、`act_exclude`。
+
+**C. 缺失/畸形输入必须收敛为 unknown**，**不得**退化为"更小的完整集合"（例如网格 plan 缺少可读的
+`annotation.landing` 时，必须走保守包络或 unknown，不得当作"确定性单格"并被正常测量）。
+
+**D. 状态转换只发生一次**（例如 `movement_postcondition_mismatch` 的同步/异步路径各只能推进一次
+generation；"pause + stop" 组合会加两次，必须直接实施一次或同因 no-op）。测试须断言**精确 delta**。
+
+**E. 证据与文档同源**：未真正执行的原生行**不得**在 `VALIDATION.md` 标 PASS 或声称"端到端"。
+
+> 自检工具的 `A`/`B` 为结构性检查（`--check` 失败即退出非零）；`C`/`D`/`E` 由对应回归与评审清单强制，
+> 工具只报 **REVIEW** 并指明强制它们的回归，**不得**打印 PASS。
 
 ## 简报契约（派发必须遵守）
 
