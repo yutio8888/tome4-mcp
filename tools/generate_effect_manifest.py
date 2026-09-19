@@ -60,7 +60,6 @@ TALENTS = {
     "T_PHASE_DOOR": ("data/talents/spells/conveyance.lua", "Phase Door"),
     # S1 movement-adapter factory admissions.
     "T_SKIRMISHER_VAULT": ("data/talents/techniques/acrobatics.lua", "Vault"),
-    "T_VAULT": ("data/talents/techniques/agility.lua", "Vault"),
     "T_DIMENSIONAL_STEP": ("data/talents/chronomancy/spacetime-weaving.lua", "Dimensional Step"),
 }
 
@@ -73,7 +72,7 @@ BUILDER_TALENTS = {
     "T_FLAMESHOCK", "T_FIREFLASH", "T_SHADOW_BLAST", "T_STARFALL",
     "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL",
     # S1 movement adapters expose a native target builder.
-    "T_SKIRMISHER_VAULT", "T_VAULT", "T_DIMENSIONAL_STEP",
+    "T_SKIRMISHER_VAULT", "T_DIMENSIONAL_STEP",
 }
 
 # Movement talents whose `action` body the adapter semantics depend on. The
@@ -81,7 +80,7 @@ BUILDER_TALENTS = {
 # `rawequal`) so a replaced action disables the adapter before commit.
 ACTION_TALENTS = {
     "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL", "T_PHASE_DOOR",
-    "T_SKIRMISHER_VAULT", "T_VAULT", "T_DIMENSIONAL_STEP",
+    "T_SKIRMISHER_VAULT", "T_DIMENSIONAL_STEP",
 }
 
 # Per-talent dynamic getters used by the movement factory's envelope
@@ -89,7 +88,6 @@ ACTION_TALENTS = {
 # replaced getter before any plan uses its value.
 TALENT_GETTERS = {
     "T_PHASE_DOOR": ["getRange", "getRadius"],
-    "T_VAULT": ["getDist"],
 }
 
 # Movement talents whose `range` function the pinned target builder dispatches

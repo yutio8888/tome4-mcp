@@ -1382,6 +1382,29 @@ do
         'a reused auto response_id on a fresh interaction is response_conflict')
     check(autoRoot.command.response_count==1 and reissued.consumed~=true,
         'a conflicting auto response is classified before any consumed state is touched')
+    -- (iv-b) S2-R4-02: an EXACT replay of the SUCCESSFUL auto-handback response
+    -- is idempotently replayable even though the successful apply reissued a
+    -- fresh interaction id. The retained receipt is consulted BEFORE the request
+    -- is required to name the current handle, so the old interaction id still
+    -- returns the recorded success (and is not counted or reapplied again).
+    local replay=request('respond',{session_id=hello.session_id,control_token=hello.control_token,
+        command_id='cmd-999999',interaction_id=answered_interaction_id,response_id='r-auto',
+        expected_revision=answered_revision,answer={type='position',x=3,y=2}})
+    check(replay.result and replay.result.answered==true and replay.result.scope=='auto_combat',
+        'an exact replay of a successful auto response returns the recorded idempotent success')
+    check(replay.result.interaction_id==answered_interaction_id,
+        'the idempotent success echoes the answered interaction id')
+    check(autoRoot.command.response_count==1,
+        'a successful-response replay is not counted again')
+    -- A replay that keeps the response_id but changes the answer is still a
+    -- conflict (the fingerprint covers the answer), never a silent reapply.
+    local replayConflict=request('respond',{session_id=hello.session_id,control_token=hello.control_token,
+        command_id='cmd-999999',interaction_id=answered_interaction_id,response_id='r-auto',
+        expected_revision=answered_revision,answer={type='position',x=9,y=9}})
+    check(replayConflict.error~=nil and replayConflict.error.code=='response_conflict',
+        'a successful receipt with a different answer is still response_conflict')
+    check(autoRoot.command.response_count==1,
+        'a conflicting successful replay is not counted again')
     -- (v) Idempotent replay: when the first apply FAILED, the retry of the same
     -- response (same id/answer/revision, same live interaction) is answered
     -- idempotently and is not counted again.

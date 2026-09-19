@@ -77,10 +77,12 @@ the signature is PRESENCE-EXPLICIT, not a wildcard predicate.**
 - A DECLARED boolean flag must be PRESENT in the observed spec and equal:
   `{cursor_type='hit'}` does not match a prompt that raises `nolock`; a declared
   `nolock=false` requires the key present with value `false`, distinct from absence.
-  This is what makes Vault (techniques/agility.lua:113,119) executable: its two
-  prompts BOTH raise type='hit' and differ ONLY by nolock presence, so the two-entry
-  program `hit`-without-nolock → `hit`+nolock is cleanly distinguishable (and is
-  admitted; `T_VAULT` is declared in `EffectManifest`).
+  This is what makes a Vault-shaped pair (techniques/agility.lua:113,119) a
+  distinguishable *curated* pair: its two prompts BOTH raise type='hit' and differ
+  ONLY by nolock presence, so the two-entry program is cleanly distinguishable.
+  (The agility `T_VAULT` itself is **not executable** — it is a mixed
+  movement/effect talent reserved for S3; see §4.1. The presence-explicit rule is
+  still load-bearing for the curated pairs the descriptor grammar admits.)
 - An UNDECLARED boolean flag must NOT be raised by the observed spec.
 - A declared string (`first_target`/`msg`) or `default_target='self'` must be present
   and equal when declared; when the signature omits them the observed value is
@@ -108,9 +110,11 @@ replaced live entry is called as-is; §7.1/AGENTS.md). Every published sequence
 not a strategy judgement. Both Phase Door TL4/TL5+ descriptors carry their real,
 source-verified signatures (actor
 `{cursor_type='hit',friendlyblock=false,nowarning=true,default_target='self'}`,
-landing `{cursor_type='ball',nolock=true,pass_terrain=true,nowarning=true}`), and
-`T_VAULT` (techniques/agility.lua) is admitted as the two-entry
-hit-without-nolock → hit+nolock program.
+landing `{cursor_type='ball',nolock=true,pass_terrain=true,nowarning=true}`). The
+S2-R4-01 reclassification removed the agility `T_VAULT` from the executable
+manifest (mixed movement/effect talent, typed reason
+`movement_effect_composition_required`); the presence-explicit grammar still
+admits a Vault-**shaped** two-entry pair when a pure-movement talent declares it.
 
 ## 2. Phase Door matrix (TL4 / TL5+)
 
@@ -164,10 +168,17 @@ k-th declared entry's decided value.
   is `movement_request_kind_unknown` with `observed_shape=nil`, also handed back.
   The deviation additionally carries `matched_indexes` (the declared positions whose
   signature matched the prompt; empty for a zero-match, two or more for an ambiguous
-  declaration, a single other index for a reorder). Because published positions are
-  distinguishable by construction under the presence-explicit matching (§1.1), a
-  reordered native flow can never receive the k-th declared answer **for a published
-  descriptor**; what this check cannot observe is the native body's internal
+  declaration, a single other index for a reorder). For a **specifically curated**
+  pair whose signatures differ by a declared discriminator (Vault-shaped `nolock`
+  presence; Phase Door's cursor type), the positions are distinguishable by
+  construction and a reordered native flow cannot receive the k-th declared answer.
+  That is **not** a property of arbitrary accepted declarations: the build check
+  rejects only subsumption, so a non-subsuming overlap is admissible and both
+  signatures can match one prompt. For every accepted declaration the guarantee is
+  the **runtime exactly-one gate** below (an ambiguous prompt matches several
+  entries and is handed back, never answered), so a wrong answer is prevented at
+  execution time regardless of whether the declaration was distinguishable by
+  construction. What this check cannot observe is the native body's internal
   consumption of an already-given answer, which stays bounded by the per-request
   native guard, the native rejection and the declared postcondition check. After any
   live handback the wrapper stops answering: the remaining prompts of the invocation
@@ -288,7 +299,7 @@ reason — a capability boundary, never a strategy judgement:
 | Talent | Typed reason | Why (file:line) |
 | --- | --- | --- |
 | `T_PHASE_DOOR` | — (supported) | two-entry: `hit`+`default_target=self` (conveyance.lua:79) then `ball`+`nolock` (:106); distinguishable by cursor type |
-| `T_VAULT` | — (supported, two-entry) | `hit`-without-nolock (agility.lua:113) then `hit`+`nolock` (:119); distinguishable ONLY by nolock presence, which the presence-explicit rule makes sound |
+| `T_VAULT` | `movement_effect_composition_required` | the agility Vault (agility.lua:83-150) is a MIXED talent: its sequence (`hit`-without-nolock at :113 then `hit`+`nolock` at :119) is distinguishable, but the first (actor) prompt's target is attacked (:137-138) and may be dazed (:140-145) before the move (:149-150); component-free movement admission would bind that actor prompt and hide the effect from the guard. Reserved for S3 (review S2-R4-01) |
 | `T_MERGE`, `T_STONE` | `signature_not_distinguishable` | both prompts share `type='hit'`, separated only by `first_target`/`start_x`/`source_actor` (cursed/advanced-shadowmancy.lua:43-46,80-83); `start_x`/`source_actor` are outside the curated allowlist and `first_target` is raised nondeterministically elsewhere |
 | `T_CURSED_BOLT` | `dynamic_prompt_count` | a `getTarget` inside a per-shadow loop (cursed/advanced-shadowmancy.lua:245); the prompt count is runtime-dynamic |
 | `T_WORMHOLE` | `cross_prompt_postcondition` | the entrance prompt is a `simple_dir_request` direction step and the entrance/exit pair is coupled by native trap-placement and `distance>=2` postconditions the per-request guard cannot verify (chronomancy/spacetime-weaving.lua:145,153) |

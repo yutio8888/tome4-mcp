@@ -190,22 +190,34 @@ check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupp
     check(unsupportedEntry('T_EARTHEN_MISSILES').missing=='same_shape_equivalent'
         and unsupportedEntry('T_DWARVEN_HALF_EARTHEN_MISSILES').missing=='same_shape_equivalent',
         'Earthen Missiles variants are the same-shape-equivalent typed reason')
-    -- Vault (techniques/agility.lua) is the presence-semantics two-entry
-    -- admission: both prompts are hit-shaped and differ only by nolock presence.
-    local vault=Manifest.entry('T_VAULT')
-    check(vault~=nil and vault.kind=='movement','Vault (agility) is admitted')
-    check(vault.movement and #vault.movement.request_sequence==2
-        and vault.movement.request_sequence[1].request=='actor'
-        and vault.movement.request_sequence[2].request=='grid',
-        'Vault declares the two-entry actor-then-landing program')
-    check(vault.movement.request_sequence[1].observed.cursor_type=='hit'
-        and vault.movement.request_sequence[1].observed.nolock==nil
-        and vault.movement.request_sequence[2].observed.cursor_type=='hit'
-        and vault.movement.request_sequence[2].observed.nolock==true,
-        'Vault\'s two prompts are distinguished by nolock presence (not value)')
-    local vaultSeqs=Manifest.requestSequences(vault)
-    check(#vaultSeqs==1 and vaultSeqs[1][1]=='actor' and vaultSeqs[1][2]=='grid',
-        'Vault declares the actor,grid request sequence')
+    -- S2-R4-01: the agility Vault (techniques/agility.lua) is a MIXED
+    -- movement/effect talent: its first (actor) prompt's target is attacked and
+    -- may be dazed before the move. It must NOT be executable — component-free
+    -- grid-movement admission would let a valid policy bind that actor prompt to
+    -- `self` and hide the effect from the guard. It is published with the typed
+    -- reason `movement_effect_composition_required` (the S3 composition slice).
+    check(Manifest.entry('T_VAULT')==nil,'the agility Vault is NOT executable')
+    check(Manifest.supported('T_VAULT')==false
+        and #Manifest.requestSequences(Manifest.entry('T_VAULT'))==0,
+        'an unsupported talent has no descriptor and no request sequence')
+    check(Schema.TALENTS['T_VAULT']==nil,'the agility Vault is not a schema talent')
+    local agilityVault=unsupportedEntry('T_VAULT')
+    check(agilityVault~=nil
+        and agilityVault.missing=='movement_effect_composition_required'
+        and type(agilityVault.reason)=='string' and #agilityVault.reason>0
+        and agilityVault.scope=='any',
+        'the agility Vault is surfaced with the typed movement_effect_composition_required reason')
+    check(Manifest.SOURCES.talents['T_VAULT']==nil,
+        'the unsupported agility Vault has no executable source pin')
+    -- T_SKIRMISHER_VAULT (acrobatics) is a DIFFERENT, single-prompt pure-movement
+    -- talent and stays admitted unchanged.
+    local skirmisherVault=Manifest.entry('T_SKIRMISHER_VAULT')
+    check(skirmisherVault~=nil and skirmisherVault.kind=='movement'
+        and skirmisherVault.movement.landing=='exact'
+        and skirmisherVault.movement.traverses==false,
+        'T_SKIRMISHER_VAULT stays a single-prompt exact pure-movement descriptor')
+    check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,
+        'T_SKIRMISHER_VAULT is still admitted, not unsupported')
     local step=unsupportedEntry('T_DIMENSIONAL_STEP')
     check(step~=nil and step.missing=='moving_or_swapping_another_actor',
         'Dimensional Step TL5 is the swap capability gap')

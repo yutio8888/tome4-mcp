@@ -44,9 +44,13 @@ target plan, and current execution rejects multi-prompt plans rather than guessi
   tactical refusals (`overload/mod/auto_combat/EffectManifest.lua:264-287`). The
   S2-R3-01 rev5 survey adds the officially-unsupported multi-prompt talents with
   their typed reasons (`signature_not_distinguishable`, `dynamic_prompt_count`,
-  `cross_prompt_postcondition`, `same_shape_equivalent`) and admits
-  `T_VAULT` (techniques/agility.lua) as the two-entry presence-distinguished
-  ordered program (see the implementation doc §4.1).
+  `cross_prompt_postcondition`, `same_shape_equivalent`). The *Agility*-tree
+  `T_VAULT` (techniques/agility.lua) is **unsupported until S3** with the typed
+  reason `movement_effect_composition_required`: its sequence is distinguishable,
+  but it is a mixed movement/effect talent (the first actor prompt's target is
+  attacked and may be dazed before the move), so component-free movement
+  admission would expose the effect to no guard (review S2-R4-01; see the
+  implementation doc §4.1 and §4.5 on main).
 - Plain policy `move` is already talent-independent: selectors are generic and
   deterministic, while talent selectors reuse the same data vocabulary
   (`overload/mod/auto_combat/MovementPlanner.lua:29-52`). No factory entry is
@@ -310,11 +314,20 @@ k-th declared entry's decided value, keeping every existing per-request guard:
   the k-th declared value. Cursor geometry alone is never used as actor/grid evidence
   (§3.2: no sound automatic classifier exists). A spec the bridge cannot read as a
   signature (`typ` not a table or `typ.type` not a string) is
-  `movement_request_kind_unknown`. Because the matching is presence-explicit (§4.4),
-  a published descriptor's positions are distinguishable by construction (Vault's two
-  `hit` prompts by nolock presence; Phase Door's by cursor type), so a reordered
-  native flow can never receive the k-th declared answer **for a published
-  descriptor**; what this check cannot observe is the native body's internal
+  `movement_request_kind_unknown`. For the **specifically curated** published
+  descriptors whose pairs differ by a declared discriminator, the two positions are
+  distinguishable by construction (Vault's two `hit` prompts by `nolock` presence;
+  Phase Door's by cursor type), so those descriptors cannot answer a reordered
+  native flow with the k-th declared value. That construction argument holds **only
+  for a curated pair**, not for an arbitrary accepted declaration: the build check
+  rejects only subsumption, so an overlapping (yet non-subsuming) declaration — for
+  example `{cursor_type='hit',first_target='friend'}` beside
+  `{cursor_type='hit',msg='aim'}` — is admissible and both signatures match one
+  prompt carrying both strings. For every accepted declaration the guarantee comes
+  from the **runtime exactly-one gate** above: the ambiguous prompt matches several
+  entries, so it is handed back rather than answered, and a wrong answer is
+  prevented at execution time whether or not the declaration was distinguishable by
+  construction. What this check cannot observe is the native body's internal
   consumption of an already-given answer, which remains the native flow's own
   behaviour and is bounded by the per-request native guard, the native rejection, and
   the declared postcondition check (§6.1);

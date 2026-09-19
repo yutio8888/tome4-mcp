@@ -2032,19 +2032,35 @@ local function dispatch(s,request)
             -- token, the interaction id match, the consumed/response-budget
             -- bounds and the expected revision.
             local auto=s.auto_invocation
-            local h=autoHandbackHandle(s)
-            if h and a.interaction_id==h.interaction_id then
+            -- S2-R4-02: consult the retained auto-command response receipts
+            -- BEFORE requiring the request to name the CURRENT live handle. A
+            -- successful target answer reissues a fresh interaction, so an exact
+            -- retry of the successful response names the OLD (now superseded)
+            -- interaction id yet must still classify as the recorded idempotent
+            -- success; requiring the current handle first sent it to
+            -- `command_not_accepted`. The receipt is compared by fingerprint, so
+            -- a reused response_id with a different request is still
+            -- `response_conflict`. The receipts live on the auto invocation's
+            -- command, so they are retained exactly as long as the invocation is
+            -- (and are dropped with it); the response budget still bounds how many
+            -- fresh answers can be recorded.
+            if auto then
                 local autoCommand=auto.command or {}
-                -- S2-R3-02: same classification order as the command-scoped
-                -- route: a reused response_id is classified (response_conflict
-                -- vs idempotent replay) BEFORE the consumed/ownership checks,
-                -- against the fingerprint recorded on its first use — never
-                -- silently re-applied.
                 local entry=autoCommand.responses and autoCommand.responses[a.response_id]
                 if entry then
                     if entry.fingerprint~=fingerprint then return fail('response_conflict') end
-                    return {answered=true,scope='auto_combat',interaction_id=h.interaction_id}
+                    return {answered=true,scope='auto_combat',
+                        interaction_id=entry.interaction_id or a.interaction_id,
+                        response_id=a.response_id}
                 end
+            end
+            local h=autoHandbackHandle(s)
+            if h and a.interaction_id==h.interaction_id then
+                local autoCommand=auto.command or {}
+                -- The reused-response_id classification already happened above
+                -- (before the current-handle requirement), so no receipt can
+                -- remain unclassified here; the guards below are the fresh-answer
+                -- path.
                 if not s.control_token or a.control_token~=s.control_token then return fail('control_lost') end
                 if autoCommand.consumed_interactions and autoCommand.consumed_interactions[a.interaction_id] then
                     return fail('interaction_consumed')

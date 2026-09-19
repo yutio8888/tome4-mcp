@@ -1965,9 +1965,17 @@ local function handbackRun(answerMode)
     local p=game.player
     local sigs,raiseSpecs
     if answerMode=='reorder' then
-        sigs={{cursor_type='hit',nolock=true,nowarning=true},
-            {cursor_type='hit',nolock=false,nowarning=true}}
-        raiseSpecs={{type='hit',range=10,nowarning=true}}
+        -- S2-R4-03: a GENUINE same-kind reorder for a Vault-shaped
+        -- presence-explicit pair. Entry 1 declares `nolock` ABSENT (the
+        -- presence-explicit rule then requires the prompt NOT to raise it),
+        -- entry 2 declares `nolock=true`; the raised prompt carries entry 2's
+        -- COMPLETE presence-explicit signature, so it matches entry 2 only and
+        -- arrives at index 1 — a pure order deviation whose `matched_indexes`
+        -- must be exactly `{2}` (the previous fixture raised a prompt with
+        -- `nolock` absent, which was a zero-match drift case, not a reorder).
+        sigs={{cursor_type='hit',nowarning=true},
+            {cursor_type='hit',nolock=true,nowarning=true}}
+        raiseSpecs={{type='hit',nolock=true,range=10,nowarning=true}}
     else
         sigs={{cursor_type='hit',nowarning=true}}
         raiseSpecs={{type='ball',range=10,radius=1,nowarning=true,nolock=true}}
@@ -2114,15 +2122,23 @@ local function handbackRun(answerMode)
             {count=autoCommand.response_count,fingerprint=receipt and receipt.fingerprint~=nil})
         signals[#signals+1]=counted and 'hb_respond_receipt' or 'hb_receipt_missing'
         if answerMode=='reorder' then
-            -- Same-kind evidence: the handed-back prompt's shape equals the
-            -- declared cursor_type of BOTH entries (a pure order deviation,
-            -- not a shape one).
+            -- Same-kind reorder evidence (S2-R4-03): the handed-back prompt's
+            -- shape equals the declared cursor_type of BOTH entries (a pure order
+            -- deviation, not a shape one) AND the typed deviation's
+            -- `matched_indexes` is exactly `{2}` (entry 2's complete
+            -- presence-explicit signature arrived at index 1).
             local seq=(root and root.command and root.command.target_sequence) or {}
+            local dev=root and root.sequence_deviation
+            local matched=dev and dev.matched_indexes or {}
             local sameKind=seq[1]~=nil
                 and seq[1].shape==sigs[1].cursor_type
                 and seq[1].shape==sigs[2].cursor_type
+                and dev~=nil and dev.reason=='unexpected_target_request'
+                and dev.observed_shape==sigs[2].cursor_type
+                and #matched==1 and matched[1]==2
             check('handback:same-kind-reorder',sameKind,
-                {sequence=seq,expected=sigs[1].cursor_type})
+                {sequence=seq,expected=sigs[1].cursor_type,
+                    matched_indexes=dev and dev.matched_indexes,reason=dev and dev.reason})
             signals[#signals+1]=sameKind and 'hb_same_kind_reorder' or 'hb_kind_missing'
         end
         -- Finalize across later frames: the body settles once answered, then

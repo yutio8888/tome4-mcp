@@ -273,31 +273,20 @@ M.ENTRIES={
             builder_shape='beam',
             landing_proof='forces the exact requested grid after launch/blocked/projection checks'}),
         components={},conformance={builder=true}},
-    -- Vault (techniques/agility.lua:83-121, T_VAULT) is a genuine TWO-prompt
-    -- program whose prompts BOTH raise type='hit' and differ ONLY by nolock
-    -- presence: prompt 1 (the `target()` builder) is the vaulted actor (hit
-    -- WITHOUT nolock), prompt 2 ({type='hit',nolock=true,range=t.getDist}) is
-    -- the leap landing grid. Only the PRESENCE-EXPLICIT match rule
-    -- (S2-R3-01 rev5: a declared flag must be present-and-equal, an undeclared
-    -- one must not be raised) distinguishes the two positions, so this is an
-    -- S2 `request_then_landing` ordered program. The caster is relocated; the
-    -- vaulted actor is not. The native moves an actor-occupied requested
-    -- landing to a free adjacent grid (`util.findFreeGrid(x,y,1)`), so the
-    -- landing is a bounded native choice around the requested grid.
-    -- (T_SKIRMISHER_VAULT above is a DIFFERENT talent: the acrobatics Vault,
-    -- a genuine single-prompt beam landing — not re-modelled.)
-    T_VAULT={kind='movement',target='grid',resource='stamina',
-        movement=movementAdapter('request_then_landing',{
-            request_sequence={
-                {index=1,request='actor',subject='actor',
-                    observed={cursor_type='hit'}},
-                {index=2,request='grid',subject='self',value_source='target_plan',
-                    observed={cursor_type='hit',nolock=true}}},
-            delivery='leap',traverses=true,relocates_other=false,
-            landing='bounded_alternatives',center='requested_grid',radius=1,min_radius=0,
-            range={getter='getDist'},
-            landing_proof='prompt 1 is the vaulted actor (hit without nolock); prompt 2 is the leap landing grid (hit+nolock, range=getDist); an actor-occupied requested landing falls back to findFreeGrid(x,y,1)'}),
-        components={},conformance={builder=true}},
+    -- S2-R4-01: the agility Vault (techniques/agility.lua:83-150, T_VAULT) is
+    -- deliberately NOT published here. Its two prompts are distinguishable
+    -- (hit-without-nolock then hit+nolock), but the talent is MIXED: the first
+    -- (actor) prompt's target is attacked (agility.lua:137-138) and may be dazed
+    -- (:140-145) before the move (:149-150). Publishing it as component-free grid
+    -- movement with `traverses=true` let a valid policy bind that actor prompt to
+    -- `self` and aim an offensive native action at the player, with the
+    -- damage/daze invisible to the guard (which skips every movement entry); the
+    -- `traverses=true` metadata was also wrong (the native moves directly with
+    -- `self:move(x,y,true)`). It is declared in `M.UNSUPPORTED` with the typed
+    -- reason `movement_effect_composition_required` until the S3 composition slice
+    -- represents and guards the component. (T_SKIRMISHER_VAULT above is a
+    -- DIFFERENT talent: the acrobatics Vault, a genuine single-prompt beam
+    -- landing — unaffected.)
     -- Dimensional Step: below effective TL5 the native action is always the
     -- self-only `teleportRandom(x,y,0)` branch. At TL5 it swaps only when the
     -- requested grid holds an actor; a player-known empty grid still runs the
@@ -416,6 +405,13 @@ M.UNSUPPORTED={
         reason='actor-anchored random teleport plus an attack; movement/effect composition is a later slice'},
     {talent='T_GIANT_LEAP',scope='any',missing='source_reviewed_movement_adapter',
         reason='requested-grid movement with an alternate landing and radius effect; movement/effect composition is a later slice'},
+    -- S2-R4-01: the agility Vault is a MIXED talent whose sequence is
+    -- distinguishable but whose first (actor) prompt's target is attacked and may
+    -- be dazed before the move. Component-free grid-movement admission would let
+    -- a policy bind that actor prompt to `self` and hide the offensive effect from
+    -- the guard. The typed reason reserves it for the S3 composition slice.
+    {talent='T_VAULT',scope='any',missing='movement_effect_composition_required',
+        reason='mixed movement/effect talent: the first (actor) prompt target is attacked (techniques/agility.lua:137-138) and may be dazed (:140-145) before the move (:149-150); component-free movement admission would bind that actor prompt and hide the effect from the guard'},
     {talent='T_DISPLACEMENT_SHIELD',scope='any',missing='source_reviewed_effect_adapter',
         reason='actor-target shield that does not relocate the player; effect adapter not source-reviewed'},
     -- S2-R3-01 rev5: the officially-decided multi-prompt unsupported set. Each
