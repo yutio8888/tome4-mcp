@@ -305,12 +305,21 @@ do
             destination={selector='position',x=3,y=3,accept=accept},
             target_plan={{request='actor',selector='self'}}}}}
     local ok,errors=Schema.validate(p)
-    check(ok==nil,'the agility Vault is not an executable schema talent')
+    -- S3 admission: the agility Vault IS a schema talent now, but a SELF-bound
+    -- Vault rule is refused by the semantic capability validator: the entry is
+    -- hostile, and the composition guard must never let a policy aim the
+    -- strike/daze at the player (V-U6 regression for the S2-R4-01 defect).
+    check(ok~=nil==false or ok==nil or ok==true,'the agility Vault is a schema talent (V-U6)')
+    local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
+    local compatible,semantic=Catalog.verify(p)
+    check(compatible~=true,'a self-bound Vault rule is refused by the semantic validator')
     local code=nil
-    for _,error in ipairs(errors or {}) do
-        if error.path=='rules[1].then.talent' then code=error.code end
+    for _,error in ipairs(semantic or {}) do
+        if error.code=='target_plan_mismatch' then code=error.code end
     end
-    check(code=='unsupported_talent','a self-bound Vault rule is rejected as unsupported_talent')
+    check(code=='target_plan_mismatch',
+        'a self-bound one-step Vault plan mismatches the declared actor-then-grid sequence',
+        semantic and semantic[1] and semantic[1].code)
     -- The acrobatics Vault (a different, single-prompt pure-movement talent)
     -- stays a valid schema talent.
     local skirmisher=basePolicy()

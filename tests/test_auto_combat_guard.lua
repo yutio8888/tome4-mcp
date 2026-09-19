@@ -546,4 +546,85 @@ do
         ..'friendlyfire absent) (D3/G-U6)',leapComp and leapComp.raised_flags)
 end
 
+-- S3 V-U3 + X-U2 (REAL_VAULT_ACTOR_TG, techniques/agility.lua:92-93): both
+-- direct Vault components are evidenced, risk-exempt, and resolved against the
+-- bound hostile; a missing or self-bound actor fails; the strict vs tolerant
+-- threshold changes only the policy verdict, never the evaluation.
+do
+    local Fixtures=assert(loadfile(root..'/tests/s3_real_specs.lua'))()
+    local actorFixture=Fixtures.REAL_VAULT_ACTOR_TG
+    local actorCopy=actorFixture.build()
+    Fixtures.assertFields(actorFixture,actorCopy,'V-U3 vault actor spec copy')
+    Fixtures.assertRawPresence(actorFixture,actorCopy,'V-U3 vault actor spec copy')
+    local plan={kind='grid',x=4,y=2,annotation={landing={kind='bounded',
+        center={x=4,y=2},radius=1}}}
+    -- The real prompt-one range is 1, so the bound hostile sits at melee range.
+    local function vaultGuard(policyOverrides)
+        local caster={uid=1,x=2,y=2,canProject=function() return true end}
+        local hostile={uid=2,x=3,y=2}
+        local g=Guard.build({game={player=caster,level={map={w=10,h=10}}},
+            policy=policyOverrides or {safety={max_selffire_risk=0}},source=caster,
+            resolve=function(id) return id==2 and hostile or nil end,
+            allies=function() return {} end,known=function() return true end,
+            getDef=function(id) return id=='T_VAULT'
+                and {target=function() return actorFixture.build() end} or nil end,
+            blockPath=function() return false end,details=Details})
+        return g,caster,hostile
+    end
+    local guard=vaultGuard()
+    local verdict=guard({action='use_talent',talent='T_VAULT',bound_target=2,plan=plan})
+    check(verdict~=nil and verdict.action=='permit',
+        'the two direct Vault components are risk-exempt (permit at threshold 0) (V-U3)',
+        verdict and verdict.reason)
+    local detail=verdict and verdict.detail or {}
+    check(detail.components_evaluated==2,
+        'both direct components are evaluated and evidenced (V-U3)')
+    local comps=detail.components or {}
+    check(comps[1] and comps[1].id=='vault_strike' and comps[1].phase=='melee'
+        and comps[1].delivery=='attackTarget' and comps[1].center=='target'
+        and comps[2].id=='vault_daze' and comps[2].delivery=='attackTarget'
+        and comps[2].center=='target',
+        'the components are the exact direct records (strike then daze) (V-U3)')
+    check(detail.measurement==0,
+        'direct bound-hostile components contribute zero self/friendly risk (V-U3)')
+    -- Missing bound actor fails before footprint work.
+    local g=vaultGuard()
+    check(g({action='use_talent',talent='T_VAULT',bound_target=404,plan=plan})~=nil
+        and g({action='use_talent',talent='T_VAULT',bound_target=404,plan=plan}).reason=='target_lost',
+        'a missing bound hostile is target_lost before any footprint work (V-U3)')
+    -- A self-bound actor is not executable.
+    local selfGuard=build{defs={T_VAULT={target=function() return actorFixture.build() end}},
+        resolveSelf=true,policy={safety={max_selffire_risk=0}}}
+    -- (the test's build resolves the shared dummy; simulate a self binding by
+    -- binding to the player uid and pointing resolve at the player.)
+    local selfCtxGuard=Guard.build({game={player={uid=1,x=2,y=2,canProject=function() return true end},
+        level={map={w=10,h=10}}},policy={safety={max_selffire_risk=0}},
+        source={uid=1,x=2,y=2,canProject=function() return true end},
+        resolve=function() return {uid=1,x=2,y=2} end,allies=function() return {} end,
+        known=function() return true end,getDef=function() return nil end,
+        blockPath=function() return false end,details=Details})
+    -- Use a distinct source/target pair where the bound actor IS the caster.
+    local caster={uid=7,x=2,y=2,canProject=function() return true end}
+    local selfResolveGuard=Guard.build({game={player=caster,level={map={w=10,h=10}}},
+        policy={safety={max_selffire_risk=0}},source=caster,
+        resolve=function(id) return id==7 and caster or nil end,
+        allies=function() return {} end,known=function() return true end,
+        getDef=function(id) return id=='T_VAULT' and {target=function() return actorFixture.build() end} or nil end,
+        blockPath=function() return false end,details=Details})
+    local selfVerdict=selfResolveGuard({action='use_talent',talent='T_VAULT',bound_target=7,plan=plan})
+    check(selfVerdict~=nil and selfVerdict.action=='reject' and selfVerdict.reason=='target_lost',
+        'a self-bound Vault actor fails closed (V-U3)',selfVerdict and selfVerdict.reason)
+    -- X-U2: a tolerant threshold permits the same mixed evaluation with identical
+    -- footprint/composition evidence.
+    local tolerant=vaultGuard({safety={max_selffire_risk=100}})
+    local tolerantVerdict=tolerant({action='use_talent',talent='T_VAULT',bound_target=2,plan=plan})
+    check(tolerantVerdict~=nil and tolerantVerdict.action=='permit',
+        'a tolerant threshold permits the same mixed entry (X-U2)')
+    local tolerantDetail=tolerantVerdict and tolerantVerdict.detail or {}
+    check(tolerantDetail.candidate_count==(detail.candidate_count)
+        and tolerantDetail.components_evaluated==(detail.components_evaluated)
+        and #(tolerantDetail.components or {})==#comps,
+        'the composition evidence is unchanged by the threshold (X-U2)')
+end
+
 print('Auto-combat guard: '..checks..' checks passed')

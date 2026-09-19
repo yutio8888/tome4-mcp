@@ -102,7 +102,10 @@ M.TALENTS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_HEALING_LIGHT=true,
     -- and the agility Vault follow in their own commits).
     T_SHADOWSTEP=true,
     -- S3 admission 2: Giant Leap (actual-centered radius-1 weapon/daze leap).
-    T_GIANT_LEAP=true}
+    T_GIANT_LEAP=true,
+    -- S3 admission 3: the agility Vault (two-prompt mixed program; NOT the
+    -- acrobatics T_SKIRMISHER_VAULT, which is a different single-prompt talent).
+    T_VAULT=true}
 M.SUSTAINS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_WEAPON_OF_LIGHT=true,
     T_ARCANE_POWER=true,T_SHIELDING=true,T_DARK_RITUAL=true,T_BERSERKER_RAGE=true,
     T_DAUNTING_PRESENCE=true}
