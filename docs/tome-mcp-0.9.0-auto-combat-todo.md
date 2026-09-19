@@ -507,3 +507,30 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
       会话全部回收。live 通过的行为全部保留；无插件级策略门禁（`cooldown_ready` 仍是策略作者的选择）；
       `allow_auto_combat_execution` 保持 `false`；零协议字段、零游戏核心改动、零手改生成文件。
 
+68. **S2-FIX5-R1（P1，独立 review 发现）：零提示的豁免过宽，成功返回也可绕过非可选序列 —— 已修复
+    （分支 `fix/s2-zeroprompt-success`，基于 `d44ce697` = 已审 S2-FIX5 head）。** Dev 为 model A（轮换；
+    Dev 序列上次为 B）。评审输入：`tmp/mcp-play-support/review-s2-fix5.md`（sha256
+    `415faac48ae61956700aad11d5fef8f11f59da8a625c819c1dae7dd23babf632`，裁决 DO_NOT_MERGE，仅此 1 项 P1）。
+    修复见 [docs/tome-mcp-0.9.0-s2-fix6-feedback.md](tome-mcp-0.9.0-s2-fix6-feedback.md)。
+    - **缺陷**：S2-FIX5 的结算门禁仅用 `raised`（`Actions.lua:795-796`），于是**所有**零提示返回都被豁免。
+      `raised` 只能区分“是否提过提示”，不能区分“入口拒绝”与“成功返回”。声明了非可选条目的描述符可以
+      在**不提任何提示**的情况下返回 `true` 并被报为 `action_complete`（空 `target_sequence`、无 deviation、
+      无暂停）——策略决定的 actor/grid 值从未被消费，控制器却记录成功并继续。
+    - **修法**：豁免收窄为**入口拒绝**（零提示 + falsy 返回）：`local preflightRefusal=not raised and not value`。
+      零提示 **truthy** 返回在非可选序列上仍触发缺失条目规则 → 类型化 `unexpected_target_request`（首缺失条目
+      `expected/observed/skippable`，`target_cancelled` 置位，结果 `ok=false`/`uncertain=true`，控制器暂停）；
+      零提示失败仍为普通 `native_rejected`（自带冷却 `missing`/`hint` 或 no_energy 分类），无 deviation；
+      提过提示后中段中断仍 deviation；尾部 `optional` 仍 `reduced=true`（含“仅尾部 optional 缺失 + truthy 返回”
+      的场景）；所有 deviation 仍过 `assertDeviation`。
+    - **默认 fail-closed，无例外**：ToME 1.7.6 中仅有的 `request_sequence` 消费者是 Phase Door 的三个 cell
+      （`EffectManifest.lua:349,361,374`），其 actor 提示门（`conveyance.lua:82`，`talent_level>=4`）与落点提示门
+      （`conveyance.lua:108`，`>=5 or phase_door_force_precise`）都已由 variant 轴静态读取，不存在“合法地零提示成功”
+      的已审天赋；故未添加任何 `zero_prompt_success` 策展允许。
+    - **测试**：序列单测 §16c–§16f（零提示 truthy → 类型化 deviation 而非 `action_complete`，带
+      expected/observed/skippable；零提示 falsy → 普通 `native_rejected` 无 deviation；一提示后 falsy → 缺失索引
+      deviation；仅尾部 optional 缺失 + truthy → `action_complete`+`reduced`；`runQueue` 对所有 deviation 做形状断言）；
+      **原生探针**（source+dist）`movement-sequence`（j）：真实入口零提示返回 true → 执行层 `uncertain`/
+      `unexpected_target_request` + deviation，控制器层暂停且不消耗预算（`movement-sequence` 177 checks）。
+    - **验收**：Lua 42/42、Python 39、三个 `--check` exit 0、probe source/dist 177/177、原生验收 source/dist 101/101、
+      打包 parity 68/68（dist sha256 `453b3f56c2e40054e0f75d2ffb13f72e5f58da6b9601a12d3c55b7688d5f1ebe`）、会话全部回收。
+      无插件级策略门禁；`allow_auto_combat_execution` 保持 `false`；零协议字段、零游戏核心改动、零手改生成文件。

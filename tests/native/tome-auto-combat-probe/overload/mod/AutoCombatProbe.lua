@@ -65,7 +65,7 @@ M.EXPECTED={
     ['movement']={'step_planned','step_executed','grid_annotated','random_annotated','random_policy_rejected'},
     ['movement-fallback']={'blocked_landing','alternative_planned','fallback_moved'},
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
-    ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused','sd_cooldown_native_rejected','sd_cooldown_no_pause'},
+    ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused','sd_cooldown_native_rejected','sd_cooldown_no_pause','sd_zero_prompt_success_deviated','sd_zero_prompt_success_paused'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['handback-answer']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt'},
     ['handback-timeout']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_unanswered_cancelled'},
@@ -1869,6 +1869,66 @@ local function movementSequenceChecks()
     signals[#signals+1]=(cooldownRejected and denied and not fabricated)
         and 'sd_cooldown_no_pause' or 'sd_cooldown_pause_missing'
     restoreC()
+    -- (j) S2-FIX5-R1: the mirror image of (i) — a REAL native entry that returns
+    -- TRUE without raising any prompt (the pre-prompt refusal exemption must not
+    -- excuse a success). A fixture talent whose `action` returns true before any
+    -- `getTarget` is driven through the production `useTalent` and the auto slot;
+    -- the declared non-optional program was never consumed, so the executor must
+    -- surface the typed missing-sequence deviation (NOT `action_complete`) and the
+    -- real controller must pause on it instead of continuing.
+    local pZ=game.player
+    local entryZ,restoreZ=movementSequenceFixture('T_MCP_SEQ_Z',{type='ball',range=14,radius=1,nowarning=true},true,false)
+    -- The fixture's action raises prompts; replace it with a zero-prompt truthy
+    -- native body (same closed definition otherwise: mana/cooldown/mode).
+    pZ.talents_def['T_MCP_SEQ_Z'].action=function(self) return true end
+    local polZ=policy({{id='seq',priority=10,when={always={}},['then']={action='use_talent',
+        talent='T_MCP_SEQ_Z',target='self',target_plan=planArgs.target_plan}}})
+    local hostZ=Runtime.buildAutoCombatHostFor(game,polZ,{drift=function() return true end})
+    pZ.x,pZ.y=before.x,before.y
+    local planZ=hostZ.plan({action='use_talent',talent='T_MCP_SEQ_Z',target='self',
+        target_plan=planArgs.target_plan,destination=dest})
+    local outcomeZ
+    forceReady()
+    if pZ.talents_cd then pZ.talents_cd['T_MCP_SEQ_Z']=0 end
+    if planZ and planZ.plan then
+        outcomeZ=hostZ.request({action='use_talent',talent='T_MCP_SEQ_Z',plan=planZ.plan,rule='seq'})
+    end
+    local devZ=outcomeZ and outcomeZ.sequence_deviation
+    local zeroPromptDeviated=outcomeZ and outcomeZ.status~='ok'
+        and outcomeZ.code=='unexpected_target_request'
+        and devZ and devZ.reason=='unexpected_target_request'
+        and devZ.expected.index==1 and devZ.expected.request=='actor'
+        and devZ.observed.index==1 and devZ.observed.request==nil
+        and devZ.skippable==false
+        and outcomeZ.target_sequence and #outcomeZ.target_sequence==0
+    check('movement-sequence:zero-prompt-success-deviated',zeroPromptDeviated,
+        {status=outcomeZ and outcomeZ.status,code=outcomeZ and outcomeZ.code,
+            deviation=devZ,answer=outcomeZ and outcomeZ.target_sequence})
+    signals[#signals+1]=zeroPromptDeviated and 'sd_zero_prompt_success_deviated'
+        or 'sd_zero_prompt_success_missing'
+    -- Controller layer: the same submission pauses on the typed deviation (the
+    -- action is never reported as completed).
+    local zpEvents={}
+    local controllerZ=AutoCombat.new(polZ,hostFor(polZ,{phase=function() return 'ready' end}),
+        {strict=false,notify=function(ev) zpEvents[#zpEvents+1]=ev end})
+    controllerZ:start()
+    forceReady()
+    if pZ.talents_cd then pZ.talents_cd['T_MCP_SEQ_Z']=0 end
+    local stepZ=controllerZ:onOpportunity()
+    local pausedZ=false
+    for _,ev in ipairs(zpEvents) do
+        if ev.kind=='paused' and ev.reason=='unexpected_target_request'
+            and ev.detail and ev.detail.expected and ev.detail.expected.index==1 then
+            pausedZ=true
+        end
+    end
+    check('movement-sequence:zero-prompt-success-paused',zeroPromptDeviated and pausedZ
+        and controllerZ.state=='paused' and controllerZ.attempts==0,
+        {step=stepZ and stepZ.action,state=controllerZ.state,reason=controllerZ.reason,
+            attempts=controllerZ.attempts,events=zpEvents})
+    signals[#signals+1]=(zeroPromptDeviated and pausedZ) and 'sd_zero_prompt_success_paused'
+        or 'sd_zero_prompt_success_pause_missing'
+    restoreZ()
     -- Restore the native seams and the player's previous position/energy so the
     -- later asynchronous stages drive the real production entries.
     restoreSeams()

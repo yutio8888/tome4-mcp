@@ -792,8 +792,18 @@ function M.execute(g, action, target, meta, command)
                     -- (`native_rejected` with its own detail, or the no-energy
                     -- classification) applies — never a fabricated
                     -- `unexpected_target_request`, never a `target_cancelled`.
+                    -- S2-FIX5-R1: that exemption is NARROW — `raised` alone would
+                    -- also excuse a FAILED-to-consume SUCCESS. It covers only a
+                    -- pre-prompt native FAILURE (`preflightRefusal`, a falsy
+                    -- return). A zero-prompt TRUTHY return for a declared
+                    -- non-optional sequence means the curated prompts were never
+                    -- consumed, so the missing-entry rule below still fires: the
+                    -- action is NOT `action_complete` (the controller pauses on
+                    -- the typed deviation instead of continuing with an
+                    -- unconsumed ordered program). Fail-closed by default.
+                    local preflightRefusal=not raised and not value
                     if queue and command and not command.sequence_deviation
-                        and not yielded and raised then
+                        and not yielded and not preflightRefusal then
                         local answeredSeq=observed
                         if answeredSeq<#queue then
                             local missing=queue[answeredSeq+1]

@@ -931,6 +931,87 @@ do
         'a trailing-optional non-raise is still the settled reduced outcome')
 end
 
+-- 16c. S2-FIX5-R1: a zero-prompt TRUTHY native return is NOT a refusal. The
+-- `raised` exemption applies only to a pre-prompt native FAILURE, so a declared
+-- non-optional sequence whose prompts were never consumed still surfaces the
+-- typed missing-sequence deviation: the action must never be reported as
+-- `action_complete` with an empty target_sequence.
+do
+    local def={prompts={},on_answer=function() return true end}
+    local result,command=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+                {kind='grid',request='grid',x=5,y=3,observed=GRID_SIG}}})
+    check(not result.ok and result.code=='unexpected_target_request',
+        'a zero-prompt truthy return on a non-optional sequence is not action_complete')
+    check(result.sequence_deviation~=nil and result.sequence_deviation.reason=='unexpected_target_request',
+        'the zero-prompt success surfaces the typed missing-sequence deviation')
+    check(result.sequence_deviation.expected.index==1
+        and result.sequence_deviation.expected.request=='actor'
+        and result.sequence_deviation.observed.index==1
+        and result.sequence_deviation.observed.request==nil
+        and result.sequence_deviation.skippable==false,
+        'the zero-prompt success deviation carries expected/observed/skippable')
+    check(result.target_sequence and #result.target_sequence==0,
+        'the zero-prompt success records an empty observed prompt sequence')
+    check(command.target_cancelled=='unexpected_target_request',
+        'the zero-prompt success carries the typed cancel marker')
+end
+
+-- 16d. S2-FIX5-R1: a zero-prompt FALSY native return (no cooldown branch, just a
+-- plain pre-prompt refusal) stays the ordinary native rejection with no
+-- deviation — the narrow exemption is the pre-prompt failure itself.
+do
+    local def={prompts={},on_answer=function() return false end}
+    local result,command=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+                {kind='grid',request='grid',x=5,y=3,observed=GRID_SIG}}})
+    check(not result.ok and result.code=='native_rejected',
+        'a plain zero-prompt falsy return is the ordinary native_rejected outcome')
+    check(result.sequence_deviation==nil,
+        'a plain zero-prompt falsy return never fabricates a deviation')
+    check(command.target_cancelled==nil,
+        'a plain zero-prompt falsy return carries no target_cancelled')
+end
+
+-- 16e. S2-FIX5-R1: one prompt raised and then a falsy return is NOT a pre-prompt
+-- refusal — the missing non-optional successor still deviates at its index.
+do
+    local def={prompts={{type='hit',range=10,nowarning=true}},
+        on_answer=function() return false end}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+                {kind='grid',request='grid',x=5,y=3,observed=GRID_SIG}}})
+    check(not result.ok and result.code=='unexpected_target_request',
+        'one prompt then a falsy return still deviates')
+    check(result.sequence_deviation~=nil
+        and result.sequence_deviation.expected.index==2
+        and result.sequence_deviation.skippable==false,
+        'the one-prompt-then-false deviation is at the missing index')
+end
+
+-- 16f. S2-FIX5-R1: a MIXED sequence whose ONLY missing entry is the trailing
+-- `optional`, with a truthy native return, is still the settled reduced outcome
+-- (not a deviation) — the narrow exemption must not over-reach the other way.
+do
+    local def={prompts={{type='hit',range=10,nowarning=true},
+            {type='ball',range=14,radius=1,nowarning=true}},
+        on_answer=function() return true end}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='self',request='actor',observed=ACTOR_SIG},
+                {kind='grid',request='grid',x=5,y=3,observed=GRID_SIG},
+                {kind='grid',request='grid',x=7,y=7,optional=true,
+                    observed={cursor_type='beam',nowarning=true}}}})
+    check(result.ok and result.code=='action_complete'
+        and result.reduced==true
+        and result.reduced_reason=='trailing_optional_not_raised'
+        and result.sequence_deviation==nil,
+        'a trailing-optional-only miss with a truthy return is action_complete + reduced')
+end
+
 print('Auto-combat ordered sequence: '..checks..' checks passed')
 
 
