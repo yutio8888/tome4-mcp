@@ -244,7 +244,9 @@ check(Progression.execute(g,{type='spend_stat',stat='str'}).code=='levelup_acces
 p.no_levelup_access=nil;g.dialogs={{}}
 check(Progression.execute(g,{type='spend_stat',stat='str'}).code=='player_busy','growth cannot pass an existing dialog')
 
--- Query sentinels must never run even for unknown/modded requirements/info.
+-- Query sentinels must never run during a READ query, even for replaced
+-- definitions; v1.6 (D11 superseded): a replaced-but-callable definition/method
+-- is USED and the native dialog judges — only a missing/erroring one fails typed.
 g,p=fixture()
 local forbidden_calls=0
 local function forbidden() forbidden_calls=forbidden_calls+1;error('query invoked a callback') end
@@ -252,17 +254,73 @@ local old_info=definitions.T_VITALITY.info;definitions.T_VITALITY.info=forbidden
 local old_require=definitions.T_STUNNING_BLOW_ASSAULT.require;definitions.T_STUNNING_BLOW_ASSAULT.require=forbidden
 p.canLearnTalent=forbidden;p.clone=forbidden
 tree=Progression.describe(g,p)
-check(forbidden_calls==0 and talent(tree,'T_STUNNING_BLOW_ASSAULT').requirements.status=='unknown','dynamic query callbacks remain untouched')
-check(Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'}).code=='progression_native_modified','modified native learning entry rejected')
+check(forbidden_calls==0 and talent(tree,'T_STUNNING_BLOW_ASSAULT').supported
+    and talent(tree,'T_STUNNING_BLOW_ASSAULT').readiness=='available',
+    'describing growth never invokes the replaced definition callbacks and a replaced-but-callable talent stays supported')
+result=Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'})
+check(not result.ok and result.code=='progression_execution_error' and result.uncertain
+    and forbidden_calls>0 and result.error:find('query invoked a callback',1,true),
+    'a replaced-but-callable native entrypoint is actually invoked; an erroring one fails typed instead of a pre-identity refusal')
+check(p.unused_talents==5 and p.talents.T_STUNNING_BLOW_ASSAULT==1,'the erroring callback spends no point')
 definitions.T_VITALITY.info=old_info;definitions.T_STUNNING_BLOW_ASSAULT.require=old_require
 p.canLearnTalent=nil;p.clone=nil
+forbidden_calls=0
 p.cloned=forbidden
-check(Progression.execute(g,{type='spend_stat',stat='str'}).code=='progression_native_modified' and forbidden_calls==0,'unknown clone hook rejected before native mutation')
+result=Progression.execute(g,{type='spend_stat',stat='str'})
+check(not result.ok and result.uncertain and result.code=='progression_execution_error'
+    and result.error:find('query invoked a callback',1,true) and p.unused_stats==9,
+    'a callable clone hook is used natively and an erroring one fails typed before any mutation')
 p.cloned=nil
 local original=definitions.T_STUNNING_BLOW_ASSAULT.require
 definitions.T_STUNNING_BLOW_ASSAULT.require=defenv.techs_req4
-check(not talent(Progression.describe(g,p),'T_STUNNING_BLOW_ASSAULT').supported,'swapped native requirement family rejected')
+local swapped=talent(Progression.describe(g,p),'T_STUNNING_BLOW_ASSAULT')
+check(swapped.supported and swapped.readiness=='available',
+    'a swapped-but-callable reviewed requirement family is used; hints stay advisory and the native dialog judges')
+result=Progression.execute(g,{type='learn_talent',talent_id='T_STUNNING_BLOW_ASSAULT'})
+check(not result.ok and result.code=='native_progression_rejected' and p.unused_talents==5 and not result.uncertain,
+    'the native dialog is the judge: the swapped requirement rejects the spend with no source-identity audit')
 definitions.T_STUNNING_BLOW_ASSAULT.require=original
+
+-- R7 regressions (v1.6): replaced-but-callable reviewed player methods and
+-- definitions are USED; missing/erroring ones fail with the typed vocabulary.
+g,p=fixture()
+getstat_delegate=actor.getStat
+p.getStat=native('/third_party/replaced-stat.lua','return getstat_delegate(self,...)')
+local replaced_tree=Progression.describe(g,p)
+local replaced_str=find(replaced_tree.stats,'stat','str')
+check(replaced_str.supported and replaced_str.readiness=='available'
+    and replaced_str.effective==p:getStat(stats.STAT_STR),
+    'a replaced-but-callable player getter is called and used, never refused by source identity')
+result=Progression.execute(g,{type='spend_stat',stat='str'})
+check(result.ok and p.unused_stats==8 and p.stats[stats.STAT_STR]==16,
+    'a replaced-but-callable player getter executes the native stat spend: '..Json.encode(result))
+p.getStat=false
+local missing_str=find(Progression.describe(g,p).stats,'stat','str')
+check(not missing_str.supported and missing_str.readiness_reason=='progression_native_modified'
+    and missing_str.effective=='unknown','a non-callable player getter fails typed unknown')
+check(Progression.execute(g,{type='spend_stat',stat='str'}).code=='progression_native_modified',
+    'a non-callable player getter refuses the spend typed')
+p.getStat=forbidden
+result=Progression.execute(g,{type='spend_stat',stat='str'})
+check(not result.ok and result.code=='progression_state_unknown' and p.unused_stats==8,
+    'an erroring player getter fails typed unknown before any native mutation')
+p.getStat=nil;getstat_delegate=nil
+g,p=fixture()
+local replaced_action=definitions.T_RUSH.action
+definitions.T_RUSH.action=native('/third_party/replaced-action.lua','return nil')
+check(talent(Progression.describe(g,p),'T_RUSH').supported,
+    'a replaced-but-callable reviewed definition function is not refused by source identity')
+result=Progression.execute(g,{type='learn_talent',talent_id='T_RUSH'})
+check(result.ok and p.talents.T_RUSH==1 and p.unused_talents==4,
+    'a replaced-but-callable reviewed definition function is used for learning: '..Json.encode(result))
+definitions.T_RUSH.action=replaced_action
+g,p=fixture()
+local old_inc=dialog.incStat
+dialog.incStat=nil
+result=Progression.execute(g,{type='spend_stat',stat='str'})
+check(not result.ok and result.code=='levelup_dialog_unavailable' and p.unused_stats==9,
+    'a missing native dialog method is a typed structural refusal before any mutation')
+dialog.incStat=old_inc
 local empty=Progression.describe({}, {})
 check(#empty.stats==6 and #empty.categories==0 and empty.points.stats=='unknown','missing actor fields yield unknown safely')
 

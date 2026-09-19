@@ -1,6 +1,6 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "453b3f56c2e40054e0f75d2ffb13f72e5f58da6b9601a12d3c55b7688d5f1ebe",
+  "sha256": "311cbe7142d12e0ae4920680d04f252d0d772621c84500e4c1650c6c6ed273d3",
   "files": {
     "README.md": "62b71bd51c4b32f202909cf1529211e0d4f70ad5d65fffaf0072b06250f43912",
     "hooks/load.lua": "8c11d088a300e6ce1a4778c7388ef42a9c868fe60b41fa1e4fde37f667a061f6",
@@ -13,7 +13,7 @@
     "overload/mod/auto_combat/AutoCombatService.lua": "d0fb7fdd17a8532ce2957f62a8b882366a9ba90892e2d78f67b00c4ce27a4ae7",
     "overload/mod/auto_combat/ControlArbiter.lua": "22c1b40fd80ac46f81bbbe23c93e32922b9ee88a8d9a20c5e59f95b11ecb302e",
     "overload/mod/auto_combat/EffectFootprint.lua": "b2cb860000ef55f582c0e6e762db2c7ea6e0798352f722cd156aec425dbb9ee4",
-    "overload/mod/auto_combat/EffectManifest.lua": "cb16c30523a8cebe054356a80b39dc1318971c31dd06855434600370cddb0357",
+    "overload/mod/auto_combat/EffectManifest.lua": "aaaecc5db45858f9065ef8a5f728e43c31ee36101bde803d17139897af7ee03e",
     "overload/mod/auto_combat/EffectManifestDrift.lua": "e2c94582f835c3a9e75fb9e2d784dd3502d56cd7116bdec99ee1ac0c8e005ca0",
     "overload/mod/auto_combat/EffectManifestSources.lua": "ce97b2339794ec450f504924187a3d22ac5259cdaa28e937d56ca8a778da30e5",
     "overload/mod/auto_combat/EffectRisk.lua": "484688f282df3a9b31d58870417bbfaf80bb6504071f01afc1913de0e86e5b1b",
@@ -52,7 +52,7 @@
     "overload/mod/mcp_bridge/ObservationDetails.lua": "a7a8220e5f98cff2f89e9f36b9b2c1a3fc9120e93154e9489d8a5f5da6338903",
     "overload/mod/mcp_bridge/ObservationViews.lua": "07f856552f06bdd758ccf7a5eebf29ed11ed0dc42c3ecb338756354c0aff0fb6",
     "overload/mod/mcp_bridge/Observer.lua": "f41eb25a642d6b120598c451f425be353768a9f206798bbaaf4508868c0d6554",
-    "overload/mod/mcp_bridge/Progression.lua": "823faab02267d23a5fa704ba60b09236f323440c21a77b5f1b2aca14112a4eaa",
+    "overload/mod/mcp_bridge/Progression.lua": "cfb22c4234af54a5ad596c55fb307be64f110be0621ab3deca97c08ddca2f75d",
     "overload/mod/mcp_bridge/Runtime.lua": "b1edbc19e146dbddc92f2d56546c88cb0fe04cd6a62386278b54454f7e0d3015",
     "overload/mod/mcp_bridge/TalentQuery.lua": "6fa38aa3e3a86fb1dc8a653a417e2c59a1b08c7901b65548e7c22ec677cb6681",
     "overload/mod/mcp_bridge/TransportSocket.lua": "aa4366504f69ed3be2d74a8da2f9b059a858a163bd069dc0e6280b351703c66a",

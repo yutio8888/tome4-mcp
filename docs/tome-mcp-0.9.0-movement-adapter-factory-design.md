@@ -43,8 +43,11 @@ target plan, and current execution rejects multi-prompt plans rather than guessi
   and moving/swapping another actor as adapter or execution-capability gaps, not
   tactical refusals (`overload/mod/auto_combat/EffectManifest.lua:264-287`). The
   S2-R3-01 rev5 survey adds the officially-unsupported multi-prompt talents with
-  their typed reasons (`signature_not_distinguishable`, `dynamic_prompt_count`,
-  `cross_prompt_postcondition`, `same_shape_equivalent`). The *Agility*-tree
+  their typed reasons (`moving_or_swapping_another_actor`,
+  `nondeterministic_prompt_subject`, `effect_is_a_later_triggered_trap_pair`,
+  `same_shape_equivalent`; corrected by the loop-38 unsupported-entry audit —
+  see the S2 implementation doc's survey table for the corrected evidence). The
+  *Agility*-tree
   `T_VAULT` (techniques/agility.lua) is **unsupported until S3** with the typed
   reason `movement_effect_composition_required`: its sequence is distinguishable,
   but it is a mixed movement/effect talent (the first actor prompt's target is

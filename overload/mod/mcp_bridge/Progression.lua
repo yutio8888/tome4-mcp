@@ -1,5 +1,10 @@
 -- GPL-3.0-or-later. Single-point adapters for the native LevelupDialog.
 -- Queries never call canLearnTalent, talent info/require functions, or clone.
+-- v1.6 (review-disposition D11 superseded): every reviewed definition/player
+-- method is called as a LIVE entrypoint with structural (presence/callable/type)
+-- checks only — a replaced-but-callable function is used, a missing/erroring/
+-- non-finite one fails typed. Source identity is never an availability gate;
+-- provenance stays advisory telemetry (NativeCompatibility).
 local Json = require 'mod.mcp_bridge.Json'
 local D = require 'mod.mcp_bridge.ObservationDetails'
 local M = {}
@@ -10,8 +15,6 @@ local STAT='/engine/interface/ActorStats.lua'
 local TALENT='/engine/interface/ActorTalents.lua'
 local ACTOR='/mod/class/Actor.lua'
 local LEVELUP='/mod/dialogs/LevelupDialog.lua'
-local TECH='data/talents/techniques/techniques.lua'
-local CUN='data/talents/cunning/cunning.lua'
 local categories,talents={},{}
 local function addCategory(id,file,requirement,ids,generic,minimum)
     local c={id=id,file='data/talents/'..file,requirement=requirement,generic=generic==true,minimum=minimum or 0}
@@ -98,10 +101,7 @@ local function rejectionFields(p,aid)
     return {missing=staticMissing(p,t),
         missing_scope='static require fields only; special/lua prerequisites are checked natively'}
 end
-local function sourceLine(fn,source,line)
-    if not D.native(fn,source) then return false end
-    return debug.getinfo(fn,'S').linedefined==line
-end
+local function callable(value) return type(value)=='function' end
 local function onlyKeys(t,allowed)
     if type(t)~='table' then return false end
     for key in pairs(t) do if not allowed[key] then return false end end
@@ -132,10 +132,18 @@ local function statValues(p,name)
     local def=field(p,'stats_def',name)
     if type(def)~='table' or not integer(def.id) then return nil,nil,nil,nil end
     local base,bonus=field(p,'stats',def.id),field(p,'inc_stats',def.id)
+    -- v1.6: the live native getter is the entrypoint. A replaced-but-callable
+    -- getStat is called and used; only a missing/non-callable getter or a
+    -- non-finite result is a typed unknown. Source identity is not consulted.
     if not D.finite(base) or not D.finite(bonus) or not D.finite(def.min) or not D.finite(def.max)
-        or not D.native(p.getStat,STAT) then return D.number(base),D.number(bonus),nil,def end
-    local raw=def.no_max and math.max(base,def.min) or math.max(def.min,math.min(def.max,base))
-    return base,bonus,math.max(raw+bonus,def.min),def,raw
+        or type(p.getStat)~='function' then return D.number(base),D.number(bonus),nil,def end
+    local ok,value,raw=pcall(function()
+        return p:getStat(def.id),p:getStat(def.id,nil,nil,true)
+    end)
+    if not ok or not D.finite(value) or not D.finite(raw) then
+        return D.number(base),D.number(bonus),nil,def
+    end
+    return base,bonus,value,def,raw
 end
 local function maxPoints(p,t)
     if not integer(t.points) or t.points<1 or not integer(p.level) then return nil end
@@ -155,25 +163,25 @@ local function visibleTalent(p,t)
 end
 local function requirementAudit(t,spec)
     local req=t.require
-    local kind,tier=spec.requirement,spec.tier
-    -- These exact declaration lines identify the reviewed arithmetic formulas.
-    -- A changed/moved native requirement is deliberately unknown until reviewed.
-    if kind=='str' then return sourceLine(req,TECH,99+(tier-1)*4)
-    elseif kind=='str_high' then return sourceLine(req,TECH,119+(tier-1)*4)
-    elseif kind=='strdex' then return sourceLine(req,TECH,184+(tier-1)*4)
+    local kind=spec.requirement
+    -- Structural shape checks against the reviewed declaration families only.
+    -- v1.6 (D11 superseded): the reviewed arithmetic is NOT re-verified by
+    -- source identity at runtime — a replaced-but-callable requirement function
+    -- is used, the native LevelupDialog judges the real requirements, and the
+    -- computed hints below stay advisory (native recheck governs execution).
+    -- Only a missing/mis-shaped/non-callable declaration fails typed.
+    if kind=='str' or kind=='str_high' or kind=='strdex' then return callable(req)
     elseif kind=='con' or kind=='cun' then
-        local source=kind=='con' and TECH or CUN
-        local first=kind=='con' and 207 or 47
-        return onlyKeys(req,{stat=true,level=true}) and onlyKeys(req.stat,{[kind]=true})
-            and sourceLine(req.stat[kind],source,first+(tier-1)*4)
-            and sourceLine(req.level,source,first+1+(tier-1)*4)
+        return type(req)=='table' and onlyKeys(req,{stat=true,level=true})
+            and onlyKeys(req.stat,{[kind]=true})
+            and callable(req.stat[kind]) and callable(req.level)
     elseif kind=='training' then
         local plan=training[t.id]
         if not plan or not onlyKeys(req,{stat=true,level=true}) then return false end
-        if plan.level then return req.stat==nil and sourceLine(req.level,spec.file,plan.line) end
+        if plan.level then return req.stat==nil and callable(req.level) end
         local keys={[plan.stat]=true};if plan.second_stat then keys[plan.second_stat]=true end
-        return req.level==nil and onlyKeys(req.stat,keys) and sourceLine(req.stat[plan.stat],spec.file,plan.line)
-            and (not plan.second_stat or sourceLine(req.stat[plan.second_stat],spec.file,plan.line))
+        return req.level==nil and onlyKeys(req.stat,keys) and callable(req.stat[plan.stat])
+            and (not plan.second_stat or callable(req.stat[plan.second_stat]))
     end
     return false
 end
@@ -183,13 +191,9 @@ local function auditTalent(p,t)
     if type(t.type)~='table' or t.type[1]~=spec.category or t.type[2]~=(spec.requirement=='training' and 1 or spec.tier)
         or t.points~=5 or t.generic~=nil and type(t.generic)~='boolean' or (t.generic==true)~=spec.generic or t.is_class_evolution or t.is_race_evolution
         or not requirementAudit(t,spec) then return nil,'progression_talent_modified' end
-    -- Core getters/callbacks on these reviewed talent definitions all originate
-    -- in their source file. Generated _helpers and info wrappers are never run
-    -- by this adapter's queries and are not evidence for their learning path.
-    for key,value in pairs(t) do
-        if type(key)=='string' and key:sub(1,1)~='_' and key~='info' and key~='require'
-            and type(value)=='function' and not D.native(value,spec.file) then return nil,'progression_talent_modified' end
-    end
+    -- v1.6 (D11 superseded): the definition's function fields are live
+    -- entrypoints, not identity-gated. A replaced-but-callable function is
+    -- used (the native dialog settles the action); no source audit here.
     return spec
 end
 local function auditCategory(p,c)
@@ -202,6 +206,9 @@ local function auditCategory(p,c)
     end
     return spec
 end
+-- v1.6: structural availability only. Each listed player method must exist and
+-- be callable; the source column is advisory provenance documentation, never a
+-- gate (a replaced-but-callable method is used).
 local player_methods={
     attr='/engine/Entity.lua',clone='/engine/class.lua',getStat=STAT,getStr=STAT,getDex=STAT,isStatMax=STAT,incStat=STAT,
     onStatChange=ACTOR,udpateSustains=ACTOR,capLastLearntTalents=ACTOR,lastLearntTalentsMax=ACTOR,
@@ -215,9 +222,9 @@ local function playerAudit(p)
     if type(p.energy)~='table' or not D.finite(p.energy.value) then return nil,'progression_energy_unavailable' end
     if active(p.no_levelup_access) then return nil,'levelup_access_blocked' end
     if active(p.is_dialog_talent_leveling) or active(p.no_last_learnt_talents_cap) then return nil,'progression_player_busy' end
-    if p.cloned~=nil and not D.native(p.cloned,'/engine/Entity.lua') then return nil,'progression_native_modified' end
-    for method,source in pairs(player_methods) do
-        if not D.native(p[method],source) then return nil,'progression_native_modified' end
+    if p.cloned~=nil and type(p.cloned)~='function' then return nil,'progression_native_modified' end
+    for method in pairs(player_methods) do
+        if type(p[method])~='function' then return nil,'progression_native_modified' end
     end
     return true
 end
@@ -422,8 +429,10 @@ end
 local dialog_methods={'incStat','learnTalent','learnType','getMaxTPoints','checkDeps','finish','unload'}
 local function dialogAudit(dialog)
     if type(dialog)~='table' then return false end
-    for _,method in ipairs(dialog_methods) do if not D.native(dialog[method],LEVELUP) then return false end end
-    return D.native(dialog.triggerHook,'/engine/class.lua')
+    -- v1.6: structural presence/callable checks only; source identity of the
+    -- dialog methods is advisory, never an availability decision.
+    for _,method in ipairs(dialog_methods) do if type(dialog[method])~='function' then return false end end
+    return type(dialog.triggerHook)=='function'
 end
 local function busy(g,p)
     return p.dead or g.dialogs and #g.dialogs>0 or g.target_co or g.target and g.target.active
