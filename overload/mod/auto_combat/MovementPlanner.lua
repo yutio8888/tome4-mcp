@@ -575,13 +575,22 @@ end
 function M.planSequence(attempt,provider,movement,origin)
     local sequence=movement.request_sequence
     local plan=attempt.target_plan
-    if type(plan)~='table' or #plan<1 then return nil,{reason='invalid_target_plan'} end
-    if #plan~=#sequence then
+    -- R2-APR3-03 (checklist A, planner defence-in-depth): a caller-supplied
+    -- plan is DENSE-validated over ALL keys (non-integer keys, holes, keys
+    -- beyond the dense end) BEFORE any `#`/`ipairs` — Lua `#` stops at the
+    -- first hole, so a sparse plan would otherwise be consumed as a shorter
+    -- complete program.
+    local planOk,planLenOrCause=Factory.validateArray(plan,1)
+    if not planOk then
+        return nil,{reason='invalid_target_plan',detail=planLenOrCause}
+    end
+    local planLength=planLenOrCause
+    if planLength~=#sequence then
         -- The descriptor declares an ordered program, so a plan that disagrees in
         -- length/kind is a policy/adapter mismatch (the static validator already
         -- rejects it; this is the planner's own honest defence).
         return nil,{reason='target_plan_mismatch',talent=attempt.talent,
-            expected=#sequence,got=#plan}
+            expected=#sequence,got=planLength}
     end
     for i=1,#sequence do
         if plan[i].request~=sequence[i].request then
@@ -741,6 +750,14 @@ function M.plan(attempt,provider,movement)
         end
     end
     if type(attempt.target_plan)=='table' then
+        -- R2-APR3-03 (checklist A, planner defence-in-depth): dense-validate the
+        -- caller-supplied plan over ALL keys BEFORE any `#` — the single-entry
+        -- lowering below must never consume a sparse plan (a hidden entry
+        -- beyond the dense end) as a shorter complete one.
+        local planOk,planLenOrCause=Factory.validateArray(attempt.target_plan,1)
+        if not planOk then
+            return nil,{reason='invalid_target_plan',detail=planLenOrCause}
+        end
         -- S2 §12.1: a descriptor that declares an ordered `request_sequence` is
         -- driven by the queue for every N (including N=1: a self-subject actor
         -- prompt cannot be expressed by the single-target lowering, which would
@@ -750,9 +767,9 @@ function M.plan(attempt,provider,movement)
             and #movement.request_sequence>0 then
             return M.planSequence(attempt,provider,movement,origin)
         end
-        if #attempt.target_plan>1 then
+        if planLenOrCause>1 then
             return nil,{reason='unsupported_target_plan',talent=attempt.talent,
-                count=#attempt.target_plan,scope='multi_prompt',
+                count=planLenOrCause,scope='multi_prompt',
                 missing='ordered_request_sequence'}
         end
         if movement==nil then

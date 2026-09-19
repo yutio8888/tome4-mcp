@@ -4,6 +4,10 @@
 -- Unknown keys are rejected. The executor's hard caps can only be tightened by
 -- a policy, never relaxed. This module never touches the engine.
 local Json=require 'mod.mcp_bridge.Json'
+-- R2-APR3-03: the ONE shared dense-array validator (MovementAdapterFactory's
+-- `validateArray`, already the engine for the other checklist-A occurrences)
+-- guards the caller-supplied `target_plan` ingress below.
+local Factory=require 'mod.auto_combat.MovementAdapterFactory'
 local M={}
 
 M.SCHEMA='tome-auto-combat/v1'
@@ -283,11 +287,20 @@ end
 -- but reported as a capability/integrity limit at execution (never silently
 -- ignored).
 local function validateTargetPlan(plan,path,errors)
-    if not isArray(plan) or #plan==0 then
-        errors[#errors+1]={path=path,code='invalid_target_plan'};return
+    -- R2-APR3-03 (checklist A): a caller-supplied array is DENSE-validated over
+    -- ALL keys (non-integer keys, holes, keys beyond the dense end) BEFORE any
+    -- `#`/`ipairs`. Lua `#` stops at the first hole, so a sparse plan — a valid
+    -- step at key 1 and a hidden entry beyond the dense end — would otherwise
+    -- be silently accepted as a shorter complete program.
+    local ok,lengthOrCause=Factory.validateArray(plan,1)
+    if not ok then
+        errors[#errors+1]={path=path,code='invalid_target_plan',cause=lengthOrCause}
+        return
     end
-    if #plan>8 then errors[#errors+1]={path=path,code='target_plan_too_long'} end
-    for index,step in ipairs(plan) do
+    local length=lengthOrCause
+    if length>8 then errors[#errors+1]={path=path,code='target_plan_too_long'} end
+    for index=1,length do
+        local step=plan[index]
         local stepPath=path..'['..index..']'
         if type(step)~='table' then errors[#errors+1]={path=stepPath,code='invalid_target_step'}
         else

@@ -211,12 +211,18 @@ do
                     expected={index=1,request='actor'},
                     observed={index=1,request='grid'},skippable=false}}
         end
+        local before=svc.controller.generation
         local stepped=Service.step(svc)
         check(stepped.ok and stepped.step.action=='paused' and stepped.step.reason==reason,
             reason..' pauses the controller with its typed reason (before native_pending)')
         check(stepped.handoff==true and svc.arbiter.owner=='manual'
             and svc.controller.state=='stopped',
             reason..' releases the auto-combat lease to the player')
+        -- R2-APR3-04 (checklist D): ONE transition per mismatch — the composed
+        -- controller stop + service stop must advance the generation by
+        -- exactly 1, never 2.
+        check(svc.controller.generation==before+1,
+            reason..' advances the generation by exactly 1 (R2-APR3-04)')
         check(requests==1,'the deviation is never resubmitted')
         check(Service.handle(svc,'resume',{}).error.code=='not_running',
             reason..' hands the interaction back; resume cannot loop the pause')
@@ -232,6 +238,7 @@ do
     local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
     Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
     Service.handle(svc,'start',{})
+    local before=svc.controller.generation
     local entry=Service.nativeDeviation(svc,{reason='unexpected_target_request',
         handed_back=true,expected={index=1,request='actor'}})
     check(entry and entry.kind=='paused' and entry.reason=='unexpected_target_request',
@@ -239,6 +246,11 @@ do
     check(svc.arbiter.owner=='manual','the settle-time deviation releases the auto-combat lease')
     check(svc.controller.state=='stopped' and svc.controller.reason=='unexpected_target_request',
         'the settle-time deviation stops the run with the typed reason')
+    -- R2-APR3-04 (checklist D): ONE transition per mismatch on the asynchronous
+    -- path too — nativeDeviated + nativeDeviation must advance the generation
+    -- by exactly 1, never 2.
+    check(svc.controller.generation==before+1,
+        'the asynchronous mismatch advances the generation by exactly 1 (R2-APR3-04)')
     local log=Service.handle(svc,'log',{limit=8})
     local found
     for _,event in ipairs(log.events or {}) do

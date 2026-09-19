@@ -462,17 +462,20 @@ end
 
 -- S2 rev3/§6.2 (Path 2): deliver a settled-time ordered-queue deviation to the
 -- controller exactly once. Modelled on `nativeAbort`: record the typed event,
--- pause the controller with the deviation's reason, stop the run and revoke the
--- auto lease through the arbiter. The Runtime `reapAutoInvocation` calls this for
--- a root deviation that Path 1 (the `native_pending` result) did not deliver.
+-- stop the run with the deviation's reason and revoke the auto lease through
+-- the arbiter. The Runtime `reapAutoInvocation` calls this for a root deviation
+-- that Path 1 (the `native_pending` result) did not deliver.
 function M.nativeDeviation(svc,deviation)
     if not svc then return nil end
     deviation=deviation or {}
     local reason=deviation.reason or 'unexpected_target_request'
     local entry
     if svc.controller then
+        -- R2-APR3-04 (checklist D): the controller's `nativeDeviated` performs
+        -- the ONE terminal transition for this mismatch; the same-cause stop
+        -- below is lease-handoff bookkeeping only and must not advance the
+        -- generation a second time (no pause+stop composition).
         entry=svc.controller:nativeDeviated(deviation)
-        svc.controller:pause(reason)
         if svc.controller.state~='stopped' then svc.controller:stop(reason) end
     end
     if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,reason) end

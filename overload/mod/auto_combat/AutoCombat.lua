@@ -318,13 +318,13 @@ function M:nativeDeviated(deviation)
         generation=self.generation}
     self:record(entry)
     if self.notify then self.notify(entry) end
-    -- Transition to paused without emitting a second `paused` notify (the typed
-    -- entry above is the one recorded event). `nativeDeviation` then stops the
-    -- run with the same reason.
-    if self.state~='paused' or self.reason~=reason then
-        self.generation=self.generation+1
-        self.state='paused'; self.reason=reason
-    end
+    -- Transition to the terminal handoff state without emitting a second
+    -- notify (the typed entry above is the one recorded event).
+    -- R2-APR3-04 (checklist D): the mismatch handoff is ONE state transition
+    -- with generation delta exactly 1. The single `stop` below IS that
+    -- transition — there is no pause+stop composition, and a subsequent
+    -- same-cause stop (the service's lease release) deduplicates to a no-op.
+    self:stop(reason)
     return entry
 end
 
@@ -619,19 +619,20 @@ function M:step()
                 -- must not emit a second, detail-less event (the live S2
                 -- playtest's paused `unexpected_target_request` records carried
                 -- no detail and no rule, because `pause`'s bare notify was the
-                -- only event the log ever saw). Mirror `nativeDeviated`:
-                -- notify the detailed entry, move to paused, and let `pause`
-                -- deduplicate so exactly one typed event is logged.
+                -- only event the log ever saw). Notify the detailed entry, then
+                -- R2-APR3-04 (checklist D): perform the ONE terminal handoff
+                -- transition directly — `stop` lands the run in the same
+                -- state as every other safety handoff, and the service's
+                -- same-cause stop deduplicates so the generation advances
+                -- exactly once (delta 1) for this mismatch.
                 local entry={kind='paused',reason=reason,rule=decision.rule,
                     detail=boundedDetail(outcome.sequence_deviation),
                     handed_back=outcome.handed_back==true or nil}
                 self:record(entry)
                 if self.notify then self.notify(entry) end
-                if self.state~='paused' or self.reason~=reason then
-                    self.generation=self.generation+1
-                    self.state='paused'; self.reason=reason
-                end
-                local paused=self:pause(reason)
+                local stopped=self:stop(reason)
+                local paused={action='paused',reason=reason,
+                    state=stopped.state,generation=stopped.generation}
                 paused.detail=outcome.sequence_deviation
                 -- `handed_back` is evidence only (the reason drives the pause);
                 -- it marks that a LIVE native prompt was handed to the
