@@ -14,6 +14,8 @@ root_probe:close()
 package.path=root..'/overload/?.lua;'..package.path
 local Guard=require 'mod.auto_combat.AutoCombatGuard'
 local Manifest=require 'mod.auto_combat.EffectManifest'
+local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+local Footprint=require 'mod.auto_combat.EffectFootprint'
 local Details=require 'mod.mcp_bridge.ObservationDetails'
 local checks=0
 local function check(value,message) checks=checks+1;assert(value,message) end
@@ -47,7 +49,7 @@ local function build(opts)
         resolve=function() return target end,
         allies=function() return allies end,
         visible=function() return true end,
-        known=function() return true end,
+        known=opts.known or function() return true end,
         getDef=function(id) return defs[id] end,
         blockPath=opts.blockPath or function() return false end,
         details=Details,native=opts.native,
@@ -371,6 +373,177 @@ do
     check(select(2,Guard.landingCandidates(nil,leapEntry,{x=2,y=2},{x=5,y=2},{w=10,h=10}))
         =='movement_plan_unavailable',
         'a no-plan requested_grid envelope is movement_plan_unavailable')
+end
+
+-- S3 G-U1..G-U6 (REAL_GIANT_LEAP_TG, uber/str.lua:38-40): the actual-centered
+-- radius-1 weapon/daze leap. The completed pre-commit union is the COMPLETE
+-- component x candidate expansion (D1), never the analytic circle; the raised
+-- tg's selffire=false is copied into every expansion and distinguished from
+-- absence/default (D3); a partial expansion is never measured.
+do
+    local Fixtures=assert(loadfile(root..'/tests/s3_real_specs.lua'))()
+    local fixture=Fixtures.REAL_GIANT_LEAP_TG
+    local copy=fixture.build()
+    Fixtures.assertFields(fixture,copy,'G-series giant leap spec copy')
+    Fixtures.assertRawPresence(fixture,copy,'G-series giant leap spec copy')
+    check(copy.type=='ball' and copy.selffire==false and copy.radius==1 and copy.range==10,
+        'the real Giant Leap raised spec is a ball with selffire=false and no FF/friendlyblock keys')
+    -- G-U1 (factory): the exact descriptor/component and the real-spec radius.
+    local entry=Manifest.entry('T_GIANT_LEAP')
+    check(entry~=nil and Factory.validateComposition(entry)==true,
+        'Giant Leap is admitted with a valid closed composition (G-U1)')
+    check(entry.movement.delivery=='leap' and entry.movement.traverses==false
+        and entry.movement.radius==1 and entry.movement.min_radius==0
+        and entry.movement.builder_shape=='ball' and entry.movement.relocates_other==false
+        and entry.movement.center=='requested_grid' and entry.movement.landing=='bounded_alternatives',
+        'the movement half is the exact grid_move_bounded leap descriptor (G-U1)')
+    check(#entry.components==1 and entry.components[1].id=='giant_leap_weapon_daze'
+        and entry.components[1].center=='actual_landing'
+        and entry.components[1].radius.from=='target'
+        and entry.components[1].selffire==0 and entry.components[1].friendlyfire==100,
+        'the effect half is the exact actual_landing ball component with radius {from=target} (G-U1)')
+    check(entry.movement_postcondition.unchanged=='mismatch',
+        'the postcondition mode is mismatch (G-U1)')
+    check(Manifest.UNSUPPORTED and (function()
+        for _,u in ipairs(Manifest.UNSUPPORTED) do
+            if u.talent=='T_GIANT_LEAP' then return true end
+        end
+    end)()==nil,'the Giant Leap unsupported row is removed (G-U1)')
+
+    local guard,leapGuard=build{defs={T_GIANT_LEAP={target=function() return copy end}},
+        policy={safety={max_selffire_risk=0}}},nil
+    leapGuard=build{defs={T_GIANT_LEAP={target=function() return fixture.build() end}},
+        policy={safety={max_selffire_risk=0}}}
+    -- G-U2: a deterministic request annotation gives ONE candidate; a bounded
+    -- request enumerates the full radius-1 candidate set.
+    local deterministic=Guard.landingCandidates({kind='grid',x=6,y=2,
+        annotation={landing={kind='deterministic',center={x=6,y=2}}}},entry,{x=2,y=2},
+        {x=5,y=2},{w=10,h=10})
+    check(deterministic and deterministic.kind=='deterministic' and #deterministic.cells==1
+        and deterministic.cells[1].x==6 and deterministic.cells[1].y==2,
+        'a deterministic annotation yields exactly one candidate (G-U2)')
+    local boundedPlan={kind='grid',x=6,y=2,annotation={landing={kind='bounded',
+        center={x=6,y=2},radius=1}}}
+    local bounded=Guard.landingCandidates(boundedPlan,entry,{x=2,y=2},{x=5,y=2},{w=10,h=10})
+    check(bounded and #bounded.cells==9,
+        'a bounded request enumerates the full radius-1 candidate set (G-U2)')
+    -- G-U3: one expansion per candidate; the union is contained in radius two;
+    -- self membership is true but selffire=0 removes the self risk.
+    local leapAttempt={action='use_talent',talent='T_GIANT_LEAP',bound_target=2,plan=boundedPlan}
+    local verdict=leapGuard(leapAttempt)
+    check(verdict~=nil and verdict.action=='permit',
+        'Giant Leap with selffire=0 and no allies permits (G-U3)',verdict and verdict.reason)
+    local comp=verdict and verdict.detail and (function()
+        for _,c in ipairs(verdict.detail.components or {}) do
+            if c.id=='giant_leap_weapon_daze' then return c end
+        end
+    end)()
+    check(comp and comp.required_expansions==9 and comp.completed_expansions==9
+        and comp.candidate_count==9 and comp.footprint_count==25,
+        'one expansion per candidate (9/9); the completed union is exactly the '
+        ..'radius-2 square around the request (25 cells) (G-U3)',comp)
+    check(comp and comp.self_excluded==true and comp.footprint_backend=='model',
+        'self membership is true but selffire=0 excludes the mover from self risk '
+        ..'(self_excluded evidence, G-U3/G-U5)')
+    -- G-U4: an ally inside the completed union gives known FF risk; outside
+    -- gives zero; an unseen union cell gives unknown (never measured partially).
+    local allyAt=function(cx,cy)
+        local g=build{defs={T_GIANT_LEAP={target=function() return fixture.build() end}},
+            allies={{id=3,x=8,y=2}},policy={safety={max_selffire_risk=0}}}
+        local ally={x=8,y=2}
+        if cx then ally.x,ally.y=cx,cy end
+        local guard2=build{defs={T_GIANT_LEAP={target=function() return fixture.build() end}},
+            allies={ally},policy={safety={max_selffire_risk=0}}}
+        return guard2(leapAttempt)
+    end
+    local inside=allyAt(8,2)
+    check(inside and inside.action=='reject' and inside.reason=='selffire_risk'
+        and inside.detail and inside.detail.measurement==100
+        and inside.detail.friendlies==1 and inside.detail.risk=='friendly',
+        'an ally inside the completed union gives known friendly risk 100 (G-U4)',
+        inside and inside.detail and inside.detail.measurement)
+    local outside=allyAt(9,2)
+    check(outside and outside.action=='permit',
+        'an ally outside the completed union gives zero risk (G-U4)')
+    -- Unseen union cell -> unknown (fail closed).
+    local unseenGuard=build{defs={T_GIANT_LEAP={target=function() return fixture.build() end}},
+        allies={},known=function(x,y) if x==4 and y==1 then return false end return true end,
+        policy={safety={max_selffire_risk=0}}}
+    local unseen=unseenGuard(leapAttempt)
+    check(unseen and unseen.action=='reject' and unseen.reason=='selffire_risk'
+        and unseen.detail and unseen.detail.unknown==true,
+        'an unseen grid inside the completed union fails closed (G-U4)',unseen and unseen.reason)
+    -- G-U5: inject an expansion failure at the first, middle and last candidate;
+    -- all three yield unknown with completed<required; a partial union is never
+    -- measured.
+    local function failingExpand(at)
+        local calls=0
+        return function(spec,opts)
+            calls=calls+1
+            if calls==at then return nil,'native_failed' end
+            local set,add=Footprint.newSet()
+            add(spec.origin.x,spec.origin.y)
+            return set,'model'
+        end,calls
+    end
+    local function expansion(at)
+        local seen=0
+        local set,stats=Guard.expandComplete(Manifest.entry('T_GIANT_LEAP').components[1],
+            bounded,{x=5,y=2},1,{selffire=false},
+            {expand=function(spec,opts)
+                seen=seen+1
+                if seen==at then return nil,'native_failed' end
+                local s2,add=Footprint.newSet()
+                add(spec.origin.x,spec.origin.y)
+                return s2,'model'
+            end})
+        return set,stats,seen
+    end
+    for _,at in ipairs({1,5,9}) do
+        local set,stats,seen=expansion(at)
+        check(set==nil and stats.failure and stats.required>=at
+            and stats.completed==math.min(at-1,stats.required),
+            'an injected expansion failure at candidate '..at..' discards the partial '
+            ..'union (completed<required, G-U5)',stats and stats.completed)
+    end
+    -- And a first-pair native failure through the production path is unknown.
+    local nativeGuard=build{defs={T_GIANT_LEAP={target=function() return fixture.build() end}},
+        native={game=nil},policy={safety={max_selffire_risk=0}}}
+    local nativeVerdict=nativeGuard(leapAttempt)
+    check(nativeVerdict and nativeVerdict.action=='reject'
+        and nativeVerdict.reason=='selffire_risk' and nativeVerdict.detail
+        and nativeVerdict.detail.unknown==true,
+        'a native expansion failure yields unknown, never a partial union (G-U5)',
+        nativeVerdict and nativeVerdict.reason)
+    -- G-U6: the real raised spec's flags are copied to EACH expansion; an
+    -- explicit false is distinguishable from absence/default.
+    local captured={}
+    Footprint.expand=
+    (function(original) return original end)(Footprint.expand)
+    local specCapture=function(spec,opts)
+        captured[#captured+1]={type=spec.type,selffire=spec.selffire,
+            friendlyfire=spec.friendlyblock~=nil and spec.friendlyblock or nil,
+            radius=spec.radius,origin={x=spec.origin.x,y=spec.origin.y}}
+        local set,add=Footprint.newSet()
+        add(spec.origin.x,spec.origin.y)
+        return set,'model'
+    end
+    local g6set,g6stats=Guard.expandComplete(Manifest.entry('T_GIANT_LEAP').components[1],
+        bounded,{x=5,y=2},1,{selffire=false},{expand=specCapture})
+    check(#captured==9,'one captured expansion per candidate (G-U6)')
+    local flagsOk=true
+    for _,cap in ipairs(captured) do
+        if cap.selffire~=false or cap.friendlyblock~=nil then flagsOk=false end
+    end
+    check(flagsOk,'each expansion carries the copied selffire=false and no friendlyblock '
+        ..'key (explicit false, not absence-as-false) (G-U6)')
+    -- Raw vs normalized evidence: the raised_flags evidence keeps raw presence.
+    local leapDetail=verdict and verdict.detail or {}
+    local leapComp=leapDetail.components and leapDetail.components[1]
+    check(leapComp and type(leapComp.raised_flags)=='table'
+        and leapComp.raised_flags.selffire==false and leapComp.raised_flags.friendlyfire==nil,
+        'the raised_flags evidence is the RAW presence map (selffire=false present, '
+        ..'friendlyfire absent) (D3/G-U6)',leapComp and leapComp.raised_flags)
 end
 
 print('Auto-combat guard: '..checks..' checks passed')

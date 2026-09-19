@@ -308,6 +308,76 @@ function M.build(ctx)
         return false
     end
 
+    -- S3 D1: the COMPLETE component x landing-candidate expansion (never the
+    -- analytic circle). For every applicable (component, candidate) pair the
+    -- exact footprint spec is expanded through the existing backend; the union
+    -- is kept ONLY when every required pair succeeded. One nil/malformed/failed
+    -- expansion discards the partial union (D1) and the component becomes
+    -- unknown — a partial union is never measured. `bound` is the resolved
+    -- bound hostile (the landing_adjacent anchor and the normal target centre).
+    local function expandComplete(component,candidates,boundHostile,radius,raised,opts)
+        local required=0
+        local completed=0
+        local union=nil
+        local unionAdd=nil
+        local backends={}
+        local failure
+        local unknown
+        for _,cell in ipairs(candidates.cells) do
+            local condValue=M.candidateCondition(component.when,cell,boundHostile)
+            if condValue==false then
+                -- The pair is not applicable; no expansion is required.
+            elseif condValue=='unknown' then
+                -- An unknown relation/anchor makes the WHOLE component result
+                -- unknown; it is never silently dropped.
+                failure='condition_unknown'
+                break
+            else
+                local spec=M.footprintSpec(component,cell,boundHostile)
+                spec.radius=radius
+                if component.center=='actual_landing' then
+                    -- The candidate is both the post-move source and the
+                    -- effect center; the native backend starts the line at the
+                    -- mover's post-move cell.
+                    spec.origin={x=cell.x,y=cell.y}
+                    spec.target={x=cell.x,y=cell.y}
+                    spec.start_x=cell.x;spec.start_y=cell.y
+                end
+                -- D3: the real raised spec's projection flags are copied into
+                -- the footprint spec before native expansion (raw presence
+                -- preserved; Target:getType normalizes absent
+                -- selffire/friendlyfire to true).
+                for flag,value in pairs(raised or {}) do
+                    spec[flag]=value
+                end
+                required=required+1
+                -- The expander is injectable for failure-injection tests (the
+                -- production path is always the audited Footprint.expand).
+                local expander=(opts and opts.expand) or Footprint.expand
+                local set,backend=expander(spec,{native=ctx.native,
+                    blockPath=ctx.blockPath,blockRadius=ctx.blockRadius})
+                backends[backend]=true
+                if set==nil then
+                    failure=backend or 'expand_failed'
+                    break
+                end
+                completed=completed+1
+                if union==nil then union,unionAdd=Footprint.newSet() end
+                for x,column in pairs(set) do
+                    for y in pairs(column) do unionAdd(x,y) end
+                end
+            end
+        end
+        if failure then
+            return nil,{failure=failure,required=required,completed=completed,
+                backend=next(backends) or (ctx.native and 'native' or 'model')}
+        end
+        return union,{required=required,completed=completed,backend=next(backends)
+            or (ctx.native and 'native' or 'model'),
+            multi=(backends.native and backends.model) and true or nil}
+    end
+    M.expandComplete=expandComplete  -- exported pure (test seam: injectable expander)
+
     -- S3 mixed-entry composition. `typ` is the real raised spec (raw table)
     -- already read by the shared prelude; `builderSource` records where the
     -- raised spec came from. Commit-1 scope: DIRECT bound-actor components
@@ -361,11 +431,88 @@ function M.build(ctx)
                 -- risk but stay declared (they are never invisible).
                 membershipsBy[resolved.id]={self=false,friendlies=0,player_override=true}
             else
-                -- Projected/actual_landing components: complete per-pair
-                -- expansion lands with the Giant Leap commit; nothing before it
-                -- publishes such a component.
-                return disable('selffire_risk',{unknown=true,talent=talent,
-                    component=resolved.id,reason='composition_unavailable'})
+                -- Projected / actual_landing component: the COMPLETE per-pair
+                -- expansion (D1). The component radius may be the live builder
+                -- radius (`{from='target'}`); an unreadable radius is unknown
+                -- and fails closed. The raised projection flags (D3) come from
+                -- the real raised spec.
+                componentsEvaluated=componentsEvaluated+1
+                local radius=resolveRadius(component.radius,typ)
+                resolved.radius=radius
+                -- Curated static filters resolve through the audited dynamic
+                -- input providers (an unavailable dynamic read stays unknown
+                -- and fails closed on its own value).
+                resolved.selffire=resolveDynamic(component.selffire,ctx,talent,
+                    ctx.getDef(talent))
+                resolved.friendlyfire=resolveDynamic(component.friendlyfire,ctx,talent,
+                    ctx.getDef(talent))
+                resolved.player_selffire=component.player_selffire
+                if radius=='unknown' then
+                    return disable('selffire_risk',{unknown=true,talent=talent,
+                        component=resolved.id,reason='unreadable_radius'})
+                end
+                -- D3 raised projection flags: raw presence map from the real
+                -- raised spec (only explicitly present keys; absent keys stay
+                -- absent and Target:getType normalizes them at expansion time).
+                local raised={}
+                local raisedCount=0
+                for flag in pairs({friendlyblock=true,friendlyfire=true,selffire=true,
+                    pass_terrain=true,no_restrict=true,actorblock=true,stop_block=true}) do
+                    if type(typ)=='table' and typ[flag]~=nil then
+                        raised[flag]=typ[flag]
+                        raisedCount=raisedCount+1
+                    end
+                end
+                if raisedCount>0 then resolved.raised_flags=raised end
+                local union,stats=expandComplete(component,candidates,target,radius,
+                    raisedCount>0 and raised or nil)
+                resolved.condition=component.when
+                if not union then
+                    -- D1: one failed/unreadable pair discards the partial
+                    -- union; membership is unknown and this action is disabled
+                    -- (never measured, never silently dropped).
+                    return disable('selffire_risk',{unknown=true,talent=talent,
+                        component=resolved.id,reason=stats.failure,
+                        required_expansions=stats.required,
+                        completed_expansions=stats.completed,
+                        footprint_backend=stats.backend})
+                end
+                -- Complete-expansion bookkeeping; the completed count is
+                -- asserted before any membership/risk calculation.
+                resolved.required_expansions=stats.required
+                resolved.completed_expansions=stats.completed
+                resolved.candidate_count=candidateCount
+                resolved.footprint_count=Footprint.count(union)
+                resolved.footprint_backend=stats.multi and 'mixed' or stats.backend
+                if stats.completed~=stats.required then
+                    return disable('selffire_risk',{unknown=true,talent=talent,
+                        component=resolved.id,reason='incomplete_expansion',
+                        required_expansions=stats.required,
+                        completed_expansions=stats.completed})
+                end
+                -- Post-move self membership (design §5.1 corrected): for an
+                -- `actual_landing` component the mover is affected when ANY
+                -- completed per-candidate footprint contains that same
+                -- candidate — never the caster's pre-move cell (which the
+                -- generic membership helper tests and which we override).
+                if component.center=='actual_landing' then
+                    local m=memberships(resolved,union,ctx,typ)
+                    local selfSelf=false
+                    for _,cell in ipairs(candidates.cells) do
+                        if M.candidateCondition(component.when,cell,target)
+                            and Footprint.at(union,cell.x,cell.y) then
+                            selfSelf=true
+                        end
+                    end
+                    m.self=selfSelf
+                    resolved.self_excluded=(selfSelf and Risk.flag(resolved.selffire)==0)
+                        or nil
+                    membershipsBy[resolved.id]=m
+                else
+                    -- A projected component with a normal centre keeps the
+                    -- existing membership semantics against its own union.
+                    membershipsBy[resolved.id]=memberships(resolved,union,ctx,typ)
+                end
             end
             components[#components+1]=resolved
         end
@@ -376,7 +523,7 @@ function M.build(ctx)
         local measure=Risk.measure(components,membershipsBy)
         local detail={talent=talent,source=builderSource,candidate_count=candidateCount,
             components_evaluated=componentsEvaluated,threshold=threshold,
-            unknown=measure.risk=='unknown'}
+            unknown=measure.risk=='unknown',components=components}
         if measure.risk~=0 then
             local worst=measure.detail
             if worst then
