@@ -245,25 +245,19 @@ check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupp
     check(Manifest.entry('T_EARTHEN_MISSILES')==nil
         and Manifest.entry('T_DWARVEN_HALF_EARTHEN_MISSILES')==nil,
         'no stationary program can reach the removed guard path')
-    -- S2-R4-01: the agility Vault (techniques/agility.lua) is a MIXED
-    -- movement/effect talent: its first (actor) prompt's target is attacked and
-    -- may be dazed before the move. It must NOT be executable — component-free
-    -- grid-movement admission would let a valid policy bind that actor prompt to
-    -- `self` and hide the effect from the guard. It is published with the typed
-    -- reason `movement_effect_composition_required` (the S3 composition slice).
-    check(Manifest.entry('T_VAULT')==nil,'the agility Vault is NOT executable')
-    check(Manifest.supported('T_VAULT')==false
-        and #Manifest.requestSequences(Manifest.entry('T_VAULT'))==0,
-        'an unsupported talent has no descriptor and no request sequence')
-    check(Schema.TALENTS['T_VAULT']==nil,'the agility Vault is not a schema talent')
-    local agilityVault=unsupportedEntry('T_VAULT')
-    check(agilityVault~=nil
-        and agilityVault.missing=='movement_effect_composition_required'
-        and type(agilityVault.reason)=='string' and #agilityVault.reason>0
-        and agilityVault.scope=='any',
-        'the agility Vault is surfaced with the typed movement_effect_composition_required reason')
-    check(Manifest.SOURCES.talents['T_VAULT']==nil,
-        'the unsupported agility Vault has no executable source pin')
+    -- S3 admission 3: the agility Vault (techniques/agility.lua) is now
+    -- ADMITTED through the mixed movement/effect composition (V-U6): a mixed
+    -- entry with two distinguishable prompts and two direct components, and its
+    -- UNSUPPORTED row is gone. The acrobatics T_SKIRMISHER_VAULT below stays
+    -- component-free and unchanged (V-U6).
+    local agilityVault=Manifest.entry('T_VAULT')
+    check(agilityVault~=nil and agilityVault.kind=='movement','the agility Vault is admitted (V-U6)')
+    check(#Manifest.requestSequences(agilityVault)>0
+        and Manifest.requestSequences(agilityVault)[1][1]=='actor'
+        and Manifest.requestSequences(agilityVault)[1][2]=='grid',
+        'the agility Vault declares the ordered actor-then-grid request sequence (V-U1)')
+    check(Schema.TALENTS['T_VAULT']==true,'the agility Vault is a schema talent (V-U6)')
+    check(Manifest.SOURCES.talents['T_VAULT']~=nil,'the admitted agility Vault carries its source pin')
     -- T_SKIRMISHER_VAULT (acrobatics) is a DIFFERENT, single-prompt pure-movement
     -- talent and stays admitted unchanged.
     local skirmisherVault=Manifest.entry('T_SKIRMISHER_VAULT')

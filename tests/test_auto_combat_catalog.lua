@@ -138,34 +138,29 @@ do
     check(depth<=4,'the movement detail projection is depth-bounded')
 end
 
--- S2-R4-01: the capability catalogue must not expose the agility Vault as an
--- executable adapter, and its unsupported disposition must carry the typed
--- `movement_effect_composition_required` reason (not a generic failure).
+-- S3 admission 3 (V-U6): the agility Vault IS a catalogue adapter now — a MIXED
+-- movement/effect entry with the ordered actor-then-grid program and two direct
+-- components; its unsupported disposition is gone. The acrobatics
+-- T_SKIRMISHER_VAULT is a different talent and stays admitted unchanged.
 do
-    check(not Catalog.supported('T_VAULT'),'the agility Vault is NOT a catalogue adapter')
-    check(Catalog.entry('T_VAULT')==nil,'the agility Vault resolves to no executable descriptor')
-    check(Catalog.manifestEntry('T_VAULT')==nil,'the agility Vault has no manifest entry')
-    local unsupported={}
-    for _,entry in ipairs(Catalog.UNSUPPORTED or {}) do
-        if entry.talent=='T_VAULT' then unsupported[#unsupported+1]=entry end
+    check(Catalog.supported('T_VAULT'),'the agility Vault is a catalogue adapter (V-U6)')
+    local entry=Catalog.entry('T_VAULT')
+    check(entry~=nil and entry.kind=='movement' and entry.target=='hostile',
+        'the agility Vault resolves to the hostile mixed descriptor (V-U6)')
+    check(Catalog.manifestEntry('T_VAULT')~=nil,'the agility Vault has its manifest entry (V-U6)')
+    local unsupportedCount=0
+    for _,u in ipairs(Catalog.UNSUPPORTED or {}) do
+        if u.talent=='T_VAULT' then unsupportedCount=unsupportedCount+1 end
     end
-    check(#unsupported==1,'the agility Vault is surfaced exactly once in the unsupported list')
-    check(unsupported[1].missing=='movement_effect_composition_required',
-        'the unsupported disposition is the typed movement_effect_composition_required reason')
-    check(type(unsupported[1].reason)=='string' and #unsupported[1].reason>0,
-        'the typed reason carries a human-readable explanation')
-    -- The summary the client reads must publish the same typed reason.
-    local summary=Catalog.summary()
-    local published
-    for _,entry in ipairs(summary.unsupported or {}) do
-        if entry.talent=='T_VAULT' then published=entry end
-    end
-    check(published~=nil and published.missing=='movement_effect_composition_required',
-        'the capability summary publishes the typed Vault reason')
-    -- T_SKIRMISHER_VAULT (acrobatics) is a different talent and stays admitted.
+    check(unsupportedCount==0,'the agility Vault no longer appears in the unsupported list (V-U6)')
+    -- T_SKIRMISHER_VAULT (acrobatics) is a different talent and stays admitted,
+    -- component-free and unchanged (V-U6 byte-equivalence checked in the
+    -- movement-factory test).
     check(Catalog.supported('T_SKIRMISHER_VAULT'),'T_SKIRMISHER_VAULT stays a catalogue adapter')
     check(Catalog.entry('T_SKIRMISHER_VAULT').kind=='movement',
         'T_SKIRMISHER_VAULT stays a movement descriptor')
+    check(#(Catalog.entry('T_SKIRMISHER_VAULT').components or {})==0,
+        'T_SKIRMISHER_VAULT stays component-free (V-U6)')
 end
 
 -- P1b native-activity action adapters --------------------------------------
