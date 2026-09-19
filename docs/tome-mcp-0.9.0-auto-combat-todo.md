@@ -534,3 +534,11 @@ Source report: `tmp/mcp-play-support/agent-ham-s1rush-report.md`.
     - **验收**：Lua 42/42、Python 39、三个 `--check` exit 0、probe source/dist 177/177、原生验收 source/dist 101/101、
       打包 parity 68/68（dist sha256 `453b3f56c2e40054e0f75d2ffb13f72e5f58da6b9601a12d3c55b7688d5f1ebe`）、会话全部回收。
       无插件级策略门禁；`allow_auto_combat_execution` 保持 `false`；零协议字段、零游戏核心改动、零手改生成文件。
+
+67. **NEW-05（P2，保证范围，已按评审收窄）。** progression 结算期重校验的**诚实保证**是：
+    *"在**调用完成且当前（递归链式的）`onTickEnd` 队列为空**之后的**第一个 ready 决策边界**上，请求的
+    pool/target 与最终状态一致。"* 它**不是**对"被刻意安排到**更晚帧/更晚回合**（`registerTimer`、
+    链到更晚的 tick、不受管的协程）的工作"的**永久保证**——那类工作**不属于本插件的调用所有权**，
+    且"永远重读"不是可选项。该范围已写入 `Runtime.lua` 的结算重校验注释，报告与文档不得声称更强。
+    若将来仍要覆盖更晚调度：需要**显式登记有界调度器 + 有界等待策略**（另立任务，勿顺手扩大）。
+

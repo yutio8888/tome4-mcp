@@ -892,6 +892,15 @@ local function settle(s)
         -- A mismatched or uncheckable final state settles as a typed uncertain
         -- failure and is never published as success. No identity/source gate:
         -- the recheck calls the live reads only.
+        -- GUARANTEE SCOPE (review NEW-05): this guarantees that the requested
+        -- pool/target matches at the FIRST ready decision boundary after the
+        -- invocation is done and the then-current (recursively chained)
+        -- `onTickEnd` queue is empty. It is deliberately NOT a permanence
+        -- guarantee against work scheduled for a later frame/turn by an
+        -- untracked scheduler (`registerTimer`, a chained later tick, a raw
+        -- coroutine): such work is outside the owned invocation, and re-reading
+        -- forever is not an option. The claim in any report/doc must stay
+        -- within this scope.
         if command.action_ok and command.progression_postcondition then
             local checked,mismatch=pcall(Progression.checkPostcondition,s.game.player,command.progression_postcondition)
             if not checked then
