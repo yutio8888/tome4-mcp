@@ -181,13 +181,36 @@ local function audit(value,path,depth,seen)
             if child then seen[value]=nil; return child end
         end
     else
+        -- XDP-CLOSE-05 (Fix 5): select the reported invalid-UTF-8 key by a TOTAL
+        -- ORDER (bytewise-smallest), not by `pairs` traversal order, so two
+        -- invalid keys of different lengths yield one identical typed fault in
+        -- every fresh process. This is a separate pre-scan placed BEFORE the
+        -- base key loop; keeping the original loop body byte-identical is
+        -- deliberate. A previous in-loop rewrite of `classify`/`audit` was
+        -- exposed to a LuaJIT register-aliasing miscompile (a lone string key
+        -- counted as `{numeric=1,strings=1}` => spurious `mixed_keys`) and had
+        -- to be reverted; see the closure report's `jit_instability` evidence.
+        do
+            local bad
+            for k in pairs(value) do
+                if type(k)=='string' and not validUtf8(k) then
+                    if bad==nil or k<bad then bad=k end
+                end
+            end
+            if bad~=nil then
+                seen[value]=nil
+                return fault('invalid_document',path,'invalid_utf8_key','#'..#bad)
+            end
+        end
         local keys={}
         for k in pairs(value) do
             if type(k)=='string' and not validUtf8(k) then
                 -- XDP-REV-05: an invalid-UTF-8 KEY would throw inside
                 -- `Json.encode(key)` during the hash projection; refuse it
                 -- typed here (the diagnostic carries the byte length, never
-                -- the offending bytes).
+                -- the offending bytes). Unreachable for the UTF-8 case after
+                -- the deterministic pre-scan above; kept as a defensive typed
+                -- fault.
                 seen[value]=nil
                 return fault('invalid_document',path,'invalid_utf8_key','#'..#k)
             end

@@ -44,11 +44,14 @@ local fnum=faultOf(function() local d={}; d[1.5]="x"; return d end)
 local fstr=faultOf(function() local d={}; d.zeta="x"; d.alpha="y"; return d end)
 local fexo=faultOf(function() local d={}; d[function() end]="x"; return d end)
 local foth=faultOf(function() local d={}; d[true]="x"; return d end)
+-- XDP-CLOSE-05: TWO competing invalid-UTF-8 keys of different lengths must
+-- select the same (bytewise-smallest) key in every fresh process.
+local fcmp=faultOf(function() local d={}; d[string.char(255).."zz"]="x"; d[string.char(254)]="y"; return d end)
 -- The golden content hash must be process-independent.
 local file=assert(io.open("$addon_dir/tests/fixtures/assistant/anorithil_pinned.json","r"))
 local text=file:read("*a"); file:close()
 local imported=Adapter.translate(Json.decode(text))
-print(table.concat({fnum,fstr,fexo,foth,imported.hash},"\\n"))
+print(table.concat({fnum,fstr,fexo,foth,fcmp,imported.hash},"\\n"))
 LUA
 probe_file="$evidence/determinism-probe.lua"
 : > "$evidence/fresh-process.log"
@@ -56,7 +59,7 @@ for i in $(seq 1 12); do
     "$LUA" -O2 "$probe_file" >> "$evidence/fresh-process.log" 2>&1
 done
 distinct=$(sort -u "$evidence/fresh-process.log" | wc -l)
-# 12 runs x 5 lines = 60 lines; both halves must be identical, so exactly 5
+# 12 runs x 6 lines = 72 lines; both halves must be identical, so exactly 6
 # distinct lines and their concatenation is the same per run.
 expected="$("$LUA" -O2 "$probe_file" | md5sum | cut -d' ' -f1)"
 same=yes
@@ -64,8 +67,8 @@ for i in $(seq 1 6); do
     h=$("$LUA" -O2 "$probe_file" | md5sum | cut -d' ' -f1)
     [ "$h" = "$expected" ] || same=no
 done
-if [ "$distinct" -eq 5 ] && [ "$same" = yes ]; then
-    echo "PASS row 6 fresh-process determinism (12 processes, 5 identical fault/hash lines)"
+if [ "$distinct" -eq 6 ] && [ "$same" = yes ]; then
+    echo "PASS row 6 fresh-process determinism (12 processes, 6 identical fault/hash lines)"
 else
     echo "FAIL row 6 fresh-process determinism (distinct=$distinct same=$same)"; rc=1
 fi

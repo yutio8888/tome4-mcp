@@ -198,7 +198,7 @@ local function snapshot(s,radius,options)
     local run=ac and ac.run or nil
     result.auto_combat={enabled=(s.auto_combat and s.auto_combat.host_factory~=nil) or false,
         active=(ac and ac.active==true) or false,
-        policy_id=(s.auto_combat and s.auto_combat.store.running and s.auto_combat.store.running.id) or Json.null,
+        policy_id=(ac and ac.running_id) or Json.null,
         policy_hash=(ac and ac.running_hash) or Json.null,
         state=(run and run.state) or 'stopped',
         actions=(run and run.actions) or 0,

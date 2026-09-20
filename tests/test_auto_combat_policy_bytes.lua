@@ -627,12 +627,156 @@ do
     check(Store.getSnapshot(store,'approved')~=Store.getSnapshot(store,'draft'),
         'promotion builds a fresh record, never a shared reference')
     -- And the restored-locater class is closed: a wire-shaped {bytes,hash} dict
-    -- with a forged hash is normalised on restore (hash re-derived).
+    -- with a forged hash is normalised on restore (hash re-derived), and the
+    -- return value is a DETACHED COPY (never the record now in the vault).
     local restored=assert(Store.restore(store,'approved',
         {bytes=originalBytes,hash='restore-forged',schema=raw.schema,id=raw.id,version=1}))
     check(restored.hash==hash,'restore re-derives the hash from the exact bytes (forged hash discarded)')
     check(Store.getSnapshot(store,'approved').hash==hash,
         'the stored approved hash is the derived hash, not the supplied one')
+    -- XDP-CLOSE-01 (Fix 1): the return is NOT the stored record. Mutate the
+    -- returned table (even to different-but-valid bytes) and the store keeps
+    -- its own canonical bytes/hash/meaning.
+    local altRestore=assert(Codec.prepare(policy({id='RESTORE-RETURN-ALTERED'}),'alt-restore'))
+    restored.bytes=altRestore.bytes
+    restored.hash=altRestore.hash
+    restored.id='RESTORE-RETURN-ALTERED'
+    check(Store.getSnapshot(store,'approved').bytes==originalBytes,
+        'mutating the value returned by restore cannot reach the stored bytes')
+    check(Store.hashes(store).approved==hash,
+        'mutating the value returned by restore cannot change the stored hash')
+    check(Store.getVersion(store,'approved').id==raw.id,
+        'mutating the value returned by restore cannot change the stored meaning')
+end
+
+-- ===========================================================================
+-- XDP-CLOSE-01 (Fix 1): the vault is not an entry of the store table and no
+-- Store API returns a live authoritative record.
+-- ===========================================================================
+do
+    local store=Store.new()
+    Store.setDraft(store,policy(),nil)
+    Store.approve(store,nil)
+    local hashes=Store.hashes(store)
+    local bytesBefore=Store.getSnapshot(store,'draft').bytes
+    -- No table-valued key/value in the store is the vault (or references the
+    -- stored records). Ordinary `pairs(store)` must not reveal a vault.
+    local tableKeys,tableValues=0,0
+    for k,v in pairs(store) do
+        if type(k)=='table' then tableKeys=tableKeys+1 end
+        if type(v)=='table' then tableValues=tableValues+1 end
+    end
+    check(tableKeys==0 and tableValues==0,
+        'pairs(store) exposes no vault (no table key or table value on the store)')
+    -- No Store API returns a live record: every table return is a fresh table
+    -- whose mutation cannot change the stored hash/bytes.
+    local function mutateAll(value,seen)
+        if type(value)~='table' then return end
+        if seen[value] then return end
+        seen[value]=true
+        for k,v in pairs(value) do
+            if type(v)=='table' then mutateAll(v,seen)
+            elseif type(v)=='string' then
+                pcall(function() rawset(value,k,'MUTATED-'..k) end)
+            end
+        end
+    end
+    local returns={
+        {Store.getSnapshot(store,'draft')},{Store.getSnapshot(store,'approved')},
+        {Store.getSnapshot(store,'running')},{Store.getSnapshot(store,'draft'),Store.getSnapshot(store,'draft')},
+        {Store.getVersion(store,'draft')},{Store.getVersion(store,'approved')},
+        {Store.hashes(store)},{Store.status(store)},{Store.activate(store,nil) and {Store.status(store)}} ,
+    }
+    for _,entry in ipairs(returns) do
+        local value=entry[1]
+        if value~=nil then mutateAll(value,{}) end
+    end
+    local afterHashes=Store.hashes(store)
+    check(afterHashes.draft==hashes.draft and afterHashes.approved==hashes.approved,
+        'mutating EVERY table returned by the Store API cannot change the stored hashes')
+    check(Store.getSnapshot(store,'draft').bytes==bytesBefore,
+        'the stored bytes are unchanged after mutating every returned table')
+    -- The ids are exposed as scalars, never the record.
+    check(Store.status(store).draft_id=='p1' and type(Store.runningId(store))=='string',
+        'Store.status exposes scalar ids while the vault stays private')
+end
+
+-- ===========================================================================
+-- XDP-CLOSE-02 (Fix 2): a reentrant callback that calls public set_draft/
+-- approve/activate during `start` cannot publish a stale controller.
+-- ===========================================================================
+do
+    local svc
+    local oldHash,altHash
+    svc=Service.new{host_factory=function(copy)
+        -- The closure already shares `svc` and calls only PUBLIC operations,
+        -- exactly as the reviewer's `reentrant_divergence` probe did.
+        local alt=policy({id='REENTRANT-ALT'})
+        alt.rules[1].when={always={}}
+        local d=assert(Service.handle(svc,'set_draft',{policy=alt}))
+        local a=assert(Service.handle(svc,'approve',{expected_hash=d.draft_hash}))
+        local x=Service.handle(svc,'activate',{expected_hash=a.approved_hash})
+        altHash=x.running_hash
+        return {phase=function() return 'ready' end,
+            snapshot=function() return {hp_pct=10,enemy_count=1,bound_target='e1',binding_selector='nearest_hostile'} end,
+            request=function() return {status='ok',energy_spent=true} end}
+    end}
+    local d=assert(Service.handle(svc,'set_draft',{policy=policy()}))
+    oldHash=d.draft_hash
+    local a=assert(Service.handle(svc,'approve',{expected_hash=oldHash}))
+    assert(Service.handle(svc,'activate',{expected_hash=a.approved_hash}).ok)
+    local started=Service.handle(svc,'start',{})
+    check(started.ok==false and started.error.code=='policy_conflict'
+        and started.error.details.cause=='policy_changed_during_start',
+        'a reentrant start callback aborts typed instead of publishing a stale controller')
+    check(svc.controller==nil,'no controller is published when the authority moved during start')
+    check(altHash~=oldHash,'the reentrant callback really did replace the running policy')
+    check(Store.hashes(svc.store).running==altHash,
+        'the authoritative running policy is the reentrantly installed one')
+    -- A clean start (no reentrancy) still succeeds and reports the matching hash.
+    local clean=Service.new{host_factory=function()
+        return {phase=function() return 'ready' end,
+            snapshot=function() return {hp_pct=80,enemy_count=0} end,
+            request=function() return {status='ok',energy_spent=true} end}
+    end}
+    local cd=assert(Service.handle(clean,'set_draft',{policy=policy()}))
+    local ca=assert(Service.handle(clean,'approve',{expected_hash=cd.draft_hash}))
+    assert(Service.handle(clean,'activate',{expected_hash=ca.approved_hash}).ok)
+    local cstart=Service.handle(clean,'start',{})
+    check(cstart.ok and clean.controller:policyHash()==Store.hashes(clean.store).running,
+        'a clean start publishes a controller whose snapshot matches the reported running hash')
+end
+
+-- ===========================================================================
+-- XDP-CLOSE-02 (Fix 2): the same guard around the dry-run factory.
+-- ===========================================================================
+do
+    local svc
+    svc=Service.new{dry_run_host_factory=function()
+        local d=assert(Service.handle(svc,'set_draft',{policy=policy({id='DRY-REENTRANT'})}))
+        Service.handle(svc,'approve',{expected_hash=d.draft_hash})
+        return {snapshot=function() return {hp_pct=80,enemy_count=0} end}
+    end}
+    assert(Service.handle(svc,'set_draft',{policy=policy()}))
+    local dry=Service.handle(svc,'dry_run',{})
+    check(dry.ok==false and dry.error.code=='policy_conflict'
+        and dry.error.details.cause=='policy_changed_during_dry_run',
+        'a reentrant dry-run callback aborts typed instead of reporting a mismatched snapshot')
+end
+
+-- ===========================================================================
+-- XDP-CLOSE-04 (Fix 4): `clear` advances the service revision exactly once.
+-- ===========================================================================
+do
+    local svc=Service.new()
+    Service.handle(svc,'set_draft',{policy=policy()})
+    local beforeSvc,beforeStore=svc.revision,svc.store.revision
+    local cleared=Service.handle(svc,'clear',{})
+    check(cleared.ok and svc.revision-beforeSvc==1,
+        'clear advances the service revision exactly once (delta 1)')
+    check(svc.store.revision-beforeStore==1,'clear advances the store revision exactly once')
+    check(Service.handle(svc,'replay',{}).header.session_revision==svc.revision,
+        'the replay header reports the single service revision')
 end
 
 -- ===========================================================================
@@ -726,6 +870,16 @@ do
     local okKey,keySnap,keyErr=pcall(Codec.prepare,badKey,'utf8key')
     check(okKey==true and keySnap==nil and keyErr.cause=='invalid_utf8_key',
         'invalid UTF-8 in a KEY is a typed audit fault')
+    -- XDP-CLOSE-05 (Fix 5): competing invalid-UTF-8 keys of different lengths
+    -- must select ONE deterministic key (bytewise-smallest), so the fault is
+    -- identical across fresh processes (see tests/xdoubleprime_matrix.sh).
+    local competing=policy()
+    competing[string.char(255)..'zz']='a'
+    competing[string.char(254)]='b'
+    local competingErr=Codec.audit(competing,'cfg')
+    check(competingErr~=nil and competingErr.cause=='invalid_utf8_key'
+        and competingErr.key=='#1',
+        'competing invalid-UTF-8 keys select the bytewise-smallest (deterministic) key')
     -- Hostile BYTES carrying an invalid-UTF-8 string value are refused by open.
     local good2=assert(Codec.prepare(policy(),'good2'))
     local hostile=good2.bytes:gsub('s2:p1','s2:'..string.char(255)..string.char(255),1)

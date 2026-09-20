@@ -579,6 +579,12 @@ do
     local observed_auto=observe().auto_combat
     check(observed_auto and observed_auto.enabled==true and observed_auto.state~=nil,
         'observe exposes a bounded auto-combat summary')
+    -- XDP-CLOSE-03 (Fix 3): the running policy id is reported through the store's
+    -- public accessor, not a private record field, so it is a REAL id (not null)
+    -- once a policy is activated.
+    local observed_policy=request('policy',{session_id=h2.session_id,policy_op='status'}).result
+    check(observed_auto.policy_id=='p1' and observed_policy.running_id=='p1',
+        'observe.auto_combat.policy_id is the real running id after activate, not null')
     local blocked=act('auto-blocked',{type='wait'})
     check(blocked.error and blocked.error.code=='control_conflict',
         'a remote act during auto-combat is refused with control_conflict')

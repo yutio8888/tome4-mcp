@@ -104,7 +104,8 @@ end
 
 function M.clear(svc)
     Store.clearDraft(svc.store)
-    svc.revision=svc.revision+1
+    -- XDP-CLOSE-04 (Fix 4): exactly one service revision increment per
+    -- operation. There was a duplicated `svc.revision=svc.revision+1` line.
     svc.revision=svc.revision+1
     local hashes=Store.hashes(svc.store)
     return ok({cleared='draft',draft_hash=hashes.draft,approved_hash=hashes.approved,running_hash=hashes.running})
@@ -154,6 +155,14 @@ function M.dryRun(svc,args)
     local snapshot,err=AssistantAdapter.policySnapshot(policy,'dry_run')
     if not snapshot then return fail(err.code,err) end
     local exact_bytes=snapshot.bytes
+    -- XDP-CLOSE-02 (Fix 2): capture the exact store authority BEFORE the
+    -- callback when the transaction resolves its policy from a store slot. A
+    -- closure sharing `svc` can reentrantly call public set_draft/approve/
+    -- activate during the factory; that advances the store revision. The
+    -- transaction aborts typed instead of evaluating one snapshot while
+    -- reporting another. An explicit request policy (`source=='request'`) is
+    -- its own captured bytes, so there is no store slot to compare.
+    local authority=source~='request' and Store.authority(svc.store,source) or nil
     -- Prefer the read-only host; the live executor host is a safe fallback
     -- because dry run never calls request()/execute(). Either way this ignores
     -- `allow_auto_combat_execution`: dry run only needs audited reads.
@@ -168,6 +177,21 @@ function M.dryRun(svc,args)
         local ok,returned=pcall(factory,isolated)
         if not ok or type(returned)~='table' then return fail('snapshot_unavailable') end
         host=returned
+    end
+    -- XDP-CLOSE-02: the callback must not have moved the authority this dry run
+    -- is reporting/evaluating. A moved slot is a typed abort (`policy_conflict`
+    -- with a distinguishing cause — the registered wire code, so no protocol
+    -- surface is added), never a silently mismatched report.
+    if authority~=nil then
+        if not Store.matchesAuthority(svc.store,source,authority) then
+            return fail('policy_conflict',{cause='policy_changed_during_dry_run',
+                details='the policy store changed while the read host was being built'})
+        end
+        local current=Store.getSnapshot(svc.store,source)
+        if not current or current.bytes~=exact_bytes then
+            return fail('policy_conflict',{cause='policy_changed_during_dry_run',
+                details='the policy changed while the read host was being built'})
+        end
     end
     -- The evaluated value comes from an independent private decode of the
     -- captured bytes, taken AFTER the callback, and the transaction verifies
@@ -442,10 +466,28 @@ function M.start(svc)
     local snapshot=Store.getSnapshot(svc.store,'running')
     local exact_bytes=snapshot and snapshot.bytes or nil
     if not exact_bytes then return fail('not_activated') end
+    -- XDP-CLOSE-02 (Fix 2): capture the exact running authority BEFORE the
+    -- factory callback and compare it AFTER. A closure that already shares
+    -- `svc` can reentrantly call public set_draft/approve/activate during the
+    -- callback (with `svc.controller` still nil, so `activate` has no old
+    -- controller to stop), which would otherwise leave the controller
+    -- evaluating the OLD snapshot while status/replay report the NEW one.
+    local authority=Store.authority(svc.store,'running')
     local detached,cb_err=Codec.open(exact_bytes)
     if not detached then return fail(cb_err.code,cb_err) end
     local host=svc.host_factory(detached)
     if not host then return fail('execution_not_available') end
+    -- Re-check: authority/revision moved during the callback => abort typed
+    -- instead of publishing a controller bound to a stale snapshot.
+    if not Store.matchesAuthority(svc.store,'running',authority) then
+        return fail('policy_conflict',{cause='policy_changed_during_start',
+            details='the running policy changed while the host was being built'})
+    end
+    local current=Store.getSnapshot(svc.store,'running')
+    if not current or current.bytes~=exact_bytes then
+        return fail('policy_conflict',{cause='policy_changed_during_start',
+            details='the running policy changed while the host was being built'})
+    end
     local working,open_err,_,derived_hash=Codec.open(exact_bytes)
     if not working then
         return fail(open_err.code or 'no_policy',open_err)
