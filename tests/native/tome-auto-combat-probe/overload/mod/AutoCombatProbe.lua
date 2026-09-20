@@ -1796,22 +1796,41 @@ local function movementTalentRun(spec)
             -- Capture the native message channel around the submission so the
             -- assert phase can pin the CAUSE: the momentum refusal must log
             -- "You are too close to build up momentum!" and never a cooldown
-            -- notice. Pure in-process observation; restored right after.
+            -- notice. Pure in-process observation.
+            -- APRIME-MERGE-REV-02 (P2, probe-only): the seam must be restored
+            -- on EVERY path. The request runs through a protected call; the
+            -- original logger is restored and the captured messages finalized
+            -- BEFORE any error is surfaced, so a throw from `host.request`
+            -- (or from the wrapped original logger) can no longer leak the
+            -- instrumentation into the rest of the acceptance run. The
+            -- original error object is re-raised with `level 0` so its
+            -- identity is preserved exactly.
             local messages={}
             local realLogPlayer=game.logPlayer
+            local restored=false
+            local function restoreLogger()
+                if restored then return end
+                restored=true
+                if type(realLogPlayer)=='function' then game.logPlayer=realLogPlayer end
+            end
             if type(realLogPlayer)=='function' then
                 game.logPlayer=function(who,str,...)
                     messages[#messages+1]=tostring(str)
                     return realLogPlayer(who,str,...)
                 end
             end
+            local requestOk,res
             if ready then
-                outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
-                    bound_target=bound,rule='rush_close'})
+                requestOk,res=pcall(host.request,{action='use_talent',talent=spec.talent,
+                    plan=planned.plan,bound_target=bound,rule='rush_close'})
             end
-            if type(realLogPlayer)=='function' then game.logPlayer=realLogPlayer end
+            -- Unconditional cleanup FIRST (success and throw path alike).
+            restoreLogger()
             M.mt.rush_close_messages=messages
             if p.talents_cd then p.talents_cd[spec.talent]=nil end
+            -- Only then surface the original error, unchanged.
+            if requestOk==false then error(res,0) end
+            outcome=res
         end
     elseif spec.kind=='shadowstep' then
         local ctx=host.snapshot('nearest_hostile')
