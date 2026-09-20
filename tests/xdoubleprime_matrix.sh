@@ -100,7 +100,7 @@ print(string.format("rules=%d bytes=%d prepare_us=%.1f open_us=%.1f hash_us=%.1f
     #rules,bytes,(t1-t0)/N*1e6,(t2-t1)/N*1e6,(t3-t2)/N*1e6,snapshot.hash))
 LUA
 if "$LUA" -O2 "$evidence/cost.lua" > "$evidence/cost.log" 2>&1; then
-    echo "PASS row 7 cost measured (no threshold pre-agreed; report the numbers)"
+    echo "row 7 cost MEASURED (no frozen threshold; NOT adjudicated PASS — see the doc)"
     cat "$evidence/cost.log"
 else
     echo "FAIL row 7 cost benchmark"; rc=1
