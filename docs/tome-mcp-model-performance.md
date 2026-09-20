@@ -356,3 +356,28 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 ### 教训（写入预防口径）
 4. **修测试以便通过时，必须保留它所覆盖的路径**：把 caster 挪开使成功路径稳定，就同时删除了"贴近"
    这一路径的覆盖。**替换断言前要问：被移除的覆盖由哪一行接管？**（此处答案是"没有"，故补行。）
+
+## Loop: A′ 并集评审的收敛（3 轮，围绕同一测试行）
+
+| 轮 | 发现 | 角色/模型 | 结果 |
+| --- | --- | --- | --- |
+| 1 | 覆盖缺口（我留的开放问题 + Sol P2） | Sol | `bf9c6af` 锚定 caster 后，"紧邻→momentum 拒绝"失去主动覆盖 |
+| 2 | **该行因错误原因通过**（删清冷却仍 233/233） | Sol | 真 P2——正是它本应防止的假阳性 |
+| 3 | `game.logPlayer` 在 `host.request` 抛错时不恢复 | Sol（并被我独立预测） | P2，probe-only 卫生 |
+| 4 | 无条件恢复（pcall + 幂等守卫 + 先恢复再 re-raise） | [Dev] **B** | Sol 最终：**REV-01/REV-02 均 CLOSED，P0–P3=0，merge** |
+
+**结果**：`main` = `09753d3`（含 X″ + S3 arm2 + A′），dist `5b32c28a…`。
+合并后独立验证：Lua 全绿、生成器 3× rc=0、Python OK、**native probe 234/234**、acceptance **101/101**，
+dist sha 与 A′ 分支一致（合并干净）。
+
+**序列事实**：[Dev] 本阶段连续 **4 轮**使用模型 **B**。**下一独立 [Dev] loop 必须回到模型 A**。
+
+### 教训
+5. **"能通过"与"测的是那件事"是两回事**：新加的回归行在**删掉准备步骤**后仍 233/233 通过——它断言的是
+   *形状*（rejected/native_rejected），不是*原因*。**加回归时要同时构造"错误原因证伪"**，否则行会静默
+   退化为恒真。
+6. **测试接缝（seam）也要满足恢复不变量**：临时替换全局函数（`game.logPlayer`）必须用 `pcall` 包裹并
+   **无条件恢复**，否则异常路径会把插装泄漏到后续所有行。
+7. **协调者的派发缺陷**：`paseo --cwd <worktree>` 被解析为 workspace 根 → 近期所有代理实际在主 worktree
+   工作；且我误归档了仍在工作的 Sol（复用原则要求复核自身 finding 时复用同一代理）。**已记录**在
+   `tmp/mcp-play-support/dispatch-cwd-quirk.md`。
