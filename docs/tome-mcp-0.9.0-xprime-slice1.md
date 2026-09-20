@@ -215,15 +215,21 @@ source/dist probes. Sinks as well as sources must require the owned type.
 
 ### Raw evidence (`tmp/funnel-slice1/`)
 
-| artifact | note |
-| --- | --- |
-| `lua-suite.log` | 43 suites green |
-| `python-tests.log` | 39 tests OK |
-| `generator-checks.log` | three `--check` exit 0 |
-| `probe-source.log` / `probe-dist.log` | 177/177 each |
-| `accept-source.log` / `accept-dist.log` | 101/101 each |
-| `dist-manifest.json`, `packaging.log` | 69 files, parity |
+| artifact | sha256 | note |
+| --- | --- | --- |
+| `lua-suite.log` | `81574eac…` | 43 suites green |
+| `python-tests.log` | `0c2623f4…` | 39 tests OK |
+| `generator-checks.log` | `f72ccc31…` | three `--check` exit 0 |
+| `probe-source.log` | `2e87053f…` | 177/177 (game.log `3295d35b…`) |
+| `probe-dist.log` | `20e1bc47…` | 177/177 (game.log `9e84de61…`) |
+| `accept-source.log` | `a62c55ff…` | 101/101 (game.log `d076d782…`) |
+| `accept-dist.log` | `0b2871be…` | 101/101 (game.log `58ea7603…`) |
+| `dist-manifest.json` | `2a0a0f0d…` | 69 files |
+| `tome-mcp-bridge.teaa` | `926a4291…` | package parity 69/69 |
 
 Session names: `funnel-slice1-ac-probe-src`, `funnel-slice1-ac-probe-dist`,
 `funnel-slice1-accept-src`, `funnel-slice1-accept-dist` (all reaped;
 `reap-session.sh --list` empty).
+
+Head **`59deb74`** (implementation `ecce5d4`); dist sha256
+**`926a429166825bde0517b4cf1a6221fb8ff3d544014933dccbb1b8cd78ca16b6`**.
