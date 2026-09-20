@@ -1786,8 +1786,31 @@ local function movementTalentRun(spec)
             -- generic cooldown rejection (that is the sequence row's job).
             if p.stamina then p.stamina=1000 end
             if p.talents_cd then p.talents_cd[spec.talent]=nil end
-            outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
-                bound_target=bound,rule='rush_close'})
+            -- CAUSE precondition, asserted immediately BEFORE submission: the
+            -- row must FAIL (not silently proceed) if the talent is still on
+            -- cooldown or the required stamina is missing.
+            local cooldown=(p.talents_cd and tonumber(p.talents_cd[spec.talent])) or 0
+            local ready=cooldown<=0 and (p.stamina==nil or p.stamina>0)
+            check('movement-talents:rush-close-precondition',ready,
+                {cooldown=cooldown,stamina=p.stamina})
+            -- Capture the native message channel around the submission so the
+            -- assert phase can pin the CAUSE: the momentum refusal must log
+            -- "You are too close to build up momentum!" and never a cooldown
+            -- notice. Pure in-process observation; restored right after.
+            local messages={}
+            local realLogPlayer=game.logPlayer
+            if type(realLogPlayer)=='function' then
+                game.logPlayer=function(who,str,...)
+                    messages[#messages+1]=tostring(str)
+                    return realLogPlayer(who,str,...)
+                end
+            end
+            if ready then
+                outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
+                    bound_target=bound,rule='rush_close'})
+            end
+            if type(realLogPlayer)=='function' then game.logPlayer=realLogPlayer end
+            M.mt.rush_close_messages=messages
             if p.talents_cd then p.talents_cd[spec.talent]=nil end
         end
     elseif spec.kind=='shadowstep' then
@@ -2186,8 +2209,28 @@ movementTalentAssert=function(spec)
         local noDeviation=outcome and outcome.sequence_deviation==nil
         local submissions=M.mt.rush_close_submissions
             and M.mt.rush_close_submissions() or -1
+        -- CAUSE discrimination (wrong-reason falsifier core): a cooldown
+        -- refusal on use_talent carries the typed `missing` cooldown detail
+        -- (Actions.lua, P3-2) and logs "Rush is still on cooldown..."; the
+        -- momentum refusal must carry NEITHER, and must log the momentum text.
+        local momentumMsg,cooldownMsg=false,false
+        for _,msg in ipairs(M.mt.rush_close_messages or {}) do
+            local text=tostring(msg)
+            if text:find('too close to build up momentum',1,true) then
+                momentumMsg=true
+            end
+            if text:find('still on cooldown',1,true) then cooldownMsg=true end
+        end
+        local cooldownMissing=false
+        if type(outcome and outcome.missing)=='table' then
+            for _,m in pairs(outcome.missing) do
+                if type(m)=='table' and (m.kind=='cooldown'
+                    or m.talent==spec.talent) then cooldownMissing=true end
+            end
+        end
         local ok=rejected and stayed and no_ui and noMismatch
             and noDeviation and submissions==1
+            and momentumMsg and (not cooldownMsg) and (not cooldownMissing)
         M.mt.signals[#M.mt.signals+1]=ok and 'rush_close_rejected' or 'rush_close_flow_wrong'
         check('movement-talents:rush-close-rejected',ok,
             {status=outcome and outcome.status,code=outcome and outcome.code,
@@ -2195,7 +2238,10 @@ movementTalentAssert=function(spec)
                 target_active=game.target and game.target.active or false,
                 co=game.target_co~=nil,submissions=submissions,
                 deviation=not noDeviation,
-                mismatch=outcome and outcome.postcondition_mismatch~=nil or false})
+                mismatch=outcome and outcome.postcondition_mismatch~=nil or false,
+                momentum_message=momentumMsg,cooldown_message=cooldownMsg,
+                cooldown_missing=cooldownMissing,
+                messages=(M.mt.rush_close_messages and #M.mt.rush_close_messages) or 0})
         return
     elseif spec.kind=='vault' then
         -- V-N2: the real native pre-use shield requirement refuses before any
