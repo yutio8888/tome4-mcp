@@ -198,13 +198,20 @@ do
     check(svc.controller.generation==before+1,
         'a same-cause handoff replay is deduplicated (R2-APR4-03)')
     -- no_emergency_action is the second ordinary safety pause and shares the
-    -- exact-delta guarantee.
+    -- exact-delta guarantee. X-doubleprime rebase: the live working tree is
+    -- transaction-validated against the immutable snapshot each step
+    -- (mutating `controller.policy.rules` now trips `policy_mutated` by
+    -- design), so the scenario is built through the real store instead: an
+    -- activated policy whose emergency rule does not match at low HP parks the
+    -- emergency layer with reason `no_emergency_action`.
     local svc2=Service.new({host_factory=fakeHost})
-    local d2=Service.handle(svc2,'set_draft',{policy=policy()})
+    local noEmergency=policy({rules={{id='heal',priority=1,emergency=true,
+        when={hp_pct={ge=90}},
+        ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}}}})
+    local d2=Service.handle(svc2,'set_draft',{policy=noEmergency})
     local ap2=Service.handle(svc2,'approve',{expected_hash=d2.draft_hash})
     Service.handle(svc2,'activate',{expected_hash=ap2.approved_hash})
     Service.handle(svc2,'start',{})
-    svc2.controller.policy.rules={}
     svc2.controller.host.snapshot=function() return {hp_pct=10,enemy_count=1} end
     local before2=svc2.controller.generation
     local stepped2=Service.step(svc2)

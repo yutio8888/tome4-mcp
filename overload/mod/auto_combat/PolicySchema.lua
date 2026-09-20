@@ -114,12 +114,16 @@ local function integer(n,lo,hi) return finite(n) and n%1==0 and n>=lo and n<=hi 
 -- Checklist A: a caller-supplied ARRAY is only usable with `#`/`ipairs` once it
 -- is dense and closed over ALL keys (XPS1-REV-01: the weak `isArray` test let a
 -- JSON-encodable `{all={hidden={always={}}}}` pass and be traversed as an EMPTY
--- `all`). `denseList` returns the dense count, or `nil, key` when the value is
--- not a dense 1..n array.
+-- `all`). `denseList` returns the dense count, or `nil, cause` when the value
+-- is not a dense 1..n array; the cause is `Json.denseArray`'s OWN typed fault
+-- (not_array | non_integer_key | hole | too_short) so there is exactly ONE
+-- density validator and one coarse-cause vocabulary behind every schema sink
+-- (the key-level refinement stays Json.denseFault's, used by sinks that name
+-- the offending key).
 local function denseList(value,minLength)
-    local ok,count=Json.denseArray(value,minLength or 0)
-    if ok then return count end
-    return nil,select(2,Json.denseFault(value))
+    local ok,countOrCause=Json.denseArray(value,minLength or 0)
+    if ok then return countOrCause end
+    return nil,countOrCause
 end
 
 local function onlyKeys(t,allowed,path,errors)
