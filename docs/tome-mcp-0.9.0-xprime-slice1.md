@@ -1,5 +1,15 @@
 # X′ slice 1 rev2 — owned ingress constructors + the import → policy → hash vertical slice
 
+> **SUPERSEDED (2026-09-20).** This document describes the X′ **table-identity**
+> mechanism, which the amended analysis (`tmp/mcp-play-support/astra-defect-family-addendum.md`)
+> and the review `tmp/mcp-play-support/review-xprime-slice1.md` (XPS1-R2-01..05)
+> falsified: a returned populated table cannot be certified by identity, so a
+> schema-valid edit changed an approved/running policy. The current design is
+> **X″ canonical-byte snapshots + transaction validation**, documented in
+> `tome-mcp-0.9.0-xdoubleprime-bytes.md`. The density primitive (`Json.denseArray`/
+> `denseFault`) and the deterministic diagnostics survive unchanged; the gated-sink
+> table, the owned-type claims and the coverage statements below are historical.
+
 Branch `refactor/boundary-funnels` off `main@ded8e1a`. Role `[Dev]` (model **B**, rotation —
 rev2). merge=no. Input: `tmp/mcp-play-support/astra-defect-family-analysis.md`
 sha256 `8391824dd542ae2c53019c9f512be6d8e4b8f7c8bd0c81f9789e14be13241651`

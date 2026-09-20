@@ -17,6 +17,7 @@ local Schema=require 'mod.auto_combat.PolicySchema'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
 local Json=require 'mod.mcp_bridge.Json'
 local Owned=require 'mod.auto_combat.OwnedImport'
+local Codec=require 'mod.auto_combat.PolicyCodec'
 local M={}
 
 M.FORMAT='tome-auto-combat-assistant-export/v1'
@@ -61,13 +62,8 @@ local function inputFault(input,cause,key)
 end
 M.inputFault=inputFault
 
--- Pin check. Returns the detected version descriptor or `nil, error`.
-function M.detect(config)
-    if not Owned.isOwned(config) then
-        local owned,fault=Owned.construct(config)
-        if not owned then return nil,fault end
-        config=owned
-    end
+-- Pin check on an ALREADY validated private tree (internal).
+local function detectValidated(config)
     if type(config)~='table' then return nil,{code='not_a_table'} end
     local assistant=config.assistant
     if type(assistant)~='table' then return nil,{code='missing_assistant'} end
@@ -90,6 +86,17 @@ function M.detect(config)
     end
     return {version=got,addon=assistant.addon,addon_version=got,
         tome_version=tomeStr,format=config.format}
+end
+M.detectValidated=detectValidated
+
+-- Pin check on raw caller input. X-doubleprime: there is no owned type any
+-- more, so the raw input is ALWAYS reconstructed (audited + schema-row
+-- validated) here; a caller table is never trusted.
+function M.detect(config)
+    if type(config)~='table' or config==Json.null then return nil,{code='not_a_table'} end
+    local owned,fault=Owned.construct(config)
+    if not owned then return nil,fault end
+    return detectValidated(owned)
 end
 
 local function reportUnsupported(out,path,code,detail)
@@ -244,20 +251,15 @@ end
 
 -- Translate a pinned assistant export into a policy draft.
 function M.translate(config)
-    -- X-prime slice 1: the raw caller table never reaches translation. The
-    -- ONLY constructor that accepts raw input builds an owned, dense-validated,
-    -- frozen snapshot; any malformed required array refuses the WHOLE import
-    -- here — before any draft, hash or store exists. `detect` accepts an owned
-    -- snapshot directly so the pin check runs on the validated copy.
-    local owned,fault
-    if Owned.isOwned(config) then
-        owned=config
-    else
-        owned,fault=Owned.construct(config)
-        if not owned then return {ok=false,error=fault} end
-    end
+    -- X-doubleprime: the raw caller table never reaches translation. The ONLY
+    -- constructor that accepts raw input audits the COMPLETE original structure
+    -- (nothing dropped, no lossy pre-copy) and validates its schema rows BEFORE
+    -- any density/element read; any malformed required array or element refuses
+    -- the WHOLE import here — before any draft, hash or store exists.
+    local owned,fault=Owned.construct(config)
+    if not owned then return {ok=false,error=fault} end
     config=owned
-    local detected,detect_error=M.detect(config)
+    local detected,detect_error=M.detectValidated(config)
     if not detected then return {ok=false,error=detect_error} end
     local warnings,unsupported={},{}
     for key in pairs(config) do
@@ -364,102 +366,51 @@ function M.translate(config)
     if not compatible then
         return {ok=false,error={code='invalid_policy',errors=semantic,warnings=warnings,unsupported=unsupported}}
     end
-    -- Register the draft as owned BEFORE hashing, so the hash choke point is
-    -- satisfied by construction rather than by trusting the caller.
-    M.adopt(policy)
-    return {ok=true,draft=policy,warnings=warnings,unsupported=unsupported,
-        version=detected,hash=M.hashPolicy(policy)}
+    -- X-doubleprime: bind the generated draft to canonical bytes BEFORE it
+    -- leaves the importer, so the hash the result reports is the hash of the
+    -- snapshot's validated content (not a projection later re-run on a mutable
+    -- caller table).
+    local snapshot,err=M.policySnapshot(policy,'import_assistant')
+    if not snapshot then
+        return {ok=false,error=err.code=='invalid_policy' and
+            {code='invalid_policy',errors=err.errors,warnings=warnings,unsupported=unsupported}
+            or err}
+    end
+    return {ok=true,draft=assert(Codec.open(snapshot)),snapshot=snapshot,
+        warnings=warnings,unsupported=unsupported,version=detected,hash=snapshot.hash}
 end
 
--- X-prime slice 1 — THE hash choke point. Hashing is only defined for a policy
--- produced by this constructor (`adopt` registers it). A raw table handed
--- straight to `PolicySchema.hash` from outside this importer is not registered
--- and is rejected here; downstream policy construction must go through the
--- importer (or `adopt`, which re-validates before registering). The registry is
--- weak-keyed and lives **outside** the policy, so the policy bytes — and
--- therefore the content hash — are unchanged.
+-- X-doubleprime — the ONE policy snapshot transaction every hash/evaluate/store
+-- sink runs. There is no ownership registry and no value cache: the input is
+-- ALWAYS audited+validated before it is encoded, and the immutable bytes (not
+-- the table) are what downstream state binds. A raw caller table — including a
+-- policy that lost ownership across an ordinary MCP round-trip — works; a
+-- malformed one is refused typed before any hash/encode/store. A snapshot
+-- record is accepted directly: its bytes are immutable and its content is
+-- re-validated under the CURRENT schema by the consumer's `Codec.open`.
 --
--- XPS1-REV-01/REV-02: the registry value is the content hash recorded at
--- registration, so `ownPolicy`/`hashPolicy` can re-check the CURRENT value
--- against what was validated (identity proves history, not the current value).
-local OWNED_POLICIES=setmetatable({},{__mode='k'})
-
-function M.isOwnedPolicy(policy)
-    return type(policy)=='table' and OWNED_POLICIES[policy]~=nil
-end
-
-function M.hashPolicy(policy)
-    if not M.isOwnedPolicy(policy) then
-        error('policy hash requires an owned policy from AssistantAdapter',2)
-    end
-    -- XPS1-REV-02: a hash sink re-checks the recorded content hash before using
-    -- it. An owned policy whose value changed after registration is refused —
-    -- identity alone no longer suffices at a hash/evaluate/store sink.
-    local hash=Schema.hash(policy)
-    if OWNED_POLICIES[policy]~=hash then
-        error('owned policy value changed after registration',2)
-    end
-    return hash
-end
-
--- XPS1-REV-01 — the ONE gate every policy hash/evaluate/store sink runs.
--- Chosen mechanism (stated): RE-CONSTRUCT at the sink.
---
--- * A raw caller table (for example a policy that lost ownership on an ordinary
---   MCP round-trip) is never used as-is: the gate builds a private deep copy
---   (`OwnedImport.snapshot`, no metatable, save-safe), validates it (schema +
---   catalogue), registers the copy and returns it. A malformed policy —
---   including a JSON-encodable malformed condition container — fails
---   validation and is refused BEFORE any hash/evaluate/store.
--- * An already-owned policy is NOT trusted on identity alone (XPS1-REV-02):
---   the gate re-hashes the current value and compares it with the hash
---   recorded at registration (`policy_mutated` on mismatch), and re-validates
---   the invariants (schema + catalogue) before returning it.
---
--- `sink` names the calling sink (validate / dry_run / set_draft / import /
--- load_state) so a refusal is diagnosable.
-function M.ownPolicy(policy,sink)
-    if type(policy)~='table' or policy==Json.null then
-        return nil,{code='policy_not_owned',input=sink,cause='not_a_table'}
-    end
-    local recorded=OWNED_POLICIES[policy]
-    if recorded~=nil then
-        local hash=Schema.hash(policy)
-        if hash~=recorded then
-            return nil,{code='policy_mutated',input=sink,cause='owned_policy_changed',
-                expected=recorded,actual=hash}
-        end
-        local ok,errors=Schema.validate(policy)
-        if not ok then return nil,{code='invalid_policy',errors=errors} end
-        local compatible,semantic=Catalog.verify(policy)
-        if not compatible then return nil,{code='invalid_policy',errors=semantic} end
+-- This replaces the X-prime table-identity mechanism (XPS1-R2-01): identity
+-- proved a past check, not the current value, so any later edit of a returned
+-- copy — schema-valid or not — could change an approved/running policy.
+function M.policySnapshot(policy,sink)
+    if Codec.isSnapshot(policy) then
+        local tree,err=Codec.open(policy)
+        if not tree then return nil,err end
         return policy
     end
-    local snapshot,why=Owned.snapshot(policy)
-    if not snapshot then
-        return nil,{code='policy_not_owned',input=sink,cause=why or 'not_a_table'}
-    end
-    local ok,errors=Schema.validate(snapshot)
-    if not ok then return nil,{code='invalid_policy',errors=errors} end
-    local compatible,semantic=Catalog.verify(snapshot)
-    if not compatible then return nil,{code='invalid_policy',errors=semantic} end
-    OWNED_POLICIES[snapshot]=Schema.hash(snapshot)
-    return snapshot
+    return Codec.prepare(policy,sink or 'policy')
 end
 
--- Register a policy draft as owned after the same schema+catalog validation the
--- importer applies. The importer is the only production caller. XPS1-REV-02:
--- the registry records the content hash at registration so sinks can detect a
--- post-registration value change.
-function M.adopt(policy)
-    if type(policy)~='table' then return nil,{code='not_a_table'} end
-    if OWNED_POLICIES[policy] then return policy end
-    local ok,errors=Schema.validate(policy)
-    if not ok then return nil,{code='invalid_policy',errors=errors} end
-    local compatible,semantic=Catalog.verify(policy)
-    if not compatible then return nil,{code='invalid_policy',errors=semantic} end
-    OWNED_POLICIES[policy]=Schema.hash(policy)
-    return policy
+-- Legacy name for the same transaction (XPS1-R2-01 closes through the bytes).
+M.ownPolicy=M.policySnapshot
+
+-- A raw policy hash: validates first, then projects. Kept for callers that
+-- only need a digest; a malformed value raises a typed error rather than being
+-- hashed (XPS1-R2-03).
+function M.hashPolicy(policy)
+    local snapshot,err=M.policySnapshot(policy,'hash')
+    if not snapshot then error(err and (err.code or 'invalid_policy') or 'invalid_policy',2) end
+    return snapshot.hash
 end
 
 return M

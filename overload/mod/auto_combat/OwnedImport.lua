@@ -1,70 +1,52 @@
--- GPL-3.0-or-later. X-prime slice 1: the ONE constructor that accepts raw
+-- GPL-3.0-or-later. X-doubleprime: the ONE constructor that accepts raw
 -- assistant-import input.
 --
--- Why this module exists (see `tmp/mcp-play-support/astra-defect-family-analysis.md`
+-- Why this module exists (see `tmp/mcp-play-support/astra-defect-family-addendum.md`
 -- and AGENTS.md "边界输入与引擎字段清单"): the recurring defect family is a caller
 -- array that is only *partially* inspected and then measured as if complete.
 -- Patching every hand-written ingress did not terminate the class. This module
--- inverts the ownership: translation never receives a raw caller table. It
--- receives an **owned** snapshot that only `M.construct` can produce, whose
--- required arrays were dense/closed validated over ALL keys *before* any
--- `#`/`ipairs`, and which is read-only and independent of later caller mutation.
+-- keeps the ownership inversion — translation never receives a raw caller
+-- table — but the X-prime table-identity certificate is GONE (XPS1-R2-01/02/03):
+-- an exposed populated Lua table cannot be made immutable, so identity proves
+-- only a past check. What remains is:
 --
--- Bounded claim (do NOT overstate it): this is a runtime invariant for the
--- owned production path, not structural impossibility in unrestricted Lua.
--- `construct` is the single construction choke point; `M.view`/`M.isOwned`
--- gate the owned type. A contributor could still write a *new* raw consumer
--- elsewhere; the policy hash/evaluate/store sinks are additionally gated by
--- `AssistantAdapter.ownPolicy` (XPS1-REV-01), which re-validates at the sink
--- because identity proves history, not the current value (XPS1-REV-02).
+--   * a COMPLETE structural audit of the original input (nothing dropped, no
+--     lossy copy before validation; XPS1-R2-03),
+--   * a private deep copy (no aliasing to caller storage), and
+--   * a per-array-row element validator that really runs (XPS1-R2-04).
+--
+-- The copy is a plain table with no metatable: (a) a Lua 5.1 proxy cannot
+-- support `#`/`ipairs`, and (b) the value must stay engine-save-safe. Because
+-- no Lua-side immutability exists, the authoritative policy state is canonical
+-- BYTES (`PolicyCodec`) and every hash/evaluate/store transaction validates the
+-- exact value it uses.
 local Json=require 'mod.mcp_bridge.Json'
+local Codec=require 'mod.auto_combat.PolicyCodec'
 local M={}
 
 -- Density cause vocabulary. Kept identical to `Json.denseArray`/
 -- `Json.denseFault` (AGENTS.md checklist A) so there is one taxonomy.
 M.CAUSES={not_array=true,hole=true,non_integer_key=true,key_beyond_dense_end=true}
--- Element-shape cause vocabulary (XPS1-REV-03): a schema row flagged
--- `element=true` additionally requires EVERY element to be a table (a
--- non-table element is a WHOLE-IMPORT fault, never a silently dropped entry).
+-- Element-shape cause vocabulary: a schema row flagged `element=true`
+-- requires EVERY element to be a table (a non-table element is a WHOLE-IMPORT
+-- fault, never a silently dropped entry). XPS1-R2-04: the flag is enforced by
+-- `validateSchema` below, not dead.
 M.ELEMENT_CAUSES={invalid_element=true}
 
 -- The schema of caller-supplied arrays this import requires. Every entry is
--- validated by density before translation. `min` is the minimum dense length
--- (0 = an absent/empty list is a valid export). `condition` entries are
--- walked recursively (every `when` tree under a dense `talents` list).
+-- validated by density (and, when flagged, element shape) before translation.
+-- `condition` entries are walked recursively (every `when` tree under a dense
+-- `talents` list).
 --
 -- Adding an ingress is a schema row, not new validation code: the loop below
--- is the only place that decides density.
+-- is the only place that decides density and element shape.
 M.SCHEMA={
-    {path='assistant.addon_version',min=0},
-    {path='assistant.tome_version',min=0},
+    {path='assistant.addon_version',min=0,scalar=true},
+    {path='assistant.tome_version',min=0,scalar=true},
     {path='sustains',min=0,element=true},
     {path='talents',min=0,element=true},
     {path='talents[].when',condition=true},
 }
-
-local OWNED_ROOT_MT={}
-local FROZEN_MT={}
-local function readOnly() error('owned import is read-only',2) end
--- `__newindex` only fires for keys absent from the real table; the deep copy is
--- a normal table, so `pairs`/`ipairs`/`#` keep working in Lua 5.1. The owned
--- type itself is the identity registry below ({}, not a table key), so no
--- sentinel key ever leaks into the caller's data or the hash.
-OWNED_ROOT_MT.__newindex=readOnly
-FROZEN_MT.__newindex=readOnly
--- XPS1-REV-02: protect the private metatables. With `__metatable` set,
--- `getmetatable(owned)` returns only this sentinel string (the real metatable
--- is unreachable through the value, so `__newindex` cannot be stripped) and
--- `setmetatable(owned, ...)` raises. Residual (Lua 5.1, no sandbox):
--- `debug.getmetatable`/`debug.setmetatable` and `rawset` on EXISTING keys
--- cannot be prevented by any Lua-side mechanism; the mitigation is
--- re-validation at the sinks (see AssistantAdapter.ownPolicy), not
--- immutability.
-local PROTECTED_MT='owned import (protected metatable)'
-OWNED_ROOT_MT.__metatable=PROTECTED_MT
-FROZEN_MT.__metatable=PROTECTED_MT
-local OWNED_ROOT_ID="owned-import-root"
-local IDENTITIES=setmetatable({}, {__mode='k'})
 
 local MAX_DEPTH=Json.MAX_DEPTH
 
@@ -74,27 +56,32 @@ local function fault(path,cause,key)
     return out
 end
 
--- Deep copy of the caller input into private storage, preserving `Json.null`
--- and numeric keys. The copy is independent of the caller's table, so a
--- mutation after `construct` cannot change what the importer validated.
--- Bounded by `Json.MAX_DEPTH`.
-local function copyValue(value,depth,seen,isRoot,plain)
+-- Private deep copy of the caller input into fresh storage, preserving
+-- `Json.null`. Every key is copied — an inadmissible (table/exotic) KEY is a
+-- typed `invalid_key` fault, NEVER a silently skipped entry (XPS1-R2-03: the
+-- previous copyValue dropped table-valued keys, so a malformed original could
+-- be validated as a smaller, "valid" document).
+local function copyValue(value,depth,seen)
     if type(value)~='table' then return value end
     if value==Json.null then return Json.null end
     if depth>MAX_DEPTH then return nil,'too_deep' end
-    if seen[value] then return seen[value] end
+    if seen[value] then return nil,'cycle' end
+    seen[value]=true
     local out={}
-    seen[value]=out
     for k,v in pairs(value) do
-        if type(k)~='table' then
-            local copied,why=copyValue(v,depth+1,seen,false,plain)
-            if why then return nil,why end
-            out[k]=copied
+        local kind=type(k)
+        if kind~='string' and not (kind=='number' and k%1==0 and k>=1) then
+            seen[value]=nil
+            return nil,'invalid_key',Codec.keyLabel(k)
         end
+        local copied,why,which=copyValue(v,depth+1,seen)
+        if copied==nil and why then seen[value]=nil; return nil,why,which end
+        out[k]=copied
     end
-    if not plain then setmetatable(out,isRoot and OWNED_ROOT_MT or FROZEN_MT) end
+    seen[value]=nil
     return out
 end
+M.copyValue=copyValue
 
 local function resolve(root,path)
     local node=root
@@ -116,8 +103,7 @@ local function densityFault(path,value)
 end
 
 -- Recursively validate the `all`/`any` lists of a condition tree. A malformed
--- condition array is a WHOLE-IMPORT fault (never "drop this one rule"), which
--- is the property the previous per-rule dropping could not provide.
+-- condition array is a WHOLE-IMPORT fault (never "drop this one rule").
 local function conditionFault(cond,path,depth)
     if type(cond)~='table' or cond==Json.null then return nil end
     if depth>MAX_DEPTH then return nil end
@@ -147,6 +133,28 @@ local function conditionFault(cond,path,depth)
     return nil
 end
 
+-- XPS1-R2-04: the schema rows now really enforce `element` (and `scalar` for
+-- the version tuples). A row flagged `element=true` refuses the whole import
+-- with `invalid_element` + the offending index when any element is not a table;
+-- a `scalar=true` row refuses a non-scalar element.
+local function elementFault(row,value)
+    local _,count=Json.denseArray(value,0)
+    for index=1,count do
+        local element=value[index]
+        if row.element then
+            if type(element)~='table' or element==Json.null then
+                return fault(row.path,'invalid_element',index)
+            end
+        elseif row.scalar then
+            local kind=type(element)
+            if kind~='string' and kind~='number' then
+                return fault(row.path,'invalid_element',index)
+            end
+        end
+    end
+    return nil
+end
+
 local function validateSchema(root)
     for _,row in ipairs(M.SCHEMA) do
         if row.condition then
@@ -170,63 +178,47 @@ local function validateSchema(root)
             if value~=nil then
                 local f=densityFault(row.path,value)
                 if f then return f end
+                if row.element or row.scalar then
+                    f=elementFault(row,value)
+                    if f then return f end
+                end
             end
         end
     end
     return nil
 end
+M.validateSchema=validateSchema
 
 -- THE single construction choke point. Only this function accepts raw caller
--- input. Returns the owned snapshot, or `nil, fault` (a typed
+-- input. Returns the private snapshot, or `nil, fault` (typed
 -- `invalid_document` naming the input/cause/key) with nothing downstream run.
+-- Order (XPS1-R2-03): audit the ORIGINAL structure, then copy, then validate the
+-- copy's schema rows — no hash/encode happens here, and nothing is dropped.
 function M.construct(raw)
     if type(raw)~='table' or raw==Json.null then
         return nil,fault('config','not_array')
     end
-    local snapshot,why=copyValue(raw,0,{},true)
-    if not snapshot then return nil,fault('config',why or 'too_deep') end
+    local audited=Codec.audit(raw,'config')
+    if audited then return nil,audited end
+    local snapshot,why,which=copyValue(raw,0,{})
+    if not snapshot then return nil,fault('config',why or 'too_deep',which) end
     local f=validateSchema(snapshot)
     if f then return nil,f end
-    IDENTITIES[snapshot]=OWNED_ROOT_ID
     return snapshot
 end
 
--- The owned type gate: identity, not a self-declared key. `view` is the only
--- way a consumer obtains the input; a raw caller table is not registered and
--- cannot be viewed. XPS1-REV-02: `view` returns the snapshot itself because a
--- Lua 5.1 proxy cannot support `#`/`ipairs` (the hash/evaluation read paths
--- need them); the value's guarantees are the private deep copy (no aliasing),
--- the absent-key write guard and the protected metatable — and every
--- hash/evaluate/store sink re-validates anyway, so a mutated owned value is
--- refused typed at the sink rather than trusted.
-function M.isOwned(value)
-    return type(value)=='table' and IDENTITIES[value]==OWNED_ROOT_ID
-end
-
-function M.view(owned)
-    if not M.isOwned(owned) then return nil,{code='import_not_owned',input='import'} end
-    return owned
+-- A typed fault for a raw table that fails the same schema, without building a
+-- snapshot (used by tests and by callers that only want the diagnosis).
+function M.check(raw)
+    local owned,faultValue=M.construct(raw)
+    if owned then return true end
+    return nil,faultValue
 end
 
 -- Convenience for callers that already hold a raw table and want the typed
--- fault shape back (the service path and tests). Never bypasses `construct`.
+-- fault shape back. Never bypasses `construct`.
 function M.requireOwned(value)
-    if M.isOwned(value) then return value end
-    local owned,f=M.construct(value)
-    if not owned then return nil,f end
-    return owned
-end
-
--- XPS1-REV-01: a PLAIN deep copy used by the policy sink gate
--- (`AssistantAdapter.ownPolicy`). Unlike `construct` it validates nothing and
--- registers nothing — it only removes aliasing to caller storage, so a policy
--- re-constructed at a sink is a private snapshot whose later mutation by the
--- caller cannot change what was validated/stored/hashed. No metatable is
--- attached (the copy must stay save-safe: it can be persisted with the
--- character via `AutoCombatService.saveState`). Bounded by `Json.MAX_DEPTH`.
-function M.snapshot(raw)
-    if type(raw)~='table' or raw==Json.null then return nil,'not_a_table' end
-    return copyValue(raw,0,{},true,true)
+    return M.construct(value)
 end
 
 return M

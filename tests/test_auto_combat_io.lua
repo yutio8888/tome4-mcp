@@ -13,6 +13,7 @@ root_probe:close()
 package.path=root..'/overload/?.lua;'..package.path
 local Presets=require 'mod.auto_combat.PolicyPresets'
 local PolicyIO=require 'mod.auto_combat.PolicyIO'
+local Codec=require 'mod.auto_combat.PolicyCodec'
 local Schema=require 'mod.auto_combat.PolicySchema'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
 local Json=require 'mod.mcp_bridge.Json'
@@ -86,8 +87,17 @@ do
     invalid.rules[1]['then'].talent='T_NOT_ALLOWED'
     local document,err=PolicyIO.export(invalid)
     check(document==nil and err.code=='invalid_policy','an invalid policy cannot be exported')
-    local payload='{"envelope":"tome-auto-combat-policy","format":1,"policy":'..Schema.canonical(invalid)..'}'
-    local policy,err2=PolicyIO.import(payload)
+    -- X-doubleprime: the full canonical projection (including `updated`) is a
+    -- validated-transaction output; it refuses a malformed policy typed.
+    local projected,proj_err=Codec.canonical(invalid)
+    check(projected==nil and proj_err~=nil,'the canonical projection refuses a malformed policy')
+    -- A structurally valid envelope whose body is unsupported: validation now
+    -- precedes the envelope-hash comparison, so the refusal is invalid_policy
+    -- (never a silent hash_mismatch masking the real fault).
+    local valid_doc=PolicyIO.export(Presets.get('anorithil_p1a'))
+    local payload=Json.decode(valid_doc)
+    payload.policy.rules[1]['then'].talent='T_NOT_ALLOWED'
+    local policy,err2=PolicyIO.import(Json.encode(payload))
     check(policy==nil and err2.code=='invalid_policy','an invalid imported policy is refused')
 end
 

@@ -15,6 +15,7 @@ local Presets=require 'mod.auto_combat.PolicyPresets'
 local PolicyIO=require 'mod.auto_combat.PolicyIO'
 local AssistantAdapter=require 'mod.auto_combat.AssistantAdapter'
 local OwnedImport=require 'mod.auto_combat.OwnedImport'
+local Codec=require 'mod.auto_combat.PolicyCodec'
 local M={}
 M.SOURCE='auto_combat'
 -- Option A (round-3 follow-up): the two safety pauses hand control back to the
@@ -30,6 +31,18 @@ M.SOURCE='auto_combat'
 M.SAFETY_PAUSES={flee_below_hp_pct=true,no_emergency_action=true,
     unexpected_target_request=true,movement_request_value_unknown=true,
     movement_request_kind_unknown=true}
+
+-- X-doubleprime: `running` is an immutable snapshot record. The host is always
+-- built from the transaction's validated working tree handed in by the service,
+-- never from a caller-visible mutable table.
+local function workingPolicy(svc,policy)
+    if policy~=nil then return policy end
+    if svc and svc.store and svc.store.running then
+        return select(1,Codec.open(svc.store.running))
+    end
+    return nil
+end
+M.workingPolicy=workingPolicy
 
 function M.new(options)
     options=options or {}
@@ -83,10 +96,15 @@ function M.status(svc)
     return ok(status)
 end
 
+
 -- INT-06/D10: `get` returns the three actual versions (not only hashes);
 -- `clear` empties the draft only and never the approved/running versions.
+-- X-doubleprime: the returned versions are DETACHED decoded copies, so a
+-- caller mutating the JSON it receives cannot reach the stored bytes.
 function M.get(svc)
-    return ok({draft=svc.store.draft,approved=svc.store.approved,running=svc.store.running,
+    return ok({draft=Store.getVersion(svc.store,'draft'),
+        approved=Store.getVersion(svc.store,'approved'),
+        running=Store.getVersion(svc.store,'running'),
         active=svc.store.active,revision=svc.store.revision,hashes=Store.hashes(svc.store),
         draft_hash=Store.hashes(svc.store).draft,approved_hash=Store.hashes(svc.store).approved,
         running_hash=Store.hashes(svc.store).running})
@@ -101,18 +119,12 @@ function M.clear(svc)
 end
 
 function M.validate(svc,policy)
-    -- XPS1-REV-01: a validate sink requires the owned/re-constructed form — a
-    -- raw caller policy is re-constructed (private copy + validation) here, so
-    -- nothing is hashed from unvalidated input; a malformed policy is refused
-    -- typed before any hash.
-    local owned,err=AssistantAdapter.ownPolicy(policy,'validate')
-    if not owned then return fail(err.code,err) end
-    policy=owned
-    local schema_ok,errors=Schema.validate(policy)
-    if not schema_ok then return fail('invalid_policy',{errors=errors}) end
-    local compatible,semantic=Catalog.verify(policy)
-    if not compatible then return fail('invalid_policy',{errors=semantic}) end
-    return ok({valid=true,hash=Schema.hash(policy)})
+    -- X-doubleprime: a validate sink prepares the COMPLETE input (structural
+    -- audit + schema/catalog validation) before the content hash is projected;
+    -- a malformed policy is refused typed before any encode/hash.
+    local snapshot,err=AssistantAdapter.policySnapshot(policy,'validate')
+    if not snapshot then return fail(err.code,err) end
+    return ok({valid=true,hash=snapshot.hash})
 end
 
 local function findRule(policy,id)
@@ -139,22 +151,36 @@ function M.dryRun(svc,args)
         if policy==nil then policy,source=svc.store.draft,'draft' end
     end
     if policy==nil then return fail('no_policy',{details='no draft, approved or running policy'}) end
-    -- XPS1-REV-01/REV-02: a dry run is a hash+evaluate sink. An explicit request
-    -- policy is re-constructed (private copy + validation); a stored version is
-    -- re-checked against its recorded hash — identity alone is never trusted.
-    local owned,err=AssistantAdapter.ownPolicy(policy,'dry_run')
-    if not owned then return fail(err.code,err) end
-    policy=owned
-    local checked=M.validate(svc,policy)
-    if not checked.ok then return checked end
+    -- X-doubleprime: a dry run is a hash+evaluate transaction. An explicit
+    -- request policy is prepared (complete audit + validation + canonical
+    -- bytes); a stored version is an immutable snapshot record whose bytes are
+    -- re-opened and re-validated under the CURRENT schema. The transaction's
+    -- working tree is a private decode, and the host factory receives a
+    -- DETACHED copy so it cannot change the evaluated value.
+    local snapshot,err=AssistantAdapter.policySnapshot(policy,'dry_run')
+    if not snapshot then return fail(err.code,err) end
     -- Prefer the read-only host; the live executor host is a safe fallback
     -- because dry run never calls request()/execute(). Either way this ignores
     -- `allow_auto_combat_execution`: dry run only needs audited reads.
     local factory=svc.dry_run_host_factory or svc.host_factory
     if not factory then return fail('snapshot_unavailable',{details='no audited read host'}) end
-    local host=factory(svc,policy)
+    -- The factory receives a detached copy, not the evaluated working tree, and
+    -- the evaluated value comes from an independent private decode of the same
+    -- immutable bytes; the hash is re-derived from the bytes after the callback.
+    local isolated=assert(Codec.copy(snapshot))
+    local host
+    do
+        local ok,returned=pcall(factory,svc,isolated)
+        if not ok or type(returned)~='table' then return fail('snapshot_unavailable') end
+        host=returned
+    end
+    policy=assert(Codec.open(snapshot))
     if not host or type(host.snapshot)~='function' then return fail('snapshot_unavailable') end
-    local policy_hash=Schema.hash(policy)
+    local policy_hash=Codec.hash(snapshot)
+    -- The hash cannot move (a snapshot's bytes are immutable); this is a
+    -- defensive assertion, reported with the registered `policy_conflict` code
+    -- (no new protocol code is introduced).
+    if policy_hash==nil then return fail('policy_conflict',{cause='snapshot_changed'}) end
     local default_selector=policy.targeting and policy.targeting.default
     local function snapshotFor(selector)
         local rc=host.snapshot(selector) or {}
@@ -321,13 +347,32 @@ function M.dryRun(svc,args)
         results=decision.results or {},unsupported=Json.array()})
 end
 
+-- X-doubleprime hash consumers: every lifecycle/status/log/replay sink reports
+-- the running snapshot's recorded hash. A snapshot is immutable bytes, so this
+-- cannot drift; a missing/foreign running version reports nil.
+local function runningHash(svc)
+    local snapshot=Store.getSnapshot(svc.store,'running')
+    if not snapshot then return nil end
+    return snapshot.hash
+end
+M.runningHash=runningHash
+
+-- Validate the running snapshot under the CURRENT schema and return a private
+-- working tree for this transaction (the controller/lifecycle consumer's read
+-- surface). A malformed or tampered snapshot is refused typed rather than
+-- silently consumed.
+local function runningWorking(svc,sink)
+    local snapshot=Store.getSnapshot(svc.store,'running')
+    if not snapshot then return nil,{code='no_policy',input=sink} end
+    return Codec.open(snapshot)
+end
+M.runningWorking=runningWorking
+
 function M.setDraft(svc,policy,expected_hash)
-    -- XPS1-REV-01: a store sink requires the owned/re-constructed form. The
-    -- gate's private copy is what gets stored, so a later mutation of the
-    -- caller's table cannot change the stored draft.
-    local owned,err=AssistantAdapter.ownPolicy(policy,'set_draft')
-    if not owned then return fail(err.code,err) end
-    local stored,err=Store.setDraft(svc.store,owned,expected_hash)
+    -- X-doubleprime: a store sink prepares the COMPLETE raw policy (audit +
+    -- validation + encode) and stores the immutable bytes, so a later mutation
+    -- of the caller's table cannot change the stored draft.
+    local stored,err=Store.setDraft(svc.store,policy,expected_hash)
     if not stored then return fail(err.code,err) end
     svc.revision=svc.revision+1
     return ok(stored)
@@ -346,7 +391,7 @@ end
 -- never ahead of the executor.
 function M.activate(svc,expected_hash)
     if not svc.store.approved then return fail('not_approved') end
-    local previous_running=svc.store.running and Schema.hash(svc.store.running) or nil
+    local previous_running=runningHash(svc)
     local granted,reason=Arbiter.grant(svc.arbiter,M.SOURCE,'auto-combat activated')
     if not granted then return fail(reason,{control_owner=svc.arbiter.owner}) end
     local activated,err=Store.activate(svc.store,expected_hash)
@@ -354,7 +399,7 @@ function M.activate(svc,expected_hash)
         Arbiter.revoke(svc.arbiter,M.SOURCE,'activation failed')
         return fail(err.code,err)
     end
-    local now_running=Schema.hash(svc.store.running)
+    local now_running=runningHash(svc)
     if svc.controller and svc.controller.state~='stopped' and previous_running~=nil
         and previous_running~=now_running then
         svc.controller:stop('policy_replaced')
@@ -388,9 +433,15 @@ function M.start(svc)
             return fail('control_not_held',{control_owner=svc.arbiter.owner,reason=reason})
         end
     end
-    local host=svc.host_factory(svc)
+    -- X-doubleprime: hand the controller a private working tree derived from
+    -- the immutable running bytes (not a caller-visible table), and keep the
+    -- snapshot record so every later step can verify the controller still holds
+    -- exactly the approved content.
+    local working,err=runningWorking(svc,'start')
+    if not working then return fail(err.code,err) end
+    local host=svc.host_factory(svc,working)
     if not host then return fail('execution_not_available') end
-    svc.controller=Combat.new(svc.store.running,host,{strict=svc.strict,notify=function(event)
+    svc.controller=Combat.new(working,host,{strict=svc.strict,policy_snapshot=Store.getSnapshot(svc.store,'running'),notify=function(event)
         Log.add(svc.log,withContext(svc,{kind=event.kind,reason=event.reason,rule=event.rule,talent=event.talent,
             target=event.target,action=event.action,elapsed_ticks=event.elapsed_ticks,
             elapsed_frames=event.elapsed_frames,generation=event.generation,
@@ -404,8 +455,9 @@ function M.start(svc)
             -- D-2: a native refusal's structured cooldown/requirement detail
             -- reaches the policy log (bounded, type-guarded in PolicyLog).
             missing=event.missing,hint=event.hint,native_message=event.native_message,
-            policy_hash=Schema.hash(svc.store.running)}))
+            policy_hash=runningHash(svc)}))
     end})
+    svc.controller_snapshot=Store.getSnapshot(svc.store,'running')
     local started=svc.controller:start()
     return ok({run=started,state=svc.controller.state,generation=svc.controller.generation})
 end
@@ -420,7 +472,7 @@ function M.stop(svc,reason)
     -- run boundary. A stop of an already-stopped run stays silent (dedupe).
     if previous and previous~='stopped' then
         Log.add(svc.log,withContext(svc,{kind='stopped',reason=reason,generation=generation,
-            policy_hash=svc.store.running and Schema.hash(svc.store.running) or nil}))
+            policy_hash=runningHash(svc)}))
     end
     return ok({state='stopped'})
 end
@@ -515,7 +567,7 @@ function M.step(svc)
     local before=resourcesOf(host)
     local step=svc.controller:onOpportunity()
     local after=resourcesOf(host)
-    local policy_hash=Schema.hash(svc.store.running)
+    local policy_hash=runningHash(svc)
     -- Option A: a safety pause hands control straight back to the player. Stop
     -- the run and release the lease so a remote act needs no reconnect and
     -- `resume` refuses. The pause transition was already logged once by the
@@ -572,7 +624,7 @@ function M.replay(svc,args)
     local entries=Log.slice(svc.log,after,limit)
     local header={
         schema=Schema.SCHEMA,
-        policy_hash=svc.store.running and Schema.hash(svc.store.running) or nil,
+        policy_hash=runningHash(svc),
         session_revision=svc.revision,
         control_owner=svc.arbiter.owner,
         run_state=svc.controller and svc.controller.state or 'stopped',
@@ -593,26 +645,32 @@ end
 function M.preset(svc,name)
     local policy=Presets.copy(name)
     if not policy then return fail('unknown_preset',{name=name}) end
-    return ok({policy=policy,hash=Schema.hash(policy)})
+    -- X-doubleprime: `preset` is a hash/evaluate/store sink like any other, so
+    -- the built-in source passes the SAME complete transaction before its hash
+    -- is reported. A drifted preset source is refused typed (XPS1-R2-01).
+    local snapshot,err=AssistantAdapter.policySnapshot(policy,'preset')
+    if not snapshot then return fail(err.code,err) end
+    return ok({policy=assert(Codec.open(snapshot)),hash=snapshot.hash})
 end
 
 function M.export(svc)
-    local source=svc.store.draft or svc.store.approved
+    local source=Store.getSnapshot(svc.store,'draft') or Store.getSnapshot(svc.store,'approved')
     if not source then return fail('no_policy') end
-    local document,err=PolicyIO.export(source)
-    if not document then return fail(err.code,err) end
-    return ok({document=document,hash=Schema.hash(source)})
+    local policy,err=Codec.open(source)
+    if not policy then return fail(err.code,err) end
+    local document,io_err=PolicyIO.export(policy)
+    if not document then return fail(io_err.code,io_err) end
+    return ok({document=document,hash=source.hash})
 end
 
 function M.import(svc,document)
     local policy,info=PolicyIO.import(document)
     if not policy then return fail(info.code,info) end
-    -- XPS1-REV-01: the decoded policy enters the service through the same
-    -- re-construct gate as every other raw policy; the owned copy (not the
-    -- decoded caller table) is returned and hashed.
-    local owned,err=AssistantAdapter.ownPolicy(policy,'import')
-    if not owned then return fail(err.code,err) end
-    return ok({policy=owned,hash=Schema.hash(owned)})
+    -- X-doubleprime: the decoded document is the untrusted input at this sink;
+    -- it is prepared (audited + validated + encoded) before any hash or store.
+    local snapshot,err=AssistantAdapter.policySnapshot(policy,'import')
+    if not snapshot then return fail(err.code,err) end
+    return ok({policy=assert(Codec.open(snapshot)),hash=snapshot.hash})
 end
 
 -- Generation-only import of a pinned legacy-assistant export. Produces a policy
@@ -632,50 +690,55 @@ function M.importAssistant(svc,args)
         config=decoded
     end
     if type(config)~='table' then return fail('invalid_argument',{details='config must be an object'}) end
-    -- X-prime slice 1: the raw import is validated by the SINGLE constructor
-    -- BEFORE translation, before hashing and before any store. A malformed
-    -- required array refuses the whole import with a typed fault and produces
-    -- no draft/store side effect. The owned snapshot is what translation and
-    -- hashing consume; the raw path is not reachable from here.
+    -- X-doubleprime: the raw import is fully audited and schema-row validated by
+    -- the SINGLE constructor BEFORE translation, before hashing and before any
+    -- store. A malformed required array or element refuses the whole import with
+    -- a typed fault (input/cause/key) and produces no draft/store side effect.
     local owned,fault=OwnedImport.construct(config)
     if not owned then
-        -- keep the code at the envelope level; details carries input/cause/key
         return fail(fault.code,{input=fault.input,cause=fault.cause,key=fault.key})
     end
     local result=AssistantAdapter.translate(owned)
     if not result.ok then return fail(result.error.code,result.error) end
     local stored=nil
     if args.store==true then
-        local saved,err=Store.setDraft(svc.store,result.draft,args.expected_hash)
+        -- `store=true` is a store sink and goes through the same bytes
+        -- transaction as `set_draft` (no exemption); `store=false` leaves no
+        -- draft and advances no revision.
+        local saved,err=Store.setDraft(svc.store,result.snapshot,args.expected_hash)
         if not saved then return fail(err.code,err) end
         svc.revision=svc.revision+1
         stored=saved
     end
-    return ok({imported=true,draft=result.draft,hash=result.hash,warnings=result.warnings,
-        unsupported=result.unsupported,version=result.version,stored=stored})
+    return ok({imported=true,draft=assert(Codec.open(result.snapshot)),hash=result.hash,
+        warnings=result.warnings,unsupported=result.unsupported,version=result.version,stored=stored})
 end
 
 -- Character persistence: draft/approved follow the character, running state and
 -- control do not (reading a character never resumes automatic action).
+-- X-doubleprime: the persisted form is the detached decoded copy (the immutable
+-- bytes themselves are runtime-only and are re-derived by `loadState`).
 function M.saveState(svc)
-    return {format=1,draft=svc.store.draft,approved=svc.store.approved}
+    return {format=2,draft=Store.getVersion(svc.store,'draft'),
+        approved=Store.getVersion(svc.store,'approved')}
 end
 
 function M.loadState(svc,data)
     if type(data)~='table' then return false end
-    -- XPS1-REV-01: restored versions enter through the same re-construct gate;
-    -- the store only ever holds private validated copies (also save-safe on the
-    -- next saveState).
-    local function restored(policy)
-        if type(policy)~='table' then return nil end
-        return AssistantAdapter.ownPolicy(policy,'load_state')
+    -- X-doubleprime: restored versions are re-prepared under the CURRENT schema
+    -- (audit + validation + fresh bytes) and the running version/control are
+    -- dropped. Merely loading policy data never resumes running control.
+    local function restored(raw,sink)
+        if type(raw)~='table' then return nil end
+        return AssistantAdapter.policySnapshot(raw,sink)
     end
-    local draft=restored(data.draft)
+    local draft=restored(data.draft,'load_state')
     if draft then svc.store.draft=draft end
-    local approved=restored(data.approved)
+    local approved=restored(data.approved,'load_state')
     if approved then svc.store.approved=approved end
     svc.store.running=nil; svc.store.active=false
     svc.controller=nil
+    svc.controller_snapshot=nil
     return true
 end
 

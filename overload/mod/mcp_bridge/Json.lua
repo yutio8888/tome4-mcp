@@ -3,6 +3,13 @@ local M = { MAX_DEPTH = 64 }
 local array_mt = { __mcp_json_array = true }
 M.null = setmetatable({}, { __tostring = function() return 'json.null' end })
 function M.array(value) return setmetatable(value or {}, array_mt) end
+-- The ONE way to ask whether a table carries the decoder/constructor array
+-- marker. Callers that must refuse every OTHER metatable (the X-doubleprime
+-- policy codec's structural audit) use this instead of comparing against a
+-- private metatable they cannot see.
+function M.isArrayMarked(value)
+    return type(value)=='table' and getmetatable(value)==array_mt
+end
 -- The project's ONE dense/closed array validator (AGENTS.md checklist A): a
 -- caller-supplied array is only usable with `#`/`ipairs` once every key is a
 -- positive integer, there are no holes, and no keys beyond the dense end.

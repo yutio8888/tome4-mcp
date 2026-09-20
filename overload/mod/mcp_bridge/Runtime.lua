@@ -520,7 +520,12 @@ function M.reset(g)
     -- remote command slot (the changed() guard below skips it).
     if config and config.settings and config.settings.tome_mcp_bridge
         and config.settings.tome_mcp_bridge.allow_auto_combat_execution==true then
-        s.auto_combat.host_factory=function(svc) return buildAutoCombatHost(s,svc.store.running) end
+        s.auto_combat.host_factory=function(svc,policy)
+            -- X-doubleprime: the service always hands in the transaction's
+            -- validated working tree; fall back to re-opening the running
+            -- snapshot for a defensive direct caller.
+            return buildAutoCombatHost(s,policy or AutoCombat.workingPolicy(svc))
+        end
     end
     s.snapshots={};s.snapshot_bytes=0
     s.connection_generation=1
@@ -2400,7 +2405,12 @@ function M.setAutoCombatExecution(g,enabled)
     if not s or s.game~=g then return false end
     if enabled then
         if not s.auto_combat.host_factory then
-            s.auto_combat.host_factory=function(svc) return buildAutoCombatHost(s,svc.store.running) end
+            s.auto_combat.host_factory=function(svc,policy)
+                -- X-doubleprime: the service always hands in the transaction's
+                -- validated working tree; fall back to re-opening the running
+                -- snapshot for a defensive direct caller.
+                return buildAutoCombatHost(s,policy or AutoCombat.workingPolicy(svc))
+            end
         end
     else
         if s.auto_combat.controller and s.auto_combat.controller.state~='stopped' then

@@ -177,8 +177,11 @@ do
     local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
     Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
     Service.handle(svc,'start',{})
-    -- Critical HP with no emergency rule left in the policy.
+    -- Critical HP with no emergency rule left in the policy. The controller's
+    -- transaction-boundary snapshot is patched first so the deliberate
+    -- no-emergency edit is not read as a policy tamper.
     svc.controller.policy.rules={}
+    svc.controller.policy_snapshot=nil
     svc.controller.host.snapshot=function() return {hp_pct=10,enemy_count=1} end
     local stepped=Service.step(svc)
     check(stepped.ok and stepped.step.reason=='no_emergency_action','no_emergency_action pauses')

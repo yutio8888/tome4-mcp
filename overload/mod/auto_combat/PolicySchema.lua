@@ -587,42 +587,28 @@ function M.validate(policy)
     return true
 end
 
--- Deterministic canonical encoding: arrays keep order, object keys are sorted.
-local function canonical(value)
-    if type(value)~='table' then
-        if type(value)=='string' then return Json.encode(value) end
-        return tostring(value)
-    end
-    if #value>0 then
-        local parts={}
-        for i=1,#value do parts[#parts+1]=canonical(value[i]) end
-        return '['..table.concat(parts,',')..']'
-    end
-    local keys={}
-    for key in pairs(value) do keys[#keys+1]=key end
-    table.sort(keys)
-    local parts={}
-    for _,key in ipairs(keys) do parts[#parts+1]=Json.encode(key)..':'..canonical(value[key]) end
-    return '{'..table.concat(parts,',')..'}'
-end
+-- X-doubleprime: the one content-hash entry point. The authoritative policy
+-- state is canonical bytes (see `mod.auto_combat.PolicyCodec`), so this module
+-- no longer exposes a raw hasher: `M.hash` validates its argument first.
+-- `M.canonical` is the full canonical projection (including `updated`); a
+-- validated document is required, so a malformed table can never reach the
+-- projection (XPS1-R2-03).
+local function codec() return require 'mod.auto_combat.PolicyCodec' end
 
--- `updated` is editable metadata and must not change the content hash.
 function M.canonical(policy)
-    local copy={}
-    for key,value in pairs(policy) do if key~='updated' then copy[key]=value end end
-    return canonical(copy)
+    local value,err=codec().canonical(policy)
+    if value==nil then error(err or 'canonical requires a validated policy',2) end
+    return value
 end
 
 function M.hash(policy)
-    local data=M.canonical(policy)
-    local ok,md5=pcall(require,'md5')
-    if ok and type(md5)=='table' and md5.sumhexa then return md5.sumhexa(data) end
-    -- Deterministic FNV-1a fallback for environments without the md5 module.
-    local hash=2166136261
-    for i=1,#data do
-        hash=bit.bxor(hash,data:byte(i))
-        hash=bit.band(hash*16777619,0xffffffff)
-    end
-    return string.format('%08x',hash)
+    local value,err=codec().hash(policy)
+    if value==nil then error(err and (err.code or 'hash_failed') or 'hash_failed',2) end
+    return value
+end
+
+-- The structured (non-throwing) form used by the codec/sinks.
+function M.project(policy)
+    return codec().hash(policy)
 end
 return M

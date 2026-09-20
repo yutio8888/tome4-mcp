@@ -482,10 +482,12 @@ local function assistantImport()
     signals[#signals+1]=reported and 'unsupported_reported' or 'unsupported_missing'
     check('assistant-import:unsupported',reported,generated and result.unsupported)
     local service=Runtime.autoCombatService(game)
-    local approved_before=service.store.approved
+    -- X-doubleprime: `store.approved` is an immutable snapshot record, so the
+    -- comparison is on its recorded hash (not a mutable table identity).
+    local approved_before=service.store.approved and service.store.approved.hash
     local stored=Runtime.autoCombatHandle(game,'import_assistant',{config=config,store=true})
     local store_ok=stored and stored.ok==true and stored.stored and stored.stored.draft_hash
-        and service.store.approved==approved_before
+        and (service.store.approved and service.store.approved.hash)==approved_before
     signals[#signals+1]=store_ok and 'stored' or 'store_failed'
     check('assistant-import:store',store_ok,stored)
     local wrong=Runtime.autoCombatHandle(game,'import_assistant',
