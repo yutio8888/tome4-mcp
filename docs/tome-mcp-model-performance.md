@@ -284,3 +284,28 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
 3. **更新 `VALIDATION.md`**：记录 v1.6 原则在**代码与文档两侧**的落地——"不追求运行期入口=原生入口的
    严格审计"、"读取无纯度/RNG 门"、"无插件级策略门（限制属 preset 默认）"，并注明本条为现行验收口径。
 4. **账本写入** S1 rev8 的最终 loop 结果（该 loop 仍是 A 任务的延续；下一个独立任务起用 B）。
+
+## Loop: X″ 边界重构（refactor/xdoubleprime-bytes → main，合并 `5628fe0`）
+
+| 阶段 | 角色 | 模型 |
+| --- | --- | --- |
+| rev1 → rev2 修复 | [Dev] | A `commandcode/deepseek/deepseek-v4.1-flash`（thinking high） |
+| rev2 评审 | [Review] | **GPT-5.6 Sol** `openai-codex/gpt-5.6-sol`（high）→ DO_NOT_MERGE（2×P1+3×P2） |
+| closure 实施（vault/重入/policy_id/clear/UTF-8/文档） | [Dev] | A（同上） |
+| closure 评审（fresh） | [Review] | **Sol** → MERGE（P0–P2=0，2×P3） |
+| P3 修复 ×2（文档） | [Dev] | A（同上） |
+| P3 复核 ×2 | [Review] | **Sol**（复用，复核自身 finding）→ MERGE，最终 P0–P3=0 |
+| 独立对抗验证（vault/重入/复现 L5 工件） | 协调者（本对话） | — |
+
+**结果**：X″ 已合入 `main`（`5628fe0`），`dist` sha `1bd60e6b…`。
+**序列事实**：本轮 [Dev] 使用模型 A。**下一独立 [Dev] loop 应使用模型 B**
+（`opencode-go/glm-5.3-flash`）。[Test] 序列独立计数，最近一轮为 B（`18359eae`），
+**下一独立 [Test] loop 应使用模型 A**。
+
+### 重要教训（写入预防口径）
+1. **"不传 `svc` 参数"不能阻止闭包共享 `svc`**——回调隔离必须靠**事务前后权威比对**，不能靠参数裁剪。
+2. **"唯一表键不可伪造"≠"值不可达"**——`pairs` 仍可枚举；权威必须移出公共表（词法私有）。
+3. **P1 计数不等于可无限收敛**：当新 P1 只能由**同进程 Lua**触发时，应停止对抗性加固，
+   按 `AGENTS.md` 明确"不与其它 addon 对抗"并**如实收窄声明**（本轮即此决策）。
+4. **工具链观察若无法保留复现，不得断言根因**；保留工件后，协调者的独立复现使证据从"未复现"升级为
+   "已复现、micro-cause 仍为 hypothesis"。
