@@ -141,12 +141,34 @@ directly in `tests/test_auto_combat_owned_import.lua`.
 ## Deliverable C — the old checker is honest, not a gate
 
 `tools/check_boundary_rules.py` is **not on this branch** (it lives on
-`feat/boundary-selfcheck`, and `main` has no such file). Per the brief it stays
-there; no third regex round was attempted. The checker was given one bounded
-honesty change on its own branch (registering the migrated `AssistantAdapter`
-ingress and narrowing its printed claim so a green run never reads as a global
-semantic PASS); the prevention responsibility is stated in its header as
-**moved to the constructors**. `tests/run.sh` on this branch does not gate on it.
+`feat/boundary-selfcheck`; `main` has no such file). Per the brief it stays
+there. On that branch it received one bounded **honesty** change (commit
+`374d6bf`, no regex added): the printed A line and summary now say explicitly
+that the A PASS is **scoped to the registered ingress only** and is *not* a
+global semantic PASS, and the module header records that the prevention
+responsibility **moved to the constructors**.
+
+Registration of the migrated `AssistantAdapter` ingress was **not** applied on
+that branch: the registry rot-check would fail there because the constructor
+(`OwnedImport.lua`) and the reworked ingress exist only on this branch. The
+registration belongs in the change that carries the migration; it is a schema
+row, not new validation code. No third regex round was attempted.
+
+## What still accepts raw input (precise)
+
+| entry point | raw? | note |
+| --- | --- | --- |
+| `OwnedImport.construct(raw)` | **yes** | the ONLY raw array reader; validates + copies |
+| `AssistantAdapter.translate/detect(config)` | accepts raw, but immediately calls `construct` | owned input is passed through |
+| `AutoCombatService.importAssistant` | accepts raw, calls `construct` first | draft/hash/store only after ownership |
+| `PolicySchema.validate`, `PolicyEvaluator`, `PolicyIO.import`, `PolicyStore.setDraft` | **yes (unmigrated)** | these are policy-shaped sinks; slice 1 owns the *import producer*, not every policy consumer — slice 2/3 territory, stated honestly |
+
+A future contributor wanting to bypass the importer would have to write a new
+raw consumer of a policy table that skips `OwnedImport.construct`. That is
+*not* structurally impossible in dynamic Lua, and is not claimed to be.
+Compared with the old scheme it is **harder in the bounded sense**: there is now
+one named construction point and one hash choke point to route through instead
+of N hand-written ingresses each silently trusted.
 
 ## Invariants (unchanged)
 
