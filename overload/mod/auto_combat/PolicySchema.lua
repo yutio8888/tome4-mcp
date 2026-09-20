@@ -97,7 +97,15 @@ M.TALENTS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_HEALING_LIGHT=true,
     -- S2-R4-01: T_VAULT (agility) is deliberately absent — it is a MIXED
     -- movement/effect talent reserved for the S3 composition slice (typed reason
     -- `movement_effect_composition_required` in EffectManifest.UNSUPPORTED).
-    T_SKIRMISHER_VAULT=true,T_DIMENSIONAL_STEP=true}
+    T_SKIRMISHER_VAULT=true,T_DIMENSIONAL_STEP=true,
+    -- S3 movement/effect composition admissions (Shadowstep first; Giant Leap
+    -- and the agility Vault follow in their own commits).
+    T_SHADOWSTEP=true,
+    -- S3 admission 2: Giant Leap (actual-centered radius-1 weapon/daze leap).
+    T_GIANT_LEAP=true,
+    -- S3 admission 3: the agility Vault (two-prompt mixed program; NOT the
+    -- acrobatics T_SKIRMISHER_VAULT, which is a different single-prompt talent).
+    T_VAULT=true}
 M.SUSTAINS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_WEAPON_OF_LIGHT=true,
     T_ARCANE_POWER=true,T_SHIELDING=true,T_DARK_RITUAL=true,T_BERSERKER_RAGE=true,
     T_DAUNTING_PRESENCE=true}
@@ -119,6 +127,23 @@ local function denseList(value)
     if ok then return count end
     return nil,select(2,Json.denseFault(value))
 end
+
+-- S3-A2-FIX1-03 (rebased onto X''): the schema and the evaluator share ONE
+-- validated count so a sparse list can never be truncated differently by the
+-- two layers. The density LOOP itself lives only in `Json.denseArray` (the
+-- X-doubleprime authoritative validator); `denseCount`/`isDenseArray` are thin
+-- delegations that keep the S3 exported entry points (`M.denseCount` is
+-- consumed by PolicyEvaluator and AssistantAdapter) with no parallel
+-- validator. JSON-encodable key universe and fault taxonomy match
+-- Json.denseArray/denseFault exactly.
+local function denseCount(t)
+    local ok,count=Json.denseArray(t)
+    if ok then return count end
+    return nil
+end
+M.denseCount=denseCount
+local function isDenseArray(t) return denseCount(t)~=nil end
+M.isDenseArray=isDenseArray
 
 local function onlyKeys(t,allowed,path,errors)
     for key in pairs(t) do

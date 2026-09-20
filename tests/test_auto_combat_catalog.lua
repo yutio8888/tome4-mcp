@@ -138,34 +138,29 @@ do
     check(depth<=4,'the movement detail projection is depth-bounded')
 end
 
--- S2-R4-01: the capability catalogue must not expose the agility Vault as an
--- executable adapter, and its unsupported disposition must carry the typed
--- `movement_effect_composition_required` reason (not a generic failure).
+-- S3 admission 3 (V-U6): the agility Vault IS a catalogue adapter now — a MIXED
+-- movement/effect entry with the ordered actor-then-grid program and two direct
+-- components; its unsupported disposition is gone. The acrobatics
+-- T_SKIRMISHER_VAULT is a different talent and stays admitted unchanged.
 do
-    check(not Catalog.supported('T_VAULT'),'the agility Vault is NOT a catalogue adapter')
-    check(Catalog.entry('T_VAULT')==nil,'the agility Vault resolves to no executable descriptor')
-    check(Catalog.manifestEntry('T_VAULT')==nil,'the agility Vault has no manifest entry')
-    local unsupported={}
-    for _,entry in ipairs(Catalog.UNSUPPORTED or {}) do
-        if entry.talent=='T_VAULT' then unsupported[#unsupported+1]=entry end
+    check(Catalog.supported('T_VAULT'),'the agility Vault is a catalogue adapter (V-U6)')
+    local entry=Catalog.entry('T_VAULT')
+    check(entry~=nil and entry.kind=='movement' and entry.target=='hostile',
+        'the agility Vault resolves to the hostile mixed descriptor (V-U6)')
+    check(Catalog.manifestEntry('T_VAULT')~=nil,'the agility Vault has its manifest entry (V-U6)')
+    local unsupportedCount=0
+    for _,u in ipairs(Catalog.UNSUPPORTED or {}) do
+        if u.talent=='T_VAULT' then unsupportedCount=unsupportedCount+1 end
     end
-    check(#unsupported==1,'the agility Vault is surfaced exactly once in the unsupported list')
-    check(unsupported[1].missing=='movement_effect_composition_required',
-        'the unsupported disposition is the typed movement_effect_composition_required reason')
-    check(type(unsupported[1].reason)=='string' and #unsupported[1].reason>0,
-        'the typed reason carries a human-readable explanation')
-    -- The summary the client reads must publish the same typed reason.
-    local summary=Catalog.summary()
-    local published
-    for _,entry in ipairs(summary.unsupported or {}) do
-        if entry.talent=='T_VAULT' then published=entry end
-    end
-    check(published~=nil and published.missing=='movement_effect_composition_required',
-        'the capability summary publishes the typed Vault reason')
-    -- T_SKIRMISHER_VAULT (acrobatics) is a different talent and stays admitted.
+    check(unsupportedCount==0,'the agility Vault no longer appears in the unsupported list (V-U6)')
+    -- T_SKIRMISHER_VAULT (acrobatics) is a different talent and stays admitted,
+    -- component-free and unchanged (V-U6 byte-equivalence checked in the
+    -- movement-factory test).
     check(Catalog.supported('T_SKIRMISHER_VAULT'),'T_SKIRMISHER_VAULT stays a catalogue adapter')
     check(Catalog.entry('T_SKIRMISHER_VAULT').kind=='movement',
         'T_SKIRMISHER_VAULT stays a movement descriptor')
+    check(#(Catalog.entry('T_SKIRMISHER_VAULT').components or {})==0,
+        'T_SKIRMISHER_VAULT stays component-free (V-U6)')
 end
 
 -- P1b native-activity action adapters --------------------------------------
@@ -227,6 +222,40 @@ do
         if error.code=='selector_not_hostile' then omittedCode=true end
     end
     check(omittedCode,'an omitted self step selector is rejected for a hostile talent')
+    -- S3-A2-R3: the catalogue consumes `#`/`ipairs` over the caller-supplied
+    -- plan, so a sparse plan (a hidden key beyond the dense end) must be
+    -- rejected at the catalogue too — never silently truncated into a shorter
+    -- matching plan (reviewer SPARSE_TARGET_PLAN line: schema=false AND
+    -- catalog=false).
+    local sparsePlan={}
+    sparsePlan[1]={request='actor',selector='nearest_hostile'}
+    sparsePlan[2]={request='grid',destination={selector='position',x=6,y=2,accept=accept}}
+    sparsePlan[5]={request='NOT_A_REAL_ENUM'}
+    local sparsePolicy=policy({id='vault',priority=1,when={always={}},['then']={action='use_talent',
+        talent='T_VAULT',target='nearest_hostile',target_plan=sparsePlan,
+        destination={selector='position',x=6,y=2,accept=accept}}})
+    local sparseOk,sparseErrors=Catalog.verify(sparsePolicy)
+    local sparseCode=false
+    for _,error in ipairs(sparseErrors or {}) do
+        if error.code=='target_plan_not_dense' then sparseCode=true end
+    end
+    check(sparseOk==nil and sparseCode,
+        'a sparse target_plan with a hidden key-5 entry is rejected by the catalogue (R3)',
+        sparseErrors and sparseErrors[1] and sparseErrors[1].code)
+    -- S3-A2-FIX1-03: the catalogue's own `rules`/`sustains` walks are
+    -- dense-and-closed BEFORE iteration; a hidden rule beyond a hole must not be
+    -- silently dropped from the compatibility check.
+    local sparseRulesPolicy=policy({id='sparse-rules',priority=1,when={always={}},['then']={action='wait'}})
+    sparseRulesPolicy.rules={[1]={id='a',priority=1,when={always={}},['then']={action='wait'}},
+        [3]={id='c',priority=1,when={always={}},['then']={action='wait'}}}
+    local srOk,srErrors=Catalog.verify(sparseRulesPolicy)
+    local srCode=false
+    for _,error in ipairs(srErrors or {}) do
+        if error.code=='rules_not_dense' then srCode=true end
+    end
+    check(srOk==nil and srCode,
+        'the catalogue rejects a sparse rules array (FIX1-03)',
+        srErrors and srErrors[1] and srErrors[1].code)
     local summary=Catalog.summary()
     check(#summary.actions>=6 and summary.adapter_version==Catalog.VERSION,
         'the capability summary lists the action adapters and the adapter version')

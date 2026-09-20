@@ -61,6 +61,12 @@ TALENTS = {
     # S1 movement-adapter factory admissions.
     "T_SKIRMISHER_VAULT": ("data/talents/techniques/acrobatics.lua", "Vault"),
     "T_DIMENSIONAL_STEP": ("data/talents/chronomancy/spacetime-weaving.lua", "Dimensional Step"),
+    # S3 movement/effect composition admissions (Shadowstep first).
+    "T_SHADOWSTEP": ("data/talents/cunning/shadow-magic.lua", "Shadowstep"),
+    "T_GIANT_LEAP": ("data/talents/uber/str.lua", "Giant Leap"),
+    # S3 admission 3: the AGILITY Vault (techniques/agility.lua) — NOT the
+    # acrobatics T_SKIRMISHER_VAULT above, which is a different talent.
+    "T_VAULT": ("data/talents/techniques/agility.lua", "Vault"),
 }
 
 # Talents whose `t.target` builder the guard reads. The generator pins the exact
@@ -73,6 +79,11 @@ BUILDER_TALENTS = {
     "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL",
     # S1 movement adapters expose a native target builder.
     "T_SKIRMISHER_VAULT", "T_DIMENSIONAL_STEP",
+    # S3 mixed entries: the real raised spec feeds the guard precheck and (for
+    # projected components) the guard footprint flags.
+    "T_SHADOWSTEP", "T_GIANT_LEAP",
+    # Vault's real raised actor spec feeds the guard precheck.
+    "T_VAULT",
 }
 
 # Movement talents whose `action` body the adapter semantics depend on. The
@@ -81,6 +92,10 @@ BUILDER_TALENTS = {
 ACTION_TALENTS = {
     "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL", "T_PHASE_DOOR",
     "T_SKIRMISHER_VAULT", "T_DIMENSIONAL_STEP",
+    # S3 mixed movement/effect actions.
+    "T_SHADOWSTEP", "T_GIANT_LEAP",
+    # Vault's real raised actor spec feeds the guard precheck.
+    "T_VAULT",
 }
 
 # Per-talent dynamic getters used by the movement factory's envelope
@@ -88,6 +103,8 @@ ACTION_TALENTS = {
 # replaced getter before any plan uses its value.
 TALENT_GETTERS = {
     "T_PHASE_DOOR": ["getRange", "getRadius"],
+    # The agility Vault's landing prompt range is the audited getDist getter.
+    "T_VAULT": ["getDist"],
 }
 
 # Movement talents whose `range` function the pinned target builder dispatches
@@ -96,6 +113,9 @@ TALENT_GETTERS = {
 TALENT_RANGES = [
     "T_RUSH", "T_SKIRMISHER_CUNNING_ROLL", "T_SKIRMISHER_VAULT",
     "T_DIMENSIONAL_STEP",
+    # Shadowstep's live builder range is a function (`getTalentRange`); Giant
+    # Leap/Vault declare static `range` fields, which are not function pins.
+    "T_SHADOWSTEP",
 ]
 
 # Engine / module semantics files the filter and footprint model is pinned to.

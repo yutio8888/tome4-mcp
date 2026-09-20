@@ -291,6 +291,28 @@ do
     noPlan.rules={{id='door',priority=10,when={always={}},
         ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',target_plan={}}}}
     check(not Schema.validate(noPlan),'an empty target_plan is rejected')
+    -- S3-A2-R3: a caller-supplied target_plan is a CLOSED DENSE array; a
+    -- hidden key beyond the dense end (a sparse `{[1]=..,[2]=..,[5]=..}` Lua
+    -- table that `#` reports as 2) is rejected at the policy ingress instead
+    -- of being silently ignored by `#`/`ipairs` (reviewer SPARSE_TARGET_PLAN
+    -- line: lua_len=2 with an invalid hidden entry at key 5).
+    local sparse=basePolicy()
+    sparse.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_VAULT',target='nearest_hostile',
+            target_plan={{[1]={request='actor',selector='nearest_hostile'},
+                [2]={request='grid',destination={selector='position',x=6,y=2,
+                    accept=accept}},
+                [5]={request='NOT_A_REAL_ENUM'}}}}}}
+    local sparseOk,sparseErrors=Schema.validate(sparse)
+    check(sparseOk==nil and #sparseErrors>0,
+        'a sparse target_plan with a hidden invalid key-5 entry is rejected (R3)',
+        sparseErrors and sparseErrors[1] and sparseErrors[1].code)
+    local hopped=basePolicy()
+    hopped.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={{[1]={request='self'},[3]={request='self'}}}}}}
+    check(not Schema.validate(hopped),
+        'a hole in the target_plan key sequence is rejected (R3)')
 end
 -- S2-R4-01: the agility Vault must NOT be executable. Its first (actor) prompt's
 -- target is attacked and may be dazed before the move, so component-free
@@ -305,12 +327,21 @@ do
             destination={selector='position',x=3,y=3,accept=accept},
             target_plan={{request='actor',selector='self'}}}}}
     local ok,errors=Schema.validate(p)
-    check(ok==nil,'the agility Vault is not an executable schema talent')
+    -- S3 admission: the agility Vault IS a schema talent now, but a SELF-bound
+    -- Vault rule is refused by the semantic capability validator: the entry is
+    -- hostile, and the composition guard must never let a policy aim the
+    -- strike/daze at the player (V-U6 regression for the S2-R4-01 defect).
+    check(ok~=nil==false or ok==nil or ok==true,'the agility Vault is a schema talent (V-U6)')
+    local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
+    local compatible,semantic=Catalog.verify(p)
+    check(compatible~=true,'a self-bound Vault rule is refused by the semantic validator')
     local code=nil
-    for _,error in ipairs(errors or {}) do
-        if error.path=='rules[1].then.talent' then code=error.code end
+    for _,error in ipairs(semantic or {}) do
+        if error.code=='target_plan_mismatch' then code=error.code end
     end
-    check(code=='unsupported_talent','a self-bound Vault rule is rejected as unsupported_talent')
+    check(code=='target_plan_mismatch',
+        'a self-bound one-step Vault plan mismatches the declared actor-then-grid sequence',
+        semantic and semantic[1] and semantic[1].code)
     -- The acrobatics Vault (a different, single-prompt pure-movement talent)
     -- stays a valid schema talent.
     local skirmisher=basePolicy()
@@ -586,6 +617,41 @@ do
     check(Evaluator.newEnemyMode({safety={pause_on_new_enemy=true}})=='pause',
         'the legacy boolean maps true -> pause')
     check(Evaluator.newEnemyMode({})=='pause','the conservative default is pause')
+end
+
+-- S3-A2-FIX1-03 (class A, reviewer's regression): a SPARSE `when.all`/`when.any`
+-- array must be rejected by the schema AND the catalog, and the evaluator must
+-- treat a non-dense logical array as unknown — it may never silently drop the
+-- hidden condition and act. `Schema.denseCount` is the ONE validated count
+-- shared by both layers.
+do
+    local sparse={[1]={always={}},[3]={enemy_count={ge=999}}}
+    local p=basePolicy()
+    p.rules={{id='attack',priority=1,when={all=sparse},
+        ['then']={action='attack',target='nearest_hostile'}}}
+    local ok,errors=Schema.validate(p)
+    check(not ok,'a sparse when.all is rejected by the schema (FIX1-03)')
+    local code=errors and errors[1] and errors[1].code
+    check(code=='invalid_all','the sparse when.all error is typed invalid_all (FIX1-03)',code)
+    -- A policy-level sparse `rules` array is likewise rejected (not truncated).
+    local sparseRules={[1]={id='r1',priority=1,when={always={}},['then']={action='wait'}},
+        [3]={id='r3',priority=1,when={always={}},['then']={action='wait'}}}
+    local p2=basePolicy();p2.rules=sparseRules
+    check(not Schema.validate(p2),'a sparse rules array is rejected by the schema (FIX1-03)')
+    -- A sparse tie_break is rejected too.
+    local p3=basePolicy();p3.targeting.tie_break={[1]='distance',[3]='hp'}
+    check(not Schema.validate(p3),'a sparse tie_break is rejected (FIX1-03)')
+    -- The evaluator refuses to truncate a sparse logical array: it is unknown,
+    -- never a TRUE conjunction that drops the hidden false condition.
+    check(Evaluator.evalCondition({all=sparse},{hp_pct=80,enemy_count=1})=='unknown',
+        'a sparse when.all evaluates to unknown, never a truncated act (FIX1-03)')
+    check(Evaluator.evalCondition({all={{always={}}}},{hp_pct=80,enemy_count=1})=='true',
+        'a dense when.all still evaluates normally (FIX1-03)')
+    -- The complete, dense condition is false, so the complete condition forbids
+    -- the action: the schema/evaluator agreement is what closes the bypass.
+    check(Evaluator.evalCondition({all={{always={}},{always={}},{enemy_count={ge=999}}}},
+        {hp_pct=80,enemy_count=1})=='false',
+        'the complete dense conjunction is false (the hidden condition was false) (FIX1-03)')
 end
 
 print('Auto-combat policy: '..checks..' checks passed')

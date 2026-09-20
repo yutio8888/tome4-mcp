@@ -19,10 +19,89 @@
 local Manifest=require 'mod.auto_combat.EffectManifest'
 local Footprint=require 'mod.auto_combat.EffectFootprint'
 local Risk=require 'mod.auto_combat.EffectRisk'
+local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+local Json=require 'mod.mcp_bridge.Json'
 local Distance=require 'mod.mcp_bridge.Distance'
 local M={}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
+
+-- S3-A2-R1: a landing plan is a closed record. `M.PLAN_KINDS` is the closed
+-- vocabulary the planner produces; a landing annotation is closed over
+-- `M.LANDING_KEYS` (every key any planner-produced landing record carries).
+-- A table plan outside these shapes is unreadable and fails closed.
+M.PLAN_KINDS={step=true,grid=true,sequence=true,native_landing=true,
+    native_random=true,none=true,self=true,actor=true}
+M.LANDING_KEYS={kind=true,center=true,x=true,y=true,direction=true,
+    radius=true,min_radius=true,fallback=true,source=true,range=true}
+-- S3-A2-FIX1-01: the plan/annotation/landing record is a DISCRIMINATED UNION.
+-- `M.LANDING_KINDS` is the closed discriminant vocabulary and
+-- `M.ANNOTATION_KEYS` closes the annotation record over every key the planner
+-- can emit. Both are validated BEFORE any member is read, so a scalar
+-- annotation, an unknown key or a landing outside the vocabulary is a typed
+-- unknown (`landing_envelope_unavailable`) — never a throw and never a
+-- silently-read smaller measured set. `native` means "the native code decides";
+-- it carries no readable geometry and therefore fails closed below.
+M.LANDING_KINDS={deterministic=true,bounded=true,random=true,native=true}
+-- S3-A2-FIX1-01: which landing kinds each plan kind admits. A landing outside
+-- its plan-kind's vocabulary is the cross-kind malformed case and fails closed
+-- rather than being read as a one-cell set.
+M.PLAN_LANDING_KINDS={
+    grid={deterministic=true,bounded=true,random=true},
+    step={deterministic=true},
+    sequence={deterministic=true,bounded=true,random=true,native=true},
+    native_landing={deterministic=true,bounded=true},
+    native_random={random=true,native=true},
+    self={deterministic=true,bounded=true,random=true},
+    actor={deterministic=true,bounded=true,random=true},
+    -- A `none` plan hands the landing entirely to native code; any landing
+    -- record on it is informational, and unreadable geometry still fails closed
+    -- in `fromLanding`.
+    none={deterministic=true,bounded=true,random=true,native=true},
+}
+M.ANNOTATION_KEYS={landing=true,x=true,y=true,in_bounds=true,visible=true,
+    remembered=true,known_passable=true,known_hazard=true,confidence=true,
+    reasons=true,rejection=true,selector=true,requests=true,sequence=true}
+
+-- S3-A2-FIX1-02: `act_exclude` is consulted BY UID exactly like the engine
+-- (`ActorProject.lua:217-222` indexes `type.act_exclude[a.uid]`). A value that
+-- indexes to nil is "no exclusion"; a non-table `act_exclude` (or an actor
+-- whose uid is unreadable) cannot reproduce the native indexing and is a typed
+-- `unknown` (the engine would error), never "no exclusion". Exported pure for
+-- tests.
+function M.exclusionOf(actExclude,actor)
+    if actExclude==nil then return false end
+    -- A non-table `act_exclude` would error in the engine's indexing
+    -- (`ActorProject.lua:217-222`) for any actor on a projected grid: it cannot
+    -- be reproduced and is a typed unknown (fail closed).
+    if type(actExclude)~='table' then return 'unknown' end
+    -- Any key indexes safely in Lua: a missing key yields nil => no exclusion
+    -- (exactly the engine's semantics).
+    return actExclude[actor and actor.uid] and true or false
+end
+
+-- Dense/closed array validation over ALL keys: every key must be a positive
+-- integer, the key set must be exactly `1..n` (no holes, no keys beyond the
+-- dense end, no non-integer keys), and every element must be a well-formed
+-- `{x,y}` cell. A sparse list must never be truncated by `#`/`ipairs` into a
+-- smaller falsely-complete set (S3-A2-R1).
+local function denseCells(cells)
+    if type(cells)~='table' then return nil end
+    -- S3 rebase onto X-doubleprime: the density decision lives ONLY in
+    -- `Json.denseArray` (checklist A) — this guard previously re-ran its own
+    -- `pairs` density loop. It keeps only its own element-shape check
+    -- (finite x/y on every cell).
+    local ok,maxKey=Json.denseArray(cells,0)
+    if not ok then return nil end
+    for i=1,maxKey do
+        local cell=cells[i]
+        if type(cell)~='table' or not finite(cell.x) or not finite(cell.y) then
+            return nil
+        end
+    end
+    return cells,maxKey
+end
+M.denseCells=denseCells
 
 -- Resolve a declarative condition. `readAttr(id)` and `talentLevel(id)` are the
 -- audited scalar providers; an unavailable read returns 'unknown' so the branch
@@ -113,8 +192,16 @@ local function memberships(component,set,ctx,typ)
     local p=ctx.source
     local m={}
     m.player_override=playerOverride(component,typ,ctx)
+    -- The engine consumes the raised spec's own `act_exclude`; the risk model
+    -- must honour the same value (by uid), not count every visible ally.
+    local actExclude=(type(typ)=='table') and typ.act_exclude or nil
+    local selfExcluded=M.exclusionOf(actExclude,p)
     if set==nil then return {self='unknown',friendlies='unknown',player_override=m.player_override} end
-    m.self=Footprint.at(set,p.x,p.y) and true or false
+    if selfExcluded=='unknown' then
+        m.self='unknown'
+    else
+        m.self=(not selfExcluded) and Footprint.at(set,p.x,p.y) and true or false
+    end
     local ff=Risk.flag(component.friendlyfire)
     if ff==0 then
         m.friendlies=0
@@ -123,7 +210,12 @@ local function memberships(component,set,ctx,typ)
     local count=0
     local unknown=false
     for _,ally in ipairs(ctx.allies() or {}) do
-        if finite(ally.x) and finite(ally.y) then
+        local excluded=M.exclusionOf(actExclude,ally)
+        if excluded=='unknown' then
+            -- The exclusion cannot be reproduced for this actor: the friendly
+            -- membership is uncertain and fails closed (never measured empty).
+            unknown=true
+        elseif not excluded and finite(ally.x) and finite(ally.y) then
             if Footprint.at(set,ally.x,ally.y) then count=count+1 end
         end
     end
@@ -168,6 +260,527 @@ function M.build(ctx)
         return {action='reject',reason=reason,detail=detail}
     end
 
+    -- S3: the candidate envelope is bounded by the map dimensions; a radius
+    -- beyond this plugin-own resource bound cannot be expanded honestly within
+    -- one action opportunity, so it is unavailable (never invented).
+    local CANDIDATE_RADIUS_CAP=16
+
+    local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
+
+    -- Bounded map dimensions for the candidate enumeration (a plugin-own
+    -- enumeration bound, never a strategy filter).
+    local function bounds()
+        local map=ctx.game and ctx.game.level and ctx.game.level.map
+        if type(map)=='table' and finite(map.w) and finite(map.h)
+            and map.w>0 and map.h>0 then return {w=map.w,h=map.h} end
+        return nil
+    end
+
+    local function inBounds(cell,mapBounds)
+        if not mapBounds then return false end
+        return cell.x>=0 and cell.y>=0 and cell.x<mapBounds.w and cell.y<mapBounds.h
+    end
+
+    -- Every in-bounds integer cell within `radius` of `center`, in
+    -- deterministic (y,x) order. Pure enumeration for repeatable evidence;
+    -- never a tactical choice.
+    local function circle(center,radius,mapBounds)
+        local cells={}
+        local rl=math.floor(radius)
+        for dy=-rl,rl do
+            for dx=-rl,rl do
+                local cell={x=center.x+dx,y=center.y+dy}
+                if Distance.grid(center.x,center.y,cell.x,cell.y)<=radius
+                    and inBounds(cell,mapBounds) then
+                    cells[#cells+1]=cell
+                end
+            end
+        end
+        return cells
+    end
+
+    -- S3 landing-candidate set (design §2.3). Returns the record
+    -- `{kind,cells,center,radius}` or `nil, reason` where the reason is
+    -- 'landing_envelope_unavailable' or (specifically: no plan and a
+    -- `center='requested_grid'` descriptor) 'movement_plan_unavailable'.
+    function M.landingCandidates(plan,entry,source,bound,mapBounds)
+        local movement=type(entry)=='table' and entry.movement or {}
+        local function fromLanding(landing)
+            if type(landing)~='table' then return nil end
+            -- A deterministic record is readable through EITHER the coordinate
+            -- pair (`{x,y}`, the planner's `annotate` shape) or `center`. Both
+            -- are closed finite coordinates; anything else fails closed.
+            if landing.kind=='deterministic' then
+                local lx,ly
+                if landing.x~=nil or landing.y~=nil then
+                    if not (finite(landing.x) and finite(landing.y)) then return nil end
+                    lx,ly=landing.x,landing.y
+                elseif type(landing.center)=='table' and finite(landing.center.x)
+                    and finite(landing.center.y) then
+                    lx,ly=landing.center.x,landing.center.y
+                else
+                    return nil
+                end
+                local cell={x=lx,y=ly}
+                if not inBounds(cell,mapBounds) then return nil,'out_of_bounds' end
+                return {kind='deterministic',cells={cell},center=cell,radius=0}
+            end
+            if (landing.kind=='bounded' or landing.kind=='random')
+                and type(landing.center)=='table' and finite(landing.center.x)
+                and finite(landing.center.y) and finite(landing.radius) then
+                if landing.radius>CANDIDATE_RADIUS_CAP then return nil,'unbounded' end
+                local center={x=landing.center.x,y=landing.center.y}
+                return {kind=landing.kind,cells=circle(center,landing.radius,mapBounds),
+                    center=center,radius=landing.radius}
+            end
+            -- A random native choice without a resolved centre is anchored on
+            -- the caster (the only player-known centre the plugin has).
+            if landing.kind=='random' and finite(source.x) and finite(source.y)
+                and finite(landing.radius) then
+                if landing.radius>CANDIDATE_RADIUS_CAP then return nil,'unbounded' end
+                local center={x=source.x,y=source.y}
+                return {kind='random',cells=circle(center,landing.radius,mapBounds),
+                    center=center,radius=landing.radius}
+            end
+            return nil
+        end
+        if type(plan)=='table' then
+            -- S3-A2-FIX1-01: validate the WHOLE plan/annotation/landing
+            -- discriminated union BEFORE reading any member. Every failure is a
+            -- typed unknown (`landing_envelope_unavailable`); a scalar
+            -- annotation must never throw and a malformed landing must never be
+            -- read as a smaller (one-cell) measured set.
+            -- (1) the plan kind is the union's discriminant and must be closed.
+            if not M.PLAN_KINDS[plan.kind] then
+                return nil,'landing_envelope_unavailable'
+            end
+            -- (2) the annotation is a table or nil; unknown annotation keys are
+            -- rejected (the planner emits a closed record).
+            local annotation=plan.annotation
+            if annotation~=nil and type(annotation)~='table' then
+                return nil,'landing_envelope_unavailable'
+            end
+            if type(annotation)=='table' then
+                for key in pairs(annotation) do
+                    if not M.ANNOTATION_KEYS[key] then
+                        return nil,'landing_envelope_unavailable'
+                    end
+                end
+            end
+            local landing=type(annotation)=='table' and annotation.landing or nil
+            -- (3) a landing, when present, is a closed record whose kind is in
+            -- the closed vocabulary AND admitted for this plan kind. A landing
+            -- on a plan kind that does not define it (the cross-kind case) is
+            -- unknown, never a one-cell set.
+            if landing~=nil then
+                if type(landing)~='table' then return nil,'landing_envelope_unavailable' end
+                for key in pairs(landing) do
+                    if not M.LANDING_KEYS[key] then
+                        return nil,'landing_envelope_unavailable'
+                    end
+                end
+                if not M.LANDING_KINDS[landing.kind] then
+                    return nil,'landing_envelope_unavailable'
+                end
+                local allowed=M.PLAN_LANDING_KINDS[plan.kind]
+                if not (allowed and allowed[landing.kind]) then
+                    return nil,'landing_envelope_unavailable'
+                end
+            end
+            if plan.kind=='grid' then
+                if not (finite(plan.x) and finite(plan.y)) then
+                    return nil,'landing_envelope_unavailable'
+                end
+                if landing==nil then
+                    -- A grid plan with NO readable landing annotation is never
+                    -- reclassified as a deterministic one-cell landing: the
+                    -- landing envelope is unknown and fails closed (never a
+                    -- smaller deterministic measured set; design §2.3).
+                    return nil,'landing_envelope_unavailable'
+                end
+                if landing.kind=='deterministic' then
+                    -- A deterministic landing is admitted only as a closed
+                    -- record whose coordinates AGREE with the requested grid
+                    -- ({x,y} or {center={x,y}}); a coordinate disagreement or a
+                    -- malformed record is unknown, never silently re-anchored.
+                    local lx,ly
+                    if landing.x~=nil or landing.y~=nil then
+                        if not (finite(landing.x) and finite(landing.y)) then
+                            return nil,'landing_envelope_unavailable'
+                        end
+                        lx,ly=landing.x,landing.y
+                    elseif type(landing.center)=='table'
+                        and finite(landing.center.x) and finite(landing.center.y) then
+                        lx,ly=landing.center.x,landing.center.y
+                    else
+                        return nil,'landing_envelope_unavailable'
+                    end
+                    if lx~=plan.x or ly~=plan.y then
+                        return nil,'landing_envelope_unavailable'
+                    end
+                    local cell={x=plan.x,y=plan.y}
+                    if not inBounds(cell,mapBounds) then return nil,'out_of_bounds' end
+                    return {kind='deterministic',cells={cell},center=cell,radius=0}
+                end
+                -- `bounded`/`random` fall through to `fromLanding`; a record it
+                -- cannot read (missing/malformed centre or radius) returns nil
+                -- and is rejected below as `landing_envelope_unavailable`.
+            end
+            local fromAnnotation=fromLanding(landing)
+            if fromAnnotation then return fromAnnotation end
+            -- The landing annotation was absent or is not a readable closed
+            -- record (unknown kind/admitted-kind mismatch, missing/malformed
+            -- centre or radius): unknown, fail closed.
+            return nil,'landing_envelope_unavailable'
+        end
+        -- No plan (or an unusable one): derive the envelope from the descriptor.
+        local center=movement.center
+        if center=='requested_grid' then return nil,'movement_plan_unavailable' end
+        local anchor
+        if center=='actor' then
+            if not (finite(bound.x) and finite(bound.y)) then return nil,'landing_envelope_unavailable' end
+            anchor={x=bound.x,y=bound.y}
+        else
+            anchor={x=source.x,y=source.y}
+            if not (finite(anchor.x) and finite(anchor.y)) then return nil,'landing_envelope_unavailable' end
+        end
+        local radius=movement.radius
+        if not finite(radius) or radius>CANDIDATE_RADIUS_CAP then
+            return nil,'landing_envelope_unavailable'
+        end
+        return {kind='bounded',cells=circle(anchor,radius,mapBounds),center=anchor,radius=radius}
+    end
+
+    -- Resolve ONE candidate against a `landing_adjacent` condition (exported
+    -- pure for tests): the component is active only when the mover's FINAL
+    -- cell is at distance 1 from the named anchor. An unreadable anchor is
+    -- 'unknown' (fail closed), never silently dropped.
+    function M.candidateCondition(when,cell,anchor)
+        if when==nil or when.kind==nil or when.kind=='always' then return true end
+        if when.kind~='landing_adjacent' or when.anchor~='actor' then return 'unknown' end
+        if type(anchor)~='table' or not finite(anchor.x) or not finite(anchor.y) then
+            return 'unknown'
+        end
+        return Distance.grid(cell.x,cell.y,anchor.x,anchor.y)==1
+    end
+
+    -- Aggregate a candidate-aware `landing_adjacent` condition over the whole
+    -- candidate set: `true` when any candidate may satisfy it (conservative),
+    -- `false` when none can, 'unknown' when the anchor itself is unreadable.
+    local function resolveAdjacentCondition(when,candidates,anchor)
+        if when==nil or when.kind==nil or when.kind=='always' then return true end
+        -- S3-A2-R1: a non-dense candidate array is unknown (fail closed); a
+        -- sparse list must never be silently truncated by ipairs.
+        if not denseCells(candidates and candidates.cells) then return 'unknown' end
+        local unknown=false
+        for _,cell in ipairs(candidates.cells) do
+            local value=M.candidateCondition(when,cell,anchor)
+            if value==true then return true end
+            if value=='unknown' then unknown=true end
+        end
+        if unknown then return 'unknown' end
+        return false
+    end
+
+    -- S3 D1: the COMPLETE component x landing-candidate expansion (never the
+    -- analytic circle). For every applicable (component, candidate) pair the
+    -- exact footprint spec is expanded through the existing backend; the union
+    -- is kept ONLY when every required pair succeeded. One nil/malformed/failed
+    -- expansion discards the partial union (D1) and the component becomes
+    -- unknown — a partial union is never measured. `bound` is the resolved
+    -- bound hostile (the landing_adjacent anchor and the normal target centre).
+    local function expandComplete(component,candidates,boundHostile,radius,raised,opts)
+        -- S3-A2-R1 boundary: the candidate array is a CLOSED DENSE list before
+        -- any enumeration. A sparse/hidden-key list or a malformed cell is
+        -- never truncated by `#`/`ipairs` into a smaller falsely-complete set;
+        -- it is unknown and never measured.
+        local cells,denseCount=denseCells(candidates and candidates.cells)
+        if not cells then
+            return nil,{failure='candidates_not_dense',required=0,completed=0,
+                backend=ctx.native and 'native' or 'model'}
+        end
+        local completed=0
+        local union=nil
+        local unionAdd=nil
+        local backends={}
+        -- Pass 1 resolves EVERY candidate's condition before any expansion, so
+        -- the total required pair count is computed independently of a later
+        -- expansion failure (the evidence never understates the requirement).
+        local applicable={}
+        local resolvedApplicable=0
+        for _,cell in ipairs(cells) do
+            local condValue=M.candidateCondition(component.when,cell,boundHostile)
+            if condValue==false then
+                -- The pair is not applicable; no expansion is required.
+            elseif condValue=='unknown' then
+                -- An unknown relation/anchor makes the WHOLE component result
+                -- unknown; it is never silently dropped.
+                return nil,{failure='condition_unknown',required=resolvedApplicable,
+                    completed=0,backend=next(backends)
+                        or (ctx.native and 'native' or 'model')}
+            else
+                resolvedApplicable=resolvedApplicable+1
+                applicable[#applicable+1]=cell
+            end
+        end
+        local required=resolvedApplicable
+        for _,cell in ipairs(applicable) do
+            local spec=M.footprintSpec(component,cell,boundHostile)
+            spec.radius=radius
+            if component.center=='actual_landing' then
+                -- The candidate is both the post-move source and the
+                -- effect center; the native backend starts the line at the
+                -- mover's post-move cell.
+                spec.origin={x=cell.x,y=cell.y}
+                spec.target={x=cell.x,y=cell.y}
+                spec.start_x=cell.x;spec.start_y=cell.y
+            end
+            -- D3: the real raised spec's projection fields are copied into
+            -- the footprint spec before native expansion (raw presence
+            -- preserved; Target:getType normalizes absent
+            -- selffire/friendlyfire to true).
+            for flag,value in pairs(raised or {}) do
+                spec[flag]=value
+            end
+            -- The expander is injectable for failure-injection tests (the
+            -- production path is always the audited Footprint.expand).
+            local expander=(opts and opts.expand) or Footprint.expand
+            local set,backend=expander(spec,{native=ctx.native,
+                blockPath=ctx.blockPath,blockRadius=ctx.blockRadius})
+            backends[backend]=true
+            if set==nil then
+                -- One failed pair discards the partial union; `required` still
+                -- reports the full applicable count (independent of this
+                -- early failure).
+                return nil,{failure=backend or 'expand_failed',required=required,
+                    completed=completed,backend=next(backends)
+                        or (ctx.native and 'native' or 'model')}
+            end
+            completed=completed+1
+            if union==nil then union,unionAdd=Footprint.newSet() end
+            for x,column in pairs(set) do
+                for y in pairs(column) do unionAdd(x,y) end
+            end
+        end
+        return union,{required=required,completed=completed,backend=next(backends)
+            or (ctx.native and 'native' or 'model'),
+            multi=(backends.native and backends.model) and true or nil}
+    end
+    M.expandComplete=expandComplete  -- exported pure (test seam: injectable expander)
+
+    -- S3 mixed-entry composition. `typ` is the real raised spec (raw table)
+    -- already read by the shared prelude; `builderSource` records where the
+    -- raised spec came from. Commit-1 scope: DIRECT bound-actor components
+    -- (`delivery='attackTarget'`) are validated, evidenced and left risk-exempt;
+    -- the candidate envelope is enumerated; projected (actual_landing)
+    -- components are expanded in the Giant Leap commit.
+    local function mixedComposition(entry,attempt,typ,builderSource,target,talent,threshold)
+        -- A hostile mixed entry bound to the player itself is not executable:
+        -- the strike/leap subjects are another actor (policy-level binding is
+        -- already validated; this is the plugin's own integrity boundary).
+        if target==p then
+            return disable('target_lost',{talent=talent,reason='bound_actor_is_self'})
+        end
+        local mapBounds=bounds()
+        local plan=attempt.plan
+        local candidates,envReason=M.landingCandidates(plan,entry,p,target,mapBounds)
+        if not candidates then
+            if envReason=='movement_plan_unavailable' then
+                return disable('movement_plan_unavailable',{talent=talent})
+            end
+            return disable('selffire_risk',{unknown=true,talent=talent,
+                reason=envReason or 'landing_envelope_unavailable'})
+        end
+        local components={}
+        local membershipsBy={}
+        local componentsEvaluated=0
+        local candidateCount=#candidates.cells
+        for _,component in ipairs(entry.components) do
+            local resolved={id=component.id,phase=component.phase,delivery=component.delivery,
+                shape=component.shape,center=component.center,radius=component.radius,
+                when=component.when,provenance=component.provenance,
+                candidate_count=candidateCount,builder_source=builderSource}
+            if component.delivery=='attackTarget' then
+                -- D2: a direct, already-bound actor effect keeps the existing
+                -- closed `attackTarget` token. Its center must resolve to the
+                -- bound hostile; it is recorded in evidence and never expanded
+                -- (no ActorProject footprint exists and EffectRisk intentionally
+                -- exempts the class).
+                componentsEvaluated=componentsEvaluated+1
+                if component.center=='actor' or component.center=='target' then
+                    if not (finite(target.x) and finite(target.y)) then
+                        return disable('target_geometry_unknown',{talent=talent,
+                            component=resolved.id})
+                    end
+                else
+                    return disable('target_geometry_unknown',{talent=talent,
+                        component=resolved.id,
+                        reason='direct_component_center_unboundable'})
+                end
+                resolved.required_expansions=0
+                resolved.completed_expansions=0
+                resolved.footprint_count=0
+                resolved.condition=component.when
+                resolved.resolved_condition=resolveAdjacentCondition(component.when,
+                    candidates,target)
+                -- Direct bound-hostile components contribute zero self/friendly
+                -- risk but stay declared (they are never invisible).
+                membershipsBy[resolved.id]={self=false,friendlies=0,player_override=true}
+            else
+                -- Projected / actual_landing component: the COMPLETE per-pair
+                -- expansion (D1). The component radius may be the live builder
+                -- radius (`{from='target'}`); an unreadable radius is unknown
+                -- and fails closed. The raised projection flags (D3) come from
+                -- the real raised spec.
+                componentsEvaluated=componentsEvaluated+1
+                local radius=resolveRadius(component.radius,typ)
+                resolved.radius=radius
+                -- S3-A2-FIX1-02: membership/risk is derived from the SAME
+                -- effective raised values the engine consumes. A live raised
+                -- value (for example an explicit `friendlyfire=false`) WINS
+                -- over the manifest's static curated default; only an absent
+                -- raised key falls back to the curated value, and a field
+                -- declared as an audited dynamic input keeps its provider
+                -- (the raw builder must never overwrite an unknown/failed
+                -- provider). `false` is preserved as a VALUE here, not merely
+                -- during transport.
+                local function effectiveRaised(flag,declared,curated)
+                    if type(typ)=='table' and typ[flag]~=nil and not isDynamicInput(declared) then
+                        return typ[flag]
+                    end
+                    return curated
+                end
+                -- Curated static filters resolve through the audited dynamic
+                -- input providers (an unavailable dynamic read stays unknown
+                -- and fails closed on its own value).
+                local curatedSelffire=resolveDynamic(component.selffire,ctx,talent,
+                    ctx.getDef(talent))
+                local curatedFriendlyfire=resolveDynamic(component.friendlyfire,ctx,talent,
+                    ctx.getDef(talent))
+                resolved.selffire=effectiveRaised('selffire',component.selffire,curatedSelffire)
+                resolved.friendlyfire=effectiveRaised('friendlyfire',component.friendlyfire,
+                    curatedFriendlyfire)
+                resolved.player_selffire=component.player_selffire
+                if radius=='unknown' then
+                    return disable('selffire_risk',{unknown=true,talent=talent,
+                        component=resolved.id,reason='unreadable_radius'})
+                end
+                -- D3 raised projection flags: raw presence map from the real
+                -- raised spec (only explicitly present keys; absent keys stay
+                -- absent and Target:getType normalizes them at expansion time).
+                -- S3-A2-R2 (dispatcher contract correction): the FULL
+                -- engine-consulted raised field set is forwarded, raw presence
+                -- preserved — not just the seven curated projection flags.
+                -- Engine consultation: `filter` (ActorProject.lua:60),
+                -- `force_max_range` (line step bound, :78/:113), `min_range`
+                -- (:226-229), `grid_exclude` (:232-239), `act_exclude`
+                -- (:254, actor delivery), `block_path`/`block_radius` (default
+                -- blockers; an explicit `false` DISABLES the default blocker —
+                -- table.update keeps an already-present key, Target.lua:559-569),
+                -- `requires_knowledge` (Target.lua:502-504,566-568), plus the
+                -- seven curated flags (`no_restrict`/`pass_terrain`/
+                -- `stop_block`/`actorblock`/`friendlyblock`/`selffire`/
+                -- `friendlyfire`, Target.lua:487-611). Function-valued
+                -- `block_path`/`block_radius`/`filter` are forwarded as the
+                -- REAL callbacks (the native backend consults them live); they
+                -- are never silently dropped, because a dropped footprint-
+                -- changing field would let the guard compute a different
+                -- footprint than the action. Absent keys stay absent and are
+                -- normalized by Target:getType at expansion time.
+                local raised={}
+                local raisedCount=0
+                for flag in pairs(Factory.RAISED_FLAG_KEYS) do
+                    if type(typ)=='table' and typ[flag]~=nil then
+                        raised[flag]=typ[flag]
+                        raisedCount=raisedCount+1
+                    end
+                end
+                if raisedCount>0 then resolved.raised_flags=raised end
+                local union,stats=expandComplete(component,candidates,target,radius,
+                    raisedCount>0 and raised or nil)
+                resolved.condition=component.when
+                if not union then
+                    -- D1: one failed/unreadable pair discards the partial
+                    -- union; membership is unknown and this action is disabled
+                    -- (never measured, never silently dropped).
+                    return disable('selffire_risk',{unknown=true,talent=talent,
+                        component=resolved.id,reason=stats.failure,
+                        required_expansions=stats.required,
+                        completed_expansions=stats.completed,
+                        footprint_backend=stats.backend})
+                end
+                -- Complete-expansion bookkeeping; the completed count is
+                -- asserted before any membership/risk calculation.
+                resolved.required_expansions=stats.required
+                resolved.completed_expansions=stats.completed
+                resolved.candidate_count=candidateCount
+                resolved.footprint_count=Footprint.count(union)
+                resolved.footprint_backend=stats.multi and 'mixed' or stats.backend
+                if stats.completed~=stats.required then
+                    return disable('selffire_risk',{unknown=true,talent=talent,
+                        component=resolved.id,reason='incomplete_expansion',
+                        required_expansions=stats.required,
+                        completed_expansions=stats.completed})
+                end
+                -- Post-move self membership (design §5.1 corrected): for an
+                -- `actual_landing` component the mover is affected when ANY
+                -- completed per-candidate footprint contains that same
+                -- candidate — never the caster's pre-move cell (which the
+                -- generic membership helper tests and which we override).
+                if component.center=='actual_landing' then
+                    local m=memberships(resolved,union,ctx,typ)
+                    local selfSelf=false
+                    for _,cell in ipairs(candidates.cells) do
+                        if M.candidateCondition(component.when,cell,target)
+                            and Footprint.at(union,cell.x,cell.y) then
+                            selfSelf=true
+                        end
+                    end
+                    m.self=selfSelf
+                    resolved.self_excluded=(selfSelf and Risk.flag(resolved.selffire)==0)
+                        or nil
+                    membershipsBy[resolved.id]=m
+                else
+                    -- A projected component with a normal centre keeps the
+                    -- existing membership semantics against its own union.
+                    membershipsBy[resolved.id]=memberships(resolved,union,ctx,typ)
+                end
+            end
+            components[#components+1]=resolved
+        end
+        if componentsEvaluated==0 then
+            return disable('adapter_no_components',{talent=talent})
+        end
+        -- Measure only after every non-exempt component union is complete.
+        local measure=Risk.measure(components,membershipsBy)
+        local detail={talent=talent,source=builderSource,candidate_count=candidateCount,
+            components_evaluated=componentsEvaluated,threshold=threshold,
+            unknown=measure.risk=='unknown',components=components}
+        if measure.risk~=0 then
+            local worst=measure.detail
+            if worst then
+                detail.risk=worst.risk
+                detail.measurement=measure.risk
+                detail.phase=worst.phase
+                detail.component=worst.component
+                detail.selffire=worst.selffire
+                detail.friendlyfire=worst.friendlyfire
+                detail.friendlies=worst.friendlies
+                detail.provenance=worst.provenance or nil
+                detail.footprint_backend=worst.footprint_backend
+            end
+            if measure.risk~='unknown' and type(measure.risk)=='number'
+                and measure.risk<=threshold then
+                return {action='permit',detail=detail}
+            end
+            return disable('selffire_risk',detail)
+        end
+        -- A zero-risk mixed entry still publishes its composition evidence so
+        -- the decision trace shows the complete evaluation (never invisible).
+        detail.measurement=0
+        return {action='permit',detail=detail}
+    end
+
     local function guard(attempt)
         local action=attempt.action
         if action~='attack' and action~='use_talent' then return nil end
@@ -183,17 +796,26 @@ function M.build(ctx)
         -- actual live functions as normal entrypoints. A missing/erroring/non-table
         -- builder below is a derivation unknown, not an identity rejection.
         -- Movement adapters carry no damage footprint; their landing/uncertainty
-        -- safety is the MovementPlanner's explicit policy acceptance.
-        if entry.kind=='movement' then return nil end
-        if entry.target~='hostile' then return nil end
+        -- safety is the MovementPlanner's explicit policy acceptance. A MIXED
+        -- movement entry (S3) falls through to the composition path below; a
+        -- component-free movement entry is still skipped.
+        local isMovement=entry.kind=='movement'
+        local isMixed=isMovement and #(entry.components or {})>0
+        if isMovement then
+            if not isMixed then return nil end
+        elseif entry.target~='hostile' then
+            return nil
+        end
         local target
         if attempt.bound_target then target=ctx.resolve(attempt.bound_target) end
         if not target then return disable('target_lost') end
         if not (finite(target.x) and finite(target.y) and finite(p.x) and finite(p.y)) then
             return disable('target_geometry_unknown')
         end
-        -- Melee delivery never consults ActorProject filters.
-        if entry.melee then return nil end
+        -- Melee delivery never consults ActorProject filters. The entry-level
+        -- shortcut is not taken for a mixed entry: exemption is component-local
+        -- (EffectRisk), never entry-level.
+        if entry.melee and not isMixed then return nil end
         -- Real target spec from the audited native builder when available; the
         -- manifest remains the canonical source for secondary/ground/variants.
         local typ,builderSource=nil,'manifest'
@@ -217,6 +839,16 @@ function M.build(ctx)
         elseif expectsBuilder==true then
             return disable('adapter_builder_missing',{talent=talent})
         end
+        -- S3-A2-FIX1-02: a non-nil raised `act_exclude` that is not a table
+        -- cannot reproduce the engine's per-actor indexing
+        -- (`ActorProject.lua:217-222` indexes `type.act_exclude[a.uid]`); the
+        -- engine would error, so the guard fails closed instead of modelling
+        -- "no exclusion" and permitting. By-uid exclusion semantics for a real
+        -- table are honoured by the risk model (`M.exclusionOf`).
+        if type(typ)=='table' and typ.act_exclude~=nil and type(typ.act_exclude)~='table' then
+            return disable('selffire_risk',{unknown=true,talent=talent,
+                reason='act_exclude_not_a_table'})
+        end
         local range=entry.range
         if typ and finite(typ.range) then range=typ.range end
         -- A range-0 self-centred effect (Flameshock's cone) is aimed by
@@ -239,6 +871,11 @@ function M.build(ctx)
             if can==false then return disable('no_line_of_sight',{source=builderSource}) end
         elseif type(p.canProject)~='function' and not range0 then
             return disable('canproject_unavailable')
+        end
+        -- S3: a mixed movement entry takes the composition path before any
+        -- hostile component loop; the plan is passed through unmodified.
+        if isMixed then
+            return mixedComposition(entry,attempt,typ,builderSource,target,talent,threshold)
         end
         -- Resolve every canonical component. Variants come only from audited
         -- scalar reads; an unresolved branch stays in the conservative union.

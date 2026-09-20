@@ -158,6 +158,16 @@ function M:stop(reason)
     if self.state=='stopped' and self.reason==reason then
         return {ok=true,state=self.state,generation=self.generation,action='release',deduplicated=true}
     end
+    -- S3-A2-FIX1-04: converting the SAME logical handoff from paused to stopped
+    -- is not a second externally-visible transition. The pause already advanced
+    -- the generation and logged the typed reason, so the stop that the safety
+    -- handoff issues with that same reason is folded into it (exactly one
+    -- generation advance per handoff).
+    if self.state=='paused' and self.reason==reason then
+        self.state='stopped'
+        self.known_enemies=nil
+        return {ok=true,state=self.state,generation=self.generation,action='release',deduplicated=true}
+    end
     self.generation=self.generation+1
     self.state='stopped'; self.reason=reason
     self.known_enemies=nil
@@ -210,7 +220,15 @@ end
 local DETAIL_KEYS={'measurement','threshold','risk','unknown','provenance','phase','component',
     'landing','visible','remembered','known_passable','known_hazard','confidence','reasons',
     'selector','talent','scope','missing','native_message','hint','requests','friendlies','selffire','friendlyfire',
-    'reason','expected','observed','index','dependency','exhausted','count','request','skippable'}
+    'reason','expected','observed','index','dependency','exhausted','count','request','skippable',
+    -- S3 mixed movement/effect composition evidence (bounded scalar/small-record
+    -- fields; raw grid sets are never emitted).
+    'candidate_count','required_expansions','completed_expansions','footprint_count',
+    'condition','resolved_condition','self_excluded','raised_flags','footprint_backend',
+    'components_evaluated','endpoint','mover','unchanged',
+    -- S3: the per-component composition evidence array (projected by
+    -- `boundedComponents` below).
+    'components'}
 -- D-2: the structured `missing` array (for example the native cooldown entry
 -- `{kind='cooldown',talent,remaining,required=0}`) is an array of small objects,
 -- so the generic scalar-only table projection above would drop it. Project the
@@ -236,6 +254,43 @@ local function boundedMissing(value)
     return out
 end
 M.boundedMissing=boundedMissing
+
+-- S3 §2.6: a bounded per-component composition-evidence projection. Each record
+-- carries identity, resolved condition, expansion bookkeeping, backend and the
+-- raw raised projection flags (small scalar values only; never a grid set).
+local COMPONENT_EVIDENCE_KEYS={'id','phase','delivery','center','candidate_count',
+    'required_expansions','completed_expansions','footprint_count','condition',
+    'resolved_condition','self_excluded','raised_flags','footprint_backend'}
+local function boundedComponents(list)
+    if type(list)~='table' then return nil end
+    local out={}
+    for index=1,math.min(#list,16) do
+        local component=list[index]
+        if type(component)=='table' then
+            local copy={}
+            for _,key in ipairs(COMPONENT_EVIDENCE_KEYS) do
+                local value=component[key]
+                if type(value)=='string' and #value<=64 then copy[key]=value
+                elseif type(value)=='number' and value==value then copy[key]=value
+                elseif type(value)=='boolean' then copy[key]=value
+                elseif type(value)=='table' then
+                    local inner={}
+                    local count=0
+                    for k,v in pairs(value) do
+                        count=count+1
+                        if count>16 then break end
+                        if type(v)=='string' or type(v)=='number' or type(v)=='boolean' then inner[k]=v end
+                    end
+                    if next(inner)~=nil then copy[key]=inner end
+                end
+            end
+            if next(copy)~=nil then out[#out+1]=copy end
+        end
+    end
+    if #out==0 then return nil end
+    return out
+end
+M.boundedComponents=boundedComponents
 local function boundedDetail(detail)
     if type(detail)~='table' then return nil end
     local out={}
@@ -245,6 +300,9 @@ local function boundedDetail(detail)
             if key=='missing' then
                 local missing=boundedMissing(value)
                 if missing then out[key]=missing end
+            elseif key=='components' then
+                local projected=boundedComponents(value)
+                if projected then out[key]=projected end
             elseif type(value)=='string' then
                 local limit=key=='native_message' and 512 or 256
                 out[key]=#value<=limit and value or value:sub(1,limit)
@@ -330,7 +388,7 @@ end
 -- a strategy refusal. The Runtime pump owns the native side (the live handle is
 -- cancelled at its bound); this function only records and pauses so the stall is
 -- never invisible.
-function M:nativeDeviated(deviation)
+function M:nativeDeviated(deviation,terminal)
     deviation=deviation or {}
     local reason=deviation.reason or 'unexpected_target_request'
     local entry={kind='paused',reason=reason,detail=deviation,
@@ -338,6 +396,17 @@ function M:nativeDeviated(deviation)
         generation=self.generation}
     self:record(entry)
     if self.notify then self.notify(entry) end
+    -- D5 (S3-A2-R4): a terminal deviation transitions ONCE, directly to
+    -- stopped (`terminal=true`; the postcondition-mismatch handoff path).
+    -- The old pause+stop composition advanced the generation twice. Without
+    -- `terminal` the legacy paused-transition behavior is unchanged.
+    if terminal then
+        if self.state~='stopped' or self.reason~=reason then
+            self.generation=self.generation+1
+            self.state='stopped'; self.reason=reason
+        end
+        return entry
+    end
     -- Transition to paused without emitting a second `paused` notify (the typed
     -- entry above is the one recorded event). `nativeDeviation` then stops the
     -- run with the same reason.
@@ -608,6 +677,7 @@ function M:step()
             local guard=self.host and self.host.guard and self.host.guard({
                 rule=decision.rule,action=decision.action,talent=decision.talent,
                 target=decision.target,bound_target=bound.bound_target,
+                plan=plan,
                 emergency=decision.emergency==true})
             if guard and guard.action=='pause' then
                 self:record({kind='paused',reason=guard.reason,rule=decision.rule,
@@ -654,7 +724,10 @@ function M:step()
                 -- no detail and no rule, because `pause`'s bare notify was the
                 -- only event the log ever saw). Mirror `nativeDeviated`:
                 -- notify the detailed entry, move to paused, and let `pause`
-                -- deduplicate so exactly one typed event is logged.
+                -- deduplicate so exactly one typed event is logged. The
+                -- service's safety handoff then issues `stop(step.reason)`,
+                -- which `AutoCombat:stop` folds into the SAME paused transition
+                -- (S3-A2-FIX1-04) instead of advancing the generation twice.
                 local entry={kind='paused',reason=reason,rule=decision.rule,
                     detail=boundedDetail(outcome.sequence_deviation),
                     handed_back=outcome.handed_back==true or nil}
@@ -671,6 +744,31 @@ function M:step()
                 -- player/caller, so the caller can answer it via
                 -- respond/dismiss after the lease is released.
                 if outcome.handed_back then paused.handed_back=true end
+                paused.results=decision.results;paused.rejections=self.rejections
+                return paused
+            end
+            -- S3 §3.2 (Path 1): a settled movement-postcondition mismatch is
+            -- the same post-commit integrity class as the ordered-queue
+            -- deviation: checked immediately after `sequence_deviation` and
+            -- BEFORE the budget increment and the `native_pending` branch, so
+            -- the pause and the service's lease release are reachable and the
+            -- action is never resubmitted. Exactly one typed event.
+            if outcome.postcondition_mismatch then
+                local mismatch=outcome.postcondition_mismatch
+                local reason=mismatch.reason or 'movement_postcondition_mismatch'
+                local entry={kind='paused',reason=reason,rule=decision.rule,
+                    detail=boundedDetail(mismatch)}
+                self:record(entry)
+                if self.notify then self.notify(entry) end
+                -- D5 (S3-A2-R4): exactly ONE generation transition per
+                -- mismatch. The transition is the stop itself (a direct
+                -- paused->stopped transition, not a pause+stop composition):
+                -- the service safety handoff's `stop(step.reason)` is then a
+                -- deduplicated no-op instead of a second generation advance.
+                local stopped=self:stop(reason)
+                local paused={action='paused',state=stopped.state,reason=reason,
+                    generation=stopped.generation}
+                paused.detail=mismatch
                 paused.results=decision.results;paused.rejections=self.rejections
                 return paused
             end

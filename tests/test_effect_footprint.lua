@@ -149,4 +149,30 @@ do
     rawset(_G,'core',real_core)
 end
 
+-- S3-A2-FIX1-05: the native backend models only hit/ball/beam/bolt/cone/
+-- widebeam. A real `wall` (gifts/cold-drake.lua:127-133 Ice Wall;
+-- chronomancy/matter.lua:172-177 Materialize Barrier) or `triangle` spec must
+-- fail closed (nil => unknown), never degrade to a single-cell measured set.
+do
+    check(Footprint.supportsShape('hit') and Footprint.supportsShape('ball')
+        and Footprint.supportsShape('beam') and Footprint.supportsShape('bolt')
+        and Footprint.supportsShape('cone') and Footprint.supportsShape('widebeam'),
+        'the audited shapes are supported by the native backend')
+    check(not Footprint.supportsShape('wall') and not Footprint.supportsShape('triangle'),
+        'wall/triangle are NOT supported (fail closed), unlike the old substring match')
+    -- A native context is required; use a minimal one so the shape guard runs
+    -- before any engine call. `core` is not loaded in this headless suite, so
+    -- the pre-guard must return nil without touching the engine.
+    local ctx={game={level={map={isBound=function() return true end}}},source={x=0,y=0}}
+    check(Footprint.native(ctx,{shape='wall',origin={x=0,y=0},target={x=3,y=0},radius=1})==nil,
+        'a wall spec fails the native backend as unknown (FIX1-05)')
+    check(Footprint.native(ctx,{shape='triangle',origin={x=0,y=0},target={x=3,y=0},radius=1})==nil,
+        'a triangle spec fails the native backend as unknown (FIX1-05)')
+    local set,backend=Footprint.expand({shape='wall',origin={x=0,y=0},target={x=3,y=0},radius=1},
+        {native=ctx})
+    check(set==nil and backend=='native_failed',
+        'expand() propagates a wall native failure as native_failed, never a model set (FIX1-05)',
+        tostring(backend))
+end
+
 print('Effect footprint: '..checks..' checks passed')

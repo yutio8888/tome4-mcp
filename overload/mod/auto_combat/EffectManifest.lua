@@ -18,6 +18,7 @@
 -- engine, a talent builder or RNG.
 local Sources=require 'mod.auto_combat.EffectManifestSources'
 local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+local Json=require 'mod.mcp_bridge.Json'
 local M={}
 M.VERSION='tome-auto-combat-adapters/v2'
 M.SCHEMA='tome-auto-combat/v1'
@@ -54,6 +55,19 @@ local function movementMatrix(branches,axes)
         error('movement adapter matrix failed: '..tostring(err and (err.detail or err.reason)),2)
     end
     return movement
+end
+
+-- S3: construct a MIXED movement/effect entry through the closed composition
+-- validator. A malformed composition is a load-time error: a mixed entry that
+-- publishes with an invalid component record would silently reach the guard
+-- (or worse, skip it) — the same fail-loudly contract as `movementAdapter`.
+local function mixedMovementEntry(entry)
+    local ok,err=Factory.validateComposition(entry)
+    if not ok then
+        error('movement adapter composition invalid: '
+            ..tostring(err and (err.detail or err.cause or err)),2)
+    end
+    return entry
 end
 
 -- Every hostile entry keeps `cursor` (targeting geometry) separate from the
@@ -273,20 +287,83 @@ M.ENTRIES={
             builder_shape='beam',
             landing_proof='forces the exact requested grid after launch/blocked/projection checks'}),
         components={},conformance={builder=true}},
-    -- S2-R4-01: the agility Vault (techniques/agility.lua:83-150, T_VAULT) is
-    -- deliberately NOT published here. Its two prompts are distinguishable
-    -- (hit-without-nolock then hit+nolock), but the talent is MIXED: the first
-    -- (actor) prompt's target is attacked (agility.lua:137-138) and may be dazed
-    -- (:140-145) before the move (:149-150). Publishing it as component-free grid
-    -- movement with `traverses=true` let a valid policy bind that actor prompt to
-    -- `self` and aim an offensive native action at the player, with the
-    -- damage/daze invisible to the guard (which skips every movement entry); the
-    -- `traverses=true` metadata was also wrong (the native moves directly with
-    -- `self:move(x,y,true)`). It is declared in `M.UNSUPPORTED` with the typed
-    -- reason `movement_effect_composition_required` until the S3 composition slice
-    -- represents and guards the component. (T_SKIRMISHER_VAULT above is a
-    -- DIFFERENT talent: the acrobatics Vault, a genuine single-prompt beam
-    -- landing — unaffected.)
+    -- S3 admission 1 (Shadowstep, cunning/shadow-magic.lua:109-151): a MIXED
+    -- movement/effect talent. The movement half is the actor-anchored teleport
+    -- (`teleportRandom(target.x,target.y,0)` -> a bounded radius-5 native
+    -- choice around the bound actor). The effect half is two DIRECT bound-actor
+    -- effects (`attackTarget` strike + conditional `setEffect` daze) that run
+    -- only when the mover's final cell ends at distance 1 from the bound actor
+    -- (`shadow-magic.lua:142-149`); the existing `delivery='attackTarget'` token
+    -- is the closed risk-exempt direct class (EffectRisk), and the components
+    -- stay declared/evidenced instead of invisible. A fizzle (no move) returns
+    -- true before any attack (`:139`), so `unchanged='fizzle'` is a settled
+    -- outcome, never a postcondition mismatch.
+    T_SHADOWSTEP=mixedMovementEntry{kind='movement',target='hostile',resource='stamina',
+        movement=movementAdapter('actor_anchor_teleport',{radius=5,min_radius=0,
+            landing_proof='teleportRandom(x,y,0): dist-0 findFreeGrid within radius 5 of the bound actor '
+                ..'(mod/class/Actor.lua, engine/utils.lua findFreeGrid)'}),
+        components={
+            {id='shadowstep_strike',phase='secondary',delivery='attackTarget',shape='hit',
+                center='actor',when={kind='landing_adjacent',anchor='actor'}},
+            {id='shadowstep_daze',phase='secondary',delivery='attackTarget',shape='hit',
+                center='actor',when={kind='landing_adjacent',anchor='actor'}},
+        },
+        movement_postcondition={mover='self',endpoint='landing_envelope',unchanged='fizzle'},
+        conformance={builder=true}},
+    -- S3 admission 2 (Giant Leap, uber/str.lua:20-74): a MIXED movement/effect
+    -- uber talent. The movement half is the requested-grid leap: an empty
+    -- request lands exactly; an occupied request falls back to the nearest free
+    -- grid within radius one; a blocked grid refuses (uber/str.lua:47-55). The
+    -- effect half is the actual-centered radius-1 weapon/daze projection
+    -- (`self:project(tg, self.x, self.y, ...)`, uber/str.lua:63-71), whose
+    -- raised/reused tg explicitly has selffire=false with friendlyfire and
+    -- friendlyblock absent (D3). D1: the pre-commit union is the COMPLETE
+    -- component x landing-candidate expansion (one ball per candidate), never
+    -- the analytic circle. The mover is excluded in both the spec and the
+    -- callback (selffire=false plus `target ~= self`), so a true self
+    -- membership yields zero self risk — evidence, not a special veto.
+    T_GIANT_LEAP=mixedMovementEntry{kind='movement',target='hostile',resource='stamina',
+        movement=movementAdapter('grid_move_bounded',{delivery='leap',traverses=false,
+            radius=1,min_radius=0,builder_shape='ball',
+            landing_proof='occupied request falls back to findFreeGrid radius 1; '
+                ..'block_move refuses the landing (uber/str.lua:47-55)'}),
+        components={
+            {id='giant_leap_weapon_daze',phase='secondary',delivery='project',shape='ball',
+                center='actual_landing',radius={from='target'},
+                selffire=0,friendlyfire=100,
+                provenance={selffire=EXPLICIT,friendlyfire=TARGET_DEFAULT}},
+        },
+        movement_postcondition={mover='self',endpoint='landing_envelope',unchanged='mismatch'},
+        conformance={builder=true}},
+    -- S3 admission 3 (the AGILITY Vault, techniques/agility.lua:82-159 — NOT the
+    -- acrobatics T_SKIRMISHER_VAULT above, which stays component-free and
+    -- untouched). Two distinguishable prompts in one submission: the first
+    -- (actor) prompt's target is attacked with the shield and may be dazed
+    -- BEFORE the move (agility.lua:137-150); the second prompt is the landing
+    -- grid, the ACTION-LOCAL spec {type='hit',nolock=true,range=t.getDist} that
+    -- has no callable builder (D4: the curated exact copy is the real shape).
+    -- Presence-explicit signatures distinguish the two prompts by the real
+    -- `nolock` presence (agility.lua:92-93 vs :117-121). The landing falls back
+    -- within one of the requested grid and block_move refuses (:123-128); the
+    -- direct strike/daze components are guarded before commit (D2: direct
+    -- bound-hostile effects stay declared with the existing attackTarget token).
+    T_VAULT=mixedMovementEntry{kind='movement',target='hostile',resource='stamina',
+        movement=movementAdapter('request_then_landing',{
+            delivery='leap',landing='bounded_alternatives',center='requested_grid',
+            traverses=false,relocates_other=false,
+            range={getter='getDist'},radius=1,min_radius=0,
+            request_sequence={
+                {index=1,request='actor',subject='actor',value_source='subject',
+                    observed={cursor_type='hit'}},
+                {index=2,request='grid',subject='self',value_source='target_plan',
+                    landing_from='envelope',observed={cursor_type='hit',nolock=true}},
+            }}),
+        components={
+            {id='vault_strike',phase='melee',delivery='attackTarget',shape='hit',center='target'},
+            {id='vault_daze',phase='secondary',delivery='attackTarget',shape='hit',center='target'},
+        },
+        movement_postcondition={mover='self',endpoint='landing_envelope',unchanged='mismatch'},
+        conformance={builder=true}},
     -- Dimensional Step: below effective TL5 the native action is always the
     -- self-only `teleportRandom(x,y,0)` branch. At TL5 it swaps only when the
     -- requested grid holds an actor; a player-known empty grid still runs the
@@ -401,17 +478,12 @@ M.UNSUPPORTED={
     {talent='T_DIMENSIONAL_STEP',scope='effective_talent_level>=5 and requested_grid_occupied',
         missing='moving_or_swapping_another_actor',
         reason='a player-known empty requested grid uses the admitted non-swap teleport; a known occupied grid is the typed S4 swap gap; unknown occupancy fails closed'},
-    {talent='T_SHADOWSTEP',scope='any',missing='source_reviewed_movement_adapter',
-        reason='actor-anchored random teleport plus an attack; movement/effect composition is a later slice'},
-    {talent='T_GIANT_LEAP',scope='any',missing='source_reviewed_movement_adapter',
-        reason='requested-grid movement with an alternate landing and radius effect; movement/effect composition is a later slice'},
-    -- S2-R4-01: the agility Vault is a MIXED talent whose sequence is
-    -- distinguishable but whose first (actor) prompt's target is attacked and may
-    -- be dazed before the move. Component-free grid-movement admission would let
-    -- a policy bind that actor prompt to `self` and hide the offensive effect from
-    -- the guard. The typed reason reserves it for the S3 composition slice.
-    {talent='T_VAULT',scope='any',missing='movement_effect_composition_required',
-        reason='mixed movement/effect talent: the first (actor) prompt target is attacked (techniques/agility.lua:137-138) and may be dazed (:140-145) before the move (:149-150); component-free movement admission would bind that actor prompt and hide the effect from the guard'},
+    -- S2-R4-01 note (superseded by the S3 admission): the agility Vault is now
+    -- ADMITTED through the mixed composition above (its actor prompt target is
+    -- attacked and may be dazed before the move; the composition guard covers
+    -- both prompts and the direct components), so its UNSUPPORTED row is gone.
+    -- The acrobatics T_SKIRMISHER_VAULT remains the different, component-free
+    -- single-prompt talent.
     {talent='T_DISPLACEMENT_SHIELD',scope='any',missing='source_reviewed_effect_adapter',
         reason='actor-target shield that does not relocate the player; effect adapter not source-reviewed'},
     -- S2-R3-01 rev5: the officially-decided multi-prompt unsupported set. Each
@@ -590,9 +662,33 @@ M.ACTIONS={
 }
 function M.actionSupported(action) return action~=nil and M.ACTIONS[action]~=nil end
 
+-- S3-A2-FIX1-03 (rebased onto X''): dense-and-closed count for the catalogue's
+-- own array walks. The density LOOP lives only in `Json.denseArray` (checklist
+-- A); this is a thin nil-preserving wrapper (absent -> 0, non-table -> nil).
+-- Returns the count or nil for a hole/hidden-key/non-integer-key list.
+local function densePolicyArray(t)
+    if t==nil then return 0 end
+    local ok,count=Json.denseArray(t,0)
+    if ok then return count end
+    return nil
+end
+
 function M.verify(policy)
     local errors={}
-    for index,rule in ipairs((policy and policy.rules) or {}) do
+    -- S3-A2-FIX1-03: the catalogue consumes `#`/`ipairs` over the caller-supplied
+    -- `rules` and `sustains` arrays. Validate them dense-and-closed BEFORE the
+    -- iteration so a hidden entry beyond a hole is never silently dropped from
+    -- the compatibility check (the schema rejects it independently).
+    local ruleCount=densePolicyArray(policy and policy.rules)
+    if (policy and policy.rules)~=nil and ruleCount==nil then
+        errors[#errors+1]={path='rules',code='rules_not_dense'}
+    end
+    local sustainCount=densePolicyArray(policy and policy.sustains)
+    if (policy and policy.sustains)~=nil and sustainCount==nil then
+        errors[#errors+1]={path='sustains',code='sustains_not_dense'}
+    end
+    for index=1,(ruleCount or 0) do
+        local rule=(policy and policy.rules)[index]
         local action=rule['then'] and rule['then'].action
         local path='rules['..index..']'
         if action~=nil and not M.ACTIONS[action] then
@@ -601,11 +697,24 @@ function M.verify(policy)
         local entry=rule['then'] and rule['then'].talent and M.ENTRIES[rule['then'].talent] or nil
         if entry then
             local selector=rule['then'].target or (policy.targeting and policy.targeting.default)
+            -- S3-A2-R3 defence-in-depth (catalog): the selector binding and the
+            -- sequence matching below consume `#`/`ipairs` over the
+            -- caller-supplied plan. A sparse plan (a hole or a hidden key
+            -- beyond the dense end) must be rejected here, never silently
+            -- truncated into a shorter matching plan.
+            local plan=rule['then'].target_plan
+            if type(plan)=='table' then
+                local dense=Factory.validateArray(plan,1)
+                if not dense then
+                    errors[#errors+1]={path=path..'.then.target_plan',code='target_plan_not_dense'}
+                    plan=nil
+                end
+            end
             -- MFT-REV-03 (Option A): an actor step selector is the effective
             -- binding when the action/default selector is absent, so the
             -- self/hostile consistency check honours it.
-            if selector==nil and type(rule['then'].target_plan)=='table' then
-                for _,step in ipairs(rule['then'].target_plan) do
+            if selector==nil and type(plan)=='table' then
+                for _,step in ipairs(plan) do
                     if step.request=='actor' and step.selector~=nil then
                         selector=step.selector
                         break
@@ -628,7 +737,6 @@ function M.verify(policy)
             end
             -- MFT-REV-03: an explicit ordered target plan must match the
             -- source-pinned movement adapter's request sequence exactly.
-            local plan=rule['then'].target_plan
             local movement=entry.kind=='movement' and entry.movement or nil
             if type(plan)=='table' then
                 local sequences=M.requestSequences(entry)
@@ -679,7 +787,8 @@ function M.verify(policy)
             errors[#errors+1]={path=path,code='unsupported_talent',talent=rule['then'].talent}
         end
     end
-    for index,sustain in ipairs((policy and policy.sustains) or {}) do
+    for index=1,(sustainCount or 0) do
+        local sustain=(policy and policy.sustains)[index]
         if not M.isSustain(sustain.talent) then
             errors[#errors+1]={path='sustains['..index..']',code='not_a_sustain',talent=sustain.talent}
         end

@@ -1302,6 +1302,11 @@ function M.mapAutoCombatOutcome(result,action,noEnergy)
         if type(result.native_message)=='string' and #result.native_message>0 then
             mapped.native_message=result.native_message
         end
+        -- S3 §3.2: the typed movement-postcondition mismatch rides the
+        -- internal auto-combat outcome surface (no protocol schema widening).
+        if type(result.postcondition_mismatch)=='table' then
+            mapped.postcondition_mismatch=result.postcondition_mismatch
+        end
         -- S2 ordered prompt-response queue evidence (internal auto-combat
         -- plumbing, never a protocol field): the observed prompt sequence, a
         -- typed deviation, and the reduced-trailing-optional marker.
@@ -1339,6 +1344,95 @@ function M.mapAutoCombatOutcome(result,action,noEnergy)
         return scene({status='ok',code=result.code,energy_spent=spent,instant=instant})
     end
     return scene({status='rejected',code=result.code,energy_spent=spent})
+end
+
+-- S3 §3.2: an internal settlement invariant for mixed movement/effect entries.
+-- `movement_postcondition_mismatch` is an internal auto-combat pause reason
+-- (never a `protocol/v4` code). The expectation is immutable and created before
+-- submission; the check reads only player coordinates, and must be evaluated
+-- for BOTH a synchronous settlement and a later-settling `native_pending` root.
+-- A declared landing envelope is `{kind=...,center=,radius=,min_radius=,
+-- fallback={kind,center,radius}}`; a deterministic envelope is a single cell.
+local function finite(n) return Details.finite(n) end
+
+-- Normalize a plan annotation's landing into the immutable expectation envelope
+-- (only the declared primary + fallback envelope; nothing tactical).
+local function autoMovementLanding(landing)
+    if type(landing)~='table' then return nil end
+    local out={kind=landing.kind}
+    if type(landing.center)=='table' and Details.finite(landing.center.x)
+        and Details.finite(landing.center.y) then
+        out.center={x=landing.center.x,y=landing.center.y}
+    elseif landing.kind=='deterministic' and Details.finite(landing.x)
+        and Details.finite(landing.y) then
+        out.center={x=landing.x,y=landing.y}
+    end
+    if Details.finite(landing.radius) then out.radius=landing.radius end
+    if Details.finite(landing.min_radius) then out.min_radius=landing.min_radius end
+    local fallback=landing.fallback
+    if type(fallback)=='table' and type(fallback.center)=='table'
+        and Details.finite(fallback.center.x) and Details.finite(fallback.center.y) then
+        out.fallback={kind=fallback.kind,center={x=fallback.center.x,y=fallback.center.y}}
+        if Details.finite(fallback.radius) then out.fallback.radius=fallback.radius end
+    end
+    return out
+end
+local function envelopeContains(landing,x,y)
+    if type(landing)~='table' then return nil end
+    if landing.kind=='deterministic' then
+        if type(landing.center)=='table' and landing.center.x==x and landing.center.y==y then
+            return true
+        end
+        return nil
+    end
+    if (landing.kind=='bounded' or landing.kind=='random')
+        and type(landing.center)=='table' and finite(landing.center.x)
+        and finite(landing.center.y) and finite(landing.radius) then
+        return Distance.grid(landing.center.x,landing.center.y,x,y)<=landing.radius
+    end
+    return nil
+end
+
+-- Pure postcondition evaluation (exported for unit tests). Returns nil when
+-- the settled outcome satisfies the expectation, or a typed mismatch record.
+-- `endpoint` = {x=,y=} (the settled player cell).
+function M.movementPostconditionMismatch(expectation,endpoint)
+    local function mismatch(outcome,expected,observed)
+        return {reason='movement_postcondition_mismatch',uncertain=true,
+            outcome=outcome,expected=expected,observed=observed}
+    end
+    local expected
+    if type(expectation)~='table' or type(expectation.landing)~='table'
+        or expectation.mover~='self' or expectation.unchanged==nil
+        or type(expectation.talent)~='string' or type(expectation.before)~='table'
+        or not finite(expectation.before.x) or not finite(expectation.before.y) then
+        return mismatch('malformed_expectation',nil,
+            type(endpoint)=='table' and {x=endpoint.x,y=endpoint.y} or nil)
+    end
+    local landing=expectation.landing
+    expected={kind=landing.kind,unchanged=expectation.unchanged,talent=expectation.talent}
+    if type(landing.center)=='table' and finite(landing.center.x)
+        and finite(landing.center.y) then
+        expected.center_x=landing.center.x;expected.center_y=landing.center.y
+    end
+    if finite(landing.radius) then expected.radius=landing.radius end
+    if type(endpoint)~='table' or not finite(endpoint.x) or not finite(endpoint.y) then
+        return mismatch('endpoint_missing',expected,nil)
+    end
+    local observed={x=endpoint.x,y=endpoint.y}
+    -- An unchanged endpoint: a curated fizzle mode is a settled pass (the
+    -- source returns truthy before attacking on teleport failure); anything
+    -- else is a mismatch.
+    if endpoint.x==expectation.before.x and endpoint.y==expectation.before.y then
+        if expectation.unchanged=='fizzle' then return nil end
+        return mismatch('unchanged_endpoint',expected,observed)
+    end
+    if envelopeContains(landing,endpoint.x,endpoint.y)==true then return nil end
+    local fallback=landing.fallback
+    if type(fallback)=='table' and envelopeContains(fallback,endpoint.x,endpoint.y)==true then
+        return nil
+    end
+    return mismatch('outside_landing_envelope',expected,observed)
 end
 
 -- Live controller host. The executor reuses Actions.execute under a synthetic
@@ -1504,6 +1598,25 @@ buildAutoCombatHost=function(s,policy,opts)
         if verdict and verdict.action~='permit' then
             return {status='rejected',code=verdict.reason,energy_spent=false}
         end
+        -- S3 §3.2: build the immutable movement-postcondition expectation for a
+        -- mixed movement/effect entry BEFORE the submission, from the plan's
+        -- resolved landing annotation and the pre-move coordinates. In-memory
+        -- on the invocation root only (never runtime state in the save).
+        local expectation
+        local movementEntry=attempt.talent and EffectManifest.entry(attempt.talent) or nil
+        if movementEntry~=nil and movementEntry.kind=='movement'
+            and #(movementEntry.components or {})>0
+            and type(movementEntry.movement_postcondition)=='table'
+            and attempt.action=='use_talent' then
+            local mover=g.player
+            if mover and Details.finite(mover.x) and Details.finite(mover.y) then
+                local annotation=(type(plan)=='table' and plan.annotation) or {}
+                expectation={talent=attempt.talent,mover='self',
+                    unchanged=movementEntry.movement_postcondition.unchanged,
+                    before={x=mover.x,y=mover.y},
+                    landing=autoMovementLanding(annotation.landing)}
+            end
+        end
         local command={command_id='auto-combat',status='auto_combat',auto_combat=true,
             interactions={},responses={},response_count=0,consumed_interactions={},interaction_sequence=0,
             rule=attempt.rule,action=action}
@@ -1518,6 +1631,7 @@ buildAutoCombatHost=function(s,policy,opts)
             root.sequence_deviation=command.sequence_deviation
             root.sequence_reduced=command.sequence_reduced or nil
             root.handed_back=command.target_handed_back or nil
+            if expectation then root.postcondition_expectation=expectation end
             -- S2 rev3/§6.2 Path 1: when the action returned (ok), the deviation
             -- rides the mapped outcome and the controller checks it BEFORE its
             -- `native_pending` branch, so it is delivered inside this very step.
@@ -1549,6 +1663,19 @@ buildAutoCombatHost=function(s,policy,opts)
         local noEnergy=type(def)=='table' and def.no_energy or nil
         if type(noEnergy)=='function' then noEnergy=nil end
         if type(noEnergy)~='boolean' then noEnergy=nil end
+        -- S3 §3.2 (Path 1): a settled synchronous success is evaluated here,
+        -- before the mapped outcome reaches the controller (which checks the
+        -- mismatch right after `sequence_deviation`). A native rejection/error
+        -- or a pending root is not a mismatch (the native outcome stays
+        -- authoritative); a pending root keeps the expectation for the reaper.
+        if expectation and ok and type(result)=='table' and result.ok==true
+            and result.code~='native_pending' then
+            local mover=g.player
+            local mismatch=M.movementPostconditionMismatch(expectation,
+                {x=mover and mover.x,y=mover and mover.y})
+            if mismatch then result.postcondition_mismatch=mismatch end
+            if type(root)=='table' then root.postcondition_delivered=true end
+        end
         return M.mapAutoCombatOutcome(result,action.type,noEnergy)
     end
     return AutoCombatHost.new(reads)
@@ -2247,6 +2374,24 @@ local function reapAutoInvocation(s)
     if root.sequence_deviation and not root.deviation_delivered and s.auto_combat then
         root.deviation_delivered=true
         AutoCombat.nativeDeviation(s.auto_combat,root.sequence_deviation)
+    end
+    -- S3 §3.2 Path 2 (belt-and-braces, exactly once): a later-settling
+    -- `native_pending` root carries the immutable expectation; evaluate it here
+    -- before release. A native rejection/error is not a mismatch (the native
+    -- outcome remains authoritative); a success outside the declared envelope
+    -- is one typed pause, one generation advance, lease revoke, no resubmit.
+    if root.postcondition_expectation and not root.postcondition_delivered
+        and s.auto_combat then
+        root.postcondition_delivered=true
+        if not root.error and root.native_return==true then
+            local mover=s.game and s.game.player
+            local mismatch=M.movementPostconditionMismatch(root.postcondition_expectation,
+                {x=mover and mover.x,y=mover and mover.y})
+            if mismatch then
+                root.postcondition_mismatch=mismatch
+                AutoCombat.nativePostconditionMismatch(s.auto_combat,mismatch)
+            end
+        end
     end
     NativeTasks.release(root);Interactions.release(root);Tracker.release(root)
     root.invocation=nil

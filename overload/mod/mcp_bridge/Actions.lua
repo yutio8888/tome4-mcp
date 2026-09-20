@@ -181,13 +181,13 @@ end
 M.SEQUENCE_VALUE_KINDS=SEQUENCE_VALUE_KINDS
 function M.normalizeSequence(list)
     if type(list)~='table' then return nil,'invalid_sequence' end
-    local maxKey,count=0,0
-    for key in pairs(list) do
-        if type(key)~='number' or key%1~=0 or key<1 then return nil,'invalid_sequence' end
-        if key>maxKey then maxKey=key end
-        count=count+1
-    end
-    if count~=maxKey or maxKey<1 or maxKey>8 then return nil,'invalid_sequence' end
+    -- X-doubleprime rebase (R-2): the density decision lives ONLY in
+    -- `Json.denseArray` (AGENTS.md checklist A); this carrier previously
+    -- re-ran its own `pairs` density loop, a duplicate validator. Delegating
+    -- keeps the same external contract: typed `invalid_sequence`, never a
+    -- shorter prefix, at most 8 entries.
+    local ok,maxKey=Json.denseArray(list,1)
+    if not ok or maxKey>8 then return nil,'invalid_sequence' end
     local out=Json.array()
     for i=1,maxKey do
         local entry=list[i]

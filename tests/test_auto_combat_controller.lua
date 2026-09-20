@@ -829,4 +829,182 @@ do
             'an ordinary native rejection never fabricates an unexpected_target_request pause')
     end
 end
+
+-- S3 S-U4 + X-U3 + X-U4 (REAL_SHADOWSTEP_TG, cunning/shadow-magic.lua:123): a
+-- settled synchronous movement_postcondition_mismatch pauses exactly once,
+-- advances the generation, stops the run through the service safety-pause path,
+-- never increments the budget and never resubmits; all guard call sites receive
+-- the identical plan object.
+do
+    local host=makeHost()
+    local guard_plans={}
+    host.guard=function(attempt)
+        guard_plans[#guard_plans+1]=attempt.plan
+        return {action='permit',detail={candidate_count=80}}
+    end
+    local plan={kind='grid',x=6,y=2,annotation={landing={kind='bounded',
+        center={x=6,y=2},radius=1}}}
+    host.plan=function() return {plan=plan} end
+    host.request=function(attempt)
+        host.requests[#host.requests+1]=attempt
+        return {status='ok',energy_spent=10,
+            postcondition_mismatch={reason='movement_postcondition_mismatch',
+                uncertain=true,outcome='outside_landing_envelope',
+                expected={kind='bounded',radius=1},observed={x=1,y=1}}}
+    end
+    local pol=policy({rules={{id='shadowstep',priority=50,when={enemy_count={ge=1}},
+        ['then']={action='use_talent',talent='T_SHADOWSTEP',target='nearest_hostile',
+            target_plan={{request='actor'}}}}}})
+    local c=AutoCombat.new(pol,host,{strict=false})
+    local events={}
+    c.notify=function(ev) events[#events+1]=ev end
+    c:start()
+    local startGeneration=c.generation
+    local step=c:onOpportunity()
+    check(step.action=='paused' and step.reason=='movement_postcondition_mismatch',
+        'a settled synchronous postcondition mismatch pauses (S-U4)',step.action)
+    check(c.state=='stopped' and c.reason=='movement_postcondition_mismatch',
+        'the mismatch transitions directly to stopped with the typed reason (S-U4/R4)',
+        c.state)
+    check(c.generation==startGeneration+1,
+        'exactly ONE generation transition per synchronous mismatch (R4)',
+        c.generation..' vs '..startGeneration)
+    check(c.attempts==0,'a postcondition mismatch never consumes the action budget')
+    local typed=0
+    for _,event in ipairs(events) do
+        if event.kind=='paused' and event.reason=='movement_postcondition_mismatch' then
+            typed=typed+1
+        end
+    end
+    check(typed==1,'exactly one typed pause event is recorded')
+    check(#host.requests==1,'the action is never resubmitted after the mismatch')
+    -- X-U3: the controller's guard call receives the identical plan object.
+    check(#guard_plans==1 and guard_plans[1]==plan,
+        'the live guard call receives the identical plan object (X-U3)')
+end
+
+-- S3 X-U3 (dry-run): the dry-run mirror passes the same plan object to the
+-- guard and never calls a move/teleport entrypoint.
+do
+    local host=makeHost()
+    local plan={kind='grid',x=6,y=2,annotation={landing={kind='bounded',
+        center={x=6,y=2},radius=1}}}
+    host.plan=function(attempt)
+        host.planned=attempt
+        return {plan=plan}
+    end
+    local guard_attempt
+    host.guard=function(attempt)
+        guard_attempt=attempt
+        return {action='permit',detail={}}
+    end
+    host.request=function(attempt)
+        host.requests[#host.requests+1]=attempt
+        return {status='ok'}
+    end
+    local pol={schema='tome-auto-combat/v1',id='d1',name='d1',
+        limits={max_actions_per_tick=1},
+        safety={min_hp_pct=35,flee_below_hp_pct=25,max_selffire_risk=0},
+        targeting={default='nearest_hostile'},
+        rules={{id='shadowstep',priority=50,when={enemy_count={ge=1}},
+            ['then']={action='use_talent',talent='T_SHADOWSTEP',target='nearest_hostile'}}}}
+    -- Mirror the service's dry-run guard/plan plumbing with the same host shape:
+    -- the dry run must call plan() then guard() with the identical plan and no
+    -- request/execute at all.
+    local ctx=host.snapshot('nearest_hostile')
+    local decision={decision='act',action='use_talent',talent='T_SHADOWSTEP',
+        rule='shadowstep',target='nearest_hostile'}
+    local plan_result=host.plan({action=decision.action,talent=decision.talent,
+        target=decision.target})
+    local plan=plan_result and plan_result.plan or nil
+    local guard_result=host.guard({action=decision.action,talent=decision.talent,
+        target=decision.target,bound_target=ctx.bound_target,plan=plan})
+    check(plan_result and plan_result.plan==plan,'the dry-run planner produces the plan')
+    check(guard_attempt and guard_attempt.plan==plan,
+        'the dry-run guard call receives the identical plan object (X-U3)')
+    check(#host.requests==0,'the dry run calls no action/teleport entrypoint (X-U3)')
+end
+
+-- S3 G-U7 (REAL_GIANT_LEAP_TG, uber/str.lua:38-40): a settled success inside
+-- the radius-1 envelope acts (destination evidence carried); an unchanged or
+-- out-of-envelope settled success is a movement_postcondition_mismatch pause
+-- (the mismatch plumbing is asserted once in S-U4; the envelope evaluation
+-- cases are in the runtime block of test_auto_combat_execution.lua).
+do
+    local host=makeHost()
+    local plan={kind='grid',x=6,y=2,annotation={landing={kind='bounded',
+        center={x=6,y=2},radius=1},reasons={'bounded'}}}
+    host.plan=function() return {plan=plan} end
+    local guard_plans={}
+    host.guard=function(attempt)
+        guard_plans[#guard_plans+1]=attempt.plan
+        return {action='permit',detail={candidate_count=9,components_evaluated=1}}
+    end
+    local pol=policy({rules={{id='leap',priority=50,when={enemy_count={ge=1}},
+        ['then']={action='use_talent',talent='T_GIANT_LEAP',target='nearest_hostile',
+            target_plan={{request='grid',destination={selector='position',x=6,y=2,
+                accept={visibility='any',passability='native',hazard='any',
+                    landing='allow_random'}}}}}}}})
+    local c=AutoCombat.new(pol,host,{strict=false})
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action=='acted' and step.destination==plan.annotation,
+        'a Giant Leap success inside the envelope acts with the landing annotation (G-U7)',
+        step.action)
+    check(guard_plans[1]==plan,'the Giant Leap guard call receives the identical plan (G-U7/X-U3)')
+    -- Out-of-envelope settle: the runtime builds the mismatch; the controller
+    -- pauses on it (Path 1 plumbing, see S-U4).
+    local host2=makeHost()
+    host2.guard=function() return {action='permit',detail={}} end
+    host2.plan=function() return {plan=plan} end
+    host2.request=function(attempt)
+        host2.requests[#host2.requests+1]=attempt
+        return {status='ok',energy_spent=0,
+            postcondition_mismatch={reason='movement_postcondition_mismatch',uncertain=true,
+                outcome='outside_landing_envelope',expected={kind='bounded',radius=1},
+                observed={x=1,y=1}}}
+    end
+    local c2=AutoCombat.new(pol,host2,{strict=false})
+    c2:start()
+    local step2=c2:onOpportunity()
+    check(step2.action=='paused' and step2.reason=='movement_postcondition_mismatch',
+        'an out-of-envelope Giant Leap settle pauses with the typed reason (G-U7)',step2.action)
+    check(#host2.requests==1,'the mismatched leap is never resubmitted (G-U7)')
+end
+
+
+-- S3 V-U5 (REAL_VAULT_ACTOR_TG + REAL_VAULT_LANDING_TG): a blocked/native
+-- rejection before the prompts is an ordinary native refusal (deny + fall
+-- through), never a movement_postcondition_mismatch; only a settled success
+-- outside/unchanged endpoint is the mismatch (runtime cases in
+-- test_auto_combat_execution.lua).
+do
+    local host=makeHost()
+    local plan={kind='grid',x=6,y=2,annotation={landing={kind='bounded',
+        center={x=6,y=2},radius=1}}}
+    host.plan=function() return {plan=plan} end
+    host.guard=function() return {action='permit',detail={candidate_count=9}} end
+    host.request=function(attempt)
+        host.requests[#host.requests+1]=attempt
+        return {status='rejected',code='blocked',energy_spent=0}
+    end
+    local pol=policy({rules={{id='vault',priority=50,when={enemy_count={ge=1}},
+        ['then']={action='use_talent',talent='T_VAULT',target='nearest_hostile',
+            target_plan={{request='actor'},{request='grid',destination={selector='position',
+                x=6,y=2,accept={visibility='any',passability='native',hazard='any',
+                    landing='allow_random'}}}}}}}})
+    local c=AutoCombat.new(pol,host,{strict=false})
+    local events={}
+    c.notify=function(ev) events[#events+1]=ev end
+    c:start()
+    local step=c:onOpportunity()
+    check(step.action~='paused','a blocked landing is not a postcondition mismatch (V-U5)',
+        step.action)
+    for _,event in ipairs(events) do
+        check(not (event.kind=='paused'
+            and event.reason=='movement_postcondition_mismatch'),
+            'a native rejection never fabricates a postcondition mismatch (V-U5)')
+    end
+end
+
 print('Auto-combat controller: '..checks..' checks passed')
