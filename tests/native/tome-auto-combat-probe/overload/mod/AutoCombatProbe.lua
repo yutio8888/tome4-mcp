@@ -77,7 +77,8 @@ M.EXPECTED={
         'em5_planned','em5_annotated','em5_settled','em5_arrival_ordered',
         'dw2_planned','dw2_annotated','dw2_settled','dw2_arrival_ordered',
         'dw5_planned','dw5_annotated','dw5_settled','dw5_arrival_ordered'},
-    ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed',
+    ['movement-talents']={'rush_planned','rush_executed','rush_close_planned','rush_close_rejected',
+        'tumble_planned','tumble_executed','teleport_planned','teleport_executed',
         'shadowstep_planned','shadowstep_executed',
         'shadowstep_far_planned','shadowstep_far_executed',
         'shadowstep_fizzle_planned','shadowstep_fizzle_executed',
@@ -1551,6 +1552,7 @@ local function movementTalentSetup()
     M.mt.saved_pos={x=p.x,y=p.y}
     M.mt.specs={
         {name='rush',talent='T_RUSH',kind='rush'},
+        {name='rush_close',talent='T_RUSH',kind='rush_close'},
         {name='tumble',talent='T_SKIRMISHER_CUNNING_ROLL',kind='tumble'},
         {name='door',talent='T_PHASE_DOOR',kind='door'},
         -- S3 mixed movement/effect admissions.
@@ -1664,6 +1666,7 @@ end
 
 local function movementTalentSignal(kind,suffix)
     local base=kind=='rush' and 'rush'
+        or kind=='rush_close' and 'rush_close'
         or kind=='tumble' and 'tumble'
         or kind=='shadowstep' and 'shadowstep'
         or kind=='shadowstep_far' and 'shadowstep_far'
@@ -1735,6 +1738,57 @@ local function movementTalentRun(spec)
             M.mt.tumble_target={x=tx,y=ty}
             outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
                 rule='tumble'})
+        end
+    elseif spec.kind=='rush_close' then
+        -- APRIME-MERGE-REV-01 (P2, probe-only coverage): the deliberately
+        -- CLOSE Rush native-refusal row. The success row (`rush`) is anchored
+        -- three grids away; this row anchors the caster ADJACENT to the arena
+        -- dummy so the real T_RUSH body (combat-techniques.lua) reaches the
+        -- dummy on the very first linestep, stops with `tx=nil`, and refuses
+        -- with "You are too close to build up momentum!" BEFORE raising any
+        -- prompt. The production path must settle this as the typed
+        -- rejected/native_rejected, never move the actor, leave no live
+        -- target UI and no leftover coroutine, submit exactly once, and never
+        -- retry the refused attempt.
+        local anchorDummy=arenaDummy()
+        if anchorDummy then p:move(anchorDummy.x-1,anchorDummy.y,true); forceReady() end
+        M.mt.before={x=p.x,y=p.y}
+        -- One-submission evidence: count every request this row actually
+        -- submits through the production host (the same recording technique
+        -- `recordingHost` uses). The assert phase requires exactly 1.
+        local submissions=0
+        local innerRequest=host.request
+        host.request=function(attempt)
+            submissions=submissions+1
+            return innerRequest(attempt)
+        end
+        M.mt.rush_close_submissions=function() return submissions end
+        local ctx=host.snapshot('nearest_hostile')
+        local bound=ctx and ctx.bound_target
+        local planned,err=host.plan({action='use_talent',talent=spec.talent,bound_target=bound,
+            target='nearest_hostile',
+            target_plan={{request='actor',selector='nearest_hostile'}},
+            destination={selector='native_landing',anchor='bound_target',accept=accept}})
+        -- Closeness precondition, asserted by the row: the dummy must be the
+        -- bound target standing exactly one grid away, so the FIRST linestep
+        -- tile IS the dummy's entity-blocked tile (tx=nil -> refuse).
+        local close=(anchorDummy~=nil)
+            and Distance.grid(p.x,p.y,anchorDummy.x,anchorDummy.y)==1
+        local ok=planned and planned.plan and planned.plan.kind=='actor' and close
+        M.mt.signals[#M.mt.signals+1]=ok and 'rush_close_planned' or 'rush_close_plan_missing'
+        check('movement-talents:rush-close-plan',ok,
+            {kind=planned and planned.plan and planned.plan.kind,
+                distance=anchorDummy and Distance.grid(p.x,p.y,anchorDummy.x,anchorDummy.y),
+                reason=err and err.reason})
+        if ok then
+            -- The preceding success row put the real talent on native cooldown;
+            -- clear it so this row exercises the CLOSENESS refusal, not a
+            -- generic cooldown rejection (that is the sequence row's job).
+            if p.stamina then p.stamina=1000 end
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
+            outcome=host.request({action='use_talent',talent=spec.talent,plan=planned.plan,
+                bound_target=bound,rule='rush_close'})
+            if p.talents_cd then p.talents_cd[spec.talent]=nil end
         end
     elseif spec.kind=='shadowstep' then
         local ctx=host.snapshot('nearest_hostile')
@@ -2117,6 +2171,31 @@ movementTalentAssert=function(spec)
                 dummy_life=dummy and dummy.life,was=M.mt.dummy_life,dazed=dazed,
                 mismatch=outcome and outcome.postcondition_mismatch~=nil or false})
         teardown()
+        return
+    elseif spec.kind=='rush_close' then
+        -- APRIME-MERGE-REV-01: the real close-Rush refusal must settle as the
+        -- typed rejected/native_rejected (the same shape the production path
+        -- produced pre-anchoring), with the actor UNMOVED, no live target
+        -- prompt and no leftover coroutine after the step, exactly one
+        -- submission and no retry/replay of the refused attempt.
+        local rejected=outcome and outcome.status=='rejected'
+            and outcome.code=='native_rejected'
+        local stayed=(not moved)
+        local no_ui=not (game.target and game.target.active) and game.target_co==nil
+        local noMismatch=outcome and outcome.postcondition_mismatch==nil
+        local noDeviation=outcome and outcome.sequence_deviation==nil
+        local submissions=M.mt.rush_close_submissions
+            and M.mt.rush_close_submissions() or -1
+        local ok=rejected and stayed and no_ui and noMismatch
+            and noDeviation and submissions==1
+        M.mt.signals[#M.mt.signals+1]=ok and 'rush_close_rejected' or 'rush_close_flow_wrong'
+        check('movement-talents:rush-close-rejected',ok,
+            {status=outcome and outcome.status,code=outcome and outcome.code,
+                before=before.x..','..before.y,after=p.x..','..p.y,
+                target_active=game.target and game.target.active or false,
+                co=game.target_co~=nil,submissions=submissions,
+                deviation=not noDeviation,
+                mismatch=outcome and outcome.postcondition_mismatch~=nil or false})
         return
     elseif spec.kind=='vault' then
         -- V-N2: the real native pre-use shield requirement refuses before any
