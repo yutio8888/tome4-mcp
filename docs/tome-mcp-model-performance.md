@@ -334,3 +334,25 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
    （RA-01）——评审用"全仓库 grep"证伪，而非只看我抽查的 `PolicySchema.lua`。
 3. **证据表述必须逐行核对**：我把 flake 说成"0 失败行"，实为 **3 行 Rush 失败**（RR-02）。
    "已知 flake"是**归因**，不是**观察**；未保留游戏日志时，根因应记 `NOT_OBSERVED`。
+
+## Loop: A′ ⊔ S3-arm2 语义并集合并
+
+| 阶段 | 角色 | 模型 |
+| --- | --- | --- |
+| 并集合并（38 冲突块 → 语义并集） | [Dev] | **B** `opencode-go/glm-5.3-flash`（high） |
+| 独立评审（fresh Sol） | [Review] | **GPT-5.6 Sol** → **merge**，P0=P1=P3=0，**1×P2** |
+| 补 close-Rush 拒绝行（P2 收尾） | [Dev] | B |
+
+**结果**：`merge/r2-aprime` @ `bf9c6af`，dist `5b32c28a…`。Sol 逐项证伪：arm2 与 A′ 准入**均无丢弃/削弱**；
+5 个 meet-point 全部 PASS；X″ 不变量完整；两套特性 native 行 source+dist **231/231**、acceptance **101/101**。
+
+**唯一 P2（APRIME-MERGE-REV-01）**：`bf9c6af` 为修 Rush 成功行而锚定 caster，导致**"紧邻目标的 Rush 原生
+拒绝"在当前 head 无主动断言行**——三份 pre-fix 失败会话是**特征化证据**，不是**可执行回归**。
+`AGENTS.md` 边界清单 E 的同类问题：**未观测的行不得当作 PASS**。已派 Dev 补一条**确定性真机拒绝行**
+（断言 typed `native_rejected` + 位置不变 + UI 收敛 + 单次提交 + 不重放），并要求它**自证该行可失败**。
+
+**序列事实**：[Dev] 连续三轮使用模型 **B**。**下一独立 [Dev] loop 应回到模型 A**。
+
+### 教训（写入预防口径）
+4. **修测试以便通过时，必须保留它所覆盖的路径**：把 caster 挪开使成功路径稳定，就同时删除了"贴近"
+   这一路径的覆盖。**替换断言前要问：被移除的覆盖由哪一行接管？**（此处答案是"没有"，故补行。）
