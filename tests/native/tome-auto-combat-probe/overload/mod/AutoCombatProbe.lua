@@ -9,6 +9,7 @@
 local Runtime=require 'mod.mcp_bridge.Runtime'
 local AutoCombat=require 'mod.auto_combat.AutoCombat'
 local AutoCombatService=require 'mod.auto_combat.AutoCombatService'
+local Store=require 'mod.auto_combat.PolicyStore'
 local NativeActivity=require 'mod.mcp_bridge.NativeActivity'
 local Presets=require 'mod.auto_combat.PolicyPresets'
 local Schema=require 'mod.auto_combat.PolicySchema'
@@ -482,10 +483,12 @@ local function assistantImport()
     signals[#signals+1]=reported and 'unsupported_reported' or 'unsupported_missing'
     check('assistant-import:unsupported',reported,generated and result.unsupported)
     local service=Runtime.autoCombatService(game)
-    local approved_before=service.store.approved
+    -- XDP-CLOSE-03 (Fix 3): the store records are private, so the comparison
+    -- uses the public status accessor (scalars), never a direct record field.
+    local approved_before=Store.status(service.store).approved_hash
     local stored=Runtime.autoCombatHandle(game,'import_assistant',{config=config,store=true})
     local store_ok=stored and stored.ok==true and stored.stored and stored.stored.draft_hash
-        and service.store.approved==approved_before
+        and Store.status(service.store).approved_hash==approved_before
     signals[#signals+1]=store_ok and 'stored' or 'store_failed'
     check('assistant-import:store',store_ok,stored)
     local wrong=Runtime.autoCombatHandle(game,'import_assistant',

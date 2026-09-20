@@ -15,6 +15,9 @@
 -- reported, never silently dropped.
 local Schema=require 'mod.auto_combat.PolicySchema'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
+local Json=require 'mod.mcp_bridge.Json'
+local Owned=require 'mod.auto_combat.OwnedImport'
+local Codec=require 'mod.auto_combat.PolicyCodec'
 local M={}
 
 M.FORMAT='tome-auto-combat-assistant-export/v1'
@@ -31,32 +34,69 @@ M.TALENT_KEYS={id=true,talent=true,enabled=true,priority=true,emergency=true,
 M.SUSTAIN_KEYS={talent=true,enabled=true,priority=true,min_resource_pct=true}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
-local function isArray(t) return type(t)=='table' and #t>0 end
 
+-- Version tuple. X-prime slice 1: the tuple MUST be a dense table. A scalar or
+-- any other non-table is a fault with `cause='not_array'` — the previously
+-- shipped `tostring(v)` shortcut let an exact pinned scalar version (for
+-- example the string '2.3.9') be accepted and stored. Returns the joined key,
+-- or `nil, cause, key` on a fault.
 function M.versionKey(v)
-    if type(v)~='table' then return tostring(v) end
-    local parts={}
-    for i=1,#v do parts[#parts+1]=tostring(v[i]) end
-    return table.concat(parts,'.')
+    if type(v)=='table' and v~=Json.null then
+        local dense,count=Json.denseArray(v,0)
+        if dense then
+            local parts={}
+            for i=1,count do parts[#parts+1]=tostring(v[i]) end
+            return table.concat(parts,'.')
+        end
+        return nil,Json.denseFault(v)
+    end
+    return nil,'not_array'
 end
 
--- Pin check. Returns the detected version descriptor or `nil, error`.
-function M.detect(config)
+-- A typed whole-import fault naming the malformed input, its cause and (when
+-- the shape has one) the offending key. One vocabulary for every ingress.
+local function inputFault(input,cause,key)
+    local out={code='invalid_document',input=input,cause=cause or 'not_array'}
+    if key~=nil then out.key=key end
+    return out
+end
+M.inputFault=inputFault
+
+-- Pin check on an ALREADY validated private tree (internal).
+local function detectValidated(config)
     if type(config)~='table' then return nil,{code='not_a_table'} end
     local assistant=config.assistant
     if type(assistant)~='table' then return nil,{code='missing_assistant'} end
     if assistant.addon~=M.PINNED.addon then
         return nil,{code='unknown_addon',expected=M.PINNED.addon,got=assistant.addon}
     end
-    local got=M.versionKey(assistant.addon_version)
+    local got,gotCause,gotKey=M.versionKey(assistant.addon_version)
+    if got==nil then
+        return nil,inputFault('assistant.addon_version',gotCause or 'not_array',gotKey)
+    end
     if got~=M.PINNED.addon_version then
         return nil,{code='assistant_version_mismatch',expected=M.PINNED.addon_version,got=got}
     end
     if config.format~=M.FORMAT then
         return nil,{code='unsupported_format',expected=M.FORMAT,got=config.format}
     end
+    local tomeStr,tomeCause,tomeKey=M.versionKey(assistant.tome_version)
+    if tomeStr==nil then
+        return nil,inputFault('assistant.tome_version',tomeCause or 'not_array',tomeKey)
+    end
     return {version=got,addon=assistant.addon,addon_version=got,
-        tome_version=M.versionKey(assistant.tome_version),format=config.format}
+        tome_version=tomeStr,format=config.format}
+end
+M.detectValidated=detectValidated
+
+-- Pin check on raw caller input. X-doubleprime: there is no owned type any
+-- more, so the raw input is ALWAYS reconstructed (audited + schema-row
+-- validated) here; a caller table is never trusted.
+function M.detect(config)
+    if type(config)~='table' or config==Json.null then return nil,{code='not_a_table'} end
+    local owned,fault=Owned.construct(config)
+    if not owned then return nil,fault end
+    return detectValidated(owned)
 end
 
 local function reportUnsupported(out,path,code,detail)
@@ -75,34 +115,44 @@ end
 
 -- Recursively translate a policy-shaped condition tree. Returns the condition,
 -- or `nil` when any leaf is unsupported (the whole rule is then dropped rather
--- than silently weakening the condition).
+-- than silently weakening the condition). A structurally MALFORMED `all`/`any`
+-- array is different: it returns `nil, fault`, which TERMINATES the whole
+-- import (the previous behaviour merely dropped the one rule, leaving a
+-- hashed/stored policy that silently lost a condition).
 local function translateCondition(cond,path,warnings,unsupported,depth)
     depth=depth or 0
     if depth>Schema.HARD.max_depth then
-        reportUnsupported(unsupported,path,'condition_too_deep')
-        return nil
+        -- XPS1-REV-03: a condition nested beyond the hard depth is a typed
+        -- WHOLE-IMPORT fault ({code,input,cause,key}; for a depth fault the key
+        -- is the offending depth). It is never degraded to a plain `nil`
+        -- (which previously became an empty-string rule and an untyped error).
+        return nil,inputFault(path,'condition_too_deep',depth)
     end
     if type(cond)~='table' then
-        reportUnsupported(unsupported,path,'invalid_condition')
-        return nil
+        return nil,inputFault(path,'not_a_table')
     end
     if cond.all~=nil or cond.any~=nil then
         local key=cond.all~=nil and 'all' or 'any'
         local list=cond[key]
-        if type(list)~='table' then
-            reportUnsupported(unsupported,path,'invalid_'..key)
-            return nil
+        local dense,countOrCause=Json.denseArray(list,0)
+        if not dense then
+            local cause,offendingKey=Json.denseFault(list)
+            return nil,inputFault(path..'.'..key,cause or countOrCause,offendingKey)
         end
+        local count=countOrCause
         local out={}
-        for index,child in ipairs(list) do
-            local translated=translateCondition(child,path..'.'..key..'['..index..']',warnings,unsupported,depth+1)
+        for index=1,count do
+            local translated,fault=translateCondition(list[index],
+                path..'.'..key..'['..index..']',warnings,unsupported,depth+1)
+            if fault then return nil,fault end
             if translated==nil then return nil end
             out[#out+1]=translated
         end
         return {[key]=out}
     end
     if cond['not']~=nil then
-        local translated=translateCondition(cond['not'],path..'.not',warnings,unsupported,depth+1)
+        local translated,fault=translateCondition(cond['not'],path..'.not',warnings,unsupported,depth+1)
+        if fault then return nil,fault end
         if translated==nil then return nil end
         return {['not']=translated}
     end
@@ -132,11 +182,15 @@ local function uniqueId(used,wanted,fallback)
 end
 
 -- Translate one assistant talent entry into a policy rule (or nil + report).
+-- XPS1-REV-03: a non-table element is a MALFORMED element — a typed
+-- whole-import fault naming the list, the cause and the offending index. It is
+-- never "unsupported ⇒ continue": a non-table entry cannot be interpreted as
+-- an assistant entry at all, so continuing would manufacture a partial
+-- artifact (the review's partial draft + revision advance).
 local function translateTalent(entry,index,used,warnings,unsupported)
     local path='talents['..index..']'
-    if type(entry)~='table' then
-        reportUnsupported(unsupported,path,'invalid_talent_entry')
-        return nil
+    if type(entry)~='table' or entry==Json.null then
+        return nil,inputFault('talents','invalid_element',index)
     end
     for key in pairs(entry) do
         if not M.TALENT_KEYS[key] then
@@ -148,7 +202,7 @@ local function translateTalent(entry,index,used,warnings,unsupported)
         reportUnsupported(unsupported,path,'missing_talent')
         return nil
     end
-    if entry.enabled==false then return nil,'' end
+    if entry.enabled==false then return nil end
     if Catalog.isSustain(talent) then
         reportWarning(warnings,path,'talent_is_sustain',{talent=talent})
         return nil
@@ -169,8 +223,9 @@ local function translateTalent(entry,index,used,warnings,unsupported)
         reportUnsupported(unsupported,path,'action_not_generated',{talent=talent,action=action})
         return nil
     end
-    local when=translateCondition(entry.when or {always={}},path..'.when',warnings,unsupported,0)
-    if when==nil then return nil,'' end
+    local when,fault=translateCondition(entry.when or {always={}},path..'.when',warnings,unsupported,0)
+    if fault then return nil,fault end
+    if when==nil then return nil end
     local target=entry.target
     if target==nil then
         target=descriptor.target=='self' and 'self' or 'nearest_hostile'
@@ -196,7 +251,15 @@ end
 
 -- Translate a pinned assistant export into a policy draft.
 function M.translate(config)
-    local detected,detect_error=M.detect(config)
+    -- X-doubleprime: the raw caller table never reaches translation. The ONLY
+    -- constructor that accepts raw input audits the COMPLETE original structure
+    -- (nothing dropped, no lossy pre-copy) and validates its schema rows BEFORE
+    -- any density/element read; any malformed required array or element refuses
+    -- the WHOLE import here — before any draft, hash or store exists.
+    local owned,fault=Owned.construct(config)
+    if not owned then return {ok=false,error=fault} end
+    config=owned
+    local detected,detect_error=M.detectValidated(config)
     if not detected then return {ok=false,error=detect_error} end
     local warnings,unsupported={},{}
     for key in pairs(config) do
@@ -229,10 +292,22 @@ function M.translate(config)
     end
 
     local sustains={}
-    for index,sustain in ipairs(type(config.sustains)=='table' and config.sustains or {}) do
+    -- Dense/closed validation over ALL keys before any `#`/`ipairs`; the
+    -- constructor already refused a malformed list, so this is the same single
+    -- vocabulary applied at the consumer. A hole can never be read as a
+    -- shorter prefix.
+    local sustainsValid,sustainsCause=Json.denseArray(config.sustains,0)
+    if config.sustains~=nil and not sustainsValid then
+        local cause,offendingKey=Json.denseFault(config.sustains)
+        return {ok=false,error=inputFault('sustains',cause or sustainsCause,offendingKey)}
+    end
+    local sustainsList=sustainsValid and config.sustains or nil
+    for index,sustain in ipairs(sustainsList or {}) do
         local path='sustains['..index..']'
-        if type(sustain)~='table' then
-            reportUnsupported(unsupported,path,'invalid_sustain_entry')
+        -- XPS1-REV-03: same element-shape rule as talents — a non-table
+        -- sustain element refuses the WHOLE import with the typed fault.
+        if type(sustain)~='table' or sustain==Json.null then
+            return {ok=false,error=inputFault('sustains','invalid_element',index)}
         else
             for key in pairs(sustain) do
                 if not M.SUSTAIN_KEYS[key] then
@@ -253,8 +328,15 @@ function M.translate(config)
     end
 
     local rules,used={},{}
-    for index,entry in ipairs(type(config.talents)=='table' and config.talents or {}) do
-        local rule=translateTalent(entry,index,used,warnings,unsupported)
+    local talentsValid,talentsCause=Json.denseArray(config.talents,0)
+    if config.talents~=nil and not talentsValid then
+        local cause,offendingKey=Json.denseFault(config.talents)
+        return {ok=false,error=inputFault('talents',cause or talentsCause,offendingKey)}
+    end
+    local talentsList=talentsValid and config.talents or nil
+    for index,entry in ipairs(talentsList or {}) do
+        local rule,ruleFault=translateTalent(entry,index,used,warnings,unsupported)
+        if ruleFault then return {ok=false,error=ruleFault} end
         if rule then rules[#rules+1]=rule end
     end
 
@@ -284,8 +366,47 @@ function M.translate(config)
     if not compatible then
         return {ok=false,error={code='invalid_policy',errors=semantic,warnings=warnings,unsupported=unsupported}}
     end
-    return {ok=true,draft=policy,warnings=warnings,unsupported=unsupported,
-        version=detected,hash=Schema.hash(policy)}
+    -- X-doubleprime: bind the generated draft to canonical bytes BEFORE it
+    -- leaves the importer, so the hash the result reports is the hash of the
+    -- snapshot's validated content (not a projection later re-run on a mutable
+    -- caller table).
+    local snapshot,err=M.policySnapshot(policy,'import_assistant')
+    if not snapshot then
+        return {ok=false,error=err.code=='invalid_policy' and
+            {code='invalid_policy',errors=err.errors,warnings=warnings,unsupported=unsupported}
+            or err}
+    end
+    return {ok=true,draft=assert(Codec.open(snapshot)),snapshot=snapshot,
+        warnings=warnings,unsupported=unsupported,version=detected,hash=snapshot.hash}
+end
+
+-- X-doubleprime — the ONE policy snapshot transaction every hash/evaluate/store
+-- sink runs. There is no ownership registry and no value cache: the input is
+-- ALWAYS audited+validated before it is encoded, and the immutable bytes (not
+-- the table) are what downstream state binds. A raw caller table — including a
+-- policy that lost ownership across an ordinary MCP round-trip — works; a
+-- malformed one is refused typed before any hash/encode/store.
+--
+-- XDP-REV-01/03: a snapshot-SHAPED table (e.g. a wire dict that survived a JSON
+-- round-trip) is never returned as-is and its supplied `.hash` is never
+-- trusted: `Codec.normalise` re-opens the bytes, re-validates them under the
+-- CURRENT schema and re-derives the hash from the exact bytes into a FRESH
+-- private record. The caller's table never becomes authority (this replaces
+-- the X-prime table-identity mechanism, XPS1-R2-01).
+function M.policySnapshot(policy,sink)
+    if Codec.isSnapshot(policy) then
+        return Codec.normalise(policy)
+    end
+    return Codec.prepare(policy,sink or 'policy')
+end
+
+-- A raw policy hash: validates first, then projects. Kept for callers that
+-- only need a digest; a malformed value raises a typed error rather than being
+-- hashed (XPS1-R2-03).
+function M.hashPolicy(policy)
+    local snapshot,err=M.policySnapshot(policy,'hash')
+    if not snapshot then error(err and (err.code or 'invalid_policy') or 'invalid_policy',2) end
+    return snapshot.hash
 end
 
 return M

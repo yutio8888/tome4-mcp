@@ -12,6 +12,7 @@ assert(root_probe,'cannot resolve the addon root from '..tostring(arg[0])..'; in
 root_probe:close()
 package.path=root..'/overload/?.lua;'..package.path
 local Service=require 'mod.auto_combat.AutoCombatService'
+local Store=require 'mod.auto_combat.PolicyStore'
 local checks=0
 local function check(value,message) checks=checks+1;assert(value,message) end
 
@@ -114,18 +115,18 @@ do
     check(svc.controller and svc.controller.state=='running','the run started')
     -- AC-09: stop keeps the active policy; start re-acquires the lease.
     Service.handle(svc,'stop',{})
-    check(svc.arbiter.owner=='manual' and svc.store.running~=nil and svc.store.active==true,
+    check(svc.arbiter.owner=='manual' and Store.has(svc.store,'running') and svc.store.active==true,
         'stop releases the lease but keeps the active policy')
     local restarted=Service.handle(svc,'start',{})
     check(restarted.ok and svc.arbiter.owner=='auto_combat',
         'start re-acquires the lease for an already-active policy')
     Service.manualInput(svc,'manual')
-    check(svc.arbiter.owner=='manual' and svc.store.running~=nil,'manual input keeps the active policy')
+    check(svc.arbiter.owner=='manual' and Store.has(svc.store,'running'),'manual input keeps the active policy')
     check(Service.handle(svc,'start',{}).ok,'start re-acquires after a manual input')
     -- AC-09: a no-visible-enemies self-stop is restartable.
     svc.controller.host.snapshot=function() return {hp_pct=80,enemy_count=0} end
     Service.step(svc)
-    check(svc.arbiter.owner=='manual' and svc.store.running~=nil,'no-enemy end keeps the active policy')
+    check(svc.arbiter.owner=='manual' and Store.has(svc.store,'running'),'no-enemy end keeps the active policy')
     check(Service.handle(svc,'start',{}).ok,'start re-acquires after a no-enemy end')
     -- AC-08: activating a changed approved policy stops the old generation.
     local old_hash=Service.status(svc).running_hash
@@ -177,8 +178,11 @@ do
     local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
     Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
     Service.handle(svc,'start',{})
-    -- Critical HP with no emergency rule left in the policy.
+    -- Critical HP with no emergency rule left in the policy. The controller's
+    -- transaction-boundary snapshot is patched first so the deliberate
+    -- no-emergency edit is not read as a policy tamper.
     svc.controller.policy.rules={}
+    svc.controller.policy_snapshot=nil
     svc.controller.host.snapshot=function() return {hp_pct=10,enemy_count=1} end
     local stepped=Service.step(svc)
     check(stepped.ok and stepped.step.reason=='no_emergency_action','no_emergency_action pauses')
@@ -305,8 +309,8 @@ do
     check(got.draft_hash==d.draft_hash and got.approved_hash==ap.approved_hash and got.running_hash~=nil,
         'get returns the three hashes')
     local cleared=Service.handle(svc,'clear',{})
-    check(cleared.ok and svc.store.draft==nil,'clear empties the draft')
-    check(svc.store.approved~=nil and svc.store.running~=nil,'clear never deletes approved or running')
+    check(cleared.ok and not Store.has(svc.store,'draft'),'clear empties the draft')
+    check(Store.has(svc.store,'approved') and Store.has(svc.store,'running'),'clear never deletes approved or running')
 end
 
 -- Decision replay: bounded, cursor-paged, ascending -------------------------
@@ -683,9 +687,9 @@ do
     check(state.draft~=nil and state.approved~=nil,'the save state carries the policy')
     local restored=Service.new()
     check(Service.loadState(restored,state),'loading a character restores its policy')
-    check(restored.store.approved~=nil and restored.store.running==nil and restored.arbiter.owner=='manual',
+    check(Store.has(restored.store,'approved') and not Store.has(restored.store,'running') and restored.arbiter.owner=='manual',
         'loading never restores the running state or control')
-    check(Service.loadState(restored,{approved={schema='bad'}})==true and restored.store.approved~=nil,
+    check(Service.loadState(restored,{approved={schema='bad'}})==true and Store.has(restored.store,'approved'),
         'an invalid stored policy is ignored')
 end
 -- P0/F4: a bounded native abort records a typed event, stops the run and hands

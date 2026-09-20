@@ -17,6 +17,7 @@ local Schema=require 'mod.auto_combat.PolicySchema'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
 local Json=require 'mod.mcp_bridge.Json'
 local Service=require 'mod.auto_combat.AutoCombatService'
+local Store=require 'mod.auto_combat.PolicyStore'
 local checks=0
 local function check(value,message) checks=checks+1;assert(value,message) end
 local fixture_dir=root..'/tests/fixtures/assistant/'
@@ -141,13 +142,13 @@ do
     local svc=Service.new()
     local result=Service.handle(svc,'import_assistant',{config=fixture('anorithil_pinned.json')})
     check(result.ok and result.imported==true and result.draft~=nil,'the service generates a draft')
-    check(result.stored==nil and svc.store.draft==nil,'generation alone does not store a draft')
-    check(svc.store.approved==nil and svc.store.running==nil,'generation never approves or activates')
+    check(result.stored==nil and not Store.has(svc.store,'draft'),'generation alone does not store a draft')
+    check(not Store.has(svc.store,'approved') and not Store.has(svc.store,'running'),'generation never approves or activates')
     check(result.version and result.version.addon_version=='2.3.9','the result reports the pinned version')
 
     local stored=Service.handle(svc,'import_assistant',{config=fixture('anorithil_pinned.json'),store=true})
     check(stored.ok and stored.stored and stored.stored.draft_hash,'explicit store writes the draft only')
-    check(svc.store.draft~=nil and svc.store.approved==nil and svc.store.running==nil,
+    check(Store.has(svc.store,'draft') and not Store.has(svc.store,'approved') and not Store.has(svc.store,'running'),
         'store writes only the draft')
     local refused=Service.handle(svc,'import_assistant',{config=fixture('wrong_version.json')})
     check(refused.error and refused.error.code=='assistant_version_mismatch',

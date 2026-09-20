@@ -3,6 +3,93 @@ local M = { MAX_DEPTH = 64 }
 local array_mt = { __mcp_json_array = true }
 M.null = setmetatable({}, { __tostring = function() return 'json.null' end })
 function M.array(value) return setmetatable(value or {}, array_mt) end
+-- The ONE way to ask whether a table carries the decoder/constructor array
+-- marker. Callers that must refuse every OTHER metatable (the X-doubleprime
+-- policy codec's structural audit) use this instead of comparing against a
+-- private metatable they cannot see.
+function M.isArrayMarked(value)
+    return type(value)=='table' and getmetatable(value)==array_mt
+end
+-- The project's ONE dense/closed array validator (AGENTS.md checklist A): a
+-- caller-supplied array is only usable with `#`/`ipairs` once every key is a
+-- positive integer, there are no holes, and no keys beyond the dense end.
+-- Rejects non-integer/zero/negative keys and holes; on success returns the
+-- dense length. Kept dependency-free here so every ingress can share it.
+function M.denseArray(list, minLength)
+    if type(list) ~= 'table' or list == M.null then return false, 'not_array' end
+    local maxKey, count = 0, 0
+    for key in pairs(list) do
+        if type(key) ~= 'number' or key % 1 ~= 0 or key < 1 then return false, 'non_integer_key' end
+        if key > maxKey then maxKey = key end
+        count = count + 1
+    end
+    if maxKey ~= count then return false, 'hole' end
+    for i = 1, maxKey do if list[i] == nil then return false, 'hole' end end
+    if minLength and maxKey < minLength then return false, 'too_short' end
+    return true, maxKey
+end
+-- Diagnostic refinement for a caller array that already FAILED M.denseArray:
+-- returns `nil` when no density fault can be named (dense, empty or a
+-- non-table), otherwise a typed cause plus the offending key, matching the
+-- AGENTS.md checklist-A shape taxonomy (non-integer key, hole, key beyond the
+-- dense end). Deterministic for ALL key types (XPS1-REV-04): the SMALLEST
+-- offending key in a documented total order wins — numeric keys first in
+-- ascending numeric order, then string keys in ascending byte order, then any
+-- exotic key type (not JSON-encodable) by `tostring`, best-effort (two exotic
+-- keys can share a `tostring`, and their rendering is process-dependent; the
+-- deterministic contract covers the JSON-encodable number/string universe).
+-- Pure inspection; like `denseArray` it only READS the caller table.
+function M.denseFault(list)
+    if type(list) ~= 'table' or list == M.null then return nil end
+    -- XPS1-REV-04: the offending key is chosen by a total order over ALL key
+    -- types (see the header comment), so the fault no longer depends on the
+    -- `pairs` traversal order of a particular LuaJIT process.
+    local function rank(key)
+        local kind = type(key)
+        if kind == 'number' then return 1 end
+        if kind == 'string' then return 2 end
+        return 3
+    end
+    local function offendingLess(a, b)
+        local ra, rb = rank(a), rank(b)
+        if ra ~= rb then return ra < rb end
+        if ra == 1 then return a < b end
+        return tostring(a) < tostring(b)
+    end
+    local maxKey, count = 0, 0
+    local badKey = nil
+    for key in pairs(list) do
+        local integral = type(key) == 'number' and key % 1 == 0 and key >= 1
+        if not integral then
+            if badKey == nil or offendingLess(key, badKey) then badKey = key end
+        else
+            if key > maxKey then maxKey = key end
+            count = count + 1
+        end
+    end
+    if badKey ~= nil then return 'non_integer_key', badKey end
+    if maxKey == count then return nil end
+    -- Largest p such that 1..p are all present (the dense prefix end).
+    local prefix = 0
+    for i = 1, maxKey do
+        if list[i] == nil then break end
+        prefix = i
+    end
+    -- Exactly one key beyond the dense prefix (with the dense 1..p run before
+    -- it) is the checklist-A 'key beyond the dense end' shape; anything else is
+    -- a hole at the first missing index.
+    local beyond, beyondCount = nil, 0
+    for key in pairs(list) do
+        if key > prefix then
+            beyondCount = beyondCount + 1
+            if beyond == nil or key < beyond then beyond = key end
+        end
+    end
+    if beyondCount == 1 and count == prefix + 1 then
+        return 'key_beyond_dense_end', beyond
+    end
+    return 'hole', prefix + 1
+end
 local function fail(message) error('JSON: '..message, 0) end
 local function finite(n) return n == n and n > -math.huge and n < math.huge end
 
@@ -39,6 +126,11 @@ local function quote(s)
         return escapes[c] or ('\\u%04x'):format(c:byte())
     end)..'"'
 end
+-- XDP-REV-05: the strict UTF-8 validator used by `quote` is exported so the
+-- policy codec can audit strings BEFORE encode/projection (typed fault) instead
+-- of an untyped `JSON: invalid UTF-8` throw after validation.
+M.utf8Valid=utf8_valid
+
 function M.encode(value)
     local seen = {}
     local function emit(v, depth)

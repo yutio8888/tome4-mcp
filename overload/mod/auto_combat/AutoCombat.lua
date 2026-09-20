@@ -14,6 +14,8 @@
 -- stale once the controller pauses/resumes/stops (generation > N).
 local Evaluator=require 'mod.auto_combat.PolicyEvaluator'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
+local Schema=require 'mod.auto_combat.PolicySchema'
+local Codec=require 'mod.auto_combat.PolicyCodec'
 local M={}
 -- A rejected sustain is not retried forever: after this many rejected attempts
 -- in one run the sustain is disabled for that run (design 5.3).
@@ -25,6 +27,10 @@ function M.new(policy,host,options)
     options=options or {}
     return setmetatable({
         policy=policy,host=host,state='stopped',reason=nil,generation=0,
+        -- X-doubleprime: the immutable snapshot the working tree came from. Every
+        -- step re-validates the working tree against it, so a mutation of the
+        -- table the controller holds cannot silently change what is executed.
+        policy_snapshot=options.policy_snapshot,
         attempts=0,instant_attempts=0,opportunity=0,opportunity_id=nil,actions=0,
         strict=options.strict~=false,denied={},known_enemies=nil,
         rejections={},recent={},sustain_failures={},sustain_disabled={},
@@ -32,6 +38,20 @@ function M.new(policy,host,options)
         max_attempts=(policy.limits and policy.limits.max_actions_per_tick) or 1,
         notify=options.notify or (host and host.notify),
     },{__index=M})
+end
+
+-- The content hash of the policy this run is bound to. Reported from the
+-- immutable snapshot when present (its hash is always the one re-derived from
+-- the exact bytes by the service, never a caller-supplied value); falls back to
+-- a validated projection for headless unit hosts.
+function M:policyHash()
+    if self.policy_snapshot then return self.policy_snapshot.hash end
+    -- Headless unit hosts may construct a controller directly; a policy that
+    -- cannot be validated has no hash (never the projection of a malformed
+    -- value).
+    local ok,hash=pcall(Schema.project,self.policy)
+    if ok then return hash end
+    return nil
 end
 
 function M:isStale(generation) return generation~=self.generation end
@@ -404,6 +424,19 @@ end
 
 function M:step()
     if self.state~='running' then return {action='noop',state=self.state} end
+    -- X-doubleprime transaction boundary: re-validate the EXACT policy this
+    -- opportunity will evaluate against its immutable snapshot. XDP-REV-02:
+    -- the comparison is the EXACT canonical re-encoding of the working tree
+    -- (plus a metatable sweep — projection uses `pairs`, so inherited values
+    -- would be invisible to any digest comparison). A mismatch means the value
+    -- in hand is not the approved one.
+    if self.policy_snapshot then
+        if not Codec.matchesSnapshot(self.policy,self.policy_snapshot.bytes) then
+            self:record({kind='stopped',reason='policy_mutated'})
+            self:stop('policy_mutated')
+            return {action='stopped',reason='policy_mutated',state=self.state,generation=self.generation}
+        end
+    end
     local generation=self.generation
     local default_selector=self.policy.targeting and self.policy.targeting.default
     local pre=self:context(default_selector)
@@ -766,8 +799,7 @@ function M:onOpportunity()
 end
 
 function M:status()
-    local hashes=self.policy and require('mod.auto_combat.PolicySchema').hash(self.policy) or nil
     return {state=self.state,reason=self.reason,generation=self.generation,
-        attempts=self.attempts,actions=self.actions,opportunity=self.opportunity,policy_hash=hashes}
+        attempts=self.attempts,actions=self.actions,opportunity=self.opportunity,policy_hash=self:policyHash()}
 end
 return M

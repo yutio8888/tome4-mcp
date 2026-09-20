@@ -198,7 +198,7 @@ local function snapshot(s,radius,options)
     local run=ac and ac.run or nil
     result.auto_combat={enabled=(s.auto_combat and s.auto_combat.host_factory~=nil) or false,
         active=(ac and ac.active==true) or false,
-        policy_id=(s.auto_combat and s.auto_combat.store.running and s.auto_combat.store.running.id) or Json.null,
+        policy_id=(ac and ac.running_id) or Json.null,
         policy_hash=(ac and ac.running_hash) or Json.null,
         state=(run and run.state) or 'stopped',
         actions=(run and run.actions) or 0,
@@ -504,7 +504,7 @@ function M.reset(g)
     s.auto_combat=AutoCombat.new{}
     -- Planning-level dry runs only need audited reads, so this host is wired
     -- unconditionally and never depends on allow_auto_combat_execution.
-    s.auto_combat.dry_run_host_factory=function(svc,policy) return buildAutoCombatReadHost(s,policy) end
+    s.auto_combat.dry_run_host_factory=function(policy) return buildAutoCombatReadHost(s,policy) end
     -- Replay-grade log metadata (design §10): the world tick, session revision
     -- and level instance are tagged on every decision-log entry.
     s.auto_combat.log_context=function()
@@ -520,7 +520,12 @@ function M.reset(g)
     -- remote command slot (the changed() guard below skips it).
     if config and config.settings and config.settings.tome_mcp_bridge
         and config.settings.tome_mcp_bridge.allow_auto_combat_execution==true then
-        s.auto_combat.host_factory=function(svc) return buildAutoCombatHost(s,svc.store.running) end
+        s.auto_combat.host_factory=function(policy)
+            -- X-doubleprime/XDP-REV-02: the service hands the factory ONLY a
+            -- detached decode of the captured running bytes — never the service
+            -- itself and never the controller's working tree.
+            return buildAutoCombatHost(s,assert(policy,'host factory requires the transaction policy'))
+        end
     end
     s.snapshots={};s.snapshot_bytes=0
     s.connection_generation=1
@@ -2400,7 +2405,11 @@ function M.setAutoCombatExecution(g,enabled)
     if not s or s.game~=g then return false end
     if enabled then
         if not s.auto_combat.host_factory then
-            s.auto_combat.host_factory=function(svc) return buildAutoCombatHost(s,svc.store.running) end
+            s.auto_combat.host_factory=function(policy)
+                -- X-doubleprime/XDP-REV-02: the service hands the factory ONLY
+                -- a detached decode of the captured running bytes.
+                return buildAutoCombatHost(s,assert(policy,'host factory requires the transaction policy'))
+            end
         end
     else
         if s.auto_combat.controller and s.auto_combat.controller.state~='stopped' then

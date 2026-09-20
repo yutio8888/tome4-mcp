@@ -109,6 +109,17 @@ local function finite(n) return type(n)=='number' and n==n and n>-math.huge and 
 local function integer(n,lo,hi) return finite(n) and n%1==0 and n>=lo and n<=hi end
 local function isArray(t) return type(t)=='table' and t~=Json.null end
 
+-- Checklist A: a caller-supplied ARRAY is only usable with `#`/`ipairs` once it
+-- is dense and closed over ALL keys (XPS1-REV-01: the weak `isArray` test let a
+-- JSON-encodable `{all={hidden={always={}}}}` pass and be traversed as an EMPTY
+-- `all`). `denseList` returns the dense count, or `nil, key` when the value is
+-- not a dense 1..n array.
+local function denseList(value)
+    local ok,count=Json.denseArray(value,0)
+    if ok then return count end
+    return nil,select(2,Json.denseFault(value))
+end
+
 local function onlyKeys(t,allowed,path,errors)
     for key in pairs(t) do
         if not allowed[key] then errors[#errors+1]={path=path,code='unknown_field',field=tostring(key)} end
@@ -127,15 +138,17 @@ local function validateCondition(cond,path,depth,errors)
     if depth>M.HARD.max_depth then errors[#errors+1]={path=path,code='too_deep'};return end
     if type(cond)~='table' then errors[#errors+1]={path=path,code='invalid_condition'};return end
     if cond.all then
-        if not isArray(cond.all) then errors[#errors+1]={path=path,code='invalid_all'};return end
+        local count=denseList(cond.all)
+        if not count then errors[#errors+1]={path=path..'.all',code='invalid_all'};return end
         onlyKeys(cond,{all=true},path,errors)
-        for i,c in ipairs(cond.all) do validateCondition(c,path..'.all['..i..']',depth+1,errors) end
+        for i=1,count do validateCondition(cond.all[i],path..'.all['..i..']',depth+1,errors) end
         return
     end
     if cond.any then
-        if not isArray(cond.any) then errors[#errors+1]={path=path,code='invalid_any'};return end
+        local count=denseList(cond.any)
+        if not count then errors[#errors+1]={path=path..'.any',code='invalid_any'};return end
         onlyKeys(cond,{any=true},path,errors)
-        for i,c in ipairs(cond.any) do validateCondition(c,path..'.any['..i..']',depth+1,errors) end
+        for i=1,count do validateCondition(cond.any[i],path..'.any['..i..']',depth+1,errors) end
         return
     end
     if cond['not']~=nil then
@@ -280,11 +293,13 @@ end
 -- but reported as a capability/integrity limit at execution (never silently
 -- ignored).
 local function validateTargetPlan(plan,path,errors)
-    if not isArray(plan) or #plan==0 then
+    local planCount=denseList(plan)
+    if not planCount or planCount==0 then
         errors[#errors+1]={path=path,code='invalid_target_plan'};return
     end
-    if #plan>8 then errors[#errors+1]={path=path,code='target_plan_too_long'} end
-    for index,step in ipairs(plan) do
+    if planCount>8 then errors[#errors+1]={path=path,code='target_plan_too_long'} end
+    for index=1,planCount do
+        local step=plan[index]
         local stepPath=path..'['..index..']'
         if type(step)~='table' then errors[#errors+1]={path=stepPath,code='invalid_target_step'}
         else
@@ -364,9 +379,11 @@ function M.validate(policy)
         end
     end
     if policy.sustains~=nil then
-        if not isArray(policy.sustains) then errors[#errors+1]={path='sustains',code='invalid_sustains'}
+        local sustainCount=denseList(policy.sustains)
+        if not sustainCount then errors[#errors+1]={path='sustains',code='invalid_sustains'}
         else
-            for i,sustain in ipairs(policy.sustains) do
+            for i=1,sustainCount do
+                local sustain=policy.sustains[i]
                 local path='sustains['..i..']'
                 if type(sustain)~='table' then errors[#errors+1]={path=path,code='invalid_sustain'}
                 else
@@ -409,9 +426,15 @@ function M.validate(policy)
                 if type(tie)~='table' or tie==Json.null then
                     errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break'}
                 else
-                    for index,key in ipairs(tie) do
-                        if key~='distance' and key~='hp' and key~='uid' then
-                            errors[#errors+1]={path='targeting.tie_break['..index..']',code='unsupported_tie_break'}
+                    local tieCount=denseList(tie)
+                    if not tieCount then
+                        errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break'}
+                    else
+                        for index=1,tieCount do
+                            local key=tie[index]
+                            if key~='distance' and key~='hp' and key~='uid' then
+                                errors[#errors+1]={path='targeting.tie_break['..index..']',code='unsupported_tie_break'}
+                            end
                         end
                     end
                 end
@@ -428,13 +451,15 @@ function M.validate(policy)
             end
         end
     end
-    if not isArray(policy.rules) or #policy.rules==0 then
+    local ruleCount=denseList(policy.rules)
+    if not ruleCount or ruleCount==0 then
         errors[#errors+1]={path='rules',code='rules_required'}
     else
         local cap=policy.limits and policy.limits.max_rules or M.HARD.max_rules
-        if #policy.rules>cap then errors[#errors+1]={path='rules',code='too_many_rules'} end
+        if ruleCount>cap then errors[#errors+1]={path='rules',code='too_many_rules'} end
         local ids={}
-        for i,rule in ipairs(policy.rules) do
+        for i=1,ruleCount do
+            local rule=policy.rules[i]
             local path='rules['..i..']'
             if type(rule)~='table' then errors[#errors+1]={path=path,code='invalid_rule'}
             else
@@ -562,42 +587,28 @@ function M.validate(policy)
     return true
 end
 
--- Deterministic canonical encoding: arrays keep order, object keys are sorted.
-local function canonical(value)
-    if type(value)~='table' then
-        if type(value)=='string' then return Json.encode(value) end
-        return tostring(value)
-    end
-    if #value>0 then
-        local parts={}
-        for i=1,#value do parts[#parts+1]=canonical(value[i]) end
-        return '['..table.concat(parts,',')..']'
-    end
-    local keys={}
-    for key in pairs(value) do keys[#keys+1]=key end
-    table.sort(keys)
-    local parts={}
-    for _,key in ipairs(keys) do parts[#parts+1]=Json.encode(key)..':'..canonical(value[key]) end
-    return '{'..table.concat(parts,',')..'}'
-end
+-- X-doubleprime: the one content-hash entry point. The authoritative policy
+-- state is canonical bytes (see `mod.auto_combat.PolicyCodec`), so this module
+-- no longer exposes a raw hasher: `M.hash` validates its argument first.
+-- `M.canonical` is the full canonical projection (including `updated`); a
+-- validated document is required, so a malformed table can never reach the
+-- projection (XPS1-R2-03).
+local function codec() return require 'mod.auto_combat.PolicyCodec' end
 
--- `updated` is editable metadata and must not change the content hash.
 function M.canonical(policy)
-    local copy={}
-    for key,value in pairs(policy) do if key~='updated' then copy[key]=value end end
-    return canonical(copy)
+    local value,err=codec().canonical(policy)
+    if value==nil then error(err or 'canonical requires a validated policy',2) end
+    return value
 end
 
 function M.hash(policy)
-    local data=M.canonical(policy)
-    local ok,md5=pcall(require,'md5')
-    if ok and type(md5)=='table' and md5.sumhexa then return md5.sumhexa(data) end
-    -- Deterministic FNV-1a fallback for environments without the md5 module.
-    local hash=2166136261
-    for i=1,#data do
-        hash=bit.bxor(hash,data:byte(i))
-        hash=bit.band(hash*16777619,0xffffffff)
-    end
-    return string.format('%08x',hash)
+    local value,err=codec().hash(policy)
+    if value==nil then error(err and (err.code or 'hash_failed') or 'hash_failed',2) end
+    return value
+end
+
+-- The structured (non-throwing) form used by the codec/sinks.
+function M.project(policy)
+    return codec().hash(policy)
 end
 return M

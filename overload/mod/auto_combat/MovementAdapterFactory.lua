@@ -41,6 +41,7 @@
 -- supplies audited native objects. A missing reader is a typed unknown, never a
 -- pass.
 local M={}
+local Json=require 'mod.mcp_bridge.Json'
 
 M.REASON_INVALID='movement_adapter_invalid'
 M.REASON_VARIANT_UNKNOWN='movement_variant_unknown'
@@ -91,24 +92,11 @@ local function checkEnum(value,set)
     return type(value)=='string' and set[value]==true
 end
 
--- A closed list is a dense `1..n` integer-keyed array. Non-integer keys and holes
--- are rejected instead of being silently ignored by `#`/`ipairs`.
-local function validateArray(list,minLen)
-    if type(list)~='table' then return false,'not_array' end
-    local maxKey=0
-    local count=0
-    for key in pairs(list) do
-        if type(key)~='number' or key%1~=0 or key<1 then return false,'non_integer_key' end
-        if key>maxKey then maxKey=key end
-        count=count+1
-    end
-    if minLen and maxKey<minLen then return false,'too_short' end
-    if count~=maxKey then return false,'hole' end
-    for i=1,maxKey do
-        if list[i]==nil then return false,'hole' end
-    end
-    return true,maxKey
-end
+-- A closed list is a dense `1..n` integer-keyed array. The density decision
+-- lives in EXACTLY ONE place, `Json.denseArray` (X-prime slice 1, AGENTS.md
+-- checklist A); this is a thin alias so callers keep the historical
+-- `(ok, maxKey)` return while there is only one validator to migrate.
+local validateArray=Json.denseArray
 
 M.validateArray=validateArray
 

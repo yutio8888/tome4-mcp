@@ -7,6 +7,7 @@
 -- accessors (which also hold the explicit local execution authorization).
 local Runtime=require 'mod.mcp_bridge.Runtime'
 local Model=require 'mod.auto_combat.PolicyEditorModel'
+local Store=require 'mod.auto_combat.PolicyStore'
 local M={}
 
 local function tr(text) return _t and _t(text) or text end
@@ -37,7 +38,10 @@ function M.open(player)
     local row=font_h+6
 
     local svc=Runtime.autoCombatService(game)
-    local working=Model.clone(svc and (svc.store.draft or svc.store.approved) or nil)
+    -- X-doubleprime: the editor works on a DETACHED decoded copy of the draft (or
+    -- approved) snapshot, so edits there can never reach the stored bytes.
+    local working=svc and (Store.getVersion(svc.store,'draft') or Store.getVersion(svc.store,'approved')) or nil
+    if working then working=Model.clone(working) end
     if not working then
         local preset=Runtime.autoCombatHandle(game,'preset',{name='anorithil_p1a'})
         working=preset and preset.ok and preset.policy or nil
