@@ -185,11 +185,10 @@ local function audit(value,path,depth,seen)
         -- ORDER (bytewise-smallest), not by `pairs` traversal order, so two
         -- invalid keys of different lengths yield one identical typed fault in
         -- every fresh process. This is a separate pre-scan placed BEFORE the
-        -- base key loop; keeping the original loop body byte-identical is
-        -- deliberate. A previous in-loop rewrite of `classify`/`audit` was
-        -- exposed to a LuaJIT register-aliasing miscompile (a lone string key
-        -- counted as `{numeric=1,strings=1}` => spurious `mixed_keys`) and had
-        -- to be reverted; see the closure report's `jit_instability` evidence.
+        -- base key loop, keeping the original loop body byte-identical. (An
+        -- earlier in-loop rewrite of `classify`'s key-counting loop was
+        -- edit/code-shape sensitive on this LuaJIT build; see the closure
+        -- report's toolchain note. `classify` is unchanged from base.)
         do
             local bad
             for k in pairs(value) do

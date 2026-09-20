@@ -12,7 +12,7 @@ guarantee down to exactly what is true. **The X″ loop is frozen here** (see §
   `e411c933c7ca7f5cfb08cc8c999352d1635607b27ecaf095fb949338b1bfa795` — rev-1 findings
   (XDP-REV-01..06 are the rev-2 acceptance list).
 - `tmp/mcp-play-support/review-xdoubleprime-rev2.md` sha256
-  `cd0a79c2ffc5411101bc4c1bc2d49c34a5c58789a453f6fa0868000a55db0a7d` — rev-2 verdict
+  `9cb0695e22767d49c9dae46940f3658929c1138f6a6eb74ddccc1a93300fd36e` — rev-2 verdict
   (DO_NOT_MERGE, 2×P1 + 3×P2). Its `XDP2-NEW-01..05` are the rev-3 acceptance list.
 
 ## Why X″
@@ -77,26 +77,39 @@ private state.** There is no sandbox and no possible Lua-level guarantee:
 | L1 | Any remaining **reentrancy variant** around a callback that we did not enumerate | same-process only: a Lua closure that already shares `svc` and calls public ops | the enumerated variants (`start`, `dry_run`) are guarded and regression-tested; a future variant would be another same-process case, not an MCP/wire/ordinary-caller path |
 | L2 | **Exotic-key diagnostics** beyond the exercised kinds (e.g. a new key type) | same-process only: a caller constructs such a table as a policy | the diagnostic is already total-order deterministic for every key kind T‑Engine/LuaJIT can produce; an unrecognised kind would still be a typed `invalid_key` |
 | L3 | Replaced module functions / `debug` access to the vault | same-process only (by construction) | `AGENTS.md`: the plugin is **not responsible for other addons'** replaced implementations |
-| L4 | Cost of the codec on huge policies | n/a (perf, not a security boundary) | row 7 is measured, not adjudicated (no frozen threshold) |
-| L5 | **Toolchain observation**: a LuaJIT code-shape regression in `PolicyCodec`'s structural audit (a two-counter key-classification loop reported one string key as `{numeric=1,strings=1}` => spurious `mixed_keys`) was hit while shaping Fix 5 | any deployment on this LuaJIT build (`2.1.0-beta3`); not caller-controlled | see § Toolchain note |
+| L4 | Cost of the codec on huge policies | **reachable from MCP**: a policy author can submit/repeat an accepted maximum-size policy and incur the codec work (performance, not a security boundary) | row 7 is measured, not adjudicated (no frozen threshold) |
+| L5 | **Toolchain observation**: a LuaJIT code-shape-sensitive failure was seen in an edited `PolicyCodec` structural-audit shape (an in-loop key-counting rewrite reported a single string key `{lt=<n>}` as `{numeric=1,strings=1}` => spurious `mixed_keys`) | the **deployed code shape** is not caller-controlled (Fix 5 keeps `classify` byte-identical to base), but the **workload** is caller-triggerable: a policy author can supply/repeat the representative max-size policy | retained artifact under `tmp/xdp-closure/jit-instability/`; see § Toolchain note |
 
 ### Toolchain note (L5) — deferred root cause
 
-While shaping Fix 5, an edit that rewrote `classify`'s key-counting loop exposed a
-LuaJIT-build-sensitive miscompile: an object with a single string key `{lt=<n>}` was
-occasionally classified as `{numeric=1,strings=1}` and refused `mixed_keys`. Repro:
-`Codec.prepare(<64-rule max-size policy>)` repeatedly (~200–400 calls) under `luajit -O2`
-failed in >60% of fresh processes (0/300 at the base commit); `-joff` (JIT off) never
-failed. **Mitigation applied:** `classify` is kept byte-identical to the base revision and
-the deterministic invalid-UTF-8 pre-scan was placed *before* the original key loop, so the
-vulnerable code shape is not emitted. Post-mitigation: 0 failures across fresh processes and
-in-process stress (see the closure report's `jit_instability` evidence). **The full root
-cause (a LuaJIT register-aliasing bug, not a policy-code bug) is deferred and out of scope
-for this closure.**
+While shaping Fix 5, an edit that rewrote `classify`'s key-counting loop produced a
+**LuaJIT-build-sensitive, edit/code-shape-sensitive failure**: an object with a single string
+key `{lt=<n>}` was occasionally classified as `{numeric=1,strings=1}` and refused
+`mixed_keys`. Retained reproduction under `tmp/xdp-closure/jit-instability/`:
+`repro-caller.lua` (sha256 `f378d21f…`) against the offending `offending-PolicyCodec.lua`
+(sha256 `c3210277…`) failed **26/40** fresh `luajit -O2` processes (`offense-o2.log`
+`82944817…`), while the **base revision `6f63975f`** and the **deployed revision** each failed
+**0/40** (`control-o2.log` = `deployed-o2.log` = `e86bb19e…`); `-joff` (JIT off) did not fail.
 
-None of L1–L4 is reachable from MCP (`policy_ops` does not include `restore`), from the
-wire, or from a policy author. They are same-process Lua concerns and are **out of scope**
-by the project's stance.
+**The precise micro-cause is a hypothesis, not an established fact.** The retained evidence
+establishes only: (a) an edit/code-shape-sensitive, LuaJIT-only observation, and (b) that the
+practical revert+stress mitigation works. The coordinator's own three independent reproduction
+attempts of a rebuilt in-loop pre-scan shape all failed to reproduce (0/20×2000; 0/30 fresh
+processes ×2000; 0/20000 ×3 opt levels), so **"register aliasing" is stated as a hypothesis**;
+the root cause is otherwise deferred and out of scope for this closure. What *is* established:
+the **deployed code shape is not caller-controlled** (Fix 5 keeps `classify` byte-identical to
+base), whereas the **representative workload can be caller-triggered** by a policy author.
+**Mitigation applied:** `classify` is kept byte-identical to the base revision (both revisions:
+1482 bytes incl. the trailing newline / 1481 without; sha256
+`f2d2b3e896fa0d970b97c3b7985560ce4364a0e613b5d07a22361558dd27daf8` incl. / `5db26f925ef8328b7fe63f19cf602f27732728f24166cd51e95c5e2f0bfac514` excl., the
+latter matching the reviewer's figure) and the
+deterministic invalid-UTF-8 pre-scan runs *before* the original key loop, so the vulnerable
+code shape is not emitted. Post-mitigation: 0/40 failures on the deployed revision (above).
+
+None of **L1–L3** is reachable from MCP (`policy_ops` does not include `restore`), from the
+wire, or from a policy author; they are same-process Lua concerns and are **out of scope** by
+the project's stance. **L4 is a performance path that a policy author can trigger** (exempted
+from the reachability claim above).
 
 ## Architecture
 
