@@ -20,6 +20,7 @@ local Manifest=require 'mod.auto_combat.EffectManifest'
 local Footprint=require 'mod.auto_combat.EffectFootprint'
 local Risk=require 'mod.auto_combat.EffectRisk'
 local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+local Json=require 'mod.mcp_bridge.Json'
 local Distance=require 'mod.mcp_bridge.Distance'
 local M={}
 
@@ -86,14 +87,12 @@ end
 -- smaller falsely-complete set (S3-A2-R1).
 local function denseCells(cells)
     if type(cells)~='table' then return nil end
-    local maxKey=0
-    local count=0
-    for key in pairs(cells) do
-        if type(key)~='number' or key<1 or key%1~=0 then return nil end
-        if key>maxKey then maxKey=key end
-        count=count+1
-    end
-    if count~=maxKey then return nil end
+    -- S3 rebase onto X-doubleprime: the density decision lives ONLY in
+    -- `Json.denseArray` (checklist A) — this guard previously re-ran its own
+    -- `pairs` density loop. It keeps only its own element-shape check
+    -- (finite x/y on every cell).
+    local ok,maxKey=Json.denseArray(cells,0)
+    if not ok then return nil end
     for i=1,maxKey do
         local cell=cells[i]
         if type(cell)~='table' or not finite(cell.x) or not finite(cell.y) then

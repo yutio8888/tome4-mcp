@@ -18,6 +18,7 @@
 -- engine, a talent builder or RNG.
 local Sources=require 'mod.auto_combat.EffectManifestSources'
 local Factory=require 'mod.auto_combat.MovementAdapterFactory'
+local Json=require 'mod.mcp_bridge.Json'
 local M={}
 M.VERSION='tome-auto-combat-adapters/v2'
 M.SCHEMA='tome-auto-combat/v1'
@@ -661,21 +662,15 @@ M.ACTIONS={
 }
 function M.actionSupported(action) return action~=nil and M.ACTIONS[action]~=nil end
 
--- S3-A2-FIX1-03: dense-and-closed count for the catalogue's own array walks.
+-- S3-A2-FIX1-03 (rebased onto X''): dense-and-closed count for the catalogue's
+-- own array walks. The density LOOP lives only in `Json.denseArray` (checklist
+-- A); this is a thin nil-preserving wrapper (absent -> 0, non-table -> nil).
 -- Returns the count or nil for a hole/hidden-key/non-integer-key list.
 local function densePolicyArray(t)
     if t==nil then return 0 end
-    if type(t)~='table' then return nil end
-    local maxKey=0
-    local count=0
-    for key in pairs(t) do
-        if type(key)~='number' or key<1 or key%1~=0 then return nil end
-        if key>maxKey then maxKey=key end
-        count=count+1
-    end
-    if count~=maxKey then return nil end
-    for i=1,maxKey do if t[i]==nil then return nil end end
-    return count
+    local ok,count=Json.denseArray(t,0)
+    if ok then return count end
+    return nil
 end
 
 function M.verify(policy)
