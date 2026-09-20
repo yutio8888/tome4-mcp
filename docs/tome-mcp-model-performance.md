@@ -309,3 +309,28 @@ B = `--provider pi --model opencode-go/glm-5.3-flash --thinking high`。
    按 `AGENTS.md` 明确"不与其它 addon 对抗"并**如实收窄声明**（本轮即此决策）。
 4. **工具链观察若无法保留复现，不得断言根因**；保留工件后，协调者的独立复现使证据从"未复现"升级为
    "已复现、micro-cause 仍为 hypothesis"。
+
+## Loop: 两条准入 rebase + 合并（S3 arm2 已入 main）
+
+| 阶段 | 角色 | 模型 |
+| --- | --- | --- |
+| rebase 两分支到 X″ main + 密度校验统一 | [Dev] | **B** `opencode-go/glm-5.3-flash`（high） |
+| 独立评审（fresh Sol，含 native 补跑） | [Review] | **GPT-5.6 Sol** → arm2 DO_NOT_MERGE / aprime DO_NOT_MERGE（4×P2+3×P3） |
+| 修复 7 项（含新增真机 Earthen/Dwarven 行） | [Dev] | B（同上） |
+| 复核（同一 Sol，复核自身 finding） | [Review] | **Sol** → **arm2=MERGE**；aprime=DO_NOT_MERGE（仅 RA-07 P3 开放）+ RR-01/RR-02 |
+| RR-01 修复（main 单写者）+ RA-07 defer + RR-02 更正 | 协调者 | — |
+| **arm2 合并入 main** | — | merge `0033559` |
+
+**结果**：`main` = `0033559`（含 S3 arm2 + RR-01 修复），dist `3966a68c…`。
+合并后独立验证：Lua 全绿、生成器 3× rc=0、**native probe 206/206**、acceptance **101/101**。
+
+**序列事实**：[Dev] 连续两轮使用模型 **B**（rebase + 修复 + A′ 并集）。
+**下一独立 [Dev] loop 应回到模型 A**。
+
+### 教训
+1. **协调者的时序错误会产生假 finding**：我在 Dev rebase **之后**才提交 `97a69d8`，导致两分支被评审判为
+   "仍带撤回前提"（RA-04）。**派发前应先冻结基线**，或在 rebase 后立即更新分支。
+2. **"单一来源"声称需逐 sink 核实**：arm2 的 `Actions.normalizeSequence` 仍留有独立 `pairs` 密度循环
+   （RA-01）——评审用"全仓库 grep"证伪，而非只看我抽查的 `PolicySchema.lua`。
+3. **证据表述必须逐行核对**：我把 flake 说成"0 失败行"，实为 **3 行 Rush 失败**（RR-02）。
+   "已知 flake"是**归因**，不是**观察**；未保留游戏日志时，根因应记 `NOT_OBSERVED`。
