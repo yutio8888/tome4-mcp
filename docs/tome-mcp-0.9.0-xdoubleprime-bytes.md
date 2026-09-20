@@ -67,8 +67,10 @@ private state.** There is no sandbox and no possible Lua-level guarantee:
   runtime entry identity — `AGENTS.md`);
 - code with `debug.*`/C-boundary access can reach the module's lexical upvalues, including
   the vault;
-- therefore **any** residual below is reachable **only** from same-process Lua code that
-  goes outside the public API, and the plugin neither can nor claims to stop it.
+- therefore residuals **L1–L3** below are reachable **only** from same-process Lua code that
+  goes outside the public API, and the plugin neither can nor claims to stop it. **L4 (and the
+  L5 workload) are different**: a policy author can trigger them over MCP, but the *code shape*
+  at issue in L5 is not caller-controlled.
 
 ## Known limitations (residual items, with reachability)
 
@@ -92,13 +94,16 @@ key `{lt=<n>}` was occasionally classified as `{numeric=1,strings=1}` and refuse
 **0/40** (`control-o2.log` = `deployed-o2.log` = `e86bb19e…`); `-joff` (JIT off) did not fail.
 
 **The precise micro-cause is a hypothesis, not an established fact.** The retained evidence
-establishes only: (a) an edit/code-shape-sensitive, LuaJIT-only observation, and (b) that the
-practical revert+stress mitigation works. The coordinator's own three independent reproduction
-attempts of a rebuilt in-loop pre-scan shape all failed to reproduce (0/20×2000; 0/30 fresh
-processes ×2000; 0/20000 ×3 opt levels), so **"register aliasing" is stated as a hypothesis**;
-the root cause is otherwise deferred and out of scope for this closure. What *is* established:
-the **deployed code shape is not caller-controlled** (Fix 5 keeps `classify` byte-identical to
-base), whereas the **representative workload can be caller-triggered** by a policy author.
+establishes the *observation*: it is edit/code-shape-sensitive and **JIT-off-extinguishable**.
+The coordinator independently reproduced it from the retained artifact (two freshly extracted
+trees from `6f63975f` differing only in `PolicyCodec.lua`): **offending codec 7/15 fresh `-O2`
+processes failed vs base codec 0/15; `-joff` 0/15; deployed revision 0/40 at `-O2`.** Their
+earlier three attempts at a *rebuilt* in-loop pre-scan shape did not reproduce it
+(0/20×2000; 0/30 fresh processes ×2000; 0/20000 ×3 opt levels), which is why the *micro-cause*
+stays a **hypothesis** ("register aliasing") and is otherwise deferred and out of scope for
+this closure. What *is* established: the **deployed code shape is not caller-controlled**
+(Fix 5 keeps `classify` byte-identical to base), whereas the **representative workload can be
+caller-triggered** by a policy author.
 **Mitigation applied:** `classify` is kept byte-identical to the base revision (both revisions:
 1482 bytes incl. the trailing newline / 1481 without; sha256
 `f2d2b3e896fa0d970b97c3b7985560ce4364a0e613b5d07a22361558dd27daf8` incl. / `5db26f925ef8328b7fe63f19cf602f27732728f24166cd51e95c5e2f0bfac514` excl., the
@@ -108,8 +113,8 @@ code shape is not emitted. Post-mitigation: 0/40 failures on the deployed revisi
 
 None of **L1–L3** is reachable from MCP (`policy_ops` does not include `restore`), from the
 wire, or from a policy author; they are same-process Lua concerns and are **out of scope** by
-the project's stance. **L4 is a performance path that a policy author can trigger** (exempted
-from the reachability claim above).
+the project's stance. **L4 (and the L5 workload) can be triggered by a policy author over
+MCP**, while the code shape at issue in L5 is not caller-controlled.
 
 ## Architecture
 
@@ -196,11 +201,13 @@ never resumes control.
 
 ## Loop frozen here (explicit)
 
-**The X″ hardening loop ends with this revision.** The remaining residuals (L1–L4) are
+**The X″ hardening loop ends with this revision.** The remaining residuals **L1–L3** are
 same-process Lua concerns; chasing further same-process adversarial scenarios is **out of
 scope** per the project's "we are not responsible for other addons' replaced
 implementations" stance (`AGENTS.md`) and the standing finding that **no absolute integrity
-guarantee is achievable in Lua**. Future X″-class findings should be assessed against the
+guarantee is achievable in Lua**. **L4 (codec cost) and the L5 workload can be triggered by a
+policy author over MCP**, but neither is a caller-controlled *code shape* and both are out of
+scope as hardening targets. Future X″-class findings should be assessed against the
 narrowed guarantee in § What X″ guarantees; anything requiring same-process adversarial
 protection is declined by design, not deferred.
 
