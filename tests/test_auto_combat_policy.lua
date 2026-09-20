@@ -344,8 +344,12 @@ do
     check(rulesCode=='rules_required' or rulesCode=='rules',
         'the sparse rules rejection is typed at the rules path (R2-APR4-02)')
     -- The hash of the sparse policy is NIL (never the shorter-prefix hash).
+    -- X-doubleprime rebase: Schema.hash THROWS on a malformed policy
+    -- (test_auto_combat_policy_bytes: 'Schema.hash refuses a malformed policy
+    -- instead of hashing it'); the structured non-throwing form is
+    -- Schema.project, which returns nil + typed fault (no prefix hash).
     local dense=basePolicy()
-    local sparseHash,cause=Schema.hash(sparseRules)
+    local sparseHash,cause=Schema.project(sparseRules)
     check(sparseHash==nil and cause~=nil,
         'a sparse policy computes NO hash (never hashed as its prefix) (R2-APR4-02)')
     check(Schema.hash(dense)~=nil,'a dense policy still hashes')
