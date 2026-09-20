@@ -350,6 +350,96 @@ do
         'a dense target_plan keeps lowering normally (R2-APR3-03)')
 end
 
+-- R2-APR6-03 closure (one diagnostic vocabulary): the SAME sparse shape is
+-- projected by all three boundaries with the SAME shared X-doubleprime density
+-- cause — `PolicySchema.validateTargetPlan` (error `cause`),
+-- `MovementPlanner.planSequence` (typed reason `invalid_target_plan` with
+-- `detail`) and the runtime carrier `Actions.normalizeSequence` (typed
+-- `invalid_sequence` plus the additive third-return cause). The cause
+-- vocabulary is exactly `Json.denseArray`'s: `not_array` (a non-table or
+-- `Json.null`), `non_integer_key`, `hole`, `too_short`.
+do
+    local Schema=require 'mod.auto_combat.PolicySchema'
+    local Json=require 'mod.mcp_bridge.Json'
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local movement=assert(Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',observed=ACTOR_SIG},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                landing_from='envelope',observed=GRID_SIG}},
+        delivery='teleport',landing='random',center='requested_grid',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10}))
+    local provider={origin=function() return {x=2,y=2} end,
+        anchor=function() return {x=2,y=2} end,
+        knowledge=function() return {in_bounds=true,visible=true,passable=true,hazard=false} end}
+    -- A minimal valid plan/sequence prefix; the density fault fires BEFORE any
+    -- entry validation, so the same raw shape is observable at all three sinks.
+    local function sparseShape(kind)
+        local plan={{request='actor',selector='self'},
+            {request='grid',destination={selector='position',x=5,y=2,accept=accept}}}
+        if kind=='non_integer_key' then plan.extra=true
+        elseif kind=='hole' then plan[4]={request='grid'}
+        elseif kind=='not_array' then return 'not-an-array'
+        elseif kind=='json_null' then return Json.null
+        elseif kind=='too_short' then return {}
+        else error(kind) end
+        return plan
+    end
+    local function schemaCause(plan)
+        local policy={schema='tome-auto-combat/v1',id='t',name='t',
+            limits={max_actions_per_tick=1},safety={min_hp_pct=35},
+            targeting={default='self'},
+            rules={{id='r',priority=1,when={always={}},
+                ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+                    target_plan=plan}}}}
+        local ok,errors=Schema.validate(policy)
+        assert(not ok,'the sparse shape must be schema-rejected')
+        for _,error in ipairs(errors) do
+            if error.path=='rules[1].then.target_plan' then
+                assert(error.code=='invalid_target_plan')
+                return error.cause
+            end
+        end
+        return nil
+    end
+    local function plannerCause(plan)
+        local planned,err=Planner.planSequence({talent='T_PHASE_DOOR',target='self',
+            target_plan=plan},provider,movement,{x=2,y=2})
+        assert(planned==nil and err and err.reason=='invalid_target_plan')
+        return err.detail
+    end
+    local function carrierCause(shape)
+        local sequence,code,cause=Actions.normalizeSequence(shape)
+        assert(sequence==nil and code=='invalid_sequence')
+        return cause
+    end
+    for _,kind in ipairs({'not_array','json_null','non_integer_key','hole','too_short'}) do
+        local shape=sparseShape(kind)
+        local schema=schemaCause(shape)
+        local planner=plannerCause(shape)
+        local carrier=carrierCause(shape)
+        check(schema==planner and planner==carrier
+            and (schema=='not_array' or schema=='non_integer_key'
+                or schema=='hole' or schema=='too_short'),
+            'the '..kind..' sparse shape is one shared X-doubleprime density cause '
+                ..'across schema/planner/carrier (R2-APR6-03 closure), got '
+                ..tostring(schema)..'/'..tostring(planner)..'/'..tostring(carrier))
+    end
+    -- A density cause is NOT fabricated for faults outside the shared
+    -- vocabulary: layer-specific limits (the carrier's max 8) and non-density
+    -- entry faults keep the bare typed error with no cause.
+    local longList={}
+    for i=1,9 do longList[i]={kind='self'} end
+    local longSeq,longCode,longCause=Actions.normalizeSequence(longList)
+    check(longSeq==nil and longCode=='invalid_sequence' and longCause==nil,
+        'the carrier max-8 limit is a bare invalid_sequence (no density cause)')
+    local badEntry=Actions.normalizeSequence({{kind='ghost'}})
+    check(badEntry==nil,
+        'a non-density entry fault keeps the plain two-value error contract')
+    local okSeq=Actions.normalizeSequence({{kind='self',observed=ACTOR_SIG}})
+    check(okSeq and okSeq[1] and okSeq[1].kind=='self',
+        'the additive third return never changes the success contract')
+end
+
 -- 3. Executor queue: in-order answers, distinct values, recorded sequence -----
 local function runQueue(def,action,target)
     local p=player({T_SEQ=def},{x=1,y=1})

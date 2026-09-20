@@ -67,6 +67,16 @@ M.EXPECTED={
     ['movement-fallback']={'blocked_landing','alternative_planned','fallback_moved'},
     ['movement-factory']={'precise_grid','variant_unknown','dimensional_empty','dimensional_actor_gap','dimensional_unknown','vault_toward_range','vault_out_of_range','vault_exact','live_getter_value','getter_error_unknown'},
     ['movement-sequence']={'sd_plan_sequence','sd_reverse_plan_rejected','sd_static_unsupported','sd_two_requests_ordered','sd_distinct_values','sd_phase_door_no_handback','sd_phase_door_tl5_plan','sd_phase_door_tl5_settled','sd_second_range_refused','sd_missing_optional_reduced','sd_reorder_refused','sd_cooldown_native_rejected','sd_cooldown_no_pause','sd_zero_prompt_success_deviated','sd_zero_prompt_success_paused'},
+    -- RA-03 (native Earthen/Dwarven evidence): the REAL T_EARTHEN_MISSILES and
+    -- T_DWARVEN_HALF_EARTHEN_MISSILES drive their whole stationary program
+    -- through the real raised bolt prompts (2 at TL4, 3 at TL5), in arrival
+    -- order, with the per-projectile random-crit annotation published on the
+    -- plan. Both manifest tiers (below-5 / at-least-5) and both variants are
+    -- driven natively; no test-only talent is involved.
+    ['movement-earthen']={'em2_planned','em2_annotated','em2_settled','em2_arrival_ordered',
+        'em5_planned','em5_annotated','em5_settled','em5_arrival_ordered',
+        'dw2_planned','dw2_annotated','dw2_settled','dw2_arrival_ordered',
+        'dw5_planned','dw5_annotated','dw5_settled','dw5_arrival_ordered'},
     ['movement-talents']={'rush_planned','rush_executed','tumble_planned','tumble_executed','teleport_planned','teleport_executed'},
     ['handback-answer']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_respond_routed','hb_respond_receipt'},
     ['handback-timeout']={'hb_phase_ready','hb_service_handoff','hb_pending_deviation','hb_lease_released','hb_not_resubmitted','hb_answerable','hb_never_waiting_native','hb_unanswered_cancelled'},
@@ -2174,6 +2184,157 @@ local function movementSequenceChecks()
 end
 M.movementSequenceChecks=movementSequenceChecks
 
+-- RA-03 (native Earthen/Dwarven evidence, R2-APR6-03 admission): the REAL
+-- T_EARTHEN_MISSILES and T_DWARVEN_HALF_EARTHEN_MISSILES (spells/stone.lua,
+-- gifts/dwarven-nature.lua) drive their whole stationary `earthen_missiles`/
+-- `dwarven_missiles` program through the real raised bolt prompts — 2 at TL4,
+-- 3 at TL5 — answered in ARRIVAL order with plan[k], with
+-- `outcome_uncertainty='per_projectile_random_crit'` published on the plan as
+-- an annotation (never a refusal). No test-only talent is involved: the
+-- production manifest entries, the production host.plan/host.request and the
+-- real native bodies are the whole path. Landing cells are picked from the
+-- cells the live native projector accepts (never synthesised).
+local function earthenArrivalChecks()
+    local signals={}
+    local p=game.player
+    forceReady()
+    local saved_useTalent=rawget(p,'useTalent')
+    local saved_getTarget=rawget(p,'getTarget')
+    local saved_levels={p.talents.T_EARTHEN_MISSILES,p.talents.T_DWARVEN_HALF_EARTHEN_MISSILES}
+    local function restoreSeams()
+        rawset(p,'useTalent',saved_useTalent)
+        rawset(p,'getTarget',saved_getTarget)
+        p.talents.T_EARTHEN_MISSILES=saved_levels[1]
+        p.talents.T_DWARVEN_HALF_EARTHEN_MISSILES=saved_levels[2]
+        if p.talents_cd then
+            p.talents_cd.T_EARTHEN_MISSILES=nil
+            p.talents_cd.T_DWARVEN_HALF_EARTHEN_MISSILES=nil
+        end
+    end
+    -- The manifest declares both real entries, so the probe drives them as
+    -- declared (no EffectManifest.ENTRIES patching here).
+    local Manifest=require 'mod.auto_combat.EffectManifest'
+    for _,talent in ipairs({'T_EARTHEN_MISSILES','T_DWARVEN_HALF_EARTHEN_MISSILES'}) do
+        if not (Manifest.ENTRIES[talent] and Manifest.ENTRIES[talent].movement) then
+            check('movement-earthen:manifest',false,{talent=talent})
+            return compare('movement-earthen',{'manifest_missing'})
+        end
+        if type(p.learnTalent)=='function' and not p:knowTalent(talent) then
+            pcall(function() p:learnTalent(talent,true) end)
+        end
+    end
+    -- Pick candidate bolt cells the LIVE native projector accepts (same
+    -- discipline as the Phase Door rows: never synthesise a coordinate).
+    local map=game.level.map
+    local cells={}
+    local okProbe,boltProbe=pcall(engine.Target.getType,engine.Target,
+        {type='bolt',range=10,nowarning=true})
+    for _,delta in ipairs({{2,0},{-2,0},{0,2},{0,-2},{2,2},{-2,-2},{2,-2},{-2,2},
+            {3,0},{-3,0},{0,3},{0,-3},{2,-3},{-2,3},{3,2},{-3,-2}}) do
+        if #cells>=3 then break end
+        local x,y=p.x+delta[1],p.y+delta[2]
+        if map:isBound(x,y) and Distance.grid(p.x,p.y,x,y)<=10 then
+            local can=okProbe and p:canProject(boltProbe,x,y)
+            if can then cells[#cells+1]={x=x,y=y} end
+        end
+    end
+    check('movement-earthen:projectable-cells',#cells>=3,{cells=#cells})
+    if #cells<3 then
+        restoreSeams()
+        return compare('movement-earthen',{'insufficient_cells'})
+    end
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    -- Drive one REAL talent at one talent level end to end through the
+    -- production host: plan (the manifest matrix picks the tier from the live
+    -- talent level), annotate, then execute through the real native body.
+    local function drive(talent,level,tag)
+        p.talents[talent]=level
+        if p.talents_cd then p.talents_cd[talent]=0 end
+        if p.max_mana then p.mana=p.max_mana end
+        local pol=policy({{id='em',priority=10,when={always={}},
+            ['then']={action='use_talent',talent=talent,target='self'}}})
+        local host=Runtime.buildAutoCombatHostFor(game,pol,{drift=function() return true end})
+        local count=(level>=5) and 3 or 2
+        local targetPlan,dests={},{}
+        for k=1,count do
+            dests[k]={selector='position',x=cells[k].x,y=cells[k].y,accept=accept}
+            targetPlan[k]={request='grid',destination=dests[k]}
+        end
+        local planned,planErr=host.plan({action='use_talent',talent=talent,target='self',
+            target_plan=targetPlan,destination=dests[count]})
+        local okPlan=planned and planned.plan and planned.plan.kind=='sequence'
+            and planned.plan.steps and #planned.plan.steps==count
+            and planned.plan.values and planned.plan.values[count]
+                and planned.plan.values[count].kind=='grid'
+        check('movement-earthen:'..tag..'-plan',okPlan,
+            {kind=planned and planned.plan and planned.plan.kind,
+                steps=planned and planned.plan and planned.plan.steps
+                    and #planned.plan.steps,
+                reason=planErr and (planErr.reason or planErr.detail)})
+        signals[#signals+1]=okPlan and tag..'_planned' or tag..'_plan_missing'
+        if not planned then return nil end
+        -- The A′ admission is published as an ANNOTATION on the plan: the
+        -- stationary delivery marker (template-derived) and the per-missile
+        -- `self:spellCrit` uncertainty (`per_projectile_random_crit`).
+        local ann=planned.plan.annotation or {}
+        local annotated=ann.stationary==true and ann.delivery=='stationary'
+            and ann.outcome_uncertainty=='per_projectile_random_crit'
+        check('movement-earthen:'..tag..'-annotated',annotated,
+            {stationary=ann.stationary,delivery=ann.delivery,
+                outcome_uncertainty=ann.outcome_uncertainty})
+        signals[#signals+1]=annotated and tag..'_annotated' or tag..'_annotation_missing'
+        forceReady()
+        if p.talents_cd then p.talents_cd[talent]=0 end
+        if p.max_mana then p.mana=p.max_mana end
+        local outcome=host.request({action='use_talent',talent=talent,
+            plan=planned.plan,rule='em'})
+        local seq=outcome and outcome.target_sequence
+        local settled=outcome and outcome.status=='ok'
+            and outcome.handed_back~=true and outcome.sequence_deviation==nil
+            and type(seq)=='table' and #seq==count
+        check('movement-earthen:'..tag..'-settled',settled,
+            {status=outcome and outcome.status,code=outcome and outcome.code,
+                handed_back=outcome and outcome.handed_back,
+                deviation=outcome and outcome.sequence_deviation,count=seq and #seq})
+        signals[#signals+1]=settled and tag..'_settled' or tag..'_settle_missing'
+        -- ARRIVAL ORDER (A′ guarantee, no equivalence claim): with DISTINCT
+        -- destinations per missile, `seq[k].answer == plan.values[k]` proves the
+        -- k-th OBSERVED prompt was answered with plan[k] — a remap or reorder
+        -- would swap coordinates and fail. The three real bolt prompts are
+        -- same-signature, so this row is exactly the intra-group case the A′
+        -- arrival-order guarantee is about.
+        local ordered=settled
+        local details={}
+        if ordered then
+            for k=1,count do
+                local value=planned.plan.values[k]
+                local answer=seq[k] and seq[k].answer
+                local cell=cells[k]
+                if not (answer and value and value.x==answer.x and value.y==answer.y
+                        and answer.x==cell.x and answer.y==cell.y) then
+                    ordered=false
+                end
+                details[k]={shape=seq[k] and seq[k].shape,
+                    want=cell.x..','..cell.y,
+                    got=answer and (answer.x..','..answer.y)}
+            end
+        end
+        check('movement-earthen:'..tag..'-arrival-order',ordered,
+            {answers=details,values=planned.plan.values})
+        signals[#signals+1]=ordered and tag..'_arrival_ordered' or tag..'_arrival_missing'
+        if p.talents_cd then p.talents_cd[talent]=0 end
+        return planned
+    end
+    drive('T_EARTHEN_MISSILES',4,'em2')
+    drive('T_EARTHEN_MISSILES',5,'em5')
+    drive('T_DWARVEN_HALF_EARTHEN_MISSILES',4,'dw2')
+    drive('T_DWARVEN_HALF_EARTHEN_MISSILES',5,'dw5')
+    restoreSeams()
+    forceReady()
+    return compare('movement-earthen',signals)
+end
+M.earthenArrivalChecks=earthenArrivalChecks
+
 
 local function runAll()
     local ok,err=pcall(function()
@@ -2197,6 +2358,9 @@ local function runAll()
         movementPlan()
         movementFactoryChecks()
         movementSequenceChecks()
+        -- RA-03: the REAL Earthen/Dwarven stationary programs (arrival order +
+        -- per-projectile crit annotation) through the production host.
+        earthenArrivalChecks()
         -- R2-REV2-NEW-01 (second half): the end-to-end guard permit path. This is
         -- synchronous (the talent body does not yield here).
         permitPathChecks()

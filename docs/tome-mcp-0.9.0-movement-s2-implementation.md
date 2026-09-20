@@ -617,5 +617,57 @@ precheck/expansion calls.
 - A chosen grid is an aim request, not a promise about the eventual damaged
   actor/grid; projectile travel and damage settle after the answer.
 
+### 8.6 Rebase-review closure (RA-01..07 dispositions)
+
+Dispositions of the independent rebase review (`review-rebase-admissions.md`,
+P0=P1=0; RA-04 was the dispatcher's sequencing defect, the rest Dev scope):
+
+- **RA-04 (P2, dispatcher sequencing): closed by rebase.** Both admission
+  branches are rebased onto `main@97a69d8`, so the corrected TODO entry (the
+  withdrawn loop-39 "interchangeable group" equivalence claim, NOT proposal A′)
+  is what the branch carries. The equivalence premise is not restated anywhere;
+  §8.1/§8.2 keep the arrival-order framing (`arrival k ⇒ plan[k]`,
+  index-preserving execution, per-projectile crit as an annotation).
+- **RA-06 (P3): wording corrected.** The removed branch-local
+  `MovementAdapterFactory.validateArray` was NOT "the same function" as
+  `Json.denseArray`: its ACCEPTANCE predicate is subsumed (X-doubleprime is at
+  least as strict), but the typed-cause precedence differs — the old validator
+  checked `minLength` before holes and treated `Json.null` as a table (it
+  reported `too_short`), while X-doubleprime decides density first
+  (`non_integer_key`/`hole`), only then `too_short`, and reports `Json.null` as
+  `not_array`. The stale "was the same function" comment is replaced by this
+  statement (`PolicySchema.validateTargetPlan`). X-doubleprime is not weakened.
+- **RA-05 (P3): service-test bypass removed.** The second `no_emergency_action`
+  service scenario no longer mutates `controller.policy.rules` and clears
+  `policy_snapshot` to dodge the `policy_mutated` guard; it is rebuilt through
+  the real store (`set_draft → approve → activate → start`) exactly like the
+  exact-delta adaptation, and additionally asserts the handoff runs on the
+  guard-validated activated policy.
+- **RA-02 (P2, R2-APR6-03): CLOSED — one shared typed cause vocabulary.** The
+  same sparse shape is projected by all three boundaries with the SAME
+  X-doubleprime density cause: `PolicySchema.validateTargetPlan` (error
+  `cause`), `MovementPlanner.planSequence` (`detail` on the typed
+  `invalid_target_plan`) and the runtime carrier `Actions.normalizeSequence`
+  (typed `invalid_sequence` plus the additive third-return cause; a non-table
+  or `Json.null` now yields the shared `not_array` instead of the bare error).
+  The cause vocabulary is exactly `Json.denseArray`'s
+  (`not_array|non_integer_key|hole|too_short`); layer-specific limits (the
+  carrier's max 8) and non-density entry faults keep the bare typed error with
+  no cause, and the two-value success/error contract is unchanged. A cross-layer
+  regression drives the SAME shape through all three sinks and asserts the
+  causes are equal (`tests/test_auto_combat_sequence.lua`).
+- **RA-03 (P2, NOT_OBSERVED → native evidence added):** the auto-combat probe
+  gains a `movement-earthen` scenario that drives the REAL
+  `T_EARTHEN_MISSILES` and `T_DWARVEN_HALF_EARTHEN_MISSILES` through the real
+  raised signatures — both manifest tiers (TL4: 2 prompts, TL5: 3 prompts) and
+  both variants — through the production host (`host.plan` → the stationary
+  plan with `outcome_uncertainty='per_projectile_random_crit'` published as an
+  annotation; `host.request` → the real native bodies answer each observed bolt
+  prompt with `plan[k]` in arrival order, distinct destinations per missile, no
+  handback). No test-only talent is involved.
+- **RA-07 (P3): stays OPEN.** No committed `tools/check_boundary_rules.py`
+  registration exists on this branch; the AssistantAdapter registry rows remain
+  scratch-only and the acceptance row is not claimed closed.
+
 Raw evidence lives under `tmp/` (git-ignored); this document records only the
 summary and the package sha256 of the tested archive.

@@ -158,13 +158,23 @@ local function assertDeviation(record)
 end
 M.SEQUENCE_VALUE_KINDS=SEQUENCE_VALUE_KINDS
 function M.normalizeSequence(list)
-    if type(list)~='table' then return nil,'invalid_sequence' end
     -- R2-APR6-03 (X-doubleprime rebase): the density decision lives ONLY in
     -- `Json.denseArray` (checklist A); this carrier previously re-ran its own
     -- `pairs` density loop, a duplicate validator. Delegating keeps the same
     -- external contract (typed `invalid_sequence`, never a shorter prefix).
-    local ok,maxKey=Json.denseArray(list,1)
-    if not ok or maxKey>8 then return nil,'invalid_sequence' end
+    -- R2-APR6-03 closure (one diagnostic vocabulary): the density fault ALSO
+    -- carries the shared X-doubleprime cause (`not_array|non_integer_key|hole|
+    -- too_short`, exactly what `Json.denseArray` returned) as an additive THIRD
+    -- return value — the same typed cause `PolicySchema.validateTargetPlan`
+    -- projects as `cause` and `MovementPlanner.planSequence` projects as
+    -- `detail` for the same sparse shape. `not_array` covers both a non-table
+    -- and `Json.null` (the old carrier pre-check collapsed those into the bare
+    -- error). The typed `invalid_sequence` error itself is unchanged, so every
+    -- existing consumer keeps its contract.
+    local ok,maxKeyOrCause=Json.denseArray(list,1)
+    if not ok then return nil,'invalid_sequence',maxKeyOrCause end
+    local maxKey=maxKeyOrCause
+    if maxKey>8 then return nil,'invalid_sequence' end
     local out=Json.array()
     for i=1,maxKey do
         local entry=list[i]

@@ -305,10 +305,17 @@ end
 -- ignored).
 local function validateTargetPlan(plan,path,errors)
     -- R2-APR3-03 (checklist A, rebased onto X''): the ONE shared dense-array
-    -- validator is `Json.denseArray` (single source of truth; the pre-rebase
-    -- alias `Factory.validateArray` was the same function). Dense-and-closed
+    -- validator is `Json.denseArray` (single source of truth). Dense-and-closed
     -- over ALL keys, minLength=1, with the typed fault as `cause` so a sparse
     -- plan can never be silently accepted as a shorter complete program.
+    -- RA-06 wording correction: the pre-rebase branch-local validator that this
+    -- replaced is NOT "the same function". Its ACCEPTANCE predicate is subsumed
+    -- (X-doubleprime is at least as strict — every input the old validator
+    -- rejected is still rejected), but the typed CAUSE precedence changed:
+    -- the old validator checked `minLength` BEFORE holes and treated
+    -- `Json.null` as a table (a too-short/null list reported `too_short`),
+    -- while X-doubleprime decides density first (`non_integer_key`/`hole`)
+    -- and only then `too_short`, and reports `Json.null` as `not_array`.
     local planCount,planCause=denseList(plan,1)
     if not planCount then
         errors[#errors+1]={path=path,code='invalid_target_plan',cause=planCause};return
