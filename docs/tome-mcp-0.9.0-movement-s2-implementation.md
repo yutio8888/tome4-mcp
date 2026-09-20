@@ -315,7 +315,7 @@ reason — a capability boundary, never a strategy judgement:
 | `T_MERGE`, `T_STONE` | `moving_or_swapping_another_actor` | the effect targets/moves another actor: Merge kills the caster's own doomed shadow (`target.die(target)` at cursed/advanced-shadowmancy.lua:51) before acting on the second actor (:52); Stone relocates that shadow (`target:move(sx,sy,true)` at :88) and attacks through it (`target:project(...)` at :100). The second spec differs by the ALLOWLISTED `pass_terrain=true` (:45,:82) plus `friendlyblock=false` for Stone (:82), so the signature axis was **not** the blocker |
 | `T_CURSED_BOLT` | `nondeterministic_prompt_subject` | each loop iteration picks a random shadow as the bolt origin (`rng.table(shadows)` at cursed/advanced-shadowmancy.lua:242) and the entry is order-sensitive (first success consumes the crit roll :248-251, first failure aborts :255-258); the prompt count itself is bounded and player-known (cap 4, cursed/shadows.lua:350-352), so the count was **not** the blocker |
 | `T_WORMHOLE` | `effect_is_a_later_triggered_trap_pair` | activation moves nobody: it creates a pair of later-triggered traps (chronomancy/spacetime-weaving.lua:164-207, added at :209-224) whose third-party trigger teleports whoever steps on one later (:179-194, `teleportRandom` at :183). The prompts ARE distinguishable by cursor_type (:144 `bolt` vs :152 `hit`) and `distance>=2` (:157) is checkable pre-commit, so neither was the blocker |
-| `T_EARTHEN_MISSILES`, `T_DWARVEN_HALF_EARTHEN_MISSILES` | `nondeterministic_prompt_outcome` (loop 39 rev2 withdrawal) | The R2 "declared interchangeable group" admission is **WITHDRAWN**: the native action rolls `self:spellCrit(damage)` SEPARATELY immediately before EACH projectile (spells/stone.lua:41-46,48-52,54-56; gifts/dwarven-nature.lua:37-42,44-47,49-52) and `spellCrit` does `rng.percent(chance)` (modules/tome/class/interface/Combat.lua:2012-2032), so each prompt position consumes a DISTINCT random crit outcome — exchanging which answer belongs to which missile can exchange a crit and a non-crit between different targets, an observable result. Shared base damage/projectile/damage-type does NOT establish interchangeability, and the prompts themselves are indistinguishable, so no positional signature can bind an answer to a missile. The `group`/`stationary_sequence` relaxation surface is removed entirely; a narrower equivalence notion would need a per-position observable model that 1.7.6 does not offer. The tactic stays legal for a player — this is a plugin-completeness boundary, never a strategy judgement |
+| `T_EARTHEN_MISSILES`, `T_DWARVEN_HALF_EARTHEN_MISSILES` | — (supported, A′ admission) | The loop-39 withdrawal is **SUPERSEDED**. The prompts are mutually unidentifiable (all three local bolt specs are identical: `spells/stone.lua:38,45,53`; the dwarven twin adds `friendlyfire=false,friendlyblock=false` at `:34,:41,:49`), so they are declared as ONE mechanically validated `group` (§A′ below). The admission is justified by the **arrival-order** guarantee, NOT by any equivalence claim: the S2 executor answers the k-th OBSERVED prompt with `plan[k]` (`Actions.lua`), so no declared value is ever re-mapped. The per-missile `self:spellCrit(damage)` roll (`stone.lua:42,48,56`; `dwarven-nature.lua:38,44,52`) and the caster on-crit callbacks (`Combat.lua:2025-2056`) are published as `outcome_uncertainty='per_projectile_random_crit'` — an annotation, never a refusal (AGENTS.md read policy v1.4). The tactic stays legal for a player |
 
 Note: the talent called "Stone Shards" in the survey is the dwarven
 "Earthen Missiles" (`T_DWARVEN_HALF_EARTHEN_MISSILES`,
@@ -353,19 +353,25 @@ reads never submit actions and never expose player-unknown information.
 
 ## 7. Evidence
 
-- **Lua**: `bash tests/run.sh` (42 suites). The ordered-queue suites:
-  `tests/test_auto_combat_sequence.lua` (108 checks, includes the classifier
+- **Lua**: `bash tests/run.sh` (40 suites). The ordered-queue suites:
+  `tests/test_auto_combat_sequence.lua` (197 checks, includes the A′ in-group
+  matching/arrival-index cases and the classifier
   falsification matrix: legal grid-via-`hit`/`actor-via-`ball` accepted per
   signature, unreadable spec ⇒ `movement_request_kind_unknown`, readable-but-
   unmatched ⇒ `unexpected_target_request` + `observed_shape`, same-kind reorder
   detected, signature-ambiguous descriptor rejected at build time);
-  `test_auto_combat_movement_factory.lua` (98), `test_auto_combat_controller.lua`
-  (114, includes the `native_pending` + deviation pause-before-pending case),
+  `test_auto_combat_movement_factory.lua` (122, includes the A′ mechanical group
+  and stationary-template validation), `test_auto_combat_guard.lua` (60,
+  includes the Dwarven `friendlyblock=false`/`friendlyfire=false` fidelity and
+  the partial-footprint fail-closed case), `test_effect_manifest.lua` (465,
+  includes the A′ admission assertions), `test_auto_combat_controller.lua`
+  (121, includes the `native_pending` + deviation pause-before-pending case),
   `test_auto_combat_service.lua` (162, includes the lease release and the
-  settle-time `nativeDeviation` delivery), `test_runtime.lua` (227, includes the
+  settle-time `nativeDeviation` delivery), `test_runtime.lua` (253, includes the
   production outcome-mapping survival, the reap-exactly-once delivery, the
-  live-handle-first abort, the `authoritative_target_cancelled` regression and
-  the respond/dismiss answerability after lease release).
+  live-handle-first abort, the `authoritative_target_cancelled` regression, the
+  respond/dismiss answerability after lease release, and the NEW end-to-end
+  guard-PERMIT-to-`Tracker.startAction` regression).
 - **Python**: `server/tests` 39 OK; `tools/generate_effect_manifest.py --check`,
   `tools/generate_native_seams.py --check`, `tools/generate_protocol.py --check`
   all exit 0.
@@ -373,7 +379,13 @@ reads never submit actions and never expose player-unknown information.
   packaged `dist`, scenario `movement-sequence`:
   `sd_plan_sequence`, `sd_reverse_plan_rejected`, `sd_static_unsupported`,
   `sd_two_requests_ordered`, `sd_distinct_values`, `sd_second_range_refused`,
-  `sd_missing_optional_reduced`, `sd_reorder_refused`, and the S2 rev3
+  `sd_missing_optional_reduced`, `sd_reorder_refused`, the NEW
+  `sd_phase_door_no_handback` (REAL TL4 `T_PHASE_DOOR` driven through its
+  manifest `request_sequence` — no test-only talent, no synthetic shapes, the
+  curated signatures matched against the real raised specs) and the NEW
+  `permit-path:*` checks (a guard permit verdict reaching
+  `Tracker.startAction`/`Actions.execute` in exactly one submission, and a
+  reject verdict reaching none), and the S2 rev3
   `sd_handback_yielding` (a TRULY yielding native handback: the native body
   suspends on the real `targetGetForPlayer`, the deviation survives to the
   controller, the run pauses with the typed reason and the lease is released,
@@ -385,6 +397,277 @@ reads never submit actions and never expose player-unknown information.
   passed.
 - `python3 tools/package.py`: 68 files; archive = manifest = source tree, 0
   mismatches; the dist sha256 is recorded in the round report.
+
+
+## 8. A′ admission: declared groups + the stationary effect program
+
+The revised proposal A′ (adversarial review verdict *sound with changes*; binding
+revision log §6) admits `T_EARTHEN_MISSILES` and
+`T_DWARVEN_HALF_EARTHEN_MISSILES`. The two mechanisms it adds are:
+
+### 8.1 `group` — declared, mechanically validated membership (§6.3)
+
+`group` is a closed key on a `request_sequence` entry (bounded identifier:
+lowercase word characters, 1..32). It is **declared** membership, never inferred
+from signature equality, and it is validated mechanically at BOTH boundaries:
+
+- `MovementAdapterFactory.normalizeRequestSequence` requires, per group: ≥2
+  members, one `request` kind, EXACTLY EQUAL normalised signature records
+  (`M.signatureEquals`), and CONTIGUOUS members (`group_not_contiguous`
+  otherwise); on a stationary program it additionally requires
+  `request='grid'` + `value_source='target_plan'`. Any violation is
+  `movement_adapter_invalid` (`bad_group_key` / `group_too_small` /
+  `group_kind_mismatch` / `group_signature_mismatch` /
+  `group_stationary_not_grid` / `group_stationary_value_source` /
+  `group_not_contiguous`) and is never published.
+- `Actions.normalizeSequence` re-validates the SAME invariants on the internal
+  carrier (`Factory.groupMembership` with `{carrier=true}`), so a hand-authored
+  carrier cannot forge or weaken factory-validated membership — it is
+  `invalid_sequence`. R2-APR-03 (rev): the carrier re-validation uses the
+  factory's SHARED machinery: the observed signature is normalized by the
+  factory's canonical `normalizeObserved` (identical grammar and bounds — a
+  65-byte `first_target` the factory refuses is refused on the carrier too), and
+  group membership enforces every carrier-expressible invariant including
+  CONTIGUITY. R2-APR2-02 (rev): contiguity is now enforced **unconditionally at
+  both boundaries** — the previously generic-only `stationary or carrier`
+  contiguity gate was widened, so an interleaved group is refused at BUILD time
+  as `group_not_contiguous` (and on the carrier, unchanged). The two boundaries
+  therefore accept **exactly the same language**; the semantic chosen is
+  *forbid interleaving*, because the carrier is a re-validation of the
+  factory's published language and must never ACCEPT a membership the factory
+  would refuse. The stationary `grid`/`value_source` closure itself is a
+  build-time template property (the carrier's entries carry no `value_source`);
+  stationary routing is gated by the template-derived marker (R2-APR-02), so the
+  enum is never a caller-authorable routing input.
+- An entry declaring a group is exempt from the build-time subsumption rejection
+  **for its own group members only**; every ungrouped pair keeps today's
+  behaviour exactly (including the presence-distinguishable `{cursor_type='hit'}`
+  vs `{cursor_type='hit',nolock=false}` pair, which stays ADMITTED — the earlier
+  proposal's nil-vs-false rejection is deleted).
+
+### 8.2 The runtime gate relaxes MATCHING ONLY (§6.1)
+
+For a raised prompt the executor computes the matched set. It answers **iff** the
+matched set CONTAINS the expected arrival index AND all matches are members of
+that entry's declared group (or, as before, the single expected entry matches).
+
+- The answer is always `action.sequence[observed]`: **arrival k ⇒ plan[k]**.
+  There is no value comparison, no reordering and no "interchangeable" logic.
+- A matched set that EXCLUDES the expected arrival index is ALWAYS a typed
+  deviation; cross-group matches, non-members and ambiguous ungrouped matches
+  likewise produce `unexpected_target_request` with
+  `expected`/`observed`/`matched_indexes`.
+- **Guarantee wording (§6.1, revised):** *the k-th OBSERVED prompt is answered
+  only with `plan[k]`*. What the mechanism cannot observe is **source-slot**
+  identity inside a same-signature group (a hypothetical replaced native body
+  raising its identical prompts in another source order is undetectable); for the
+  reviewed 1.7.6 bodies (`spells/stone.lua:38-56`;
+  `gifts/dwarven-nature.lua:34-52`) the prompts are raised in source order, so
+  this does not block admission. Source drift is advisory under `AGENTS.md` and
+  is not policed by a runtime identity gate.
+
+### 8.3 `stationary_sequence` — the closed stationary program (§6.5)
+
+The movement vocabulary has no "fire N projectiles at N chosen grids without
+moving", so a closed `stationary_sequence` template exists: fixed
+`delivery='stationary'`, `landing='none'`, `center='none'`, `traverses=false`,
+`relocates_other=false`, `required={request_sequence}`, and **grid-only**
+enforcement (`stationary_entry_not_grid` / `stationary_entry_value_source` /
+`stationary_entry_optional`). Every plan value must be a **valid grid**; a
+malformed value is rejected, never filtered. The program is lowered by the
+**existing** sequence planner into the same `{kind='sequence'}` plan — no second
+queue — and the guard marker `stationary` is a **validated consequence of the
+resolved template**, never an independently authorable manifest boolean.
+R2-APR2-01 (rev): the guard REQUIRES the planner-attached resolved
+`plan.request_sequence` and DENSE-validates it over ALL keys before using its
+length (a sparse `{1,3}` sequence reports `#declared==1` and could otherwise
+pair with one dense grid to bypass the declared program). The length is then
+cross-checked against the dense `plan.values` and compared entry-by-entry on
+kind. An absent, sparse or length-mismatching sequence is a typed
+`movement_plan_unavailable` (`plan_sequence_missing` / `bad_plan_shape` /
+`plan_sequence_length_mismatch` / `plan_sequence_kind_mismatch`) with **zero**
+precheck/expansion calls.
+
+### 8.4 Guard: Dwarven projection fidelity and footprint closure (§6.4/§6.5)
+
+- These talents have LOCAL `tg` tables, not a callable `t.target` builder, so
+  "the real shape" is a curated copy of those local flags
+  (`AutoCombatGuard.STATIONARY_SPECS`). The `canProject` precheck and the native
+  footprint input carry the **actual static flags**; the engine uses
+  `friendlyblock` to let a friendly actor NOT block the projection
+  (`engines/default/engine/Target.lua:527-535,588-607,657-664`), so a probe
+  rebuilt from `{type,range,talent}` alone can manufacture a false
+  `no_line_of_sight`. `friendlyfire=false` also reaches risk/effect modelling.
+  R2-APR2-03 (rev): the forwarded allowlist is now the **complete** set of
+  engine-consulted STATIC projection fields — `selffire`, `friendlyfire`,
+  `friendlyblock`, `stop_block`, `actorblock`, `nolock`, `pass_terrain`,
+  `nowarning`, `no_restrict`, `requires_knowledge`, `force_max_range`,
+  `min_range`, `grid_exclude`, `filter`, and a raised `block_path`/`block_radius`
+  callback (or an explicit `false`, which the engine honours and which disables
+  the default blocker). A value is forwarded whenever it is present (`~=nil`, so
+  `false` is admitted). R2-APR3-01 (rev3/rev5): `act_exclude`
+  (`{[uid]=true,...}`, documented at `Target.lua:647-650`) is also forwarded and
+  honoured: the engine applies it BEFORE the self/friendly admission
+  (`ActorProject.lua:248-255`), so the membership measurement excludes every
+  actor whose uid is a key — including the caster. The measurement mirrors the
+  engine's EXACT admission expression `typ.act_exclude and typ.act_exclude[act.uid]`
+  value-for-value (`AutoCombatGuard.M.actExcludeVerdict`): a raised table is
+  indexed by uid and `[uid]=false` stays a non-exclusion; `nil`/`false`
+  short-circuit to no exclusion; a **string** indexes without error to `nil`, so
+  it is native-faithful **no exclusion** (it must NOT be turned into a known
+  self-risk); a **number**/`true` would make the native indexing RAISE, so it is
+  an undecidable admission -> a **typed unknown** (`malformed_act_exclude`,
+  `unknown=true`) -> fail closed, never a known self/friendly risk and never a
+  silent non-exclusion. A raised table with an unreadable actor uid is likewise
+  unknown (fail closed). R2-APR3-02 (rev3): the three
+  function-valued fields (`block_path`, `block_radius`, `filter`) are
+  type-checked — a real callback or an explicit `false` is forwarded verbatim,
+  while a non-nil non-function value (string/number/boolean) is never forwarded;
+  it is an explicit unknown -> fail-closed rejection
+  (`malformed_function_field`) because the engine would invoke it
+  (`ActorProject.lua:60,74,95-96` and the radial `typ:block_radius` calls).
+  NOT forwarded, and not needed: the per-projection instance fields the caller
+  sets (`source_actor`, `start_x`/`start_y`, `x`/`y`, `line_function`, `bypass`,
+  `multiple`) and the shape/radius geometry the guard derives from the manifest
+  component (`Target.getType` supplies those itself).
+- **Every** applicable component × planned-grid footprint must expand; an
+  unreadable one propagates `unknown` and the guard fails closed
+  (`footprint_unavailable`, `unknown=true`). A partially-readable union is never
+  measured as complete.
+- Routing itself is derived from the resolved factory leaf: a mover declaration
+  keeps the ordinary movement skip, a uniform stationary declaration is measured
+  at every chosen grid, and only a mixed declaration needs the variant resolved
+  (an indeterminate read fails closed with `movement_variant_unknown`).
+
+### 8.4a Caller-array ingress closure (R2-APR4-01..03)
+
+- **Checklist A everywhere on the policy/manifest ingress.** The single shared
+  validator `Json.denseArray` (positive-integer keys only, no holes, no keys
+  beyond the dense end) now guards every caller-supplied array BEFORE any
+  `#`/`ipairs`:
+  - `EffectManifest.verify` (R2-APR4-01) dense-validates the top-level `rules`/
+    `sustains` and each rule's `target_plan` at the boundary entry; a sparse
+    plan is the typed `target_plan_not_dense` with a diagnosable `cause`
+    (`hole|non_integer_key|key_beyond_dense_end`) and the offending `key`
+    (R2-APR4-01 rev5), a sparse rules list is `invalid_rules`, never measured
+    as the shorter prefix.
+  - `PolicySchema` (R2-APR4-02) dense-validates `rules`, `sustains`,
+    `cond.all`, `cond.any` and `targeting.tie_break`. The **canonical encoding
+    used for the content hash** is key-driven (not `#`-driven): a sparse/mixed/
+    non-integer-keyed policy array makes `M.canonical` return `nil,cause`, so
+    `M.hash` returns **no hash** rather than the shorter-prefix hash.
+  - `PolicyEvaluator` (R2-APR4-02) dense-validates `policy.rules` before
+    evaluation (a sparse list fails closed as `invalid_policy_rules`),
+    `cond.all`/`cond.any` (a sparse branch list is UNKNOWN) and the
+    `target_plan` read for the actor step selector (a sparse plan carries no
+    trustworthy binding).
+- **Checklist D across every generation increment** (R2-APR4-03). The five
+  `generation=self.generation+1` sites in `AutoCombat.lua` are `start`, `stop`,
+  `pause`, `resume` and the `awaiting_ready` promotion in `onOpportunity`.
+  Each is one externally-visible transition. The Option-A safety handoff used to
+  compose `pause` + `stop` (delta 2) because the service normalised a paused run
+  to the terminal `stopped` state with a second transition; it now calls
+  `AutoCombat:handoff(reason)`, which sets the terminal state WITHOUT advancing
+  the generation (and deduplicates a same-cause replay). Every safety-handoff
+  reason — `flee_below_hp_pct`, `no_emergency_action` and the queue-deviation
+  reasons — therefore advances the generation by exactly 1.
+
+### 8.4b Rev-5 review closure: the typed density code + the assistant-import ingress (R2-APR4-01 rev5, R2-APR5-01)
+
+- **`EffectManifest.verify` emits the contracted typed density rejection.** A
+  caller-supplied `target_plan` that fails `Json.denseArray` at the verify
+  boundary is now `target_plan_not_dense` — never the bare generic
+  `invalid_target_plan` — with a diagnosable `cause`
+  (`hole|non_integer_key|key_beyond_dense_end`, from the shared
+  `Json.denseFault` diagnostic; the raw `denseArray` cause is kept when no
+  density fault can be named, e.g. `too_short`) and the offending `key`. A
+  dense prefix plus exactly one detached key is `key_beyond_dense_end` with
+  that key; a multi-key gap is `hole` at the first missing index.
+  (`PolicySchema.validateTargetPlan` and the planner keep their existing
+  `invalid_target_plan`+cause shape, which passed review.)
+- **`AssistantAdapter` dense-closes every caller array BEFORE any
+  `#`/`ipairs`/hashing** (R2-APR5-01, checklist A): `M.versionKey`
+  (`assistant.addon_version`/`tome_version`) rejects a sparse tuple as the
+  typed `sparse_version_array` detect refusal (field+cause+key);
+  `translateCondition` dense-validates `cond.all`/`cond.any` before the child
+  traversal (a sparse branch drops its whole rule with a typed
+  `sparse_condition_array` report carrying branch+cause+key); `M.translate`
+  dense-validates top-level `config.sustains`/`config.talents` before any
+  traversal or hashing — a present but sparse/non-table list fails the WHOLE
+  import as `sparse_import_array` (path+cause+key, no draft, no hash), while
+  an absent list stays simply empty. A malformed import can never surface as
+  a valid hashed shorter-prefix draft.
+- **Boundary registry:** `tools/check_boundary_rules.py` (the
+  `feat/boundary-selfcheck` provenance registry) is NOT on `main` yet — this
+  branch rebased onto `main` (`ded8e1a`) per the dispatch note, and the
+  registry file is still absent there. The AssistantAdapter registration
+  entries are stated verbatim in the dev report so the registry owner can add
+  them; against a scratch copy of that registry (with the entries applied) the
+  five registered arrays all report "dense-validated at ingress" and the file
+  contributes zero uncatalogued/unguarded sites.
+
+### 8.5 Published residual limitations (§6.6/§6.7)
+
+- `outcome_uncertainty='per_projectile_random_crit'` on the plan annotation: a
+  crit may change projectile damage **and** trigger caster on-crit behaviour
+  (`Combat.lua:2025-2056`). It is an annotation, never a refusal.
+- Same-signature intra-group **source order** is unobservable (see §8.2).
+- Fail-closed remains only for the plugin's own unreadable values/footprints, or
+  for position-specific **non-random** semantics found by source review.
+- A chosen grid is an aim request, not a promise about the eventual damaged
+  actor/grid; projectile travel and damage settle after the answer.
+
+### 8.6 Rebase-review closure (RA-01..07 dispositions)
+
+Dispositions of the independent rebase review (`review-rebase-admissions.md`,
+P0=P1=0; RA-04 was the dispatcher's sequencing defect, the rest Dev scope):
+
+- **RA-04 (P2, dispatcher sequencing): closed by rebase.** Both admission
+  branches are rebased onto `main@97a69d8`, so the corrected TODO entry (the
+  withdrawn loop-39 "interchangeable group" equivalence claim, NOT proposal A′)
+  is what the branch carries. The equivalence premise is not restated anywhere;
+  §8.1/§8.2 keep the arrival-order framing (`arrival k ⇒ plan[k]`,
+  index-preserving execution, per-projectile crit as an annotation).
+- **RA-06 (P3): wording corrected.** The removed branch-local
+  `MovementAdapterFactory.validateArray` was NOT "the same function" as
+  `Json.denseArray`: its ACCEPTANCE predicate is subsumed (X-doubleprime is at
+  least as strict), but the typed-cause precedence differs — the old validator
+  checked `minLength` before holes and treated `Json.null` as a table (it
+  reported `too_short`), while X-doubleprime decides density first
+  (`non_integer_key`/`hole`), only then `too_short`, and reports `Json.null` as
+  `not_array`. The stale "was the same function" comment is replaced by this
+  statement (`PolicySchema.validateTargetPlan`). X-doubleprime is not weakened.
+- **RA-05 (P3): service-test bypass removed.** The second `no_emergency_action`
+  service scenario no longer mutates `controller.policy.rules` and clears
+  `policy_snapshot` to dodge the `policy_mutated` guard; it is rebuilt through
+  the real store (`set_draft → approve → activate → start`) exactly like the
+  exact-delta adaptation, and additionally asserts the handoff runs on the
+  guard-validated activated policy.
+- **RA-02 (P2, R2-APR6-03): CLOSED — one shared typed cause vocabulary.** The
+  same sparse shape is projected by all three boundaries with the SAME
+  X-doubleprime density cause: `PolicySchema.validateTargetPlan` (error
+  `cause`), `MovementPlanner.planSequence` (`detail` on the typed
+  `invalid_target_plan`) and the runtime carrier `Actions.normalizeSequence`
+  (typed `invalid_sequence` plus the additive third-return cause; a non-table
+  or `Json.null` now yields the shared `not_array` instead of the bare error).
+  The cause vocabulary is exactly `Json.denseArray`'s
+  (`not_array|non_integer_key|hole|too_short`); layer-specific limits (the
+  carrier's max 8) and non-density entry faults keep the bare typed error with
+  no cause, and the two-value success/error contract is unchanged. A cross-layer
+  regression drives the SAME shape through all three sinks and asserts the
+  causes are equal (`tests/test_auto_combat_sequence.lua`).
+- **RA-03 (P2, NOT_OBSERVED → native evidence added):** the auto-combat probe
+  gains a `movement-earthen` scenario that drives the REAL
+  `T_EARTHEN_MISSILES` and `T_DWARVEN_HALF_EARTHEN_MISSILES` through the real
+  raised signatures — both manifest tiers (TL4: 2 prompts, TL5: 3 prompts) and
+  both variants — through the production host (`host.plan` → the stationary
+  plan with `outcome_uncertainty='per_projectile_random_crit'` published as an
+  annotation; `host.request` → the real native bodies answer each observed bolt
+  prompt with `plan[k]` in arrival order, distinct destinations per missile, no
+  handback). No test-only talent is involved.
+- **RA-07 (P3): stays OPEN.** No committed `tools/check_boundary_rules.py`
+  registration exists on this branch; the AssistantAdapter registry rows remain
+  scratch-only and the acceptance row is not claimed closed.
 
 Raw evidence lives under `tmp/` (git-ignored); this document records only the
 summary and the package sha256 of the tested archive.

@@ -175,8 +175,7 @@ do
 check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupported')
     -- S2-R3-01 rev5: the officially-decided multi-prompt unsupported set, each
     -- with its own typed reason.
-    for _,talent in ipairs({'T_MERGE','T_STONE','T_CURSED_BOLT','T_WORMHOLE',
-        'T_EARTHEN_MISSILES','T_DWARVEN_HALF_EARTHEN_MISSILES'}) do
+    for _,talent in ipairs({'T_MERGE','T_STONE','T_CURSED_BOLT','T_WORMHOLE'}) do
         local u=unsupportedEntry(talent)
         check(u~=nil and u.missing and u.reason and u.scope,
             talent..' has a structured unsupported entry')
@@ -204,51 +203,95 @@ check(unsupportedEntry('T_SKIRMISHER_VAULT')==nil,'Vault is admitted, not unsupp
         and not unsupportedEntry('T_WORMHOLE').reason:find('simple_dir_request',1,true)
         and not unsupportedEntry('T_WORMHOLE').reason:find('cross_prompt_postcondition',1,true),
         'Wormhole reason cites the trap pair (correct ranges) and withdraws the simple_dir_request/cross-prompt claims')
-    -- R2-REV-03 rev2 (DO_NOT_MERGE withdrawal): the interchangeable-group
-    -- admission is WITHDRAWN. Each native action rolls `self:spellCrit(damage)`
-    -- separately before EVERY projectile, so each prompt position consumes a
-    -- distinct random crit outcome and exchanging answers between missiles can
-    -- exchange a crit and a non-crit between targets. Both talents return to
-    -- M.UNSUPPORTED with the typed `nondeterministic_prompt_outcome` reason
-    -- citing the per-missile engine lines, and have NO manifest entry (the
-    -- `group`/`stationary` relaxation surface is removed entirely).
-    check(unsupportedEntry('T_EARTHEN_MISSILES').missing=='nondeterministic_prompt_outcome'
-        and unsupportedEntry('T_DWARVEN_HALF_EARTHEN_MISSILES').missing=='nondeterministic_prompt_outcome',
-        'Earthen Missiles variants carry the typed nondeterministic_prompt_outcome reason')
+    -- A' (revised proposal, §6.1-§6.7): the two Earthen Missiles variants ARE
+    -- admitted, as STATIONARY multi-projectile programs with a mechanically
+    -- validated declared group. The R2-REV-03 withdrawal is SUPERSEDED: the
+    -- per-missile crit roll is an ANNOTATION, not a refusal, because the executor
+    -- is arrival-ordered by construction (`Actions.lua`: the k-th OBSERVED prompt
+    -- is answered with `plan[k]`). What remains unobservable is SOURCE-SLOT
+    -- identity inside a same-signature group, which is published as a limitation.
     for _,talent in ipairs{'T_EARTHEN_MISSILES','T_DWARVEN_HALF_EARTHEN_MISSILES'} do
-        local u=unsupportedEntry(talent)
-        check(u.reason:find('spellCrit',1,true)~=nil
-            and u.reason:find('rng.percent',1,true)~=nil
-            and u.missing=='nondeterministic_prompt_outcome',
-            talent..' withdrawal reason honestly names the per-missile crit RNG')
-        check(u.reason:find('stone.lua:41-46',1,true)~=nil
-            or u.reason:find('dwarven-nature.lua:37-42',1,true)~=nil,
-            talent..' withdrawal reason cites the engine lines')
-        check(Manifest.entry(talent)==nil,talent..' has no manifest entry (admission withdrawn)')
-        check(Manifest.SOURCES.talents[talent]==nil,
-            talent..' keeps no advisory source pin (no admitted entry)')
+        check(Manifest.entry(talent)~=nil,talent..' is admitted (A-prime)')
+        check(unsupportedEntry(talent)==nil,talent..' has no typed unsupported row')
+        check(Manifest.SOURCES.talents[talent]~=nil,talent..' keeps its advisory source pin')
+        local entry=Manifest.entry(talent)
+        check(entry.kind=='movement' and entry.target=='grid',talent..' is a grid movement entry')
+        check(entry.movement.variants~=nil,' A-prime '..talent..' declares its talent_level variant matrix')
+        check(entry.movement.variants[1].movement.delivery=='stationary'
+            and entry.movement.variants[2].movement.delivery=='stationary',
+            talent..' resolves to the stationary delivery (guard routing consequence)')
+        check(entry.movement.variants[1].movement.group_members~=nil
+            and #entry.movement.variants[1].movement.group_members==1
+            and #entry.movement.variants[1].movement.group_members[1].indexes==2,
+            talent..' below TL5 declares exactly one 2-member group')
+        check(#entry.movement.variants[2].movement.group_members[1].indexes==3,
+            talent..' at TL5+ declares one 3-member group (existing talent_level matrix)')
+        check(#entry.movement.variants[1].movement.target_requests==2
+            and #entry.movement.variants[2].movement.target_requests==3,
+            talent..' target_requests follow the declared program length')
+        -- Every stationary entry is a grid prompt answered from the plan.
+        for _,variant in ipairs(entry.movement.variants) do
+            for _,seqEntry in ipairs(variant.movement.request_sequence) do
+                check(seqEntry.request=='grid' and seqEntry.value_source=='target_plan',
+                    talent..' stationary entries are grid/target_plan')
+            end
+        end
     end
-    -- The relaxation surface itself is removed (no unused surface may linger):
-    -- no `stationary_sequence` template, no group vocabulary, no stationary
-    -- delivery/landing/center enum members.
-    check(Factory.TEMPLATES.stationary_sequence==nil,
-        'the stationary_sequence template is removed with the withdrawn admission')
-    check(Factory.validateGroupValue==nil and Factory.groupMembers==nil
-        and Factory.sameGroup==nil and Factory.validateEquivalenceProof==nil,
-        'the interchangeable-group vocabulary is removed with the withdrawn admission')
-    check(Factory.DELIVERIES.stationary==nil and Factory.LANDINGS.none==nil
-        and Factory.CENTERS.none==nil,
-        'the stationary delivery/landing/center enum members are removed')
-    -- The guard no longer routes any movement entry into a damage measurement:
-    -- every movement-kind entry is skipped unconditionally again (the S2
-    -- landing/uncertainty acceptance is the MovementPlanner's policy surface).
-    check(Manifest.entry('T_EARTHEN_MISSILES')==nil
-        and Manifest.entry('T_DWARVEN_HALF_EARTHEN_MISSILES')==nil,
-        'no stationary program can reach the removed guard path')
-    -- S3 admission 3: the agility Vault (techniques/agility.lua) is now
-    -- ADMITTED through the mixed movement/effect composition (V-U6): a mixed
-    -- entry with two distinguishable prompts and two direct components, and its
-    -- UNSUPPORTED row is gone. The acrobatics T_SKIRMISHER_VAULT below stays
+    -- UNION: the A′ relaxation surface EXISTS and is mechanically validated
+    -- (kept from A′); the dwarven specs carry friendlyfire=false AND
+    -- friendlyblock=false at every position (gifts/dwarven-nature.lua:34,41,49):
+    -- the signature records the allowlisted `friendlyblock=false` and the
+    -- component declares the explicit friendly filter. The regular variant has
+    -- neither field in its local spec, so its signature declares only
+    -- `cursor_type` and it carries engine defaults.
+    do
+        local dwarf=Manifest.entry('T_DWARVEN_HALF_EARTHEN_MISSILES')
+        check(dwarf.movement.variants[1].movement.request_sequence[1].observed.friendlyblock==false
+            and dwarf.movement.variants[1].movement.request_sequence[2].observed.friendlyblock==false,
+            'the dwarven signature declares friendlyblock=false at every prompt')
+        check(dwarf.components[1].friendlyfire==0,'the dwarven friendly filter is explicitly 0')
+        local reg=Manifest.entry('T_EARTHEN_MISSILES')
+        check(reg.movement.variants[1].movement.request_sequence[1].observed.friendlyblock==nil,
+            'the regular signature declares no friendlyblock (the local spec has none)')
+        check(reg.components[1].friendlyfire==100 and reg.components[1].selffire==100,
+            'the regular variant keeps the engine default filters (true)')
+    end
+    check(Factory.TEMPLATES.stationary_sequence~=nil
+        and Factory.TEMPLATES.stationary_sequence.stationary==true,
+        'the closed stationary_sequence template exists and is flagged stationary')
+    check(type(Factory.validGroupKey)=='function' and type(Factory.groupMembership)=='function'
+        and type(Factory.groupOf)=='function' and type(Factory.signatureEquals)=='function',
+        'the mechanically validated group vocabulary exists')
+    check(Factory.DELIVERIES.stationary==true and Factory.LANDINGS.none==true
+        and Factory.CENTERS.none==true,
+        'the stationary delivery/landing/center enum members exist')
+    -- A′ §6.6: the capability summary publishes the stationary delivery and the
+    -- per-projectile random-crit uncertainty (never a refusal, never prose-only).
+    do
+        local summary=Manifest.summary()
+        local byTalent={}
+        for _,item in ipairs(summary.talents) do byTalent[item.talent]=item end
+        for _,talent in ipairs{'T_EARTHEN_MISSILES','T_DWARVEN_HALF_EARTHEN_MISSILES'} do
+            local item=byTalent[talent]
+            check(item and item.outcome_uncertainty=='per_projectile_random_crit',
+                talent..' publishes outcome_uncertainty=per_projectile_random_crit')
+            check(item and item.stationary==true,'A-prime '..talent..' is published as stationary')
+            check(item and type(item.limitations)=='table' and #item.limitations>=3,
+                talent..' publishes its residual limitations')
+        end
+        check(byTalent['T_PHASE_DOOR'] and byTalent['T_PHASE_DOOR'].outcome_uncertainty==nil,
+            'a mover descriptor publishes no stationary uncertainty')
+    end
+    -- The relaxation is MATCHING ONLY and only for declared groups: the strict
+    -- EXACTLY-ONE rule still holds for every ungrouped descriptor.
+    check(Manifest.entry('T_PHASE_DOOR').movement.variants[4].movement.group_members~=nil
+        and #Manifest.entry('T_PHASE_DOOR').movement.variants[4].movement.group_members==0,
+        'Phase Door declares no group (its ungrouped prompts keep the exactly-one rule)')
+    -- UNION (arm2 supersedes A′'s older "Vault reserved for S3" state): the
+    -- agility Vault (techniques/agility.lua) is ADMITTED through the mixed
+    -- movement/effect composition (V-U6): a mixed entry with two
+    -- distinguishable prompts and two direct components, and its UNSUPPORTED
+    -- row is gone. The acrobatics T_SKIRMISHER_VAULT below stays
     -- component-free and unchanged (V-U6).
     local agilityVault=Manifest.entry('T_VAULT')
     check(agilityVault~=nil and agilityVault.kind=='movement','the agility Vault is admitted (V-U6)')

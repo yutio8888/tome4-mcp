@@ -157,4 +157,116 @@ do
         'the service requires a config or document')
 end
 
+-- R2-APR5-01 + rev6 dispositions (rebased onto X-doubleprime): every
+-- caller-supplied array in the assistant import path (version tuples,
+-- `when.all`/`when.any`, `config.sustains`, `config.talents`) is dense/closed
+-- validated BEFORE any `#`/`ipairs`/hashing by the ONE constructor
+-- (`OwnedImport.construct` over `Json.denseArray`/`denseFault`). A malformed
+-- list refuses the WHOLE import with the typed `invalid_document` fault
+-- (input + cause + offending key, no draft, no hash, no store). This is
+-- rev6 R2-APR6-01's fix: a sparse condition branch is no longer rule-local —
+-- it terminates the import before any draft exists (never a reduced-but-valid
+-- artifact). Scalar version tuples are refused (`not_array`), never
+-- stringified (R2-APR6-02).
+do
+    local function sparseVariant(mutator)
+        local config=fixture('anorithil_pinned.json')
+        mutator(config)
+        return Adapter.translate(config)
+    end
+
+    -- Hidden talent beyond the dense end: the prefix (5 valid rules) must NOT
+    -- become a valid hashed draft; the whole import fails with the offending key.
+    local sparseTalents=sparseVariant(function(c) c.talents[100]={talent='T_HEALING_LIGHT'} end)
+    check(sparseTalents.ok==false and sparseTalents.draft==nil and sparseTalents.hash==nil,
+        'a sparse talents array rejects the whole import, never a hashed prefix (R2-APR5-01)')
+    check(sparseTalents.error.code=='invalid_document' and sparseTalents.error.input=='talents'
+        and sparseTalents.error.cause=='key_beyond_dense_end' and sparseTalents.error.key==100,
+        'the sparse talents fault names the cause and the offending key (R2-APR5-01)')
+
+    -- A plain hole inside the span and a non-integer key are the other typed shapes.
+    local holedTalents=sparseVariant(function(c)
+        c.talents[100]={talent='T_HEALING_LIGHT'}
+        c.talents[102]={talent='T_ATTACK'}
+    end)
+    check(holedTalents.ok==false and holedTalents.error.code=='invalid_document'
+        and holedTalents.error.input=='talents' and holedTalents.error.cause=='hole'
+        and holedTalents.error.key==8,
+        'a multi-key talents hole is typed hole with the first missing key (R2-APR5-01)')
+    local badKeyTalents=sparseVariant(function(c) c.talents.extra={talent='T_ATTACK'} end)
+    check(badKeyTalents.ok==false and badKeyTalents.error.code=='invalid_document'
+        and badKeyTalents.error.cause=='non_integer_key' and badKeyTalents.error.key=='extra',
+        'a non-integer talents key is typed non_integer_key with the offending key (R2-APR5-01)')
+
+    -- Same ingress class on sustains: present-but-sparse fails the whole import.
+    local sparseSustains=sparseVariant(function(c) c.sustains[100]={talent='T_CHANT_OF_FORTRESS'} end)
+    check(sparseSustains.ok==false and sparseSustains.draft==nil and sparseSustains.hash==nil
+        and sparseSustains.error.code=='invalid_document'
+        and sparseSustains.error.input=='sustains'
+        and sparseSustains.error.cause=='key_beyond_dense_end' and sparseSustains.error.key==100,
+        'a sparse sustains array rejects the whole import with cause+key (R2-APR5-01)')
+    local holedSustains=sparseVariant(function(c)
+        c.sustains[100]={talent='T_CHANT_OF_FORTRESS'}
+        c.sustains[102]={talent='T_HYMN_OF_SHADOWS'}
+    end)
+    check(holedSustains.ok==false and holedSustains.error.input=='sustains'
+        and holedSustains.error.cause=='hole' and holedSustains.error.key==4,
+        'a sustains hole is typed hole with the first missing key (R2-APR5-01)')
+
+    -- A PRESENT non-table list is the same malformed-import fault, never a
+    -- silently empty list.
+    local notArraySustains=sparseVariant(function(c) c.sustains='nope' end)
+    check(notArraySustains.ok==false and notArraySustains.error.code=='invalid_document'
+        and notArraySustains.error.input=='sustains' and notArraySustains.error.cause=='not_array',
+        'a present non-table sustains list is a typed fault, not an empty list (R2-APR5-01)')
+
+    -- Pinned version tuples: a sparse tuple is the typed whole-import refusal,
+    -- never the flattened shorter prefix (which would read as the pinned
+    -- version). A non-table (scalar) version is the same fault family with
+    -- cause='not_array' — never stringified into a pinned-looking key
+    -- (R2-APR6-02).
+    local badVersion=fixture('anorithil_pinned.json')
+    badVersion.assistant.addon_version={[1]=2,[2]=3,[3]=9,[100]='x'}
+    local detected,err=Adapter.detect(badVersion)
+    check(detected==nil and err.code=='invalid_document'
+        and err.input=='assistant.addon_version'
+        and err.cause=='key_beyond_dense_end' and err.key==100,
+        'a sparse addon_version tuple is a typed whole-import refusal (R2-APR5-01)')
+    local badVersionTranslate=Adapter.translate(badVersion)
+    check(badVersionTranslate.ok==false and badVersionTranslate.error.code=='invalid_document',
+        'a sparse version tuple blocks the whole import (R2-APR5-01)')
+    local scalarVersion=fixture('anorithil_pinned.json')
+    scalarVersion.assistant.addon_version='2.3.9'
+    local detectedScalar,errScalar=Adapter.detect(scalarVersion)
+    check(detectedScalar==nil and errScalar.code=='invalid_document'
+        and errScalar.input=='assistant.addon_version' and errScalar.cause=='not_array',
+        'an exact pinned scalar version string is refused, never stringified (R2-APR6-02)')
+    local scalarImport=Adapter.translate(scalarVersion)
+    check(scalarImport.ok==false and scalarImport.draft==nil and scalarImport.hash==nil,
+        'a scalar version produces no draft and no hash (R2-APR6-02)')
+    local holedVersion=fixture('anorithil_pinned.json')
+    holedVersion.assistant.tome_version={[1]=1,[3]=4}
+    local detectedTome,errTome=Adapter.detect(holedVersion)
+    check(detectedTome==nil and errTome.code=='invalid_document'
+        and errTome.input=='assistant.tome_version'
+        and errTome.cause=='key_beyond_dense_end' and errTome.key==3,
+        'a holed tome_version tuple is a typed whole-import refusal (R2-APR5-01)')
+
+    -- A sparse `when.all` branch terminates the WHOLE import before any draft
+    -- exists (rev6 R2-APR6-01: never a reduced valid draft, never a partial
+    -- hash/store). The X-doubleprime constructor walks every `when` tree under
+    -- a dense `talents` list, so the fault names the exact condition path.
+    local sparseCond=fixture('anorithil_pinned.json')
+    sparseCond.talents[2].when.all={[1]={hp_pct={lt=70}},[100]={cooldown_ready={talent='T_BARRIER'}}}
+    local sparseCondResult=Adapter.translate(sparseCond)
+    check(sparseCondResult.ok==false and sparseCondResult.draft==nil
+        and sparseCondResult.hash==nil,
+        'a sparse condition array refuses the whole import, never a partial draft (R2-APR6-01)')
+    check(sparseCondResult.error.code=='invalid_document'
+        and sparseCondResult.error.input=='talents[2].when.all'
+        and sparseCondResult.error.cause=='key_beyond_dense_end'
+        and sparseCondResult.error.key==100,
+        'the condition fault names the branch path, cause and key (R2-APR6-01)')
+end
+
 print('Auto-combat assistant adapter: '..checks..' checks passed')

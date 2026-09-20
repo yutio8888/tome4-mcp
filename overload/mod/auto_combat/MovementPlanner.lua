@@ -202,6 +202,17 @@ end
 -- deterministic; a random landing stays an ANNOTATION the policy decides on,
 -- never a plugin refusal.
 local function applyLandingEnvelope(annotation,movement,origin,x,y)
+    -- A′ §6.5: a stationary program has NO mover landing. The requested cell is
+    -- the projectile target, not a landing, so the annotation stays
+    -- deterministic (the projectile is fired AT this cell; nobody moves).
+    -- R2-APR-02: keyed on the template-derived marker, never on a raw
+    -- caller-authored enum (the factory reserves the stationary vocabulary for
+    -- `stationary_sequence` at build time).
+    if type(movement)=='table' and movement.stationary==true then
+        annotation.confidence='source_stationary_program'
+        annotation.reasons[#annotation.reasons+1]='caster_does_not_move'
+        return annotation
+    end
     if type(movement)~='table' or movement.landing=='exact' or movement.landing==nil then
         return annotation
     end
@@ -380,6 +391,17 @@ end
 -- is reported here too (the sequence per-step annotations share this builder).
 local function nativeLandingAnnotation(movement,anchor,origin)
     movement=movement or {}
+    -- A′ §6.5: a stationary program has no mover landing; the annotation reports
+    -- the projectile target grid as a deterministic aim point (nobody moves).
+    -- R2-APR-02: keyed on the template-derived marker, never on a raw enum.
+    if movement.stationary==true then
+        local target=(type(anchor)=='table') and {x=anchor.x,y=anchor.y} or nil
+        if target==nil and type(origin)=='table' then target={x=origin.x,y=origin.y} end
+        return {landing={kind='deterministic',x=target and target.x,y=target and target.y},
+            visible=true,remembered=true,known_passable='unknown',known_hazard='unknown',
+            confidence='source_stationary_program',
+            reasons={'caster_does_not_move','projectile_aim_grid'}}
+    end
     if movement.landing=='random' then
         local bounds={kind='random',source='native'}
         if finite(movement.radius) then bounds.radius=movement.radius end
@@ -553,20 +575,23 @@ end
 function M.planSequence(attempt,provider,movement,origin)
     local sequence=movement.request_sequence
     local plan=attempt.target_plan
-    -- S3-A2-R3 defence-in-depth: a caller-supplied plan is a closed dense
-    -- `1..n` list before any `#`/`ipairs` indexing; a hole, a non-integer key
-    -- or a key beyond the dense end is `invalid_target_plan`, never a hidden
-    -- step silently ignored by `#`.
-    if type(plan)~='table' then return nil,{reason='invalid_target_plan'} end
-    local dense,maxKey=Factory.validateArray(plan,1)
-    if not dense then return nil,{reason='invalid_target_plan'} end
-    if maxKey<1 then return nil,{reason='invalid_target_plan'} end
-    if maxKey~=#sequence then
+    -- R2-APR3-03 (checklist A, planner defence-in-depth, union): a caller-supplied
+    -- plan is DENSE-validated over ALL keys (non-integer keys, holes, keys
+    -- beyond the dense end) BEFORE any `#`/`ipairs` — Lua `#` stops at the
+    -- first hole, so a sparse plan would otherwise be consumed as a shorter
+    -- complete program (S3-A2-R3's rule kept; the typed cause rides the
+    -- diagnostic detail).
+    local planOk,planLenOrCause=Factory.validateArray(plan,1)
+    if not planOk then
+        return nil,{reason='invalid_target_plan',detail=planLenOrCause}
+    end
+    local planLength=planLenOrCause
+    if planLength~=#sequence then
         -- The descriptor declares an ordered program, so a plan that disagrees in
         -- length/kind is a policy/adapter mismatch (the static validator already
         -- rejects it; this is the planner's own honest defence).
         return nil,{reason='target_plan_mismatch',talent=attempt.talent,
-            expected=#sequence,got=#plan}
+            expected=#sequence,got=planLength}
     end
     for i=1,#sequence do
         if plan[i].request~=sequence[i].request then
@@ -589,6 +614,10 @@ function M.planSequence(attempt,provider,movement,origin)
         -- the executor matches the live prompt against the same curation the
         -- factory validated for this position (`action.sequence[i].observed`).
         if values[i]~=nil and entry.observed~=nil then values[i].observed=entry.observed end
+        -- A′ §6.3: declared group membership is curated descriptor data and must
+        -- ride the internal carrier for the executor's in-group matching
+        -- relaxation (same rationale as the curated observed signature above).
+        if values[i]~=nil and entry.group~=nil then values[i].group=entry.group end
     end
     local landing=steps[#steps].annotation
     local kinds={}
@@ -599,6 +628,20 @@ function M.planSequence(attempt,provider,movement,origin)
     annotation.sequence=kinds
     annotation.reasons=annotation.reasons or {}
     annotation.reasons[#annotation.reasons+1]='ordered_prompt_sequence'
+    -- A′ §6.5/§6.6: a stationary program is annotated as such from the RESOLVED
+    -- template (the template-derived marker, R2-APR-02 — never from a manifest
+    -- boolean or a raw caller-authored enum), and the per-projectile random crit
+    -- is published as an annotation (never a refusal): the k-th answer is always
+    -- followed by the native k-th projectile and its own crit roll
+    -- (`spells/stone.lua:38-56`; `Combat.lua:2025-2056`).
+    if movement and movement.stationary==true then
+        annotation.stationary=true
+        annotation.delivery='stationary'
+        annotation.outcome_uncertainty='per_projectile_random_crit'
+        annotation.reasons[#annotation.reasons+1]='outcome_uncertainty=per_projectile_random_crit'
+        annotation.reasons[#annotation.reasons+1]='per_projectile_crit_may_differ_and_trigger_on_crit'
+        annotation.reasons[#annotation.reasons+1]='same_signature_source_slot_order_unobservable'
+    end
     return {kind='sequence',steps=steps,values=values,
         request_sequence=sequence,annotation=annotation}
 end
@@ -708,12 +751,13 @@ function M.plan(attempt,provider,movement)
         end
     end
     if type(attempt.target_plan)=='table' then
-        -- S3-A2-R3 defence-in-depth: the plan is a closed dense array before
-        -- any `#`/`ipairs` use on either the sequence or the single-request
-        -- path (a hidden key beyond the dense end is never silently ignored).
-        local dense,maxKey=Factory.validateArray(attempt.target_plan,1)
-        if not dense or maxKey<1 then
-            return nil,{reason='invalid_target_plan',talent=attempt.talent}
+        -- R2-APR3-03 (checklist A, planner defence-in-depth, union): dense-validate the
+        -- caller-supplied plan over ALL keys BEFORE any `#` — the single-entry
+        -- lowering below must never consume a sparse plan (a hidden entry
+        -- beyond the dense end) as a shorter complete one (S3-A2-R3's rule kept).
+        local planOk,planLenOrCause=Factory.validateArray(attempt.target_plan,1)
+        if not planOk then
+            return nil,{reason='invalid_target_plan',talent=attempt.talent,detail=planLenOrCause}
         end
         -- S2 §12.1: a descriptor that declares an ordered `request_sequence` is
         -- driven by the queue for every N (including N=1: a self-subject actor
@@ -724,9 +768,9 @@ function M.plan(attempt,provider,movement)
             and #movement.request_sequence>0 then
             return M.planSequence(attempt,provider,movement,origin)
         end
-        if maxKey>1 then
+        if planLenOrCause>1 then
             return nil,{reason='unsupported_target_plan',talent=attempt.talent,
-                count=#attempt.target_plan,scope='multi_prompt',
+                count=planLenOrCause,scope='multi_prompt',
                 missing='ordered_request_sequence'}
         end
         if movement==nil then
