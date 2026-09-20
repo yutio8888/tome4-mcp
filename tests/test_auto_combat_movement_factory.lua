@@ -736,6 +736,222 @@ do
         x=22,y=20,accept=accept}},{request='grid',destination={selector='position',
         x=23,y=20,accept=accept}}})
     check(extra==nil or extra.reason~=nil,'an extra prompt plan fails typed (V-U1)')
+
+end
+-- A′ §6.3/§6.5: mechanically validated `group` membership + the closed
+-- `stationary_sequence` template. These are the A′-REV-04 (P2) obligations: the
+-- factory must compare NORMALISED signatures for exact equality inside a group,
+-- require >=2 members and one request kind, require `grid`/`target_plan` on the
+-- stationary template, and refuse every malformed group as
+-- `movement_adapter_invalid` (never publish it).
+do
+    local BOLT={cursor_type='bolt'}
+    local function stationary(entries,extra)
+        local params={request_sequence=entries,range=10}
+        for key,value in pairs(extra or {}) do params[key]=value end
+        return Factory.expand('stationary_sequence',params)
+    end
+    local two=assert(stationary({{index=1,request='grid',subject='self',
+            value_source='target_plan',observed=BOLT,group='g1'},
+        {index=2,request='grid',subject='self',value_source='target_plan',
+            observed=BOLT,group='g1'}}))
+    check(two.delivery=='stationary' and two.landing=='none' and two.center=='none'
+        and two.traverses==false and two.relocates_other==false,
+        'the stationary template fixes delivery/landing/center and the non-movement invariants')
+    check(two.stationary==true,
+        'the guard marker is a validated consequence of the resolved stationary template')
+    check(two.group_members~=nil and #two.group_members==1
+        and #two.group_members[1].indexes==2,
+        'a two-member group is published as validated membership')
+    check(#two.target_requests==2 and two.target_requests[1]=='grid',
+        'a stationary program derives its grid request kinds')
+    -- >=2 members: a group of one is refused (never silently treated as ungrouped).
+    local single,singleErr=stationary({{index=1,request='grid',subject='self',
+            value_source='target_plan',observed=BOLT,group='g1'}},
+        {target_requests={'grid'}})
+    check(single==nil and singleErr.reason=='movement_adapter_invalid'
+        and singleErr.detail=='group_too_small',
+        'a group of one member is movement_adapter_invalid/group_too_small')
+    -- One request kind: an ungrouped twin beside a grouped member is admitted
+    -- (the group itself is valid), while a group spanning two kinds is refused.
+    local mixedKind,mixedKindErr=Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',observed={cursor_type='hit'},group='g1'},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                observed={cursor_type='hit'},group='g1'}},
+        delivery='teleport',landing='random',center='self',traverses=false,relocates_other=false})
+    check(mixedKind==nil and mixedKindErr.detail=='group_kind_mismatch',
+        'a group spanning two request kinds is movement_adapter_invalid/group_kind_mismatch')
+    -- Exact signature equality: a positional discriminator inside a group is
+    -- refused (the curated "unidentifiable" premise would be false).
+    local mismatch,mismatchErr=stationary({{index=1,request='grid',subject='self',
+            value_source='target_plan',observed=BOLT,group='g1'},
+        {index=2,request='grid',subject='self',value_source='target_plan',
+            observed={cursor_type='bolt',nolock=true},group='g1'}})
+    check(mismatch==nil and mismatchErr.detail=='group_signature_mismatch',
+        'members whose normalised signatures differ are movement_adapter_invalid/group_signature_mismatch')
+    -- A malformed group key (prose/path/table/oversized) is refused.
+    for _,bad in ipairs({'Earthen Missiles (spells/stone.lua)','G1',string.rep('a',33)}) do
+        local out,err=stationary({{index=1,request='grid',subject='self',
+                value_source='target_plan',observed=BOLT,group=bad},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                observed=BOLT,group=bad}})
+        check(out==nil and err.detail=='bad_group_key',
+            'a malformed group key is movement_adapter_invalid/bad_group_key')
+    end
+    -- Stationary closure: an actor/self entry, a subject-derived grid answer and
+    -- a trailing optional are all refused (never filtered).
+    local notGrid,notGridErr=stationary({{index=1,request='actor',subject='self',
+            observed={cursor_type='hit'}}})
+    check(notGrid==nil and notGridErr.detail=='stationary_entry_not_grid',
+        'a stationary program refuses a non-grid entry (stationary_entry_not_grid)')
+    local subject,subjectErr=stationary({{index=1,request='grid',subject='self',
+            value_source='subject',observed=BOLT}})
+    check(subject==nil and subjectErr.detail=='stationary_entry_value_source',
+        'a stationary program refuses a subject-derived grid answer')
+    local optional,optionalErr=stationary({{index=1,request='grid',subject='self',
+            value_source='target_plan',optional=true,observed=BOLT}})
+    check(optional==nil and optionalErr.detail=='stationary_entry_optional',
+        'a stationary program refuses an optional entry (no partial program)')
+    -- The stationary template rejects mover parameters as fixed fields.
+    local fixed,fixedErr=Factory.expand('stationary_sequence',{request_sequence={
+            {index=1,request='grid',subject='self',value_source='target_plan',observed=BOLT}},
+        radius=3})
+    check(fixed==nil and fixedErr.detail=='unknown_key',
+        'the stationary template has no radius/landing parameter surface')
+    -- An UNGROUPED pair keeps today's behaviour exactly, including the
+    -- presence-distinguishable nil-vs-false pair (A′-REV-01 correction).
+    local nilFalse=assert(Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',observed={cursor_type='hit'}},
+            {index=2,request='grid',subject='self',observed={cursor_type='hit',nolock=false}}},
+        delivery='teleport',landing='random',center='self',traverses=false,relocates_other=false}))
+    check(#nilFalse.request_sequence==2 and #nilFalse.group_members==0,
+        'an ungrouped nil-vs-false pair stays admitted and declares no group')
+    local ambiguous,ambiguousErr=Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',observed=BOLT},
+            {index=2,request='grid',subject='self',observed=BOLT}},
+        delivery='teleport',landing='random',center='self',traverses=false,relocates_other=false})
+    check(ambiguous==nil and ambiguousErr.reason=='movement_adapter_invalid'
+        and ambiguousErr.detail=='request_signature_ambiguous',
+        'an ungrouped identical pair is still request_signature_ambiguous')
+    -- The public helpers expose the same invariants to the runtime boundary.
+    local seq={{index=1,request='grid',subject='self',value_source='target_plan',
+            observed=BOLT,group='g1'},
+        {index=2,request='grid',subject='self',value_source='target_plan',
+            observed=BOLT,group='g1'}}
+    local membership,memErr=Factory.groupMembership(seq)
+    check(membership and membership[1]=='g1' and membership[2]=='g1',
+        'groupMembership returns index -> group key for the runtime carrier')
+    local badMembership,badMembershipErr=Factory.groupMembership({{index=1,request='grid',
+        subject='self',value_source='target_plan',observed=BOLT,group='g1'}})
+    check(badMembership==nil and badMembershipErr.detail=='group_too_small',
+        'the runtime-boundary helper rejects a forged single-member group')
+    local of=Factory.groupOf(seq,2)
+    check(of and #of==2 and of[1]==1 and of[2]==2,
+        'groupOf resolves the declared member indexes')
+    check(Factory.groupOf(seq,9)==nil,'groupOf returns nil for an unknown index')
+    check(Factory.signatureEquals(BOLT,BOLT) and not Factory.signatureEquals(BOLT,{cursor_type='hit'}),
+        'signatureEquals implements exact normalised equality')
+    check(Factory.validGroupKey('earthen_missiles') and not Factory.validGroupKey('Bad-Key'),
+        'validGroupKey is a bounded closed identifier')
+    -- An admitted manifest descriptor really carries validated membership.
+    local em=Manifest.entry('T_EARTHEN_MISSILES')
+    local below=em.movement.variants[1].movement
+    check(below.group_members~=nil and #below.group_members[1].indexes==2,
+        'the admitted Earthen Missiles below-TL5 branch carries a validated 2-member group')
+    check(below.stationary==true,'the admitted descriptor carries the template-derived marker')
+    -- R2-APR-02: the stationary vocabulary is RESERVED for the closed
+    -- `stationary_sequence` template. A generic `request_then_landing` (or any
+    -- other template) declaring `delivery='stationary'`/`landing='none'`/
+    -- `center='none'` is `movement_adapter_invalid` at build time — the
+    -- reviewer's GENERIC_STATIONARY_ACCEPTED reproduction can no longer pass.
+    local function reservedOk(out,err,detail)
+        return out==nil and err~=nil and err.reason=='movement_adapter_invalid'
+            and err.detail==detail
+    end
+    local genericStationary,genericErr=Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',
+            observed={cursor_type='hit',nowarning=true}}},
+        delivery='stationary',landing='random',center='self',traverses=false,
+        relocates_other=false})
+    check(genericStationary==nil and genericErr~=nil
+        and genericErr.reason=='movement_adapter_invalid'
+        and genericErr.detail=='reserved_stationary_delivery',
+        'a generic template cannot author delivery=stationary (R2-APR-02)')
+    local noneLanding,noneLandingErr=Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='grid',subject='self',
+            value_source='target_plan',observed=BOLT}},
+        delivery='teleport',landing='none',center='self',traverses=false,
+        relocates_other=false})
+    check(noneLanding==nil and noneLandingErr.detail=='reserved_stationary_landing',
+        'a generic template cannot author landing=none (R2-APR-02)')
+    local noneCenter,noneCenterErr=Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='grid',subject='self',
+            value_source='target_plan',observed=BOLT}},
+        delivery='teleport',landing='random',center='none',traverses=false,
+        relocates_other=false})
+    check(noneCenter==nil and noneCenterErr.detail=='reserved_stationary_center',
+        'a generic template cannot author center=none (R2-APR-02)')
+    -- The reservation also applies to the FIXED-delivery mover templates.
+    local fixedTemplate,fixedTemplateErr=Factory.expand('grid_move_bounded',{
+        delivery='stationary',traverses=false,radius=1,landing_proof='proof'})
+    check(fixedTemplate==nil and fixedTemplateErr.detail=='reserved_stationary_delivery',
+        'a fixed mover template cannot author delivery=stationary either (R2-APR-02)')
+    -- R2-APR2-02: contiguity is enforced UNCONDITIONALLY, so the build-time
+    -- language and the runtime carrier accept EXACTLY the same group shapes.
+    -- The reviewer's GENERIC_INTERLEAVED_FACTORY reproduction (a generic
+    -- `request_then_landing` group at indexes 1 and 3 around a distinguishable
+    -- ungrouped entry) is now refused at BUILD time as `group_not_contiguous`
+    -- (it was previously accepted by the generic template and only refused by
+    -- the carrier).
+    local genericInterleaved,genericInterleavedErr=Factory.expand('request_then_landing',{
+        request_sequence={
+            {index=1,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                observed={cursor_type='hit'}},
+            {index=3,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'}},
+        delivery='teleport',landing='random',center='self',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10})
+    check(genericInterleaved==nil and genericInterleavedErr.reason=='movement_adapter_invalid'
+        and genericInterleavedErr.detail=='group_not_contiguous',
+        'the BUILD-time generic template now refuses an interleaved group too (R2-APR2-02)')
+    -- The same shape is refused by `normalizeRequestSequence` directly (the
+    -- function the template calls), so the rule is not template-specific.
+    local directInterleaved,directInterleavedErr=Factory.normalizeRequestSequence({
+        {index=1,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'},
+        {index=2,request='grid',subject='self',value_source='target_plan',observed={cursor_type='hit'}},
+        {index=3,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'}})
+    check(directInterleaved==nil and directInterleavedErr.detail=='group_not_contiguous',
+        'normalizeRequestSequence refuses an interleaved group with no template flag (R2-APR2-02)')
+    -- A CONTIGUOUS generic group stays admitted (only interleaving is forbidden).
+    local genericContiguous,genericContiguousErr=Factory.expand('request_then_landing',{
+        request_sequence={
+            {index=1,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'},
+            {index=2,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'}},
+        delivery='teleport',landing='random',center='self',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10})
+    check(genericContiguous~=nil and genericContiguousErr==nil
+        and #genericContiguous.group_members==1,
+        'a CONTIGUOUS generic group stays admitted at build time (R2-APR2-02)')
+    -- A stationary interleaved group is refused with the same detail.
+    local stationaryInterleaved,stationaryInterleavedErr=stationary({
+        {index=1,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'},
+        {index=2,request='grid',subject='self',value_source='target_plan',observed=BOLT},
+        {index=3,request='grid',subject='self',value_source='target_plan',observed=BOLT,group='g1'}})
+    check(stationaryInterleaved==nil and stationaryInterleavedErr.detail=='group_not_contiguous',
+        'a stationary interleaved group is refused at build time (R2-APR2-02)')
+    -- The carrier-side group validator enforces the SAME contiguity rule
+    -- (R2-APR-03/R2-APR2-02): both boundaries now agree on the accepted language.
+    local interleaved,interleavedErr=Factory.groupMembership({
+        {index=1,request='grid',observed=BOLT,group='g1'},
+        {index=2,request='grid',observed=BOLT},
+        {index=3,request='grid',observed=BOLT,group='g1'}},{carrier=true})
+    check(interleaved==nil and interleavedErr.detail=='group_not_contiguous',
+        'carrier-mode group validation refuses an interleaved group (R2-APR-03/R2-APR2-02)')
+    local contiguous,contiguousErr=Factory.groupMembership({
+        {index=1,request='grid',observed=BOLT,group='g1'},
+        {index=2,request='grid',observed=BOLT,group='g1'}},{carrier=true})
+    check(contiguous and contiguous[1]=='g1' and contiguousErr==nil,
+        'carrier-mode group validation accepts a contiguous group without value_source')
 end
 
 print('Movement adapter factory: '..checks..' checks passed')

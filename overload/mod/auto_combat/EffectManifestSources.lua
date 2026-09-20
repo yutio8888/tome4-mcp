@@ -46,5 +46,7 @@ return {
         T_SHADOWSTEP={files={{path='/data/talents/cunning/shadow-magic.lua',md5='e272ec979e44edafb3bda5811aced61c'}},line=110,builder={path='/data/talents/cunning/shadow-magic.lua',line=123},action={path='/data/talents/cunning/shadow-magic.lua',line=127},ranges={range={path='/data/talents/cunning/shadow-magic.lua',line=118}}},
         T_GIANT_LEAP={files={{path='/data/talents/uber/str.lua',md5='6bc83e78c2966328551aea0d2e0e3237'}},line=21,builder={path='/data/talents/uber/str.lua',line=38},action={path='/data/talents/uber/str.lua',line=41}},
         T_VAULT={files={{path='/data/talents/techniques/agility.lua',md5='a987a797a4f0369f7d66aacfca0d7c39'}},line=83,builder={path='/data/talents/techniques/agility.lua',line=92},action={path='/data/talents/techniques/agility.lua',line=106},getters={getDist={path='/data/talents/techniques/agility.lua',line=105}}},
+        T_EARTHEN_MISSILES={files={{path='/data/talents/spells/stone.lua',md5='f21931e38808f47e16ab165d0be5b76d'}},line=21,action={path='/data/talents/spells/stone.lua',line=37}},
+        T_DWARVEN_HALF_EARTHEN_MISSILES={files={{path='/data/talents/gifts/dwarven-nature.lua',md5='c417f41189b0dc5bc6f86d693d482d08'}},line=21,action={path='/data/talents/gifts/dwarven-nature.lua',line=33}},
     },
 }

@@ -16,6 +16,7 @@ local Evaluator=require 'mod.auto_combat.PolicyEvaluator'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
 local Schema=require 'mod.auto_combat.PolicySchema'
 local Codec=require 'mod.auto_combat.PolicyCodec'
+local Json=require 'mod.mcp_bridge.Json'
 local M={}
 -- A rejected sustain is not retried forever: after this many rejected attempts
 -- in one run the sustain is disabled for that run (design 5.3).
@@ -174,6 +175,22 @@ function M:stop(reason)
     return {ok=true,state=self.state,generation=self.generation,action='release'}
 end
 
+-- R2-APR4-03 (checklist D): the Option-A safety pause hands control back to the
+-- player, so the run must land in the SAME terminal `stopped` state every other
+-- handoff ends in. The `pause` above already advanced the generation and
+-- notified the typed paused event, so normalising the state here must NOT be a
+-- second generation increment — the externally-visible transition is exactly
+-- one. A run already stopped for the same reason is a same-cause no-op.
+function M:handoff(reason)
+    reason=reason or self.reason or 'paused'
+    if self.state=='stopped' and self.reason==reason then
+        return {ok=true,state=self.state,generation=self.generation,action='release',deduplicated=true}
+    end
+    self.state='stopped'; self.reason=reason
+    self.known_enemies=nil
+    return {ok=true,state=self.state,generation=self.generation,action='release'}
+end
+
 function M:pause(reason)
     reason=reason or 'paused'
     -- Log/notify only on a real transition. Without this a caller that keeps
@@ -204,7 +221,14 @@ function M:resume()
 end
 
 function M:findRule(id)
-    for _,rule in ipairs(self.policy.rules or {}) do if rule.id==id then return rule end end
+    -- R2-APR4-02 (checklist A): only a dense rule list has trustworthy ids; a
+    -- sparse list must not resolve an id out of its truncated prefix.
+    local dense=self.policy and Json.denseArray(self.policy.rules or {},0)
+    if not dense then return nil end
+    for index=1,select(2,Json.denseArray(self.policy.rules,0)) do
+        local rule=self.policy.rules[index]
+        if rule.id==id then return rule end
+    end
     return nil
 end
 
@@ -396,24 +420,17 @@ function M:nativeDeviated(deviation,terminal)
         generation=self.generation}
     self:record(entry)
     if self.notify then self.notify(entry) end
-    -- D5 (S3-A2-R4): a terminal deviation transitions ONCE, directly to
-    -- stopped (`terminal=true`; the postcondition-mismatch handoff path).
-    -- The old pause+stop composition advanced the generation twice. Without
-    -- `terminal` the legacy paused-transition behavior is unchanged.
-    if terminal then
-        if self.state~='stopped' or self.reason~=reason then
-            self.generation=self.generation+1
-            self.state='stopped'; self.reason=reason
-        end
-        return entry
-    end
-    -- Transition to paused without emitting a second `paused` notify (the typed
-    -- entry above is the one recorded event). `nativeDeviation` then stops the
-    -- run with the same reason.
-    if self.state~='paused' or self.reason~=reason then
-        self.generation=self.generation+1
-        self.state='paused'; self.reason=reason
-    end
+    -- Transition to the terminal handoff state without emitting a second
+    -- notify (the typed entry above is the one recorded event).
+    -- R2-APR3-04 (checklist D, union): the mismatch handoff is ONE state
+    -- transition with generation delta exactly 1. The single `stop` below IS
+    -- that transition — there is no pause+stop composition, and a subsequent
+    -- same-cause stop (the service's lease release) deduplicates to a no-op.
+    -- (The `terminal` flag from S3-A2-R4 is accepted and absorbed: under the
+    -- single-stop form BOTH the synchronous and asynchronous handoffs are
+    -- terminal, delta 1 either way — the paused->stopped fold in `stop`
+    -- (S3-A2-FIX1-04) keeps the invariant for any same-cause composition.)
+    self:stop(reason)
     return entry
 end
 
@@ -426,7 +443,12 @@ function M:sustainStep()
     if self.attempts>=limit then return nil end
     if self:instantBudgetExhausted() then return nil end
     local ordered={}
-    for _,sustain in ipairs(self.policy.sustains or {}) do ordered[#ordered+1]=sustain end
+    -- R2-APR4-02 (checklist A): only a dense sustain list may be ordered and
+    -- activated; a sparse list carries no trustworthy program, so no sustain is
+    -- activated from it (fail closed rather than a truncated prefix).
+    local dense,count=Json.denseArray(self.policy.sustains or {},0)
+    if not dense then return nil end
+    for index=1,count do ordered[#ordered+1]=self.policy.sustains[index] end
     table.sort(ordered,function(a,b)
         local pa,pb=a.priority or 0,b.priority or 0
         if pa~=pb then return pa>pb end
@@ -722,22 +744,22 @@ function M:step()
                 -- must not emit a second, detail-less event (the live S2
                 -- playtest's paused `unexpected_target_request` records carried
                 -- no detail and no rule, because `pause`'s bare notify was the
-                -- only event the log ever saw). Mirror `nativeDeviated`:
-                -- notify the detailed entry, move to paused, and let `pause`
-                -- deduplicate so exactly one typed event is logged. The
-                -- service's safety handoff then issues `stop(step.reason)`,
-                -- which `AutoCombat:stop` folds into the SAME paused transition
-                -- (S3-A2-FIX1-04) instead of advancing the generation twice.
+                -- only event the log ever saw). Notify the detailed entry, then
+                -- R2-APR3-04 (checklist D): perform the ONE terminal handoff
+                -- transition directly — `stop` lands the run in the same
+                -- state as every other safety handoff (the synchronous path is
+                -- terminal: the handed-back prompt is answered on the released
+                -- lease, not via resume), and the service's same-cause stop
+                -- deduplicates so the generation advances exactly once
+                -- (delta 1) for this mismatch (S3-A2-FIX1-04 union).
                 local entry={kind='paused',reason=reason,rule=decision.rule,
                     detail=boundedDetail(outcome.sequence_deviation),
                     handed_back=outcome.handed_back==true or nil}
                 self:record(entry)
                 if self.notify then self.notify(entry) end
-                if self.state~='paused' or self.reason~=reason then
-                    self.generation=self.generation+1
-                    self.state='paused'; self.reason=reason
-                end
-                local paused=self:pause(reason)
+                local stopped=self:stop(reason)
+                local paused={action='paused',reason=reason,
+                    state=stopped.state,generation=stopped.generation}
                 paused.detail=outcome.sequence_deviation
                 -- `handed_back` is evidence only (the reason drives the pause);
                 -- it marks that a LIVE native prompt was handed to the

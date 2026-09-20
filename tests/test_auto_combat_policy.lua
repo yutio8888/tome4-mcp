@@ -313,6 +313,115 @@ do
             target_plan={{[1]={request='self'},[3]={request='self'}}}}}}
     check(not Schema.validate(hopped),
         'a hole in the target_plan key sequence is rejected (R3)')
+
+    -- R2-APR3-03 (checklist A): a caller-supplied target_plan is DENSE-validated
+    -- over ALL keys BEFORE any `#`/`ipairs`. Lua `#` stops at the first hole, so
+    -- a sparse plan (a valid step at key 1 and a hidden entry beyond the dense
+    -- end) must never be accepted as a shorter complete program.
+    local sparse=basePolicy()
+    sparse.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={ [1]={request='self'}, [3]={request='grid',
+                destination={selector='away',anchor='bound_target',accept=accept}} }}}}  -- key 2 is a hole
+    local sparseOk,sparseErrors=Schema.validate(sparse)
+    check(sparseOk==nil,'a sparse target_plan (hidden entry beyond the dense end) is rejected')
+    local sparseCode=nil
+    for _,error in ipairs(sparseErrors or {}) do
+        if error.path=='rules[1].then.target_plan' then sparseCode=error.code end
+    end
+    check(sparseCode=='invalid_target_plan','a sparse target_plan is a typed invalid_target_plan')
+    local badKey=basePolicy()
+    badKey.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={ {request='self'}, extra={request='grid'} }}}}
+    check(not Schema.validate(badKey),'a non-integer target_plan key is rejected')
+    local trailing=basePolicy()
+    trailing.rules={{id='door',priority=10,when={always={}},
+        ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+            target_plan={ [1]={request='self'}, [2]={request='grid',
+                destination={selector='away',anchor='bound_target',accept=accept}},
+                [5]={request='grid'} }}}}
+    check(not Schema.validate(trailing),'a hole before a trailing key is rejected (dense over ALL keys)')
+end
+-- R2-APR4-02 (checklist A): the OTHER caller arrays the reviewer pinned — rules,
+-- sustains, cond.all, cond.any and targeting.tie_break — and the canonical
+-- encoding used for the content hash must all dense-validate at ingress. A
+-- sparse policy must be REJECTED and never hashed as its shorter prefix.
+do
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local function planError(p,path)
+        local ok,errors=Schema.validate(p)
+        if ok then return nil,nil end
+        for _,error in ipairs(errors or {}) do
+            if error.path==path then return error.code,error.cause end
+        end
+        return nil,nil
+    end
+    -- rules: a valid rule 1 plus a hidden rule 100.
+    local sparseRules=basePolicy()
+    sparseRules.rules={[1]=sparseRules.rules[1],
+        [100]={id='hidden',priority=999,when={always={}},
+            ['then']={action='use_talent',talent='T_NOT_ALLOWED'}}}
+    local rulesCode=select(1,planError(sparseRules,'rules'))
+    check(Schema.validate(sparseRules)==nil,'a sparse rules array is rejected (R2-APR4-02)')
+    check(rulesCode=='rules_required' or rulesCode=='rules',
+        'the sparse rules rejection is typed at the rules path (R2-APR4-02)')
+    -- The hash of the sparse policy is NIL (never the shorter-prefix hash).
+    -- X-doubleprime rebase: Schema.hash THROWS on a malformed policy
+    -- (test_auto_combat_policy_bytes: 'Schema.hash refuses a malformed policy
+    -- instead of hashing it'); the structured non-throwing form is
+    -- Schema.project, which returns nil + typed fault (no prefix hash).
+    local dense=basePolicy()
+    local sparseHash,cause=Schema.project(sparseRules)
+    check(sparseHash==nil and cause~=nil,
+        'a sparse policy computes NO hash (never hashed as its prefix) (R2-APR4-02)')
+    check(Schema.hash(dense)~=nil,'a dense policy still hashes')
+    -- rules: a hole inside the array.
+    local holedRules=basePolicy()
+    holedRules.rules={[1]=holedRules.rules[1],[3]=holedRules.rules[2]}
+    check(Schema.validate(holedRules)==nil,'a holed rules array is rejected (R2-APR4-02)')
+    -- sustains.
+    local sparseSustains=basePolicy()
+    sparseSustains.sustains={[1]={talent='T_CHANT_OF_FORTRESS',priority=20},[100]={talent='T_SHIELDING'}}
+    check(Schema.validate(sparseSustains)==nil,'a sparse sustains array is rejected (R2-APR4-02)')
+    -- cond.all / cond.any.
+    local sparseAll=basePolicy()
+    sparseAll.rules[1].when={all={[1]={always={}},[100]={hp_pct={lt=50}}}}
+    local allCode,allCause=planError(sparseAll,'rules[1].when')
+    check(Schema.validate(sparseAll)==nil and allCode=='invalid_all' and allCause=='hole',
+        'a sparse cond.all is rejected with cause=hole (R2-APR4-02)')
+    local sparseAny=basePolicy()
+    sparseAny.rules[1].when={any={[1]={always={}},[50]={hp_pct={lt=50}}}}
+    local anyCode,anyCause=planError(sparseAny,'rules[1].when')
+    check(Schema.validate(sparseAny)==nil and anyCode=='invalid_any' and anyCause=='hole',
+        'a sparse cond.any is rejected with cause=hole (R2-APR4-02)')
+    -- targeting.tie_break.
+    local sparseTie=basePolicy()
+    sparseTie.targeting={default='nearest_hostile',tie_break={[1]='distance',[9]='uid'}}
+    local tieCode,tieCause=planError(sparseTie,'targeting.tie_break')
+    check(Schema.validate(sparseTie)==nil and tieCode=='invalid_tie_break' and tieCause=='hole',
+        'a sparse targeting.tie_break is rejected with cause=hole (R2-APR4-02)')
+    -- A dense policy still validates and hashes (no false positive).
+    local denseTie=basePolicy()
+    denseTie.targeting={default='nearest_hostile',tie_break={'distance','hp','uid'}}
+    check(Schema.validate(denseTie)==true,'a dense tie_break still validates (R2-APR4-02)')
+end
+-- R2-APR4-02 (checklist A): the runtime evaluator must not consume a sparse
+-- rule/condition list through `ipairs` either: a sparse `all` is UNKNOWN and a
+-- sparse `rules` fails closed instead of evaluating a truncated prefix.
+do
+    local sparseAll=Evaluator.evalCondition({all={[1]={always={}},[5]={always={}}}},{})
+    check(sparseAll==Evaluator.UNKNOWN,'a sparse cond.all evaluates to UNKNOWN at runtime (R2-APR4-02)')
+    local sparseAny=Evaluator.evalCondition({any={[1]={always={}},[5]={always={}}}},{})
+    check(sparseAny==Evaluator.UNKNOWN,'a sparse cond.any evaluates to UNKNOWN at runtime (R2-APR4-02)')
+    local sparsePolicy=basePolicy()
+    sparsePolicy.rules={[1]=sparsePolicy.rules[1],[100]=sparsePolicy.rules[2]}
+    local decision=Evaluator.evaluate(sparsePolicy,{hp_pct=80,enemy_count=1,attempts=0})
+    check(decision.decision=='pause' and decision.reason=='invalid_policy_rules',
+        'a sparse rules array fails closed at runtime, never evaluated as its prefix (R2-APR4-02)')
+    check(Evaluator.actorStepSelector({target_plan={[1]={request='actor',selector='self'},
+        [3]={request='actor',selector='nearest_hostile'}}})==nil,
+        'a sparse target_plan resolves no actor step selector (R2-APR4-02)')
 end
 -- S2-R4-01: the agility Vault must NOT be executable. Its first (actor) prompt's
 -- target is attacked and may be dazed before the move, so component-free

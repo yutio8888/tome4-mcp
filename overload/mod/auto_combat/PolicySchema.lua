@@ -94,9 +94,9 @@ M.TALENTS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_HEALING_LIGHT=true,
     -- Movement tranche (v1.6). Ordinary movement/teleport actions.
     T_RUSH=true,T_SKIRMISHER_CUNNING_ROLL=true,T_PHASE_DOOR=true,
     -- S1 factory admissions (source-reviewed templates + variant matrix).
-    -- S2-R4-01: T_VAULT (agility) is deliberately absent — it is a MIXED
-    -- movement/effect talent reserved for the S3 composition slice (typed reason
-    -- `movement_effect_composition_required` in EffectManifest.UNSUPPORTED).
+    -- S2-R4-01 (historical): T_VAULT (agility) was deliberately absent until the
+    -- S3 composition slice admitted it — that reservation is superseded by the
+    -- S3 admission below (arm2 supersedes the older treatment).
     T_SKIRMISHER_VAULT=true,T_DIMENSIONAL_STEP=true,
     -- S3 movement/effect composition admissions (Shadowstep first; Giant Leap
     -- and the agility Vault follow in their own commits).
@@ -105,7 +105,10 @@ M.TALENTS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_HEALING_LIGHT=true,
     T_GIANT_LEAP=true,
     -- S3 admission 3: the agility Vault (two-prompt mixed program; NOT the
     -- acrobatics T_SKIRMISHER_VAULT, which is a different single-prompt talent).
-    T_VAULT=true}
+    T_VAULT=true,
+    -- A′ stationary multi-projectile programs (mechanically validated declared
+    -- group; see EffectManifest and docs/tome-mcp-0.9.0-movement-s2-implementation.md).
+    T_EARTHEN_MISSILES=true,T_DWARVEN_HALF_EARTHEN_MISSILES=true}
 M.SUSTAINS={T_CHANT_OF_FORTRESS=true,T_HYMN_OF_SHADOWS=true,T_WEAPON_OF_LIGHT=true,
     T_ARCANE_POWER=true,T_SHIELDING=true,T_DARK_RITUAL=true,T_BERSERKER_RAGE=true,
     T_DAUNTING_PRESENCE=true}
@@ -115,17 +118,20 @@ M.HARD={max_actions_per_tick=4,max_instant_per_tick=3,max_consecutive_actions=20
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 local function integer(n,lo,hi) return finite(n) and n%1==0 and n>=lo and n<=hi end
-local function isArray(t) return type(t)=='table' and t~=Json.null end
 
 -- Checklist A: a caller-supplied ARRAY is only usable with `#`/`ipairs` once it
 -- is dense and closed over ALL keys (XPS1-REV-01: the weak `isArray` test let a
 -- JSON-encodable `{all={hidden={always={}}}}` pass and be traversed as an EMPTY
--- `all`). `denseList` returns the dense count, or `nil, key` when the value is
--- not a dense 1..n array.
-local function denseList(value)
-    local ok,count=Json.denseArray(value,0)
-    if ok then return count end
-    return nil,select(2,Json.denseFault(value))
+-- `all`). `denseList` returns the dense count, or `nil, cause` when the value
+-- is not a dense 1..n array; the cause is `Json.denseArray`'s OWN typed fault
+-- (not_array | non_integer_key | hole | too_short) so there is exactly ONE
+-- density validator and one coarse-cause vocabulary behind every schema sink
+-- (the key-level refinement stays Json.denseFault's, used by sinks that name
+-- the offending key).
+local function denseList(value,minLength)
+    local ok,countOrCause=Json.denseArray(value,minLength or 0)
+    if ok then return countOrCause end
+    return nil,countOrCause
 end
 
 -- S3-A2-FIX1-03 (rebased onto X''): the schema and the evaluator share ONE
@@ -163,15 +169,20 @@ local function validateCondition(cond,path,depth,errors)
     if depth>M.HARD.max_depth then errors[#errors+1]={path=path,code='too_deep'};return end
     if type(cond)~='table' then errors[#errors+1]={path=path,code='invalid_condition'};return end
     if cond.all then
-        local count=denseList(cond.all)
-        if not count then errors[#errors+1]={path=path..'.all',code='invalid_all'};return end
+        -- R2-APR4-02 (checklist A, rebased onto X''): the branch array is
+        -- dense+closed validated BEFORE any `ipairs`/length read via the ONE
+        -- validator (denseList over Json.denseArray/denseFault); the typed
+        -- denseFault cause is carried on the diagnostic.
+        local count,allCause=denseList(cond.all)
+        if not count then errors[#errors+1]={path=path,code='invalid_all',cause=allCause};return end
         onlyKeys(cond,{all=true},path,errors)
         for i=1,count do validateCondition(cond.all[i],path..'.all['..i..']',depth+1,errors) end
         return
     end
     if cond.any then
-        local count=denseList(cond.any)
-        if not count then errors[#errors+1]={path=path..'.any',code='invalid_any'};return end
+        -- R2-APR4-02 (checklist A): same dense/closed ingress for `any`.
+        local count,anyCause=denseList(cond.any)
+        if not count then errors[#errors+1]={path=path,code='invalid_any',cause=anyCause};return end
         onlyKeys(cond,{any=true},path,errors)
         for i=1,count do validateCondition(cond.any[i],path..'.any['..i..']',depth+1,errors) end
         return
@@ -318,9 +329,21 @@ end
 -- but reported as a capability/integrity limit at execution (never silently
 -- ignored).
 local function validateTargetPlan(plan,path,errors)
-    local planCount=denseList(plan)
-    if not planCount or planCount==0 then
-        errors[#errors+1]={path=path,code='invalid_target_plan'};return
+    -- R2-APR3-03 (checklist A, rebased onto X''): the ONE shared dense-array
+    -- validator is `Json.denseArray` (single source of truth). Dense-and-closed
+    -- over ALL keys, minLength=1, with the typed fault as `cause` so a sparse
+    -- plan can never be silently accepted as a shorter complete program.
+    -- RA-06 wording correction: the pre-rebase branch-local validator that this
+    -- replaced is NOT "the same function". Its ACCEPTANCE predicate is subsumed
+    -- (X-doubleprime is at least as strict — every input the old validator
+    -- rejected is still rejected), but the typed CAUSE precedence changed:
+    -- the old validator checked `minLength` BEFORE holes and treated
+    -- `Json.null` as a table (a too-short/null list reported `too_short`),
+    -- while X-doubleprime decides density first (`non_integer_key`/`hole`)
+    -- and only then `too_short`, and reports `Json.null` as `not_array`.
+    local planCount,planCause=denseList(plan,1)
+    if not planCount then
+        errors[#errors+1]={path=path,code='invalid_target_plan',cause=planCause};return
     end
     if planCount>8 then errors[#errors+1]={path=path,code='target_plan_too_long'} end
     for index=1,planCount do
@@ -404,8 +427,9 @@ function M.validate(policy)
         end
     end
     if policy.sustains~=nil then
-        local sustainCount=denseList(policy.sustains)
-        if not sustainCount then errors[#errors+1]={path='sustains',code='invalid_sustains'}
+        local sustainCount,sustainCause=denseList(policy.sustains)
+        if not sustainCount then errors[#errors+1]={path='sustains',code='invalid_sustains',
+            cause=sustainCause}
         else
             for i=1,sustainCount do
                 local sustain=policy.sustains[i]
@@ -451,9 +475,9 @@ function M.validate(policy)
                 if type(tie)~='table' or tie==Json.null then
                     errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break'}
                 else
-                    local tieCount=denseList(tie)
+                    local tieCount,tieCause=denseList(tie)
                     if not tieCount then
-                        errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break'}
+                        errors[#errors+1]={path='targeting.tie_break',code='invalid_tie_break',cause=tieCause}
                     else
                         for index=1,tieCount do
                             local key=tie[index]
@@ -476,9 +500,15 @@ function M.validate(policy)
             end
         end
     end
-    local ruleCount=denseList(policy.rules)
+    -- R2-APR4-02 (checklist A, rebased onto X''): the top-level `rules` array
+    -- feeds validation AND the X-doubleprime content-hash sink; the density
+    -- loop itself lives only in Json.denseArray. A sparse list can never be
+    -- accepted, hashed (PolicyCodec classifies it as a fault), or evaluated as
+    -- its shorter prefix.
+    local ruleCount,rulesCause=denseList(policy.rules)
     if not ruleCount or ruleCount==0 then
-        errors[#errors+1]={path='rules',code='rules_required'}
+        errors[#errors+1]={path='rules',code='rules_required',
+            cause=rulesCause}
     else
         local cap=policy.limits and policy.limits.max_rules or M.HARD.max_rules
         if ruleCount>cap then errors[#errors+1]={path='rules',code='too_many_rules'} end

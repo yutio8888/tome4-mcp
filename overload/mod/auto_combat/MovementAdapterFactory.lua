@@ -52,9 +52,28 @@ M.TARGET_REQUESTS={none=true,actor=true,grid=true,self=true}
 -- the source of its decided value. Both are closed vocabularies.
 M.REQUEST_SUBJECTS={self=true,actor=true}
 M.REQUEST_VALUE_SOURCES={subject=true,target_plan=true}
-M.DELIVERIES={step=true,line_move=true,leap=true,teleport=true,scene_change=true}
-M.LANDINGS={exact=true,bounded_alternatives=true,random=true,source_defined=true}
-M.CENTERS={self=true,actor=true,requested_grid=true}
+M.DELIVERIES={step=true,line_move=true,leap=true,teleport=true,scene_change=true,
+    -- A′ (§6.5): a STATIONARY delivery — the effect leaves the caster but the
+    -- caster never moves (a multi-projectile/multi-grid effect program). It is
+    -- deliberately distinct from every mover delivery so a descriptor can never
+    -- claim a relocation that does not happen.
+    stationary=true}
+M.LANDINGS={exact=true,bounded_alternatives=true,random=true,source_defined=true,
+    -- A′: no mover landing at all (the caster does not move).
+    -- R2-APR-02: `none` is RESERVED for the closed `stationary_sequence`
+    -- template (`M.expand` refuses it on every other template), so the enum is
+    -- never a caller-authorable routing input.
+    none=true}
+M.CENTERS={self=true,actor=true,requested_grid=true,
+    -- A′: the program's centre is each prompt's policy-chosen grid, never a
+    -- mover landing.
+    -- R2-APR-02: reserved for `stationary_sequence`, as above.
+    none=true}
+-- R2-APR-02: the values below are RESERVED for the closed `stationary_sequence`
+-- template. On every other template they are refused at build time, so the
+-- guard/planner/summary can route on the template-derived marker knowing that
+-- a raw caller-authored enum can never produce it.
+M.RESERVED_STATIONARY={delivery='stationary',landing='none',center='none'}
 
 local function finite(n) return type(n)=='number' and n==n and n>-math.huge and n<math.huge end
 
@@ -127,7 +146,7 @@ end
 -- Returns a fresh array of normalised entries (no shared reference with the
 -- caller's declaration).
 local SEQUENCE_KEYS={index=true,request=true,subject=true,value_source=true,
-    landing_from=true,optional=true,observed=true}
+    landing_from=true,optional=true,observed=true,group=true}
 -- The closed `observed` signature allowlist: `cursor_type` plus the static
 -- discriminators. Dynamic numerics (`range`/`radius`) and closures are never
 -- signature fields.
@@ -200,6 +219,155 @@ end
 -- raised prompt may be answered only when exactly one declared entry — the
 -- arrival position — matches it; zero matches, several matches, or a match at
 -- another index are typed deviations that pause and hand the live prompt back.
+-- A′ §6.3: `group` is a CLOSED group key on a `request_sequence` entry. It is
+-- DECLARED membership, never inferred from signature equality: the declaration
+-- states that the members raise mutually unidentifiable prompts, so the runtime
+-- gate is allowed to answer the k-th OBSERVED prompt with `plan[k]` even when
+-- that prompt also matches its siblings. The value is a bounded identifier
+-- (lowercase word characters, 1..32), so it can never smuggle prose, a
+-- function, a table or a path into the internal carrier.
+local GROUP_KEY_PATTERN='^[a-z0-9_]+$'
+function M.validGroupKey(value)
+    return type(value)=='string' and #value>0 and #value<=32
+        and value:match(GROUP_KEY_PATTERN)~=nil
+end
+
+-- Two normalised signature records compare EXACTLY EQUAL (key presence and
+-- value, including `cursor_type`): the mechanical form of "no positional
+-- discriminator exists inside this group".
+function M.signatureEquals(a,b)
+    if type(a)~='table' or type(b)~='table' then return false end
+    if a.cursor_type~=b.cursor_type then return false end
+    for flag in pairs(OBSERVED_SIGNATURE_FLAGS) do
+        if (a[flag]~=nil)~=(b[flag]~=nil) then return false end
+        if a[flag]~=nil and a[flag]~=b[flag] then return false end
+    end
+    for key in pairs(OBSERVED_SIGNATURE_STRINGS) do
+        if (a[key]~=nil)~=(b[key]~=nil) then return false end
+        if a[key]~=nil and a[key]~=b[key] then return false end
+    end
+    if (a.default_target~=nil)~=(b.default_target~=nil) then return false end
+    if a.default_target~=nil and a.default_target~=b.default_target then return false end
+    return true
+end
+
+-- A′ §6.3 (mechanical validation, not prose). Every group declared on a
+-- normalised sequence is validated:
+--   * a group has AT LEAST TWO members (a group of one is refused instead of
+--     silently behaving as ungrouped);
+--   * every member declares the same `request` kind;
+--   * the members' signatures compare EXACTLY EQUAL (`M.signatureEquals`);
+--   * the members are CONTIGUOUS (`group_not_contiguous` otherwise);
+--   * on a `stationary_sequence` program every member is additionally
+--     `request='grid'` with `value_source='target_plan'`.
+-- Returns a fresh list `{{key=,indexes={...}}, ...}` or a typed error.
+-- R2-APR2-02 (semantics chosen: FORBID INTERLEAVING AT BUILD TIME): contiguity
+-- is enforced on EVERY group at BOTH boundaries — the closed factory language
+-- and the runtime carrier. The carrier is a re-validation of the factory's
+-- published language, so it must never ACCEPT a membership the factory would
+-- REFUSE (an accepting carrier is the asymmetry class R2-APR-03 closed). No
+-- admitted/curated group is interleaved, so this costs nothing today; a future
+-- need is admitted by relaxing both boundaries together under review.
+-- R2-APR-03/R2-APR2-02: the `options.carrier` flag (passed by
+-- `Actions.normalizeSequence`) no longer alters any rule: contiguity is now
+-- unconditional, and the only other carrier-mode difference (the stationary
+-- `value_source` proof) was always selected by `options.stationary`, never by
+-- `options.carrier`. The carrier therefore accepts EXACTLY the factory's
+-- language, and the flag is accepted for call-site compatibility.
+local function validateGroups(sequence,options)
+    options=options or {}
+    local stationary=options.stationary==true
+    local members={}
+    local order={}
+    for i=1,#sequence do
+        local key=sequence[i].group
+        if key~=nil then
+            if not M.validGroupKey(key) then
+                return nil,{detail='bad_group_key',index=i}
+            end
+            if members[key]==nil then members[key]={};order[#order+1]=key end
+            local list=members[key]
+            list[#list+1]=i
+        end
+    end
+    local out={}
+    for _,key in ipairs(order) do
+        local list=members[key]
+        if #list<2 then
+            return nil,{detail='group_too_small',group=key,indexes=list}
+        end
+        local kind=sequence[list[1]].request
+        for _,index in ipairs(list) do
+            if sequence[index].request~=kind then
+                return nil,{detail='group_kind_mismatch',group=key,indexes=list}
+            end
+        end
+        local first=sequence[list[1]].observed
+        for _,index in ipairs(list) do
+            if not M.signatureEquals(first,sequence[index].observed) then
+                return nil,{detail='group_signature_mismatch',group=key,indexes=list}
+            end
+        end
+        -- R2-APR2-02: contiguity is UNCONDITIONAL, so the build-time language
+        -- and the runtime carrier accept exactly the same group shapes.
+        for step=2,#list do
+            if list[step]~=list[step-1]+1 then
+                return nil,{detail='group_not_contiguous',group=key,indexes=list}
+            end
+        end
+        if stationary then
+            for _,index in ipairs(list) do
+                local entry=sequence[index]
+                if entry.request~='grid' then
+                    return nil,{detail='group_stationary_not_grid',group=key,index=index}
+                end
+                if entry.value_source~='target_plan' then
+                    return nil,{detail='group_stationary_value_source',group=key,index=index}
+                end
+            end
+        end
+        out[#out+1]={key=key,indexes=list}
+    end
+    return out
+end
+M.validateGroups=validateGroups
+
+-- R2-APR-03: the SHARED canonical observed-signature normalizer. The runtime
+-- carrier (`Actions.normalizeSequence`) uses exactly this function, so a
+-- declaration the factory's normalizer refuses (for example a 65-byte
+-- `first_target`) is refused on the carrier too — there is no second, weaker
+-- copy of the signature grammar.
+M.normalizeObserved=normalizeObserved
+
+-- Public helper for the RUNTIME CARRIER boundary (A′ §6.3): the executor
+-- re-validates the same invariants on the internal carrier, so a hand-authored
+-- malformed carrier cannot weaken the gate. Returns `index -> group_key`.
+-- R2-APR-03/R2-APR2-02: pass `{carrier=true}` — the carrier has no
+-- `value_source` field, but every membership invariant (>=2 members, one
+-- request kind, exactly-equal signatures, CONTIGUITY) is enforced identically
+-- to the factory, so the two boundaries accept the same language.
+function M.groupMembership(sequence,options)
+    local groups,err=validateGroups(sequence,options)
+    if not groups then return nil,err end
+    local out={}
+    for _,group in ipairs(groups) do
+        for _,index in ipairs(group.indexes) do out[index]=group.key end
+    end
+    return out
+end
+
+-- The indexes of the group an entry declares, or nil for an ungrouped entry
+-- (never an empty table).
+function M.groupOf(sequence,index)
+    local entry=sequence and sequence[index]
+    if entry==nil or entry.group==nil then return nil end
+    local out={}
+    for i=1,#sequence do
+        if sequence[i].group==entry.group then out[#out+1]=i end
+    end
+    return #out>=2 and out or nil
+end
+
 local function signatureSubsumes(a,b)
     -- b's match set ⊆ a's: the flag constraint sets must be IDENTICAL (a
     -- declared flag is present-and-equal, an undeclared one required-absent, so
@@ -219,7 +387,7 @@ local function signatureSubsumes(a,b)
     end
     return true
 end
-function M.normalizeRequestSequence(list)
+function M.normalizeRequestSequence(list,options)
     local ok,maxKey=validateArray(list,1)
     if not ok then return nil,{detail='request_sequence_not_array'} end
     if maxKey>8 then return nil,{detail='request_sequence_too_long'} end
@@ -268,6 +436,9 @@ function M.normalizeRequestSequence(list)
             value_source=valueSource,observed=observed}
         if entry.landing_from~=nil then copy.landing_from=entry.landing_from end
         if entry.optional==true then copy.optional=true end
+        -- A′: the declared group key rides the normalised entry; the membership
+        -- invariants are validated below and re-validated by the runtime carrier.
+        if entry.group~=nil then copy.group=entry.group end
         out[i]=copy
     end
     -- S2-R3-01 rev5: for N≥2 no entry's curated signature may SUBSUME another's
@@ -277,18 +448,32 @@ function M.normalizeRequestSequence(list)
     -- never a strategy judgement). Pairs that are merely distinguishable under
     -- presence semantics (Vault's hit-without-nolock vs hit+nolock) are
     -- admitted; the runtime EXACTLY-ONE gate is the normative safety net.
+    --
+    -- A′ §6.3: an entry that DECLARES a group is exempt from the subsumption
+    -- rejection for its OWN group members only (identical signatures are the
+    -- whole point of the declaration), and every declared group is then
+    -- mechanically validated. Every ungrouped pair keeps today's behaviour
+    -- exactly (including the presence-distinguishable nil-vs-false pair, which
+    -- is admitted).
+    local groups,groupErr=validateGroups(out,options)
+    if not groups then
+        return nil,groupErr
+    end
     if maxKey>=2 then
         for i=1,maxKey-1 do
             for j=i+1,maxKey do
-                if signatureSubsumes(out[i].observed,out[j].observed)
-                    or signatureSubsumes(out[j].observed,out[i].observed) then
-                    return nil,{detail='request_signature_ambiguous',
-                        indexes={i,j},signature=out[i].observed.cursor_type}
+                local sameGroup=out[i].group~=nil and out[i].group==out[j].group
+                if not sameGroup then
+                    if signatureSubsumes(out[i].observed,out[j].observed)
+                        or signatureSubsumes(out[j].observed,out[i].observed) then
+                        return nil,{detail='request_signature_ambiguous',
+                            indexes={i,j},signature=out[i].observed.cursor_type}
+                    end
                 end
             end
         end
     end
-    return out
+    return out,groups
 end
 
 -- The declared prompt kinds of one normalised sequence.
@@ -411,6 +596,20 @@ local TEMPLATES={
             fallback_when=true,occupancy_dependent=true,landing_proof=true},
         fixed={},
     },
+    -- A′ §6.5: stationary multi-prompt effect program (for example Earthen
+    -- Missiles, spells/stone.lua:37-58). The caster NEVER moves: there is no
+    -- landing envelope, no radius and no traversal, so a caller cannot smuggle
+    -- mover semantics in. Every declared entry is a `grid` prompt answered from
+    -- `target_plan` (enforced by the `stationary` template flag, never by an
+    -- independent manifest boolean), and the program is lowered by the EXISTING
+    -- sequence planner into the same `{kind='sequence'}` plan — no second queue.
+    stationary_sequence={
+        required={request_sequence=true},
+        optional={target_requests=true,range=true},
+        fixed={delivery='stationary',landing='none',center='none',
+            traverses=false,relocates_other=false},
+        stationary=true,
+    },
 }
 
 M.TEMPLATES=TEMPLATES
@@ -450,6 +649,24 @@ function M.expand(template,params)
     for key,value in pairs(params) do
         if key=='target_requests' then out.target_requests=value else out[key]=value end
     end
+    -- R2-APR-02: the stationary mechanical vocabulary is RESERVED for the closed
+    -- `stationary_sequence` template. On any other template a caller-authored
+    -- `delivery='stationary'` (or `landing='none'`/`center='none'`) is
+    -- `movement_adapter_invalid` at build time, so the guard/planner/summary
+    -- marker (`stationary=true`) is a validated consequence of the resolved
+    -- template and can never be produced by a raw caller-authored enum.
+    if spec.stationary~=true and out.delivery==M.RESERVED_STATIONARY.delivery then
+        return nil,{reason=M.REASON_INVALID,detail='reserved_stationary_delivery',
+            template=template}
+    end
+    if spec.stationary~=true and out.landing==M.RESERVED_STATIONARY.landing then
+        return nil,{reason=M.REASON_INVALID,detail='reserved_stationary_landing',
+            template=template}
+    end
+    if spec.stationary~=true and out.center==M.RESERVED_STATIONARY.center then
+        return nil,{reason=M.REASON_INVALID,detail='reserved_stationary_center',
+            template=template}
+    end
     -- S2-REV-03: a declared `target_requests` (fixed or caller-supplied) must be
     -- a closed dense `1..n` array; a hole, non-array or unknown key is
     -- `movement_adapter_invalid` at build time instead of being silently
@@ -468,11 +685,39 @@ function M.expand(template,params)
     -- source, non-trailing `optional`, unknown key or a `target_requests`
     -- disagreement is `movement_adapter_invalid` (never silently ignored).
     if out.request_sequence~=nil then
-        local sequence,seqErr=M.normalizeRequestSequence(out.request_sequence)
+        local sequence,groupsOrErr=M.normalizeRequestSequence(out.request_sequence,
+            {stationary=spec.stationary==true})
         if not sequence then
             local err={reason=M.REASON_INVALID,template=template}
-            for key,value in pairs(seqErr) do err[key]=value end
+            for key,value in pairs(groupsOrErr) do err[key]=value end
             return nil,err
+        end
+        out.group_members=groupsOrErr
+        -- A′ §6.5: a stationary program is GRID-CLOSED. Every declared entry
+        -- must be a `grid` prompt answered from `target_plan`; a subject-derived
+        -- answer, an `actor`/`self` entry, a hole or a fixed-field override is
+        -- refused here (never silently filtered). The guard marker is derived
+        -- from THIS resolved leaf below.
+        if spec.stationary==true then
+            for i=1,#sequence do
+                local entry=sequence[i]
+                if entry.request~='grid' then
+                    return nil,{reason=M.REASON_INVALID,
+                        detail='stationary_entry_not_grid',template=template,index=i}
+                end
+                if entry.value_source~='target_plan' then
+                    return nil,{reason=M.REASON_INVALID,
+                        detail='stationary_entry_value_source',template=template,index=i}
+                end
+                if entry.optional==true then
+                    return nil,{reason=M.REASON_INVALID,
+                        detail='stationary_entry_optional',template=template,index=i}
+                end
+            end
+            -- The guard marker is a VALIDATED CONSEQUENCE of the resolved
+            -- template (A′ §6.5): it is set here, from the leaf, and there is no
+            -- authorable manifest field that could set it independently.
+            out.stationary=true
         end
         local kinds=M.requestKinds(sequence)
         if out.target_requests~=nil then

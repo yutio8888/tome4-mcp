@@ -287,6 +287,159 @@ do
         'a none program entry is movement_adapter_invalid, not an executable plan')
 end
 
+-- R2-APR3-03 (checklist A, planner defence-in-depth): a caller-supplied
+-- target_plan is dense-validated over ALL keys BEFORE any `#`/`ipairs`. Lua `#`
+-- stops at the first hole, so a sparse plan whose hidden entry sits beyond the
+-- dense end must be rejected, never consumed as a shorter complete program.
+do
+    local movement=assert(Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',observed=ACTOR_SIG},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                landing_from='envelope',observed=GRID_SIG}},
+        delivery='teleport',landing='random',center='requested_grid',
+        traverses=false,relocates_other=false,radius=1,min_radius=0,range={getter='getRange'}}))
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local provider={origin=function() return {x=2,y=2} end,
+        anchor=function(name) return {x=2,y=2} end,
+        knowledge=function() return {in_bounds=true,visible=true,passable=true,hazard=false} end}
+    -- The reviewer's bypass: a plan declared as keys {1,2,4} reports `#plan==2`,
+    -- which matched the 2-entry sequence, and the hidden key 4 was silently
+    -- dropped while the program was measured as complete.
+    local sparse,sparseErr=Planner.planSequence({talent='T_PHASE_DOOR',target='self',
+        target_plan={[1]={request='actor',selector='self'},[2]={request='grid',
+            destination={selector='position',x=5,y=2,accept=accept}},
+            [4]={request='grid'}}},
+        provider,movement,{x=2,y=2})
+    check(sparse==nil and sparseErr and sparseErr.reason=='invalid_target_plan',
+        'a sparse target_plan with a hidden entry beyond the dense end is rejected (R2-APR3-03)')
+    check(sparseErr and sparseErr.detail=='hole',
+        'the sparse-plan rejection carries the validator\'s typed cause (R2-APR3-03)')
+    -- A sparse {1,3} plan is a hole too, not a valid one-entry program.
+    local sparse13,sparse13Err=Planner.planSequence({talent='T_PHASE_DOOR',target='self',
+        target_plan={[1]={request='actor',selector='self'},[3]={request='grid',
+            destination={selector='position',x=5,y=2,accept=accept}}}},
+        provider,movement,{x=2,y=2})
+    check(sparse13==nil and sparse13Err and sparse13Err.reason=='invalid_target_plan',
+        'a sparse {1,3} target_plan is a hole, never a shorter complete program (R2-APR3-03)')
+    -- A non-integer key is rejected at the planner boundary as well.
+    local badKey,badKeyErr=Planner.planSequence({talent='T_PHASE_DOOR',target='self',
+        target_plan={{request='actor',selector='self'},{request='grid',
+            destination={selector='position',x=5,y=2,accept=accept}},extra=true}},
+        provider,movement,{x=2,y=2})
+    check(badKey==nil and badKeyErr and badKeyErr.reason=='invalid_target_plan'
+        and badKeyErr.detail=='non_integer_key',
+        'a non-integer target_plan key is rejected before any #/ipairs (R2-APR3-03)')
+    -- The single-entry lowering (no request_sequence) must not consume a sparse
+    -- plan as a one-entry program either.
+    local single,singleErr=Planner.plan({action='use_talent',talent='T_RUSH',bound_target='a1',
+        target='nearest_hostile',
+        target_plan={[1]={request='actor',selector='nearest_hostile'},[3]={request='actor'}},
+        destination={selector='native_landing',anchor='bound_target',accept=accept}},
+        {origin=function() return {x=2,y=2} end,
+            anchor=function(name) if name=='bound_target' then return {x=6,y=2} end end,
+            knowledge=function() return {in_bounds=true} end},
+        {target_requests={'actor'},landing='bounded_alternatives'})
+    check(single==nil and singleErr and singleErr.reason=='invalid_target_plan',
+        'the single-entry lowering rejects a sparse target_plan (R2-APR3-03)')
+    -- A dense two-entry plan over the same movement keeps lowering normally.
+    local dense=assert(Planner.planSequence({talent='T_PHASE_DOOR',target='self',
+        target_plan={{request='actor',selector='self'},
+            {request='grid',destination={selector='position',x=5,y=2,accept=accept}}}},
+        provider,movement,{x=2,y=2}))
+    check(dense.kind=='sequence' and #dense.steps==2,
+        'a dense target_plan keeps lowering normally (R2-APR3-03)')
+end
+
+-- R2-APR6-03 closure (one diagnostic vocabulary): the SAME sparse shape is
+-- projected by all three boundaries with the SAME shared X-doubleprime density
+-- cause — `PolicySchema.validateTargetPlan` (error `cause`),
+-- `MovementPlanner.planSequence` (typed reason `invalid_target_plan` with
+-- `detail`) and the runtime carrier `Actions.normalizeSequence` (typed
+-- `invalid_sequence` plus the additive third-return cause). The cause
+-- vocabulary is exactly `Json.denseArray`'s: `not_array` (a non-table or
+-- `Json.null`), `non_integer_key`, `hole`, `too_short`.
+do
+    local Schema=require 'mod.auto_combat.PolicySchema'
+    local Json=require 'mod.mcp_bridge.Json'
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local movement=assert(Factory.expand('request_then_landing',{
+        request_sequence={{index=1,request='actor',subject='self',observed=ACTOR_SIG},
+            {index=2,request='grid',subject='self',value_source='target_plan',
+                landing_from='envelope',observed=GRID_SIG}},
+        delivery='teleport',landing='random',center='requested_grid',traverses=false,
+        relocates_other=false,radius=1,min_radius=0,range=10}))
+    local provider={origin=function() return {x=2,y=2} end,
+        anchor=function() return {x=2,y=2} end,
+        knowledge=function() return {in_bounds=true,visible=true,passable=true,hazard=false} end}
+    -- A minimal valid plan/sequence prefix; the density fault fires BEFORE any
+    -- entry validation, so the same raw shape is observable at all three sinks.
+    local function sparseShape(kind)
+        local plan={{request='actor',selector='self'},
+            {request='grid',destination={selector='position',x=5,y=2,accept=accept}}}
+        if kind=='non_integer_key' then plan.extra=true
+        elseif kind=='hole' then plan[4]={request='grid'}
+        elseif kind=='not_array' then return 'not-an-array'
+        elseif kind=='json_null' then return Json.null
+        elseif kind=='too_short' then return {}
+        else error(kind) end
+        return plan
+    end
+    local function schemaCause(plan)
+        local policy={schema='tome-auto-combat/v1',id='t',name='t',
+            limits={max_actions_per_tick=1},safety={min_hp_pct=35},
+            targeting={default='self'},
+            rules={{id='r',priority=1,when={always={}},
+                ['then']={action='use_talent',talent='T_PHASE_DOOR',target='self',
+                    target_plan=plan}}}}
+        local ok,errors=Schema.validate(policy)
+        assert(not ok,'the sparse shape must be schema-rejected')
+        for _,error in ipairs(errors) do
+            if error.path=='rules[1].then.target_plan' then
+                assert(error.code=='invalid_target_plan')
+                return error.cause
+            end
+        end
+        return nil
+    end
+    local function plannerCause(plan)
+        local planned,err=Planner.planSequence({talent='T_PHASE_DOOR',target='self',
+            target_plan=plan},provider,movement,{x=2,y=2})
+        assert(planned==nil and err and err.reason=='invalid_target_plan')
+        return err.detail
+    end
+    local function carrierCause(shape)
+        local sequence,code,cause=Actions.normalizeSequence(shape)
+        assert(sequence==nil and code=='invalid_sequence')
+        return cause
+    end
+    for _,kind in ipairs({'not_array','json_null','non_integer_key','hole','too_short'}) do
+        local shape=sparseShape(kind)
+        local schema=schemaCause(shape)
+        local planner=plannerCause(shape)
+        local carrier=carrierCause(shape)
+        check(schema==planner and planner==carrier
+            and (schema=='not_array' or schema=='non_integer_key'
+                or schema=='hole' or schema=='too_short'),
+            'the '..kind..' sparse shape is one shared X-doubleprime density cause '
+                ..'across schema/planner/carrier (R2-APR6-03 closure), got '
+                ..tostring(schema)..'/'..tostring(planner)..'/'..tostring(carrier))
+    end
+    -- A density cause is NOT fabricated for faults outside the shared
+    -- vocabulary: layer-specific limits (the carrier's max 8) and non-density
+    -- entry faults keep the bare typed error with no cause.
+    local longList={}
+    for i=1,9 do longList[i]={kind='self'} end
+    local longSeq,longCode,longCause=Actions.normalizeSequence(longList)
+    check(longSeq==nil and longCode=='invalid_sequence' and longCause==nil,
+        'the carrier max-8 limit is a bare invalid_sequence (no density cause)')
+    local badEntry=Actions.normalizeSequence({{kind='ghost'}})
+    check(badEntry==nil,
+        'a non-density entry fault keeps the plain two-value error contract')
+    local okSeq=Actions.normalizeSequence({{kind='self',observed=ACTOR_SIG}})
+    check(okSeq and okSeq[1] and okSeq[1].kind=='self',
+        'the additive third return never changes the success contract')
+end
+
 -- 3. Executor queue: in-order answers, distinct values, recorded sequence -----
 local function runQueue(def,action,target)
     local p=player({T_SEQ=def},{x=1,y=1})
@@ -1072,8 +1225,224 @@ end
 
 print('Auto-combat ordered sequence: '..checks..' checks passed')
 
+-- 15. A′ §6.1/§6.3: in-group matching relaxation, arrival index preserved -----
+-- The native body raises the SAME prompt shape N times (the real Earthen
+-- Missiles local bolt specs, `spells/stone.lua:38,45,53` / the Dwarven twin at
+-- `gifts/dwarven-nature.lua:34,41,49`). The declared group says those prompts
+-- are mutually unidentifiable, so the executor may answer the k-th OBSERVED
+-- prompt with plan[k] even when it also matches its siblings. Nothing is
+-- re-mapped: arrival k -> plan[k], always. A matched set that EXCLUDES the
+-- expected arrival index is always a typed deviation.
+local BOLT_SIG={cursor_type='bolt'}
+local function boltGroupMovement(count,group)
+    local seq={}
+    for i=1,count do
+        seq[i]={index=i,request='grid',subject='self',value_source='target_plan',
+            observed=BOLT_SIG,group=group}
+    end
+    return assert(Factory.expand('stationary_sequence',{request_sequence=seq,range=10}))
+end
+local function boltPlayer()
+    local seen={}
+    -- The native body raises the same-shape bolt prompt once per declared answer
+    -- and records every answer, exactly like the reviewed missile loop
+    -- (`spells/stone.lua:46-56` raises the next bolt only while the previous
+    -- answer was non-nil). The recorded answers live in a shared holder table.
+    local def={stop_on_cancel=true,
+        on_answer=function(self,answers) seen.answers=answers;return true end}
+    def.prompts={}
+    for _=1,3 do def.prompts[#def.prompts+1]={type='bolt',range=10} end
+    return def,seen
+end
+do
+    -- The observed answer record is exactly arrival 1->V1, 2->V2, 3->V3.
+    local def,seen=boltPlayer()
+    local result,command=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=5,y=3,observed=BOLT_SIG,group='em'},
+                {kind='grid',request='grid',x=6,y=3,observed=BOLT_SIG,group='em'},
+                {kind='grid',request='grid',x=7,y=3,observed=BOLT_SIG,group='em'}}})
+    check(result.ok and result.sequence_deviation==nil,
+        'a three-member in-group program settles in one submission with no deviation')
+    local answers=seen.answers
+    check(answers and answers[1] and answers[1].x==5 and answers[1].y==3
+        and answers[2] and answers[2].x==6 and answers[2].y==3
+        and answers[3] and answers[3].x==7 and answers[3].y==3,
+        'arrival k is answered with plan[k] for every member (no re-mapping)')
+    local seq=result.target_sequence
+    check(seq and #seq==3 and seq[1].answer.x==5 and seq[2].answer.x==6 and seq[3].answer.x==7,
+        'the observed sequence records the positional answers')
+    check(seq[1].answer.x<seq[2].answer.x and seq[2].answer.x<seq[3].answer.x,
+        'the answered coordinates follow the arrival order exactly')
+end
+do
+    -- A non-member match inside a declared group is a typed deviation: at
+    -- arrival 1 the matched set is {1,2,3} and entry 3 is not a member of g1.
+    local def,seen=boltPlayer()
+    def.prompts={def.prompts[1]}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=5,y=3,observed=BOLT_SIG,group='g1'},
+                {kind='grid',request='grid',x=6,y=3,observed=BOLT_SIG,group='g1'},
+                {kind='grid',request='grid',x=7,y=3,observed=BOLT_SIG}}})
+    check(result.ok==false and result.code=='unexpected_target_request'
+        and result.sequence_deviation.handed_back==true,
+        'a non-member match inside a group is a typed unexpected_target_request handback')
+    check(result.sequence_deviation.matched_indexes
+        and result.sequence_deviation.matched_indexes[1]==1
+        and result.sequence_deviation.matched_indexes[2]==2
+        and result.sequence_deviation.matched_indexes[3]==3,
+        'the deviation reports every matched index')
+    check(seen.answers and seen.answers[1] and seen.answers[1].x==99,
+        'the non-member prompt was never answered with a declared value')
+end
+do
+    -- Cross-group: a raised prompt matching only ANOTHER group at this arrival
+    -- is a deviation (the expected arrival index is not in the matched set).
+    local def,seen=boltPlayer()
+    def.prompts={def.prompts[1]}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=5,y=3,
+                    observed={cursor_type='bolt',nolock=true},group='g1'},
+                {kind='grid',request='grid',x=6,y=3,
+                    observed={cursor_type='bolt',nolock=true},group='g1'},
+                {kind='grid',request='grid',x=7,y=3,
+                    observed={cursor_type='bolt'},group='g2'},
+                {kind='grid',request='grid',x=8,y=3,
+                    observed={cursor_type='bolt'},group='g2'}}})
+    check(result.ok==false and result.code=='unexpected_target_request',
+        'a raised prompt matching only another group at the expected arrival is a deviation')
+    check(result.sequence_deviation.matched_indexes
+        and #result.sequence_deviation.matched_indexes==2
+        and result.sequence_deviation.matched_indexes[1]==3
+        and result.sequence_deviation.matched_indexes[2]==4,
+        'the cross-group deviation reports the OTHER group indexes')
+    check(seen.answers and seen.answers[1] and seen.answers[1].x==99,
+        'the cross-group prompt was never answered')
+end
+do
+    -- Ambiguous UNGROUPED match (the pre-A′ behaviour) is unchanged: two
+    -- identical ungrouped signatures hand the prompt back.
+    local def,seen=boltPlayer()
+    def.prompts={def.prompts[1]}
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=5,y=3,observed=BOLT_SIG},
+                {kind='grid',request='grid',x=6,y=3,observed=BOLT_SIG}}})
+    check(result.ok==false and result.code=='unexpected_target_request'
+        and #result.sequence_deviation.matched_indexes==2,
+        'an ambiguous UNGROUPED match keeps the pre-existing handback behaviour')
+    check(seen.answers and seen.answers[1] and seen.answers[1].x==99,
+        'the ambiguous ungrouped prompt was never answered')
+end
+do
+    -- A′ §6.3: the runtime carrier re-validates group membership, so a forged or
+    -- weakened carrier is invalid_sequence and can never relax the gate.
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='g1'}}}),
+        'a forged single-member group on the carrier is invalid_sequence')
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='g1'},
+            {kind='grid',x=6,y=3,observed={cursor_type='bolt',nolock=true},group='g1'}}}),
+        'a forged group whose signatures differ is invalid_sequence')
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='Earthen Missiles (stone.lua)'},
+            {kind='grid',x=6,y=3,observed=BOLT_SIG,group='Earthen Missiles (stone.lua)'}}}),
+        'a forged group key carrying prose is invalid_sequence')
+    -- R2-APR-03: the carrier re-validation uses the factory's SHARED signature
+    -- normalizer and group validator, so a declaration the factory refuses is
+    -- refused on the carrier too. (a) A 65-byte `first_target` (the factory
+    -- bounds it to 64) is invalid_sequence; 64 stays admitted.
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed={cursor_type='bolt',
+                first_target=string.rep('a',65)},group='g1'},
+            {kind='grid',x=6,y=3,observed={cursor_type='bolt',
+                first_target=string.rep('a',65)},group='g1'}}}),
+        'a 65-byte first_target the factory refuses is invalid_sequence on the carrier (R2-APR-03)')
+    local ok64=Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed={cursor_type='bolt',
+                first_target=string.rep('a',64)},group='g1'},
+            {kind='grid',x=6,y=3,observed={cursor_type='bolt',
+                first_target=string.rep('a',64)},group='g1'}}})
+    check(ok64 and ok64.sequence[1].observed.first_target==string.rep('a',64),
+        'a 64-byte first_target stays admitted on the carrier (factory-identical bounds)')
+    -- (b) An interleaved group — members at 1 and 3 around an ungrouped entry —
+    -- is `group_not_contiguous` at BOTH boundaries (R2-APR2-02); the carrier
+    -- must refuse it too (the reviewer's CARRIER_INTERLEAVED reproduction). The
+    -- build-time half of the same shape is covered in
+    -- `test_auto_combat_movement_factory.lua`.
+    check(not Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='g1'},
+            {kind='grid',x=6,y=3,observed=BOLT_SIG},
+            {kind='grid',x=7,y=3,observed=BOLT_SIG,group='g1'}}}),
+        'an interleaved group is invalid_sequence on the carrier (R2-APR2-02, both boundaries)')
+    -- The reviewer's GENERIC_INTERLEAVED_FACTORY reproduction: the factory now
+    -- REFUSES the same interleaved generic group at build time, so the two
+    -- boundaries accept the same language. (The build-time assertion lives in
+    -- the factory suite; this is the carrier-side half of the pair.)
+    local valid=Actions.validate({type='use_talent',talent_id='T_A',
+        sequence={{kind='grid',x=5,y=3,observed=BOLT_SIG,group='g1'},
+            {kind='grid',x=6,y=3,observed=BOLT_SIG,group='g1'}}})
+    check(valid and valid.sequence[1].group=='g1',
+        'a mechanically valid group rides the carrier unchanged')
+    -- Case 9 (documenting, not detecting): a same-signature S1/S3/S2 source order
+    -- is UNOBSERVABLE. The contract asserted here is arrival preservation, not
+    -- source-slot identification: the k-th arrival is answered with plan[k].
+    local def,seen=boltPlayer()
+    local result=runQueue(def,
+        {type='use_talent',talent_id='T_SEQ',
+            sequence={{kind='grid',request='grid',x=5,y=3,observed=BOLT_SIG,group='em'},
+                {kind='grid',request='grid',x=6,y=3,observed=BOLT_SIG,group='em'},
+                {kind='grid',request='grid',x=7,y=3,observed=BOLT_SIG,group='em'}}})
+    check(result.ok and seen.answers and seen.answers[2] and seen.answers[2].x==6,
+        'a same-signature sequence preserves the ARRIVAL index (source-slot identity is not claimed)')
+end
+
+-- 16. Stationary lowering + plan-value closure (A′ §6.5) ----------------------
+do
+    local movement=boltGroupMovement(2,'em')
+    local accept={visibility='any',passability='native',hazard='any',landing='allow_random'}
+    local provider={origin=function() return {x=2,y=2} end,
+        anchor=function() return {x=2,y=2} end,
+        knowledge=function() return {in_bounds=true,visible=true,passable=true,hazard=false} end}
+    local plan=assert(Planner.planSequence({talent='T_EARTHEN_MISSILES',target='self',
+        target_plan={{request='grid',destination={selector='position',x=5,y=2,accept=accept}},
+            {request='grid',destination={selector='position',x=6,y=2,accept=accept}}}},
+        provider,movement,{x=2,y=2}))
+    check(plan.kind=='sequence' and #plan.steps==2,
+        'the stationary program lowers into the SAME kind=sequence plan (no second queue)')
+    check(plan.values[1].group=='em' and plan.values[2].group=='em',
+        'declared group membership rides the internal carrier')
+    check(plan.annotation.stationary==true
+        and plan.annotation.outcome_uncertainty=='per_projectile_random_crit',
+        'the plan annotates the stationary delivery and the per-projectile crit uncertainty')
+    check(plan.annotation.landing.kind=='deterministic',
+        'a stationary aim grid stays a deterministic annotation (the caster does not move)')
+    for i,value in ipairs(plan.values) do
+        check(value.kind=='grid' and type(value.x)=='number' and type(value.y)=='number',
+            'plan value '..i..' is a valid grid')
+    end
+    -- R2-APR-02 (both ways): the annotation derives from the TEMPLATE-DERIVED
+    -- marker, never from a raw caller-authored enum. A hand-authored mover leaf
+    -- that merely DECLARES `delivery='stationary'` (the bypass shape the factory
+    -- now refuses at build time) is NOT annotated stationary.
+    local forged={delivery='stationary',landing='exact',center='self',
+        traverses=false,relocates_other=false,target_requests={'grid'},
+        request_sequence={{index=1,request='grid',subject='self',
+            value_source='target_plan',observed=BOLT_SIG}}}
+    local forgedPlan=assert(Planner.planSequence({talent='T_FORGED',target='self',
+        target_plan={{request='grid',destination={selector='position',x=5,y=2,accept=accept}}}},
+        provider,forged,{x=2,y=2}))
+    check(forgedPlan and forgedPlan.annotation.stationary~=true,
+        'a marker-less leaf with a stationary delivery enum is never annotated stationary (R2-APR-02)')
+    check(forgedPlan and forgedPlan.annotation.delivery~='stationary',
+        'the annotation delivery stays empty for a non-template stationary enum')
+end
 
 Tracker.start,Compat.check,Compat.matches=realStart,realCheck,realMatches
+
+
 
 -- 12. Policy validation: the ordered plan validates against the declared
 -- sequence; a reversed plan is the existing target_plan_mismatch.
@@ -1100,6 +1469,82 @@ do
         if error.code=='target_plan_mismatch' then mismatch=true end
     end
     check(ok==nil and mismatch,'a reversed plan is the existing target_plan_mismatch')
+    -- R2-APR4-01 (checklist A): `Manifest.verify` is a separate public boundary
+    -- and must dense-validate the plan BEFORE any `#`/`ipairs`, so a plan with
+    -- valid entries 1-2 plus a hidden entry 100 is NOT accepted as the complete
+    -- two-step program.
+    local sparsePlan=doorPolicy({[1]={request='actor',selector='self'},
+        [2]={request='grid',destination={selector='position',x=4,y=4,accept=accept}},
+        [100]={request='grid',destination={selector='position',x=9,y=9,accept=accept}}})
+    local sparseOk2,sparseErrors2=Manifest.verify(sparsePlan)
+    local sparseCode2,sparseCause2=nil,nil
+    for _,error in ipairs(sparseErrors2 or {}) do
+        if error.path=='rules[1].then.target_plan' then
+            sparseCode2=error.code;sparseCause2=error.cause
+        end
+    end
+    check(sparseOk2==nil and sparseCode2=='target_plan_not_dense',
+        'a sparse target_plan with a hidden entry beyond the dense end is rejected (R2-APR4-01)')
+    check(sparseCause2=='key_beyond_dense_end',
+        'the sparse target_plan fault names the density cause (R2-APR4-01 rev5)')
+    -- A sparse plan whose `#` is 2 (hole at 3) would otherwise be measured as
+    -- the complete two-entry Phase Door program; the typed fault carries the
+    -- validator cause.
+    local holedPlan=doorPolicy({[1]={request='actor',selector='self'},
+        [2]={request='grid',destination={selector='position',x=4,y=4,accept=accept}},
+        [4]={request='grid',destination={selector='position',x=9,y=9,accept=accept}}})
+    local holedOk,holedErrors=Manifest.verify(holedPlan)
+    local holedCode,holedCause,holedKey=nil,nil,nil
+    for _,error in ipairs(holedErrors or {}) do
+        if error.path=='rules[1].then.target_plan' then
+            holedCode=error.code;holedCause=error.cause;holedKey=error.key
+        end
+    end
+    check(holedOk==nil and holedCode=='target_plan_not_dense',
+        'a holed target_plan is rejected by Manifest.verify, never measured as a prefix (R2-APR4-01)')
+    check(holedCause=='key_beyond_dense_end' and holedKey==4,
+        'the holed target_plan fault names the cause and the offending key (R2-APR4-01 rev5)')
+    -- The other density faults are typed with their own cause and key: a
+    -- non-integer key, and a gap inside the span (plain hole).
+    local badKeyPlan=doorPolicy({[1]={request='actor',selector='self'},
+        [2]={request='grid',destination={selector='position',x=4,y=4,accept=accept}},
+        extra={request='grid',destination={selector='position',x=9,y=9,accept=accept}}})
+    local badKeyOk,badKeyErrors=Manifest.verify(badKeyPlan)
+    local badKeyCode,badKeyCause,badKeyFaultKey=nil,nil,nil
+    for _,error in ipairs(badKeyErrors or {}) do
+        if error.path=='rules[1].then.target_plan' then
+            badKeyCode=error.code;badKeyCause=error.cause;badKeyFaultKey=error.key
+        end
+    end
+    check(badKeyOk==nil and badKeyCode=='target_plan_not_dense'
+        and badKeyCause=='non_integer_key' and badKeyFaultKey=='extra',
+        'a non-integer plan key is target_plan_not_dense with the offending key (R2-APR4-01 rev5)')
+    local gapPlan=doorPolicy({[1]={request='actor',selector='self'},
+        [3]={request='grid',destination={selector='position',x=4,y=4,accept=accept}},
+        [5]={request='grid',destination={selector='position',x=9,y=9,accept=accept}}})
+    local gapOk,gapErrors=Manifest.verify(gapPlan)
+    local gapCode,gapCause,gapKey=nil,nil,nil
+    for _,error in ipairs(gapErrors or {}) do
+        if error.path=='rules[1].then.target_plan' then
+            gapCode=error.code;gapCause=error.cause;gapKey=error.key
+        end
+    end
+    check(gapOk==nil and gapCode=='target_plan_not_dense'
+        and gapCause=='hole' and gapKey==2,
+        'a multi-hole plan is target_plan_not_dense with the first missing key (R2-APR4-01 rev5)')
+    -- The top-level rules array is the same ingress class: a valid rule plus a
+    -- hidden rule beyond the dense end is not a one-rule policy.
+    local sparseRules=doorPolicy({{request='actor',selector='self'},
+        {request='grid',destination={selector='position',x=4,y=4,accept=accept}}})
+    sparseRules.rules[100]={id='hidden',priority=999,when={always={}},
+        ['then']={action='wait'}}
+    local sparseRulesOk,sparseRulesErrors=Manifest.verify(sparseRules)
+    local rulesCode=nil
+    for _,error in ipairs(sparseRulesErrors or {}) do
+        if error.path=='rules' then rulesCode=error.code end
+    end
+    check(sparseRulesOk==nil and rulesCode=='invalid_rules',
+        'a sparse top-level rules array is rejected by Manifest.verify (R2-APR4-01)')
 end
 
 -- 13. Dry run: read-only, non-executing, announced as a sequence.
@@ -1158,3 +1603,4 @@ do
         'planning a sequence never calls useTalent/teleportRandom')
 end
 
+print('Auto-combat ordered sequence: '..checks..' checks passed')

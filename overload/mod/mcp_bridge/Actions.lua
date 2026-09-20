@@ -7,6 +7,11 @@ local Tracker = require 'mod.mcp_bridge.InvocationTracker'
 local Compat = require 'mod.mcp_bridge.NativeCompatibility'
 local Distance = require 'mod.mcp_bridge.Distance'
 local Details = require 'mod.mcp_bridge.ObservationDetails'
+-- A′ §6.3 (runtime-carrier boundary): the executor re-validates the closed group
+-- invariants the factory validated, so a hand-authored action carrier cannot
+-- forge or weaken factory-validated membership. No identity/digest gate is
+-- involved — this is mechanical validation of curated declaration data.
+local Factory = require 'mod.auto_combat.MovementAdapterFactory'
 local M = {}
 local attack_spec={target='actor',source='data/talents/misc/misc.lua',action_adapter='attack',
     description='Use the attack action with target_id to make a native ordinary attack, including native alternate attacks.'}
@@ -47,38 +52,11 @@ local SEQUENCE_VALUE_KINDS={actor={self=true,actor=true},grid={grid=true},
 -- observed signature per entry (S2 rev3), so the runtime match uses the same
 -- closed allowlist the factory validated. This is the decided value plus the
 -- curation metadata for its position, never a policy/protocol field.
-local SEQUENCE_OBSERVED_FLAGS={nolock=true,pass_terrain=true,friendlyblock=true,
-    nowarning=true,immediate_keys=true,no_restrict=true}
-local SEQUENCE_OBSERVED_STRINGS={first_target=true,msg=true}
-local function normalizeObservedSignature(observed)
-    if type(observed)~='table' then return nil end
-    if type(observed.cursor_type)~='string' or #observed.cursor_type==0
-        or #observed.cursor_type>32 then return nil end
-    local copy={cursor_type=observed.cursor_type}
-    for key in pairs(observed) do
-        if key~='cursor_type' and key~='default_target'
-            and not SEQUENCE_OBSERVED_FLAGS[key] and not SEQUENCE_OBSERVED_STRINGS[key] then
-            return nil
-        end
-    end
-    for flag in pairs(SEQUENCE_OBSERVED_FLAGS) do
-        if observed[flag]~=nil then
-            if type(observed[flag])~='boolean' then return nil end
-            copy[flag]=observed[flag]
-        end
-    end
-    for key in pairs(SEQUENCE_OBSERVED_STRINGS) do
-        if observed[key]~=nil then
-            if type(observed[key])~='string' or #observed[key]>512 then return nil end
-            copy[key]=observed[key]
-        end
-    end
-    if observed.default_target~=nil then
-        if observed.default_target~='self' then return nil end
-        copy.default_target='self'
-    end
-    return copy
-end
+-- R2-APR-03: the carrier uses the FACTORY's canonical observed-signature
+-- normalizer (`Factory.normalizeObserved`) — there is no second, weaker copy of
+-- the signature grammar, so a declaration the factory refuses (its string
+-- bounds, unknown keys, malformed flags) is refused here too.
+local normalizeObservedSignature=Factory.normalizeObserved
 -- S2 rev3: the observed prompt is matched against the entry's **curated
 -- observed signature** (design §4.4). Cursor geometry is NOT a sound
 -- actor/grid classifier (`hit` is "hit a single grid in LOS", `setSpot` fills
@@ -180,14 +158,24 @@ local function assertDeviation(record)
 end
 M.SEQUENCE_VALUE_KINDS=SEQUENCE_VALUE_KINDS
 function M.normalizeSequence(list)
-    if type(list)~='table' then return nil,'invalid_sequence' end
-    -- X-doubleprime rebase (R-2): the density decision lives ONLY in
-    -- `Json.denseArray` (AGENTS.md checklist A); this carrier previously
-    -- re-ran its own `pairs` density loop, a duplicate validator. Delegating
-    -- keeps the same external contract: typed `invalid_sequence`, never a
-    -- shorter prefix, at most 8 entries.
-    local ok,maxKey=Json.denseArray(list,1)
-    if not ok or maxKey>8 then return nil,'invalid_sequence' end
+    -- R2-APR6-03 (X-doubleprime rebase, union): the density decision lives
+    -- ONLY in `Json.denseArray` (checklist A); this carrier previously re-ran
+    -- its own `pairs` density loop, a duplicate validator. Delegating keeps
+    -- the same external contract (typed `invalid_sequence`, never a shorter
+    -- prefix, at most 8 entries).
+    -- R2-APR6-03 closure (one diagnostic vocabulary): the density fault ALSO
+    -- carries the shared X-doubleprime cause (`not_array|non_integer_key|hole|
+    -- too_short`, exactly what `Json.denseArray` returned) as an additive THIRD
+    -- return value — the same typed cause `PolicySchema.validateTargetPlan`
+    -- projects as `cause` and `MovementPlanner.planSequence` projects as
+    -- `detail` for the same sparse shape. `not_array` covers both a non-table
+    -- and `Json.null` (the old carrier pre-check collapsed those into the bare
+    -- error). The typed `invalid_sequence` error itself is unchanged, so every
+    -- existing consumer keeps its contract.
+    local ok,maxKeyOrCause=Json.denseArray(list,1)
+    if not ok then return nil,'invalid_sequence',maxKeyOrCause end
+    local maxKey=maxKeyOrCause
+    if maxKey>8 then return nil,'invalid_sequence' end
     local out=Json.array()
     for i=1,maxKey do
         local entry=list[i]
@@ -199,6 +187,8 @@ function M.normalizeSequence(list)
         -- S2 rev3: the executor matches each observed prompt against this
         -- entry's curated observed signature, so the carrier must carry it
         -- (every published sequence does; a missing one is fail-closed).
+        -- R2-APR-03: normalized by the SHARED factory normalizer, so the
+        -- carrier cannot admit a signature the factory would refuse.
         local observed=normalizeObservedSignature(entry.observed)
         if not observed then return nil,'invalid_sequence' end
         copy.observed=observed
@@ -206,24 +196,33 @@ function M.normalizeSequence(list)
             if type(entry.optional)~='boolean' then return nil,'invalid_sequence' end
             if entry.optional then copy.optional=true end
         end
+        -- A′ §6.3: a declared group key rides the internal carrier, and the FULL
+        -- membership invariants are re-validated below on the normalised list
+        -- (>=2 members, one request kind, exactly-equal signatures, contiguous
+        -- members). A hand-authored malformed carrier is `invalid_sequence` and
+        -- can never relax the runtime gate.
+        if entry.group~=nil then
+            if not Factory.validGroupKey(entry.group) then return nil,'invalid_sequence' end
+            copy.group=entry.group
+        end
         if kind=='grid' then
             if not coordinate(entry.x) or not coordinate(entry.y) then return nil,'invalid_sequence' end
             for key in pairs(entry) do
                 if key~='kind' and key~='request' and key~='x' and key~='y' and key~='optional'
-                    and key~='observed' then return nil,'invalid_sequence' end
+                    and key~='observed' and key~='group' then return nil,'invalid_sequence' end
             end
             copy.x,copy.y=entry.x,entry.y
         elseif kind=='actor' then
             if entry.target_id~=nil and not stringId(entry.target_id) then return nil,'invalid_sequence' end
             for key in pairs(entry) do
                 if key~='kind' and key~='request' and key~='target_id' and key~='optional'
-                    and key~='observed' then return nil,'invalid_sequence' end
+                    and key~='observed' and key~='group' then return nil,'invalid_sequence' end
             end
             if entry.target_id~=nil then copy.target_id=entry.target_id end
         else
             for key in pairs(entry) do
                 if key~='kind' and key~='request' and key~='optional'
-                    and key~='observed' then return nil,'invalid_sequence' end
+                    and key~='observed' and key~='group' then return nil,'invalid_sequence' end
             end
         end
         out[i]=copy
@@ -232,6 +231,21 @@ function M.normalizeSequence(list)
     -- gate is the normative rule and subsumes it: even a directly submitted
     -- overlapping/identical signature pair can never be answered ambiguously,
     -- because a prompt is only answered when exactly the arrival entry matches.
+    -- A′ §6.3: group membership is DECLARED data, so the carrier is held to the
+    -- same mechanical invariants the factory validated (>=2 members, one request
+    -- kind, exactly-equal signatures, CONTIGUOUS members). This is what stops a
+    -- hand-authored carrier from forging or weakening membership. R2-APR2-02: the
+    -- carrier re-validation uses the factory's validator with the SAME rules —
+    -- contiguity is enforced unconditionally at BOTH boundaries, so the carrier
+    -- can never ACCEPT a group shape the factory would refuse (the interleaved
+    -- generic group is now refused at build time too). The stationary
+    -- grid/value-source closure is a template property expressed in the factory's
+    -- build-time `delivery` vocabulary, which the internal carrier does not
+    -- carry; routing itself is gated by the template-derived marker (R2-APR-02),
+    -- not by the carrier. The decided-value kind check (`SEQUENCE_VALUE_KINDS`)
+    -- still applies per entry.
+    local membership=Factory.groupMembership(out,{carrier=true})
+    if not membership then return nil,'invalid_sequence' end
     return out
 end
 -- Statistical audit of an attack entry (NO-AUDIT): the only structural
@@ -723,7 +737,43 @@ function M.execute(g, action, target, meta, command)
                                     matched_indexes[#matched_indexes+1]=i
                                 end
                             end
-                            if #matched_indexes~=1 or matched_indexes[1]~=observed then
+                            -- A′ §6.1: relax MATCHING ONLY. A raised prompt may
+                            -- be answered when its matched set CONTAINS the
+                            -- expected arrival index AND every matched entry is
+                            -- a member of the entry declared for that arrival
+                            -- (which is what makes several matches acceptable
+                            -- inside one declared group). Nothing about answer
+                            -- selection changes: the answer is always
+                            -- `action.sequence[observed]`, i.e. arrival k ->
+                            -- plan[k]. No value comparison, no reordering and no
+                            -- interchangeability logic is introduced. A matched
+                            -- set that EXCLUDES the expected arrival index is
+                            -- always a typed deviation — that is the cross-index
+                            -- guard and it is never weakened. Cross-group
+                            -- matches, non-members and ambiguous ungrouped
+                            -- matches also deviate.
+                            local groupMembers=(Factory and Factory.groupOf)
+                                and Factory.groupOf(queue,observed) or nil
+                            local expectedGroup=queue[observed] and queue[observed].group or nil
+                            local groupOk=false
+                            if groupMembers~=nil and expectedGroup~=nil then
+                                local contains=false
+                                for _,index in ipairs(matched_indexes) do
+                                    if index==observed then contains=true end
+                                end
+                                if contains and #matched_indexes>0 then
+                                    local allMembers=true
+                                    for _,index in ipairs(matched_indexes) do
+                                        local memberGroup=queue[index] and queue[index].group or nil
+                                        if memberGroup~=expectedGroup then
+                                            allMembers=false
+                                            break
+                                        end
+                                    end
+                                    groupOk=allMembers
+                                end
+                            end
+                            if not groupOk and (#matched_indexes~=1 or matched_indexes[1]~=observed) then
                                 deviate(observed,entry.request,nil,
                                     {observed_shape=typ.type,handback=true,
                                         matched_indexes=matched_indexes})

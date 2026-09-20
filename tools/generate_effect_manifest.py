@@ -67,6 +67,9 @@ TALENTS = {
     # S3 admission 3: the AGILITY Vault (techniques/agility.lua) — NOT the
     # acrobatics T_SKIRMISHER_VAULT above, which is a different talent.
     "T_VAULT": ("data/talents/techniques/agility.lua", "Vault"),
+    # A' stationary multi-projectile programs (mechanically validated group key).
+    "T_EARTHEN_MISSILES": ("data/talents/spells/stone.lua", "Earthen Missiles"),
+    "T_DWARVEN_HALF_EARTHEN_MISSILES": ("data/talents/gifts/dwarven-nature.lua", "Earthen Missiles"),
 }
 
 # Talents whose `t.target` builder the guard reads. The generator pins the exact
@@ -96,6 +99,8 @@ ACTION_TALENTS = {
     "T_SHADOWSTEP", "T_GIANT_LEAP",
     # Vault's real raised actor spec feeds the guard precheck.
     "T_VAULT",
+    # A' stationary programs: the reviewed action body is the pinned semantics.
+    "T_EARTHEN_MISSILES", "T_DWARVEN_HALF_EARTHEN_MISSILES",
 }
 
 # Per-talent dynamic getters used by the movement factory's envelope
