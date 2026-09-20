@@ -93,9 +93,21 @@ do
         'a fractional key is non_integer_key with the offending key')
     cause,key=Json.denseFault({[0]='a',[1]='b'})
     check(cause=='non_integer_key' and key==0,'a zero key is non_integer_key with the key')
-    -- The diagnostic names the SMALLEST offending key (determinism).
+    -- The diagnostic names the SMALLEST offending key (determinism,
+    -- XPS1-REV-04): the documented total order is numeric keys first
+    -- (ascending), then string keys in ascending byte order.
     cause,key=Json.denseFault({[1]='a',zeta='b',alpha='c'})
     check(cause=='non_integer_key' and key=='alpha',
         'a string-key fault is deterministic (smallest key wins)')
+    cause,key=Json.denseFault({[1]='a',['~']='b',['!']='c'})
+    check(cause=='non_integer_key' and key=='!',
+        'a string-key fault is deterministic across the whole byte range')
+    -- Mixed offenders: numeric keys come before string keys in the total order.
+    cause,key=Json.denseFault({[1]='a',[1.5]='b',zeta='c'})
+    check(cause=='non_integer_key' and key==1.5,
+        'a numeric offender outranks a string offender')
+    cause,key=Json.denseFault({[1]='a',[0]='b',[-1]='c'})
+    check(cause=='non_integer_key' and key==-1,
+        'numeric offenders are ordered ascending')
 end
 print(('json: %d checks passed'):format(checks))

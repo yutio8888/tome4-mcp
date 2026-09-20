@@ -1,235 +1,201 @@
-# X′ slice 1 — owned ingress constructors + the import → policy → hash vertical slice
+# X′ slice 1 rev2 — owned ingress constructors + the import → policy → hash vertical slice
 
-Branch `refactor/boundary-funnels` off `main@ded8e1a`. Role `[Dev]` (model **A**,
-rotation). merge=no. Input: `tmp/mcp-play-support/astra-defect-family-analysis.md`
+Branch `refactor/boundary-funnels` off `main@ded8e1a`. Role `[Dev]` (model **B**, rotation —
+rev2). merge=no. Input: `tmp/mcp-play-support/astra-defect-family-analysis.md`
 sha256 `8391824dd542ae2c53019c9f512be6d8e4b8f7c8bd0c81f9789e14be13241651`
-(adopted by the maintainer: **X′ + temporary Z**, not more patching).
+(adopted by the maintainer: **X′ + temporary Z**, not more patching). rev2 fixes
+`review-xprime-slice1.md` (sha256
+`0e9ea8759922b3352e06cf85d65cee113a5ec10d274ed8f585f84c2ec9df2c1f`, verdict DO_NOT_MERGE,
+XPS1-REV-01..05).
 
 ## Why this slice
 
 An independent analysis diagnosed **seven** recurrences of one defect family
-(partial/unvalidated caller input measured as complete; engine-consulted field
-semantics not mirrored; a transition applied twice) and showed the existing
-textual checker **reproduced the defect at the meta level** (registered coverage
-counted an ignored validator; whole-file spelling certified a discarded copy).
-The adopted correction replaces "validate at every hand-written ingress" with
-**enforced ownership**: consumers cannot obtain raw caller input, they obtain an
-**owned, validated representation** built by the only constructor that accepts
-raw input.
+(partial/unvalidated caller input measured as complete; engine-consulted field semantics
+not mirrored; a transition applied twice). The adopted correction replaces "validate at
+every hand-written ingress" with **enforced ownership**: consumers obtain an **owned,
+validated representation** built by the only constructor that accepts raw input.
 
 **Bounded claim (do not overstate it).** This is not structural impossibility in
-unrestricted Lua — that is unattainable, and the previous attempt (a textual
-checker) failed by treating a partial syntactic model as complete validation.
-The property delivered here is **bounded and testable**: for the paths migrated,
-there is exactly one way to turn raw input into a usable object; that
-constructor rejects malformed input with a typed+diagnosable error; and every
-consumer downstream of it holds the owned object. Prevention responsibility
-**moved from regexes to the constructors**.
+unrestricted Lua — that is unattainable in a dynamic language without a sandbox. The
+property delivered here is **bounded and testable**: for the paths migrated below, the
+only way to turn raw input into a usable object is through the constructor or the sink
+gate; that gate rejects malformed input with a typed+diagnosable error **before** any
+hash/evaluate/store; and every sink that hashes/evaluates/stores re-validates the value it
+is about to use, so ownership **identity** alone is never trusted.
+
+## Which sinks require the owned form (exact list, rev2)
+
+Every hash/evaluate/store sink on the declared **import → policy → hash** path requires
+the owned form. The mechanism (stated, one choice): **re-construct at the sink**.
+
+| sink | gate | behaviour with raw input |
+| --- | --- | --- |
+| `AutoCombatService.validate` (`tome.policy validate`) | `AssistantAdapter.ownPolicy(policy,'validate')` | re-construct (validate + private copy) before any hash; malformed ⇒ typed refusal |
+| `AutoCombatService.dryRun` — explicit `args.policy` | `…ownPolicy(policy,'dry_run')` | same; then the owned copy is what is hashed and evaluated |
+| `AutoCombatService.dryRun` — stored running/approved/draft | same gate | stored versions are re-checked against their recorded hash (identity is not trusted) |
+| `AutoCombatService.setDraft` | `…ownPolicy(policy,'set_draft')` | the gate's **private copy** is what gets stored |
+| `AutoCombatService.import` (`PolicyIO.import` result) | `…ownPolicy(policy,'import')` | the decoded policy is re-constructed before it is returned/hashed |
+| `AutoCombatService.loadState` (character restore) | `…ownPolicy(policy,'load_state')` | the store only ever holds private validated copies (plain tables ⇒ save-safe) |
+| `AssistantAdapter.hashPolicy` | requires `isOwnedPolicy` **and** a current-value hash match | the hash choke point itself re-checks |
+
+Sinks **not** yet gated (and why): the **derived plans / candidate sets** and
+**raised-spec semantics** listed under "Scope" below are slice 2, and **transitions** are
+slice 3 — they are not policy hash/evaluate/store sinks and are not part of this slice's
+declared path. `PolicySchema.validate`/`PolicyEvaluator`/`PolicyIO`/`PolicyStore` internals
+remain ordinary functions, but every service-level entry into them now passes the gate, so
+no production path reaches them with unvalidated raw policy. `PolicyEditorModel`/presets
+build their own data and do not accept raw policies.
+
+**Fault vocabulary at the sinks:** a policy that fails the gate is refused **before any
+hash/evaluate/store** with one of
+
+- `{code='invalid_policy', errors={…}}` — schema/catalog invalid (e.g. the
+  JSON-encodable `{all={hidden={always={}}}}` condition container; see below);
+- `{code='policy_mutated', input=<sink>, cause='owned_policy_changed',
+  expected=<recorded hash>, actual=<current hash>}` — an owned policy whose current value
+  no longer matches the hash recorded at registration;
+- `{code='policy_not_owned', input=<sink>, cause='not_a_table'}` — not a policy table.
 
 ## Deliverable A — the single density primitive
 
-`overload/mod/mcp_bridge/Json.lua` now carries the project's **one** density
-primitive (ported in behaviour from `feat/r2-aprime:Json.lua:23-61`):
+`overload/mod/mcp_bridge/Json.lua` carries the project's **one** density primitive:
 
 - `Json.denseArray(value, minLen)` → `ok, countOrCause` with causes
   `not_array | non_integer_key | hole | too_short`;
 - `Json.denseFault(value)` → `cause, offendingKey` naming
-  `non_integer_key | hole | key_beyond_dense_end` (smallest offending key wins;
-  `nil` when the value is dense/empty/non-table).
+  `non_integer_key | hole | key_beyond_dense_end`, **deterministic for all key types**
+  (XPS1-REV-04): the offending key is the smallest in a documented **total order** —
+  numeric keys first in ascending numeric order, then string keys in ascending byte
+  order, then any exotic (non-JSON) key type by `tostring`, best-effort (two exotic keys
+  can share a `tostring`; the deterministic contract covers the JSON-encodable
+  number/string universe).
 
-**There is no second copy.** `MovementAdapterFactory.validateArray` is now a
-thin alias (`local validateArray=Json.denseArray`) — the density decision exists
-in exactly one place. Every migrated ingress uses the same vocabulary:
-
-| ingress | before | after |
-| --- | --- | --- |
-| `MovementAdapterFactory` (8 call sites) | local `validateArray` copy | delegate to `Json.denseArray` |
-| `AssistantAdapter.versionKey` (addon/tome tuple) | `#v` + `tostring(v)` fallback | `Json.denseArray` + `Json.denseFault` |
-| `AssistantAdapter` `cond.all` / `cond.any` | `ipairs(list)` after a weak `type=='table'` | `Json.denseArray` + `Json.denseFault` |
-| `AssistantAdapter` `config.sustains` / `config.talents` | `ipairs(type(...)=='table' and ... or {})` | dense-validated before `ipairs` |
-| `AutoCombatService.importAssistant` | raw config straight to `translate` | `OwnedImport.construct` first |
-
-Unit tests: `tests/test_json.lua` covers all three causes + the boundary matrix
-(empty, dense `1..n`, `{[1]=a,[3]=b}`, `{[2]=b}`, `{[1.5]=a}`, `{[1]=a,foo=b}`,
-key beyond end, `{[0]=a,[1]=b}`, non-table, `Json.null`, `nil`) and the
-diagnostic's determinism.
+`MovementAdapterFactory.validateArray` is a thin alias; no second copy exists. The
+same-density rule now also applies inside `PolicySchema.validate` (rev2): condition
+`all`/`any`, `sustains`, `rules`, `targeting.tie_break` and target plans are
+dense/closed-validated over **all** keys before any `ipairs` — the weak `isArray` test
+that let `{all={hidden={always={}}}}` be traversed as an empty `all` is gone.
 
 ## Deliverable B — the import → policy → hash vertical slice
 
 ### The single construction choke point
 
-`overload/mod/auto_combat/OwnedImport.lua` (new). Only `M.construct(raw)` accepts
-raw caller input. It:
+`overload/mod/auto_combat/OwnedImport.lua` — only `M.construct(raw)` accepts raw import
+input: private deep copy → schema validation (density **and, rev2, element shape**)
+before any `#`/`ipairs` → registration in a weak-keyed identity registry.
 
-1. deep-copies the caller input into **private** storage (`Json.null` preserved,
-   caller mutation after `construct` cannot change what was validated);
-2. validates the declared schema **before any `#`/`ipairs`** — every required
-   array over **all** keys:
-   ```lua
-   M.SCHEMA={
-       {path='assistant.addon_version',min=0},
-       {path='assistant.tome_version',min=0},
-       {path='sustains',min=0},
-       {path='talents',min=0},
-       {path='talents[].when',condition=true},   -- recursive all/any/not
-   }
-   ```
-3. registers the snapshot in a private weak-keyed identity registry (the owned
-   type is **identity**, not a self-declared `{owned=true}` marker).
+`M.SCHEMA` rows flag `element=true` (rev2, XPS1-REV-03): **every** element of
+`sustains`/`talents` must be a table; a non-table element (including `Json.null`) refuses
+the **whole** import with the typed fault
+`{code='invalid_document', input='talents'|'sustains', cause='invalid_element', key=<index>}`.
+There is **no** surviving "malformed element ⇒ continue" case.
 
-`M.view`/`M.isOwned` gate the type. Adding an ingress is a **schema row**, not
-new validation code.
+**Unsupported-element cases that DO survive (justified):** an element that is a valid
+object but carries an **unsupported value** (a talent outside the pinned catalogue, an
+unsupported action, an unknown field, an explicitly disabled entry) is reported in the
+typed `unsupported`/`warnings` report and that one entry is skipped. These are not
+malformed inputs: the element's shape is fully known and the mapping contract is
+"documented subset, everything else is reported, never silently dropped"; an import still
+needs at least one supported rule (`no_supported_rules` otherwise). A non-table element is
+different in kind — it cannot be interpreted as an entry at all — and refuses everything.
 
-### What still accepts raw input
+A condition nested beyond `Schema.HARD.max_depth` refuses with the typed fault
+`{code='invalid_document', input=<path>, cause='condition_too_deep', key=<depth>}`
+(rev2: it no longer degrades to `nil` → an empty-string rule → an untyped error).
 
-Exactly two entry points, both immediately routing through the constructor:
+### The sink gate (`AssistantAdapter.ownPolicy`)
 
-- `OwnedImport.construct(raw)` — the only raw array reader;
-- `AssistantAdapter.translate(config)` / `.detect(config)` — accept a raw table
-  **only to call `OwnedImport.construct` first**; an already-owned snapshot is
-  used directly. `AutoCombatService.importAssistant` also calls `construct`
-  before `translate`, so the service path cannot skip it.
+Chosen mechanism (stated): **re-construct (validate + private copy) at the sink**, not
+reject-raw. Consequences, verified by regression:
 
-### Typed whole-import refusal
+- a caller-supplied malformed-but-JSON-encodable policy (`when={all={hidden={always={}}}}`)
+  is refused at `validate`/`dry_run`/`set_draft` with zero hash calls, nothing stored, no
+  revision advance;
+- a **round-tripped valid policy** (`import_assistant(store=false)` → serialize → fresh
+  unregistered table) still works: the sink re-constructs it (validate + copy) and the
+  owned copy is what gets hashed/evaluated/stored;
+- the stored draft is a **private copy**: a later mutation of the caller's table cannot
+  change the stored value (A/B tested).
 
-A malformed required array refuses the **whole** import — no draft, no hash, no
-store — with one fault vocabulary:
+### What the owned value does and does not prevent (XPS1-REV-02, with the Lua limitation)
 
-```lua
-{code='invalid_document', input=<path>, cause=<cause>, key=<offendingKey>}
-```
+`OwnedImport` provides:
 
-Verified cases (asserting **zero** `Schema.hash` calls):
+- a **private deep copy** — no aliasing to caller storage (verified A/B);
+- a write guard for **absent** keys (`__newindex`) on the root and every nested table;
+- a **protected metatable** (`__metatable`) — `getmetatable` exposes only a sentinel
+  string, so `__newindex` cannot be stripped through the value and `setmetatable`
+  refuses;
+- identity-based ownership (weak registry) that a lookalike table cannot forge.
 
-| malformed input | fault |
-| --- | --- |
-| `assistant.addon_version='2.3.9'` (scalar) | `input=assistant.addon_version, cause=not_array` |
-| `assistant.addon_version=nil` | `input=assistant.addon_version, cause=not_array` |
-| `assistant.addon_version={[1]=2,[2]=3,[4]=9}` | `cause=key_beyond_dense_end, key=4` |
-| `assistant.addon_version={[1]=2,[2]=3,[3]=9,extra=true}` | `cause=non_integer_key` |
-| `talents[1].when.all={[1]=…,[3]=…}` | `input=talents[1].when.all, cause=key_beyond_dense_end, key=3` |
-| `talents[1].when.all='x'` | `cause=not_array` |
-| `talents[1].when={all={{all={[1]=…,[4]=…}},{always={}}}}` | nested fault at `…all[1].all` |
-| `sustains={[1]=…,[3]=…}` | `input=sustains, cause=key_beyond_dense_end, key=3` |
-| `talents='nope'` | `input=talents, cause=not_array` |
-
-A malformed **condition array terminates** the import (previously it merely
-dropped the one rule, leaving a hashed/stored policy that silently lost a
-condition — lossy sanitisation masquerading as validation). Translation returns
-`nil, fault` up the tree; `translateTalent` propagates it; `translate` refuses.
-
-### The hash choke point
-
-`AssistantAdapter.hashPolicy(policy)` hashes **only** a policy registered by
-`M.adopt` (the importer does this before hashing). A raw table straight from a
-caller is not registered → `error('policy hash requires an owned policy …')`.
-The registry is weak-keyed and lives **outside** the policy, so the policy bytes
-— and therefore the content hash — are unchanged.
+Lua 5.1 **cannot** prevent: `rawset` on an **existing** key (there is no `__newindex` on
+assigned keys), and `debug.getmetatable`/`debug.setmetatable` access. There is no sandbox;
+no immutability is claimed. The mitigation is therefore **re-validation at the sinks**:
+the registry records the content hash at registration, and every hash/evaluate/store sink
+re-hashes and compares (`policy_mutated`) **and** re-validates the schema/catalog
+invariants before using the value. Identity proves history, not the current value — the
+reviewer's `owned_policy_mutation` (hash `2836a530` → `ffffffffa376ac6c` while keeping
+owned identity) is now refused typed. The weakened test asserting "NOT impossible to
+mutate" was replaced by tests of the actual guarantee (mutated owned value refused at the
+sink; caller mutation of its own tables cannot change the owned/stored value).
 
 ### Round-trip: before == after
 
-For the pinned fixture `tests/fixtures/assistant/anorithil_pinned.json`:
+For the pinned fixture `tests/fixtures/assistant/anorithil_pinned.json`, the content hash
+stays `2836a530` (asserted directly in `tests/test_auto_combat_owned_import.lua`).
 
-| | hash |
-| --- | --- |
-| **before** this change (`main@ded8e1a` tree) | `2836a530` |
-| **after** this change | `2836a530` |
-
-The slice is behaviour-preserving for a valid import; the pinned hash is asserted
-directly in `tests/test_auto_combat_owned_import.lua`.
-
-## Deliverable C — the old checker is honest, not a gate
+## Deliverable C — the old checker is regression scaffolding only
 
 `tools/check_boundary_rules.py` is **not on this branch** (it lives on
-`feat/boundary-selfcheck`; `main` has no such file). Per the brief it stays
-there. On that branch it received one bounded **honesty** change (commit
-`374d6bf`, no regex added): the printed A line and summary now say explicitly
-that the A PASS is **scoped to the registered ingress only** and is *not* a
-global semantic PASS, and the module header records that the prevention
-responsibility **moved to the constructors**.
-
-Registration of the migrated `AssistantAdapter` ingress was **not** applied on
-that branch: the registry rot-check would fail there because the constructor
-(`OwnedImport.lua`) and the reworked ingress exist only on this branch. The
-registration belongs in the change that carries the migration; it is a schema
-row, not new validation code. No third regex round was attempted.
-
-## What still accepts raw input (precise)
-
-| entry point | raw? | note |
-| --- | --- | --- |
-| `OwnedImport.construct(raw)` | **yes** | the ONLY raw array reader; validates + copies |
-| `AssistantAdapter.translate/detect(config)` | accepts raw, but immediately calls `construct` | owned input is passed through |
-| `AutoCombatService.importAssistant` | accepts raw, calls `construct` first | draft/hash/store only after ownership |
-| `PolicySchema.validate`, `PolicyEvaluator`, `PolicyIO.import`, `PolicyStore.setDraft` | **yes (unmigrated)** | these are policy-shaped sinks; slice 1 owns the *import producer*, not every policy consumer — slice 2/3 territory, stated honestly |
-
-A future contributor wanting to bypass the importer would have to write a new
-raw consumer of a policy table that skips `OwnedImport.construct`. That is
-*not* structurally impossible in dynamic Lua, and is not claimed to be.
-Compared with the old scheme it is **harder in the bounded sense**: there is now
-one named construction point and one hash choke point to route through instead
-of N hand-written ingresses each silently trusted.
-
-## Invariants (unchanged)
-
-No strict runtime-entry auditing (live getters are normal entries; unusable
-values ⇒ typed unknown); **no plugin-level strategy restriction** (all movement/
-retreat/teleport/`change_level` remain ordinary policy actions); reads submit no
-actions and expose no player-unknown information; budget; `native_pending`;
-lease; dry-run; deterministic tie-breaks; **no new protocol code**;
-`T_SKIRMISHER_VAULT` untouched; `allow_auto_combat_execution` default unchanged;
-no game-core edits; generated files not hand-edited.
+`feat/boundary-selfcheck`). It is **regression scaffolding, not a gate and not a proof**:
+its structural A/B checks are a tripwire for two recurring mechanical mistakes, and its
+C/D/E entries only point at the regressions/review items that enforce them. It never
+certifies runtime behaviour; the properties claimed in this document are established by
+the unit tests and the native probes, not by the checker.
 
 ## Scope: what slice 1 does NOT cover
 
 Explicitly deferred (Astra's list), not silently expanded:
 
 - **Derived plans / candidate sets** — `plan.values`, `plan.request_sequence`,
-  `candidates.cells`, and the **plan/annotation/landing discriminated union**
-  (missing landing metadata must not degrade to a deterministic single cell) are
+  `candidates.cells`, and the plan/annotation/landing discriminated union are **slice 2**.
+- **Raised-spec semantic tables** — engine-consulted field forwarding, live `false`
+  precedence, `act_exclude` indexing, callable fields, `grid_exclude` nesting are
   **slice 2**.
-- **Raised-spec semantic tables** — engine-consulted field forwarding, live
-  `false` precedence, `act_exclude` indexing, callable fields, `grid_exclude`
-  nesting are **slice 2**.
-- **Transitions** — exactly-once event identity, sync/async dedupe, lease/log
-  side effects are **slice 3**.
+- **Transitions** — exactly-once event identity, sync/async dedupe, lease/log side effects
+  are **slice 3**.
 
-**What slice 2 would need:** an owned `ValidatedPlan`/`CompleteCandidates` type
-whose constructor validates `values`/`request_sequence` density **and** the
-discriminated-union landing annotation (provenance distinguishes a deterministic
-landing from a conservative envelope), consumed by footprint measurement,
-planning and risk membership; plus one effective-spec resolution path with an
-engine-reviewed semantic table (field source, precedence, nil/false behaviour,
-callback calling convention, geometry-vs-membership consumers) and differential
-source/dist probes. Sinks as well as sources must require the owned type.
+**What slice 2 would need:** an owned `ValidatedPlan`/`CompleteCandidates` type whose
+constructor validates `values`/`request_sequence` density **and** the discriminated-union
+landing annotation, consumed by footprint measurement, planning and risk membership; plus
+one effective-spec resolution path with an engine-reviewed semantic table. Sinks as well
+as sources must require the owned type.
 
-## Acceptance
+## Invariants (unchanged)
+
+No strict runtime-entry auditing (live getters are normal entries; unusable values ⇒ typed
+unknown); **no plugin-level strategy restriction** (all movement/retreat/teleport/
+`change_level` remain ordinary policy actions); reads submit no actions and expose no
+player-unknown information; budget; `native_pending`; lease; dry-run; deterministic
+tie-breaks; **no new protocol code**; `T_SKIRMISHER_VAULT` untouched;
+`allow_auto_combat_execution` default unchanged; no game-core edits; generated files not
+hand-edited.
+
+## Acceptance (rev2)
 
 | ID | Result | Evidence |
 | --- | --- | --- |
-| Primitives | **PASS** — one primitive, three causes + offending key, unit-tested, no second copy | `tests/test_json.lua` (87 checks), `Json.lua:6-61`, `MovementAdapterFactory.lua` alias |
-| Slice | **PASS** — malformed import refuses the whole import with a typed fault (input/cause/key), zero hash calls, no draft/store; valid import round-trips `2836a530` | `tests/test_auto_combat_owned_import.lua` (103 checks) |
-| Unreachability | **PASS** — single construction point `OwnedImport.construct`; raw path unreachable from the importer; hash choke point rejects an unregistered policy | `OwnedImport.lua`, `AssistantAdapter.hashPolicy` |
-| Scope honesty | **PASS** — §"Scope" lists the three deferred slices and the slice-2 needs | this document |
-| Whole | **PASS** — Lua 43 suites, Python 39, three `--check` exit 0, probe source+dist 177/177, native acceptance source+dist 101/101, package parity 69/69 | `tmp/funnel-slice1/*` |
+| Primitives | **PASS** — one primitive, deterministic offending-key rule for all key types (numeric ascending, then string byte order) | `tests/test_json.lua` (90 checks, stable across repeated fresh processes) |
+| Sink ownership | **PASS** — validate/dry_run/set_draft/import/load_state gate every policy through re-construct; malformed-JSON policy never hashed/evaluated/stored; round-tripped valid policy still works; mutated owned policy refused (`policy_mutated`) | `tests/test_auto_combat_owned_import.lua` (161 checks) |
+| Element shape + typed faults | **PASS** — non-table/`Json.null` element refuses the whole import (`invalid_element`, key=index); depth-over-limit carries `condition_too_deep` with code+input+cause+key | same |
+| Metatable protection | **PASS** — protected `__metatable`; residual (`rawset`/`debug.*`) documented; sinks re-validate | `OwnedImport.lua`, `AssistantAdapter.ownPolicy`, tests |
+| Scope honesty | **PASS** — this document states the gated/unmigrated sinks, what ownership does not prevent, and the checker-as-scaffolding | this document |
+| Whole | Lua 43 suites green **and stable across repeated runs**; Python 39; three `--check` exit 0; probe source+dist; native acceptance source+dist; package parity | `tmp/funnel-slice1-rev2/` |
 
-### Raw evidence (`tmp/funnel-slice1/`)
+### Raw evidence (`tmp/funnel-slice1-rev2/`)
 
-| artifact | sha256 | note |
-| --- | --- | --- |
-| `lua-suite.log` | `81574eac…` | 43 suites green |
-| `python-tests.log` | `0c2623f4…` | 39 tests OK |
-| `generator-checks.log` | `f72ccc31…` | three `--check` exit 0 |
-| `probe-source.log` | `2e87053f…` | 177/177 (game.log `3295d35b…`) |
-| `probe-dist.log` | `20e1bc47…` | 177/177 (game.log `9e84de61…`) |
-| `accept-source.log` | `a62c55ff…` | 101/101 (game.log `d076d782…`) |
-| `accept-dist.log` | `0b2871be…` | 101/101 (game.log `58ea7603…`) |
-| `dist-manifest.json` | `2a0a0f0d…` | 69 files |
-| `tome-mcp-bridge.teaa` | `926a4291…` | package parity 69/69 |
+<!-- filled by the rev2 run: lua-suite, python-tests, generator-checks,
+     probe-source, probe-dist, accept-source, accept-dist, dist-manifest, teaa -->
 
-Session names: `funnel-slice1-ac-probe-src`, `funnel-slice1-ac-probe-dist`,
-`funnel-slice1-accept-src`, `funnel-slice1-accept-dist` (all reaped;
-`reap-session.sh --list` empty).
-
-Head **`59deb74`** (implementation `ecce5d4`); dist sha256
-**`926a429166825bde0517b4cf1a6221fb8ff3d544014933dccbb1b8cd78ca16b6`**.
+Head **`__REV2_HEAD__`**; dist sha256 **`__REV2_DIST__`**.

@@ -14,14 +14,19 @@
 -- owned production path, not structural impossibility in unrestricted Lua.
 -- `construct` is the single construction choke point; `M.view`/`M.isOwned`
 -- gate the owned type. A contributor could still write a *new* raw consumer
--- elsewhere; slice 2 migrates the remaining sinks (derived plans/candidate
--- sets, raised-spec semantics, transitions) behind the same ownership.
+-- elsewhere; the policy hash/evaluate/store sinks are additionally gated by
+-- `AssistantAdapter.ownPolicy` (XPS1-REV-01), which re-validates at the sink
+-- because identity proves history, not the current value (XPS1-REV-02).
 local Json=require 'mod.mcp_bridge.Json'
 local M={}
 
 -- Density cause vocabulary. Kept identical to `Json.denseArray`/
 -- `Json.denseFault` (AGENTS.md checklist A) so there is one taxonomy.
 M.CAUSES={not_array=true,hole=true,non_integer_key=true,key_beyond_dense_end=true}
+-- Element-shape cause vocabulary (XPS1-REV-03): a schema row flagged
+-- `element=true` additionally requires EVERY element to be a table (a
+-- non-table element is a WHOLE-IMPORT fault, never a silently dropped entry).
+M.ELEMENT_CAUSES={invalid_element=true}
 
 -- The schema of caller-supplied arrays this import requires. Every entry is
 -- validated by density before translation. `min` is the minimum dense length
@@ -33,8 +38,8 @@ M.CAUSES={not_array=true,hole=true,non_integer_key=true,key_beyond_dense_end=tru
 M.SCHEMA={
     {path='assistant.addon_version',min=0},
     {path='assistant.tome_version',min=0},
-    {path='sustains',min=0},
-    {path='talents',min=0},
+    {path='sustains',min=0,element=true},
+    {path='talents',min=0,element=true},
     {path='talents[].when',condition=true},
 }
 
@@ -47,6 +52,17 @@ local function readOnly() error('owned import is read-only',2) end
 -- sentinel key ever leaks into the caller's data or the hash.
 OWNED_ROOT_MT.__newindex=readOnly
 FROZEN_MT.__newindex=readOnly
+-- XPS1-REV-02: protect the private metatables. With `__metatable` set,
+-- `getmetatable(owned)` returns only this sentinel string (the real metatable
+-- is unreachable through the value, so `__newindex` cannot be stripped) and
+-- `setmetatable(owned, ...)` raises. Residual (Lua 5.1, no sandbox):
+-- `debug.getmetatable`/`debug.setmetatable` and `rawset` on EXISTING keys
+-- cannot be prevented by any Lua-side mechanism; the mitigation is
+-- re-validation at the sinks (see AssistantAdapter.ownPolicy), not
+-- immutability.
+local PROTECTED_MT='owned import (protected metatable)'
+OWNED_ROOT_MT.__metatable=PROTECTED_MT
+FROZEN_MT.__metatable=PROTECTED_MT
 local OWNED_ROOT_ID="owned-import-root"
 local IDENTITIES=setmetatable({}, {__mode='k'})
 
@@ -62,7 +78,7 @@ end
 -- and numeric keys. The copy is independent of the caller's table, so a
 -- mutation after `construct` cannot change what the importer validated.
 -- Bounded by `Json.MAX_DEPTH`.
-local function copyValue(value,depth,seen,isRoot)
+local function copyValue(value,depth,seen,isRoot,plain)
     if type(value)~='table' then return value end
     if value==Json.null then return Json.null end
     if depth>MAX_DEPTH then return nil,'too_deep' end
@@ -71,12 +87,12 @@ local function copyValue(value,depth,seen,isRoot)
     seen[value]=out
     for k,v in pairs(value) do
         if type(k)~='table' then
-            local copied,why=copyValue(v,depth+1,seen,false)
+            local copied,why=copyValue(v,depth+1,seen,false,plain)
             if why then return nil,why end
             out[k]=copied
         end
     end
-    setmetatable(out,isRoot and OWNED_ROOT_MT or FROZEN_MT)
+    if not plain then setmetatable(out,isRoot and OWNED_ROOT_MT or FROZEN_MT) end
     return out
 end
 
@@ -177,7 +193,12 @@ end
 
 -- The owned type gate: identity, not a self-declared key. `view` is the only
 -- way a consumer obtains the input; a raw caller table is not registered and
--- cannot be viewed.
+-- cannot be viewed. XPS1-REV-02: `view` returns the snapshot itself because a
+-- Lua 5.1 proxy cannot support `#`/`ipairs` (the hash/evaluation read paths
+-- need them); the value's guarantees are the private deep copy (no aliasing),
+-- the absent-key write guard and the protected metatable — and every
+-- hash/evaluate/store sink re-validates anyway, so a mutated owned value is
+-- refused typed at the sink rather than trusted.
 function M.isOwned(value)
     return type(value)=='table' and IDENTITIES[value]==OWNED_ROOT_ID
 end
@@ -194,6 +215,18 @@ function M.requireOwned(value)
     local owned,f=M.construct(value)
     if not owned then return nil,f end
     return owned
+end
+
+-- XPS1-REV-01: a PLAIN deep copy used by the policy sink gate
+-- (`AssistantAdapter.ownPolicy`). Unlike `construct` it validates nothing and
+-- registers nothing — it only removes aliasing to caller storage, so a policy
+-- re-constructed at a sink is a private snapshot whose later mutation by the
+-- caller cannot change what was validated/stored/hashed. No metatable is
+-- attached (the copy must stay save-safe: it can be persisted with the
+-- character via `AutoCombatService.saveState`). Bounded by `Json.MAX_DEPTH`.
+function M.snapshot(raw)
+    if type(raw)~='table' or raw==Json.null then return nil,'not_a_table' end
+    return copyValue(raw,0,{},true,true)
 end
 
 return M

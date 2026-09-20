@@ -115,8 +115,11 @@ end
 local function translateCondition(cond,path,warnings,unsupported,depth)
     depth=depth or 0
     if depth>Schema.HARD.max_depth then
-        reportUnsupported(unsupported,path,'condition_too_deep')
-        return nil
+        -- XPS1-REV-03: a condition nested beyond the hard depth is a typed
+        -- WHOLE-IMPORT fault ({code,input,cause,key}; for a depth fault the key
+        -- is the offending depth). It is never degraded to a plain `nil`
+        -- (which previously became an empty-string rule and an untyped error).
+        return nil,inputFault(path,'condition_too_deep',depth)
     end
     if type(cond)~='table' then
         return nil,inputFault(path,'not_a_table')
@@ -172,11 +175,15 @@ local function uniqueId(used,wanted,fallback)
 end
 
 -- Translate one assistant talent entry into a policy rule (or nil + report).
+-- XPS1-REV-03: a non-table element is a MALFORMED element — a typed
+-- whole-import fault naming the list, the cause and the offending index. It is
+-- never "unsupported ⇒ continue": a non-table entry cannot be interpreted as
+-- an assistant entry at all, so continuing would manufacture a partial
+-- artifact (the review's partial draft + revision advance).
 local function translateTalent(entry,index,used,warnings,unsupported)
     local path='talents['..index..']'
-    if type(entry)~='table' then
-        reportUnsupported(unsupported,path,'invalid_talent_entry')
-        return nil
+    if type(entry)~='table' or entry==Json.null then
+        return nil,inputFault('talents','invalid_element',index)
     end
     for key in pairs(entry) do
         if not M.TALENT_KEYS[key] then
@@ -188,7 +195,7 @@ local function translateTalent(entry,index,used,warnings,unsupported)
         reportUnsupported(unsupported,path,'missing_talent')
         return nil
     end
-    if entry.enabled==false then return nil,'' end
+    if entry.enabled==false then return nil end
     if Catalog.isSustain(talent) then
         reportWarning(warnings,path,'talent_is_sustain',{talent=talent})
         return nil
@@ -211,7 +218,7 @@ local function translateTalent(entry,index,used,warnings,unsupported)
     end
     local when,fault=translateCondition(entry.when or {always={}},path..'.when',warnings,unsupported,0)
     if fault then return nil,fault end
-    if when==nil then return nil,'' end
+    if when==nil then return nil end
     local target=entry.target
     if target==nil then
         target=descriptor.target=='self' and 'self' or 'nearest_hostile'
@@ -295,8 +302,10 @@ function M.translate(config)
     local sustainsList=sustainsValid and config.sustains or nil
     for index,sustain in ipairs(sustainsList or {}) do
         local path='sustains['..index..']'
-        if type(sustain)~='table' then
-            reportUnsupported(unsupported,path,'invalid_sustain_entry')
+        -- XPS1-REV-03: same element-shape rule as talents — a non-table
+        -- sustain element refuses the WHOLE import with the typed fault.
+        if type(sustain)~='table' or sustain==Json.null then
+            return {ok=false,error=inputFault('sustains','invalid_element',index)}
         else
             for key in pairs(sustain) do
                 if not M.SUSTAIN_KEYS[key] then
@@ -366,25 +375,82 @@ end
 -- produced by this constructor (`adopt` registers it). A raw table handed
 -- straight to `PolicySchema.hash` from outside this importer is not registered
 -- and is rejected here; downstream policy construction must go through the
--- importer (or `adopt`, which re-validates before registering). The tag lives
--- in a weak-keyed registry rather than on the policy, so the policy bytes —
--- and therefore the content hash — are unchanged. This is a bounded runtime
--- invariant of the owned path, not a global impossibility in dynamic Lua.
+-- importer (or `adopt`, which re-validates before registering). The registry is
+-- weak-keyed and lives **outside** the policy, so the policy bytes — and
+-- therefore the content hash — are unchanged.
+--
+-- XPS1-REV-01/REV-02: the registry value is the content hash recorded at
+-- registration, so `ownPolicy`/`hashPolicy` can re-check the CURRENT value
+-- against what was validated (identity proves history, not the current value).
 local OWNED_POLICIES=setmetatable({},{__mode='k'})
 
 function M.isOwnedPolicy(policy)
-    return type(policy)=='table' and OWNED_POLICIES[policy]==true
+    return type(policy)=='table' and OWNED_POLICIES[policy]~=nil
 end
 
 function M.hashPolicy(policy)
     if not M.isOwnedPolicy(policy) then
         error('policy hash requires an owned policy from AssistantAdapter',2)
     end
-    return Schema.hash(policy)
+    -- XPS1-REV-02: a hash sink re-checks the recorded content hash before using
+    -- it. An owned policy whose value changed after registration is refused —
+    -- identity alone no longer suffices at a hash/evaluate/store sink.
+    local hash=Schema.hash(policy)
+    if OWNED_POLICIES[policy]~=hash then
+        error('owned policy value changed after registration',2)
+    end
+    return hash
+end
+
+-- XPS1-REV-01 — the ONE gate every policy hash/evaluate/store sink runs.
+-- Chosen mechanism (stated): RE-CONSTRUCT at the sink.
+--
+-- * A raw caller table (for example a policy that lost ownership on an ordinary
+--   MCP round-trip) is never used as-is: the gate builds a private deep copy
+--   (`OwnedImport.snapshot`, no metatable, save-safe), validates it (schema +
+--   catalogue), registers the copy and returns it. A malformed policy —
+--   including a JSON-encodable malformed condition container — fails
+--   validation and is refused BEFORE any hash/evaluate/store.
+-- * An already-owned policy is NOT trusted on identity alone (XPS1-REV-02):
+--   the gate re-hashes the current value and compares it with the hash
+--   recorded at registration (`policy_mutated` on mismatch), and re-validates
+--   the invariants (schema + catalogue) before returning it.
+--
+-- `sink` names the calling sink (validate / dry_run / set_draft / import /
+-- load_state) so a refusal is diagnosable.
+function M.ownPolicy(policy,sink)
+    if type(policy)~='table' or policy==Json.null then
+        return nil,{code='policy_not_owned',input=sink,cause='not_a_table'}
+    end
+    local recorded=OWNED_POLICIES[policy]
+    if recorded~=nil then
+        local hash=Schema.hash(policy)
+        if hash~=recorded then
+            return nil,{code='policy_mutated',input=sink,cause='owned_policy_changed',
+                expected=recorded,actual=hash}
+        end
+        local ok,errors=Schema.validate(policy)
+        if not ok then return nil,{code='invalid_policy',errors=errors} end
+        local compatible,semantic=Catalog.verify(policy)
+        if not compatible then return nil,{code='invalid_policy',errors=semantic} end
+        return policy
+    end
+    local snapshot,why=Owned.snapshot(policy)
+    if not snapshot then
+        return nil,{code='policy_not_owned',input=sink,cause=why or 'not_a_table'}
+    end
+    local ok,errors=Schema.validate(snapshot)
+    if not ok then return nil,{code='invalid_policy',errors=errors} end
+    local compatible,semantic=Catalog.verify(snapshot)
+    if not compatible then return nil,{code='invalid_policy',errors=semantic} end
+    OWNED_POLICIES[snapshot]=Schema.hash(snapshot)
+    return snapshot
 end
 
 -- Register a policy draft as owned after the same schema+catalog validation the
--- importer applies. The importer is the only production caller.
+-- importer applies. The importer is the only production caller. XPS1-REV-02:
+-- the registry records the content hash at registration so sinks can detect a
+-- post-registration value change.
 function M.adopt(policy)
     if type(policy)~='table' then return nil,{code='not_a_table'} end
     if OWNED_POLICIES[policy] then return policy end
@@ -392,7 +458,7 @@ function M.adopt(policy)
     if not ok then return nil,{code='invalid_policy',errors=errors} end
     local compatible,semantic=Catalog.verify(policy)
     if not compatible then return nil,{code='invalid_policy',errors=semantic} end
-    OWNED_POLICIES[policy]=true
+    OWNED_POLICIES[policy]=Schema.hash(policy)
     return policy
 end
 

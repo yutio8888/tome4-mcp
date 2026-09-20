@@ -101,6 +101,13 @@ function M.clear(svc)
 end
 
 function M.validate(svc,policy)
+    -- XPS1-REV-01: a validate sink requires the owned/re-constructed form — a
+    -- raw caller policy is re-constructed (private copy + validation) here, so
+    -- nothing is hashed from unvalidated input; a malformed policy is refused
+    -- typed before any hash.
+    local owned,err=AssistantAdapter.ownPolicy(policy,'validate')
+    if not owned then return fail(err.code,err) end
+    policy=owned
     local schema_ok,errors=Schema.validate(policy)
     if not schema_ok then return fail('invalid_policy',{errors=errors}) end
     local compatible,semantic=Catalog.verify(policy)
@@ -132,6 +139,12 @@ function M.dryRun(svc,args)
         if policy==nil then policy,source=svc.store.draft,'draft' end
     end
     if policy==nil then return fail('no_policy',{details='no draft, approved or running policy'}) end
+    -- XPS1-REV-01/REV-02: a dry run is a hash+evaluate sink. An explicit request
+    -- policy is re-constructed (private copy + validation); a stored version is
+    -- re-checked against its recorded hash — identity alone is never trusted.
+    local owned,err=AssistantAdapter.ownPolicy(policy,'dry_run')
+    if not owned then return fail(err.code,err) end
+    policy=owned
     local checked=M.validate(svc,policy)
     if not checked.ok then return checked end
     -- Prefer the read-only host; the live executor host is a safe fallback
@@ -309,9 +322,12 @@ function M.dryRun(svc,args)
 end
 
 function M.setDraft(svc,policy,expected_hash)
-    local checked=M.validate(svc,policy)
-    if not checked.ok then return checked end
-    local stored,err=Store.setDraft(svc.store,policy,expected_hash)
+    -- XPS1-REV-01: a store sink requires the owned/re-constructed form. The
+    -- gate's private copy is what gets stored, so a later mutation of the
+    -- caller's table cannot change the stored draft.
+    local owned,err=AssistantAdapter.ownPolicy(policy,'set_draft')
+    if not owned then return fail(err.code,err) end
+    local stored,err=Store.setDraft(svc.store,owned,expected_hash)
     if not stored then return fail(err.code,err) end
     svc.revision=svc.revision+1
     return ok(stored)
@@ -591,7 +607,12 @@ end
 function M.import(svc,document)
     local policy,info=PolicyIO.import(document)
     if not policy then return fail(info.code,info) end
-    return ok({policy=policy,hash=info.hash})
+    -- XPS1-REV-01: the decoded policy enters the service through the same
+    -- re-construct gate as every other raw policy; the owned copy (not the
+    -- decoded caller table) is returned and hashed.
+    local owned,err=AssistantAdapter.ownPolicy(policy,'import')
+    if not owned then return fail(err.code,err) end
+    return ok({policy=owned,hash=Schema.hash(owned)})
 end
 
 -- Generation-only import of a pinned legacy-assistant export. Produces a policy
@@ -642,12 +663,17 @@ end
 
 function M.loadState(svc,data)
     if type(data)~='table' then return false end
-    local function valid(policy)
-        if type(policy)~='table' then return false end
-        return Schema.validate(policy)==true and Catalog.verify(policy)==true
+    -- XPS1-REV-01: restored versions enter through the same re-construct gate;
+    -- the store only ever holds private validated copies (also save-safe on the
+    -- next saveState).
+    local function restored(policy)
+        if type(policy)~='table' then return nil end
+        return AssistantAdapter.ownPolicy(policy,'load_state')
     end
-    if valid(data.draft) then svc.store.draft=data.draft end
-    if valid(data.approved) then svc.store.approved=data.approved end
+    local draft=restored(data.draft)
+    if draft then svc.store.draft=draft end
+    local approved=restored(data.approved)
+    if approved then svc.store.approved=approved end
     svc.store.running=nil; svc.store.active=false
     svc.controller=nil
     return true

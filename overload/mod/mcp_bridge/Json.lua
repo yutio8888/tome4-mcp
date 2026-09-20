@@ -25,17 +25,36 @@ end
 -- returns `nil` when no density fault can be named (dense, empty or a
 -- non-table), otherwise a typed cause plus the offending key, matching the
 -- AGENTS.md checklist-A shape taxonomy (non-integer key, hole, key beyond the
--- dense end). Deterministic: the minimum offending key wins. Pure inspection;
--- like `denseArray` it only READS the caller table.
+-- dense end). Deterministic for ALL key types (XPS1-REV-04): the SMALLEST
+-- offending key in a documented total order wins — numeric keys first in
+-- ascending numeric order, then string keys in ascending byte order, then any
+-- exotic key type (not JSON-encodable) by `tostring`, best-effort (two exotic
+-- keys can share a `tostring`, and their rendering is process-dependent; the
+-- deterministic contract covers the JSON-encodable number/string universe).
+-- Pure inspection; like `denseArray` it only READS the caller table.
 function M.denseFault(list)
     if type(list) ~= 'table' or list == M.null then return nil end
+    -- XPS1-REV-04: the offending key is chosen by a total order over ALL key
+    -- types (see the header comment), so the fault no longer depends on the
+    -- `pairs` traversal order of a particular LuaJIT process.
+    local function rank(key)
+        local kind = type(key)
+        if kind == 'number' then return 1 end
+        if kind == 'string' then return 2 end
+        return 3
+    end
+    local function offendingLess(a, b)
+        local ra, rb = rank(a), rank(b)
+        if ra ~= rb then return ra < rb end
+        if ra == 1 then return a < b end
+        return tostring(a) < tostring(b)
+    end
     local maxKey, count = 0, 0
     local badKey = nil
     for key in pairs(list) do
         local integral = type(key) == 'number' and key % 1 == 0 and key >= 1
         if not integral then
-            if badKey == nil or (type(key) == 'number' and type(badKey) == 'number'
-                and key < badKey) then badKey = key end
+            if badKey == nil or offendingLess(key, badKey) then badKey = key end
         else
             if key > maxKey then maxKey = key end
             count = count + 1
