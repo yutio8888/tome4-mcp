@@ -195,7 +195,21 @@ hand-edited.
 
 ### Raw evidence (`tmp/funnel-slice1-rev2/`)
 
-<!-- filled by the rev2 run: lua-suite, python-tests, generator-checks,
-     probe-source, probe-dist, accept-source, accept-dist, dist-manifest, teaa -->
+| artifact | sha256 | note |
+| --- | --- | --- |
+| `lua-suite.log` (+4 repeat runs) | `2f5aa4c4…` | 43 suites green, rc=0, 5/5 stable fresh runs |
+| `python-tests.log` | `f8f988a5…` | 39 tests OK |
+| `generator-checks.log` | `b0ee357f…` | native seams / effect manifest / protocol all `--check` rc=0 |
+| `probe-source.log` | `cc4ff819…` | 177/177 (game.log `3e68f39d…`) |
+| `probe-dist.log` | `9a4d4ae5…` | 177/177 (game.log `7a5c7dbc…`) |
+| `accept-source.log` | `e446914b…` | 101/101 |
+| `accept-dist.log` | `08a92599…` | 101/101 |
+| `dist-manifest.json` | `5de437e3…` | 69 files, source==dist parity on all affected files |
+| `tome-mcp-bridge.teaa` | `cc3b97ce…` | package parity 69/69 |
 
-Head **`__REV2_HEAD__`**; dist sha256 **`__REV2_DIST__`**.
+Session names: `funnel-slice1-rev2-ac-probe-src`, `funnel-slice1-rev2-ac-probe-dist`,
+`funnel-slice1-rev2-accept-src`, `funnel-slice1-rev2-accept-dist` (all stopped by their
+runners; `reap-session.sh --list` empty).
+
+Head **`fce4f4a6511872d8eac5c7dac00e981d5e3a84f2`**; dist sha256
+**`cc3b97cea67e63dcd483a0bda3db0b5fbbb2dbbde092a16901b5a5ef17027f1a`**.
