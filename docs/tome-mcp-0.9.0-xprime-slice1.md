@@ -211,5 +211,8 @@ Session names: `funnel-slice1-rev2-ac-probe-src`, `funnel-slice1-rev2-ac-probe-d
 `funnel-slice1-rev2-accept-src`, `funnel-slice1-rev2-accept-dist` (all stopped by their
 runners; `reap-session.sh --list` empty).
 
-Head **`fce4f4a6511872d8eac5c7dac00e981d5e3a84f2`**; dist sha256
+Head at package build **`fce4f4a6511872d8eac5c7dac00e981d5e3a84f2`** (the
+implementation commit; dist built here). Subsequent commits are docs/manifest-only and
+code-equivalent; the exact branch tip at report time is recorded in
+`tmp/funnel-slice1-rev2/shas.txt`. Dist sha256
 **`cc3b97cea67e63dcd483a0bda3db0b5fbbb2dbbde092a16901b5a5ef17027f1a`**.
