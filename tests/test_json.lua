@@ -42,4 +42,60 @@ local cycle = {}; cycle.self = cycle; check(not pcall(Json.encode, cycle), 'cycl
 local deep = {}; local tail = deep
 for _ = 1, Json.MAX_DEPTH + 2 do tail.child = {}; tail = tail.child end
 check(not pcall(Json.encode, deep), 'deep encoding rejected')
+-- Checklist A: the ONE shared dense/closed validator (X-prime slice 1).
+-- Boundary matrix: empty, dense 1..n, a hole, a fractional key, a string key,
+-- a key beyond the dense end, and every non-table shape.
+do
+    local ok,count=Json.denseArray({1,2,3},1)
+    check(ok==true and count==3,'a dense array is accepted with its length')
+    check(Json.denseArray({},0)==true and select(2,Json.denseArray({},0))==0,'an empty array is dense (length 0)')
+    local emptyMin,emptyCause=Json.denseArray({},1)
+    check(emptyMin==false and emptyCause=='too_short','an empty array violates a min length')
+    local hole,holeCause=Json.denseArray({[1]='a',[3]='c'},1)
+    check(hole==false and holeCause=='hole','a hole is rejected')
+    local explicitNil,explicitNilCause=Json.denseArray({[1]='a',[2]=nil,[3]='c'},1)
+    check(explicitNil==false and explicitNilCause=='hole','a hole (explicit nil) is rejected')
+    local frac,fracCause=Json.denseArray({[1.5]='a'},1)
+    check(frac==false and fracCause=='non_integer_key','a fractional key is rejected')
+    local str,strCause=Json.denseArray({[1]='a',foo='b'},1)
+    check(str==false and strCause=='non_integer_key','a string key is rejected')
+    local zero,zeroCause=Json.denseArray({[0]='a',[1]='b'},1)
+    check(zero==false and zeroCause=='non_integer_key','a zero key is rejected')
+    local negative,negativeCause=Json.denseArray({[-1]='a'},1)
+    check(negative==false and negativeCause=='non_integer_key','a negative key is rejected')
+    local beyond,beyondCause=Json.denseArray({[1]='a',[100]='b'},1)
+    check(beyond==false and beyondCause=='hole','a key beyond the dense end is rejected')
+    local nullOk,nullCause=Json.denseArray(Json.null,1)
+    check(nullOk==false and nullCause=='not_array','json.null is not an array')
+    check(select(2,Json.denseArray('x',1))=='not_array','a scalar is not an array')
+    check(select(2,Json.denseArray(nil,1))=='not_array','nil is not an array')
+end
+-- The fault diagnostic names the checklist-A shape and the offending key.
+do
+    check(Json.denseFault({1,2,3})==nil,'a dense array has no density fault')
+    check(Json.denseFault({})==nil,'an empty array has no density fault')
+    check(Json.denseFault('x')==nil,'a scalar has no density fault to name')
+    check(Json.denseFault(nil)==nil,'nil has no density fault to name')
+    check(Json.denseFault(Json.null)==nil,'json.null has no density fault to name')
+    local cause,key=Json.denseFault({[1]='a',[100]='b'})
+    check(cause=='key_beyond_dense_end' and key==100,
+        'a dense prefix plus one detached key is key_beyond_dense_end with that key')
+    cause,key=Json.denseFault({[1]='a',[3]='c'})
+    check(cause=='key_beyond_dense_end' and key==3,
+        'one key after the dense prefix is key_beyond_dense_end with that key')
+    cause,key=Json.denseFault({[1]='a',[3]='c',[5]='e'})
+    check(cause=='hole' and key==2,'a multi-key gap is a hole at the first missing index')
+    cause,key=Json.denseFault({[1]='a',foo='b'})
+    check(cause=='non_integer_key' and key=='foo',
+        'a string key is non_integer_key with the offending key')
+    cause,key=Json.denseFault({[1]='a',[1.5]='b'})
+    check(cause=='non_integer_key' and key==1.5,
+        'a fractional key is non_integer_key with the offending key')
+    cause,key=Json.denseFault({[0]='a',[1]='b'})
+    check(cause=='non_integer_key' and key==0,'a zero key is non_integer_key with the key')
+    -- The diagnostic names the SMALLEST offending key (determinism).
+    cause,key=Json.denseFault({[1]='a',zeta='b',alpha='c'})
+    check(cause=='non_integer_key' and key=='alpha',
+        'a string-key fault is deterministic (smallest key wins)')
+end
 print(('json: %d checks passed'):format(checks))

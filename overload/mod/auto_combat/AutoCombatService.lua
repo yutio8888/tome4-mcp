@@ -14,6 +14,7 @@ local Json=require 'mod.mcp_bridge.Json'
 local Presets=require 'mod.auto_combat.PolicyPresets'
 local PolicyIO=require 'mod.auto_combat.PolicyIO'
 local AssistantAdapter=require 'mod.auto_combat.AssistantAdapter'
+local OwnedImport=require 'mod.auto_combat.OwnedImport'
 local M={}
 M.SOURCE='auto_combat'
 -- Option A (round-3 follow-up): the two safety pauses hand control back to the
@@ -610,7 +611,17 @@ function M.importAssistant(svc,args)
         config=decoded
     end
     if type(config)~='table' then return fail('invalid_argument',{details='config must be an object'}) end
-    local result=AssistantAdapter.translate(config)
+    -- X-prime slice 1: the raw import is validated by the SINGLE constructor
+    -- BEFORE translation, before hashing and before any store. A malformed
+    -- required array refuses the whole import with a typed fault and produces
+    -- no draft/store side effect. The owned snapshot is what translation and
+    -- hashing consume; the raw path is not reachable from here.
+    local owned,fault=OwnedImport.construct(config)
+    if not owned then
+        -- keep the code at the envelope level; details carries input/cause/key
+        return fail(fault.code,{input=fault.input,cause=fault.cause,key=fault.key})
+    end
+    local result=AssistantAdapter.translate(owned)
     if not result.ok then return fail(result.error.code,result.error) end
     local stored=nil
     if args.store==true then

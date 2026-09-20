@@ -73,6 +73,8 @@ fi
 
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_auto_combat_assistant.lua"
 
+"$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_auto_combat_owned_import.lua"
+
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_auto_combat_execution.lua"
 
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_auto_combat_host.lua"
