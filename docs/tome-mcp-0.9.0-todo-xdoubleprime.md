@@ -23,9 +23,19 @@ parity 70/70、L5 工件独立复现（offending 7/15 vs base 0/15，`-joff` 0/1
 ## X″ 后待办（按优先级）
 1. **[P0] 两条准入 rebase 到新 `main` 后重新评估**（Z 已可解除——X″ 基线已落地）：
    - `feat/s3-arm2`（`0e6fee9`，S3 混合组合）——需 rebase（跨 25 处冲突面），rebase 后**必须重新实机验证**；
-   - `feat/r2-aprime`（`cb88fc5`，Earthen Missiles）——需 rebase（跨 42 处）。
-   注意：Sol 已证明 Earthen Missiles 的 `spellCrit` **逐发**调用 → 答案**不可互换**；
-   若 rebase 后仍不能给出可互换的等价性证明，**不应准入**（保持撤回）。
+   - `feat/r2-aprime`（`cb88fc5`，Earthen Missiles 提案 A′）——需 rebase（跨 30 冲突块）。
+   **务必区分两件事**（此前记录有误，已更正）：
+   - **已撤回**的是 loop 39 的 **"declared interchangeable group"**——那条**声称结果等价**，
+     被 Sol 证伪（`spellCrit` 逐发调用 → 互换会把 crit/非 crit 换给不同目标），
+     撤回提交 `dce902e`（PR #26）**已在 main**。这仍是既定事实。
+   - **提案 A′ 不声称等价**：它只依赖"**到达位置在相同签名间不可辨识 + 执行器保序**
+     （arrival k ⇒ `plan[k]`）"，并把 per-missile crit 记为 **annotation**
+     （`outcome_uncertainty='per_prompt_random_outcome'`）而非拒绝——即 `AGENTS.md` 的
+     "不因结果不可预测而拒绝合法法术，只标注不确定性"。
+   因此**准入判据不是"证明等价"**，而是：位置不可辨识是否成立、保序是否成立、
+   matched set 是否必须包含 expected arrival index（跨索引守卫）、签名是否从真实 spec 派生。
+   注：A′ 最近评审（rev6）为 **DO_NOT_MERGE**（3×P2+1×P3，含 malformed condition arrays
+   产生/哈希**部分** draft、共享密度诊断未共享），rebase 后须连同这些 finding 重新评估。
 2. **[P1] 恢复路线图**：S3 实机测试（Shadowblade / 训练假人）→ S4（Temporal Warden
    Dimensional Step TL5 换位）→ 收尾 Celestial-Anorithil（星月术士）常规实机回归。
 3. **[P2] worktree 清理**：当前 11 个 worktree；目标保留 `main` + 两个准入快照，删除已被取代者
