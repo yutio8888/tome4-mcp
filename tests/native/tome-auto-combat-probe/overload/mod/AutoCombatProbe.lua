@@ -1683,6 +1683,18 @@ local function movementTalentRun(spec)
     M.mt.before={x=p.x,y=p.y}
     local outcome
     if spec.kind=='rush' then
+        -- S3-A2-R5 anchor pattern (probe robustness, union): the caster's tile
+        -- after the earlier stages is arbitrary (RNG-sensitive real Phase Door
+        -- landings, the Earthen projectile casts, the composition parity
+        -- probes), and the native Rush linestep fails with "You are too close
+        -- to build up momentum!" whenever the FIRST step of the direct line
+        -- from that tile is corner/entity-blocked. Anchor the caster three
+        -- grids from the arena dummy so the FIRST linestep tile (never the
+        -- dummy's own tile) is free and the row exercises the
+        -- talent itself, never the leftover geometry (the identical fragility
+        -- arm2 fixed for Shadowstep).
+        local anchorDummy=arenaDummy()
+        if anchorDummy then p:move(anchorDummy.x-3,anchorDummy.y,true); forceReady() end
         local ctx=host.snapshot('nearest_hostile')
         local bound=ctx and ctx.bound_target
         local planned,err=host.plan({action='use_talent',talent=spec.talent,bound_target=bound,
