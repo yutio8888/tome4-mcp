@@ -45,3 +45,26 @@ parity 70/70、L5 工件独立复现（offending 7/15 vs base 0/15，`-joff` 0/1
    判别联合 + raised-spec 语义表；`transition(event_id,…)` 恰好 +1。**当前无阻塞需求，不做**。
 5. **[P3] L5 跟进**：若未来在部署版观察到任何 `mixed_keys` 误拒，按保留工件复现路径复核；
    在此之前不升级为事实断言、不改 `classify` 代码形状。
+
+## RA-07 / R2-APR6-04 的正式处置（2026-09-20，验收方决定 = defer）
+**结论：R2-APR6-04（`tools/check_boundary_rules.py` 未注册进标准套件）不是准入阻塞项，正式 defer 到
+scaffolding 分支。** 依据：
+1. 该 checker **刻意不在产品分支上**——`docs/tome-mcp-0.9.0-xprime-slice1.md:160` 已记录它住在
+   `feat/boundary-selfcheck`；
+2. 项目已**把它降级为回归脚手架、不是门禁**（Astra："停止把正则覆盖扩展作为主要预防策略"；
+   `docs/tome-mcp-0.9.0-todo-xdoubleprime.md` 的已知限制 L 节）；
+3. 它**不改变任何产品行为**，缺失它的后果是"回归可见性下降"，而非 fail-open。
+
+因此 `feat/r2-aprime` 的 RA-07 由验收方关闭（记录在案），不阻塞 A′ 准入。
+
+## RR-01（已修，`main`）
+`tests/test_auto_combat_service.lua` 的 `no_emergency_action` 场景原先直接清
+`svc.controller.policy.rules` 与 `policy_snapshot`（绕过 X″ 事务守卫）——**继承自 `main`，非 arm2 回归**。
+已在 `main` 改为**经真实 store**（`set_draft→approve→activate→start`，紧急规则在低血不匹配）并断言
+保留快照；全仓库不再有 `policy_snapshot=nil` / `policy.rules={}` 绕过。
+
+## RR-02（证据表述已更正）
+保留的失败 dist probe 结果**不是**“0 失败行”：`202` 行中 **3 行**失败（`rush-settles`、`rush-execute`、
+聚合 `movement-talents`，均 `native_rejected`）；重跑为 202/202。事件**可复现为瞬时且局限于 Rush**，
+但**异步根因为 NOT_OBSERVED**（未保留对应游戏日志）。详见
+`tmp/rebase-admissions-fix/CHARACTERIZATION.md`。

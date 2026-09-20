@@ -173,21 +173,33 @@ end
 
 do
     -- no_emergency_action is the other Option-A safety pause.
+    -- RR-01 (X-doubleprime closeout): this scenario previously mutated
+    -- `controller.policy.rules` directly and cleared `policy_snapshot` to dodge
+    -- the required `policy_mutated` transaction guard, asserting handoff/lease
+    -- behaviour on a guard-disabled, non-production state. It is rebuilt
+    -- through the REAL store: an activated policy whose emergency rule does
+    -- not match at low HP parks the emergency layer with reason
+    -- `no_emergency_action`, and the handoff/owner assertions run on the
+    -- transaction-validated controller.
     local svc=Service.new({host_factory=fakeHost})
-    local d=Service.handle(svc,'set_draft',{policy=policy()})
+    local noEmergency=policy({rules={{id='heal',priority=1,emergency=true,
+        when={hp_pct={ge=90}},
+        ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}}}})
+    local d=Service.handle(svc,'set_draft',{policy=noEmergency})
     local ap=Service.handle(svc,'approve',{expected_hash=d.draft_hash})
     Service.handle(svc,'activate',{expected_hash=ap.approved_hash})
     Service.handle(svc,'start',{})
-    -- Critical HP with no emergency rule left in the policy. The controller's
-    -- transaction-boundary snapshot is patched first so the deliberate
-    -- no-emergency edit is not read as a policy tamper.
-    svc.controller.policy.rules={}
-    svc.controller.policy_snapshot=nil
+    -- Critical HP: the emergency rule's ge=90 gate does not hold.
     svc.controller.host.snapshot=function() return {hp_pct=10,enemy_count=1} end
     local stepped=Service.step(svc)
     check(stepped.ok and stepped.step.reason=='no_emergency_action','no_emergency_action pauses')
     check(stepped.handoff==true and svc.arbiter.owner=='manual' and svc.controller.state=='stopped',
         'no_emergency_action also hands control back')
+    -- The transaction guard stays enabled end-to-end: the activated snapshot is
+    -- the one the step validated against (no bypass anywhere).
+    check(svc.controller.policy_snapshot~=nil
+        and svc.controller.policy.rules[1].id=='heal',
+        'no_emergency_action runs on the guard-validated activated policy')
 end
 
 -- S2 rev3/§6.2: a typed queue deviation riding on the `native_pending` result
