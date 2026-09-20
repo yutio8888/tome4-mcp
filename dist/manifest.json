@@ -1,6 +1,6 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "e4361c6208f1321409e7cc1c887530d1ed09ba9c29babaa0f21bc5f5acd72d5f",
+  "sha256": "b69ca6ba6e5a878157eec6ca9d9211e8d815f27b5376b9fd5c4705606bee3626",
   "files": {
     "README.md": "62b71bd51c4b32f202909cf1529211e0d4f70ad5d65fffaf0072b06250f43912",
     "hooks/load.lua": "8c11d088a300e6ce1a4778c7388ef42a9c868fe60b41fa1e4fde37f667a061f6",
@@ -8,12 +8,12 @@
     "overload/mod/auto_combat/AssistantAdapter.lua": "9c5be04667020366ffcb29b244b342c71ec244dac8d1f8e050952721a0d799cc",
     "overload/mod/auto_combat/AutoCombat.lua": "09d251234d743fc1b75dce02cb13906a8fe9b1118c9c22f6a9477b7dc8f9555a",
     "overload/mod/auto_combat/AutoCombatCatalog.lua": "2a0a7b569dc415f2697868e970d4667b7b33f429c3f47e9fa37a12404afbce82",
-    "overload/mod/auto_combat/AutoCombatGuard.lua": "e9273dbe75e8a74aeaa998cc6ad84a3eea8620c24f0b56ba7e7e23feb8a04560",
+    "overload/mod/auto_combat/AutoCombatGuard.lua": "353a33e7a05f7b824efad49e2f275df47669b6a02804370acbc9a94c6461f5e4",
     "overload/mod/auto_combat/AutoCombatHost.lua": "e51cf0693c98b378d132b8e203fe71f8e934f6c15f5cf7901d78d9e88a2d01c3",
     "overload/mod/auto_combat/AutoCombatService.lua": "1c4f61804b4db5932978c33d12e9ac442e3599c014013ee03799b035855288f0",
     "overload/mod/auto_combat/ControlArbiter.lua": "22c1b40fd80ac46f81bbbe23c93e32922b9ee88a8d9a20c5e59f95b11ecb302e",
     "overload/mod/auto_combat/EffectFootprint.lua": "f7c80ebf3c27afcd7ed5f3c83efb45d3f64be309c0b5a4c40d9ddc59e9bbeb9f",
-    "overload/mod/auto_combat/EffectManifest.lua": "70bc1603632264e6e1a0369f307efbcec7d501d4dbd42d2d63801ad909f8b8ee",
+    "overload/mod/auto_combat/EffectManifest.lua": "aa66aa11ff052abbd05dc09cd7688aab89704b1e3c5f1a4ab86840f363c4c6e1",
     "overload/mod/auto_combat/EffectManifestDrift.lua": "e2c94582f835c3a9e75fb9e2d784dd3502d56cd7116bdec99ee1ac0c8e005ca0",
     "overload/mod/auto_combat/EffectManifestSources.lua": "f61b04248560a92995bb4a0bcd285cbfa9ca329247f844f38e81ae8f346c325f",
     "overload/mod/auto_combat/EffectRisk.lua": "484688f282df3a9b31d58870417bbfaf80bb6504071f01afc1913de0e86e5b1b",
