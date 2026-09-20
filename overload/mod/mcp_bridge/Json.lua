@@ -126,6 +126,11 @@ local function quote(s)
         return escapes[c] or ('\\u%04x'):format(c:byte())
     end)..'"'
 end
+-- XDP-REV-05: the strict UTF-8 validator used by `quote` is exported so the
+-- policy codec can audit strings BEFORE encode/projection (typed fault) instead
+-- of an untyped `JSON: invalid UTF-8` throw after validation.
+M.utf8Valid=utf8_valid
+
 function M.encode(value)
     local seen = {}
     local function emit(v, depth)

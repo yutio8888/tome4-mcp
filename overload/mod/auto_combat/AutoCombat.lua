@@ -41,8 +41,9 @@ function M.new(policy,host,options)
 end
 
 -- The content hash of the policy this run is bound to. Reported from the
--- immutable snapshot when present, so a mutated working tree cannot change the
--- reported hash; falls back to a validated projection for headless unit hosts.
+-- immutable snapshot when present (its hash is always the one re-derived from
+-- the exact bytes by the service, never a caller-supplied value); falls back to
+-- a validated projection for headless unit hosts.
 function M:policyHash()
     if self.policy_snapshot then return self.policy_snapshot.hash end
     -- Headless unit hosts may construct a controller directly; a policy that
@@ -424,12 +425,13 @@ end
 function M:step()
     if self.state~='running' then return {action='noop',state=self.state} end
     -- X-doubleprime transaction boundary: re-validate the EXACT policy this
-    -- opportunity will evaluate against its immutable snapshot. The bytes are
-    -- authoritative; the working table is what the reads consume, so a
-    -- mismatch means the value in hand is not the approved one.
+    -- opportunity will evaluate against its immutable snapshot. XDP-REV-02:
+    -- the comparison is the EXACT canonical re-encoding of the working tree
+    -- (plus a metatable sweep — projection uses `pairs`, so inherited values
+    -- would be invisible to any digest comparison). A mismatch means the value
+    -- in hand is not the approved one.
     if self.policy_snapshot then
-        local ok,current=pcall(Schema.project,self.policy)
-        if not ok or current==nil or current~=self.policy_snapshot.hash then
+        if not Codec.matchesSnapshot(self.policy,self.policy_snapshot.bytes) then
             self:record({kind='stopped',reason='policy_mutated'})
             self:stop('policy_mutated')
             return {action='stopped',reason='policy_mutated',state=self.state,generation=self.generation}

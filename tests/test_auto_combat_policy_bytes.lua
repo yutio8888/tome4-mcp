@@ -25,6 +25,7 @@ local Store=require 'mod.auto_combat.PolicyStore'
 local Adapter=require 'mod.auto_combat.AssistantAdapter'
 local Service=require 'mod.auto_combat.AutoCombatService'
 local Presets=require 'mod.auto_combat.PolicyPresets'
+local PolicyIO=require 'mod.auto_combat.PolicyIO'
 local Json=require 'mod.mcp_bridge.Json'
 local checks=0
 local function check(value,message) checks=checks+1;assert(value,message) end
@@ -104,6 +105,11 @@ do
         'a `false` boolean is preserved and an absent key stays absent')
     check(nt.rules[1].enabled==false,'explicit `false` is preserved separately from absent')
     check(Codec.encode(nt)==ns.bytes,'boolean/absent round-trip is canonical-stable')
+    -- XDP-REV-06: a Json.null value is actually exercised (not just false/absent).
+    local nullValueDoc=Adapter.translate(fresh()).draft
+    nullValueDoc.updated=Json.null
+    local vs=assert(Codec.prepare(nullValueDoc,'test'))
+    check(select(1,Codec.open(vs)).updated==Json.null,'a Json.null value survives the round-trip as null')
     -- An empty container is the empty OBJECT in both the codec and the hash.
     local emptyDoc={schema='tome-auto-combat/v1',id='e',name='e',
         limits={max_actions_per_tick=1},safety={},targeting={default='nearest_hostile'},
@@ -306,7 +312,7 @@ do
     -- The explicit dry-run path: a factory that retains and mutates the policy
     -- it receives must not change the reported hash/decision.
     local retained
-    local svc=Service.new{dry_run_host_factory=function(_svc,policy)
+    local svc=Service.new{dry_run_host_factory=function(policy)
         retained=policy
         -- Mutate everything the schema allows.
         if policy and policy.rules and policy.rules[1] then
@@ -325,7 +331,7 @@ do
     check(Service.handle(svc,'get',{}).draft_hash==d.draft_hash,
         'the factory mutation cannot change the stored draft')
     -- The explicit request path (no store) with a mutating factory.
-    local req=Service.handle(Service.new{dry_run_host_factory=function(_svc,policy)
+    local req=Service.handle(Service.new{dry_run_host_factory=function(policy)
         policy.rules[1].when={always={}}
         return {snapshot=function() return {hp_pct=80,enemy_count=0} end}
     end},'dry_run',{policy=policy()})
@@ -334,7 +340,7 @@ do
     -- A factory that RETAINS the working tree across calls cannot corrupt the
     -- next transaction either.
     local leaked
-    local svc2=Service.new{dry_run_host_factory=function(_svc,policy)
+    local svc2=Service.new{dry_run_host_factory=function(policy)
         leaked=policy
         return {snapshot=function() return {hp_pct=80,enemy_count=1} end}
     end}
@@ -343,6 +349,63 @@ do
     leaked.rules[1].when={always={}}
     check(Service.handle(svc2,'dry_run',{policy=policy()}).policy_hash==rhash,
         'a retained working tree cannot change the next transaction')
+end
+
+-- ===========================================================================
+-- XDP-REV-02: the callback receives neither `svc` nor the working tree, and a
+-- stored-record swap through any reachable alias cannot change the evaluated
+-- value (regression for the stored `svc` dry-run leak).
+-- ===========================================================================
+do
+    local args_seen
+    local svc=Service.new{dry_run_host_factory=function(...)
+        args_seen=select('#',...)
+        return {snapshot=function() return {hp_pct=80,enemy_count=0} end}
+    end}
+    Service.handle(svc,'set_draft',{policy=policy()})
+    local dry=Service.handle(svc,'dry_run',{})
+    check(dry.ok and args_seen==1,'the dry-run callback receives exactly one argument (never svc)')
+    -- The stored records are private: no string-keyed field of the service's
+    -- store is the live record, so a callback cannot swap one (the leak the
+    -- `svc.store.draft` alias allowed).
+    check(svc.store.draft==nil and svc.store.approved==nil and svc.store.running==nil,
+        'the stored records are not reachable through string-keyed store fields')
+end
+
+-- ===========================================================================
+-- XDP-REV-02: the live host factory receives only a detached decode; a
+-- mutating factory that installs a root __index cannot change low-HP
+-- behaviour while the hash stays the approved hash.
+-- ===========================================================================
+do
+    local function liveService(mutating)
+        return Service.new{host_factory=function(policy)
+            if mutating then
+                setmetatable(policy,{__index=function(_,key)
+                    if key=='mode' then return {on_low_hp='evaluate_rules'} end
+                end})
+            end
+            return {snapshot=function() return {hp_pct=10,enemy_count=1,bound_target='e1',binding_selector='nearest_hostile'} end,
+                request=function() return {status='ok',energy_spent=true} end}
+        end}
+    end
+    local function runLive(svc)
+        local d=assert(Service.handle(svc,'set_draft',{policy=policy()}))
+        local a=assert(Service.handle(svc,'approve',{expected_hash=d.draft_hash}))
+        assert(Service.handle(svc,'activate',{expected_hash=a.approved_hash}).ok)
+        local started=Service.handle(svc,'start',{})
+        local step=Service.step(svc)
+        return d,started,step
+    end
+    local d,normalStart,normal=runLive(liveService(false))
+    check(normalStart.ok and normal.ok and normal.step.action=='paused'
+        and normal.step.reason=='flee_below_hp_pct',
+        'the live run pauses below flee_below_hp_pct with the intact policy')
+    local d2,mutStart,mut=runLive(liveService(true))
+    check(mutStart.ok and mut.ok,'the mutating live factory cannot refuse the run')
+    check(mut.step.action=='paused' and mut.step.reason=='flee_below_hp_pct',
+        'a root-__index factory cannot turn a low-HP pause into an action')
+    check(d2.draft_hash==d.draft_hash,'the mutating factory cannot change the approved hash')
 end
 
 -- ===========================================================================
@@ -370,10 +433,12 @@ do
     Presets.PRESETS.anorithil_p1a.rules[1].when=original
     check(Service.handle(Service.new(),'preset',{name='anorithil_p1a'}).ok,
         'the intact preset still prepares')
-    -- Export sink: malformed draft cannot be hashed/exported. Install a
-    -- malformed snapshot by hand (simulating a tampered locator).
+    -- Export sink: malformed bytes cannot be hashed/exported. XDP-REV-01: a
+    -- hand-installed record must be normalised on restore, so malformed bytes
+    -- never enter the vault in the first place.
     local store2=Store.new()
-    store2.draft={bytes='xdp1\no0:',hash='deadbeef',version=1}
+    check(Store.restore(store2,'draft',{bytes='xdp1\no0:',hash='deadbeef',version=1})==nil,
+        'a malformed snapshot record is refused on restore (normalised, never stored by alias)')
     local svc2=Service.new()
     svc2.store=store2
     check(not Service.handle(svc2,'export',{}).ok,'a tampered snapshot is refused at export')
@@ -387,16 +452,16 @@ do
         'saveState writes detached decoded versions under the new format')
     local restored=Service.new()
     check(Service.loadState(restored,state)==true,'the saved state loads')
-    check(restored.store.approved~=nil and restored.store.running==nil
+    check(Store.has(restored.store,'approved') and not Store.has(restored.store,'running')
         and restored.arbiter.owner=='manual',
         'loading policy data never restores the running state or control')
     check(Service.loadState(restored,{approved={schema='bad'}})==true
-        and restored.store.approved~=nil,'a malformed restored policy is ignored, not promoted')
+        and Store.has(restored.store,'approved'),'a malformed restored policy is ignored, not promoted')
     check(Service.loadState(Service.new(),{draft=MALFORMED(),approved=MALFORMED()})==true,
         'loading malformed data is a no-op')
     local fresh2=Service.new()
     check(Service.loadState(fresh2,{draft=MALFORMED(),approved=MALFORMED()})
-        and fresh2.store.draft==nil and fresh2.store.approved==nil,
+        and not Store.has(fresh2.store,'draft') and not Store.has(fresh2.store,'approved'),
         'malformed restored policy data is never promoted')
 end
 
@@ -540,15 +605,134 @@ do
     pcall(setmetatable,copy,{__index=function() return 'HACKED' end})
     rawset(copy,'id','HACKED')
     check(Store.hashes(store).draft==hash,'metatable tampering cannot change the stored hash')
-    -- The snapshot record itself is data; a caller editing its fields cannot
-    -- change the stored bytes (the store holds the record it was given, and the
-    -- bytes are immutable strings).
+    -- XDP-REV-01: getSnapshot returns a fresh COPY of the private record, so a
+    -- caller editing its fields edits only the copy and can never change the
+    -- store's bytes/hash/meaning (nor promote malformed bytes via approve).
     local record=Store.getSnapshot(store,'draft')
     local originalBytes=record.bytes
     record.bytes='xdp1\no0:'
     record.hash='deadbeef'
-    check(Store.hashes(store).draft~=originalBytes,
-        'note: a caller that replaces the record fields edits its own copy of the locator')
+    check(Store.getSnapshot(store,'draft').bytes==originalBytes,
+        'mutating a returned snapshot cannot reach the store record')
+    check(Store.hashes(store).draft==hash,'mutating a returned snapshot cannot change the derived hash')
+    check(Store.getSnapshot(store,'draft')~=Store.getSnapshot(store,'draft'),
+        'getSnapshot returns a fresh copy every call (never a shared alias)')
+    -- Promotion re-opens and re-derives: approve/activate build fresh records
+    -- from the exact bytes, so approving after the tamper attempt still
+    -- certifies the ORIGINAL bytes with the derived hash.
+    local approved=assert(Store.approve(store,hash))
+    check(approved.approved_hash==hash,'approve certifies the derived hash of the exact bytes')
+    check(Store.getSnapshot(store,'approved').bytes==originalBytes,
+        'the approved record holds the original canonical bytes')
+    check(Store.getSnapshot(store,'approved')~=Store.getSnapshot(store,'draft'),
+        'promotion builds a fresh record, never a shared reference')
+    -- And the restored-locater class is closed: a wire-shaped {bytes,hash} dict
+    -- with a forged hash is normalised on restore (hash re-derived).
+    local restored=assert(Store.restore(store,'approved',
+        {bytes=originalBytes,hash='restore-forged',schema=raw.schema,id=raw.id,version=1}))
+    check(restored.hash==hash,'restore re-derives the hash from the exact bytes (forged hash discarded)')
+    check(Store.getSnapshot(store,'approved').hash==hash,
+        'the stored approved hash is the derived hash, not the supplied one')
+end
+
+-- ===========================================================================
+-- XDP-REV-03: public hash wrappers run the COMPLETE audit; a wire-shaped
+-- {bytes,hash} dict is never trusted for its supplied hash.
+-- ===========================================================================
+do
+    -- A metatable-bearing policy is refused by prepare AND by every public
+    -- hash wrapper (previously the raw hash branch skipped the audit).
+    local mtPolicy=policy()
+    setmetatable(mtPolicy,{})
+    check(Codec.prepare(mtPolicy,'prepare')==nil,'prepare refuses a metatable-bearing policy')
+    check(Codec.hash(mtPolicy)==nil,'Codec.hash refuses a metatable-bearing policy (same audit)')
+    check(not pcall(Schema.hash,mtPolicy),'Schema.hash refuses a metatable-bearing policy')
+    check(Schema.project(mtPolicy)==nil,'Schema.project refuses a metatable-bearing policy')
+    -- A table-valued KEY under the dropped `updated` metadata is refused by
+    -- the complete audit, and by the hash wrappers too.
+    local lossy=policy()
+    lossy.updated={[{}]='silently dropped from projection'}
+    check(Codec.prepare(lossy,'prepare')==nil,'prepare refuses a table-valued key in updated')
+    check(Codec.hash(lossy)==nil,'Codec.hash refuses a table-valued key in updated')
+    check(not pcall(Schema.hash,lossy),'Schema.hash refuses a table-valued key in updated')
+    -- A wire dict {bytes=<real bytes>,hash='attacker-hash'} that survived a
+    -- JSON round-trip is normalised: every sink reports the DERIVED hash.
+    local good=assert(Codec.prepare(policy(),'good'))
+    local fake={bytes=good.bytes,hash='attacker-hash',schema=good.schema,id=good.id,version=good.version}
+    local wireFake=Json.decode(Json.encode(fake))
+    local validated=Service.handle(Service.new(),'validate',{policy=wireFake})
+    check(validated.ok and validated.hash==good.hash,
+        'validate reports the derived hash of the bytes, never the supplied one')
+    check(Adapter.hashPolicy(wireFake)==good.hash,'hashPolicy re-derives the hash from the bytes')
+    check(Codec.hash(wireFake)==good.hash,'Codec.hash re-derives the hash from the bytes')
+    local exported=assert(PolicyIO.export(wireFake))
+    check(Json.decode(exported).hash==good.hash,'export reports the derived hash')
+    -- A wire dict with CORRUPTED bytes is refused (never auto-promoted).
+    local corrupted={bytes=good.bytes:gsub('T_MOONLIGHT_RAY','T_BOGUS_TALENT'),hash='attacker-hash'}
+    check(Service.handle(Service.new(),'validate',{policy=corrupted}).ok==false,
+        'a wire dict whose bytes do not validate is refused')
+    -- And a raw policy table that is also valid: hash equals prepare's hash.
+    check(Codec.hash(policy())==good.hash,'Codec.hash(raw table) runs the same complete transaction')
+end
+
+-- ===========================================================================
+-- XDP-REV-04: noncanonical byte encodings are refused and never stored.
+-- ===========================================================================
+do
+    local good=assert(Codec.prepare(policy(),'good'))
+    -- A leading zero in the root object count decodes to the same tree but is
+    -- NOT the canonical byte form; it must be refused, never kept.
+    local noncanonical=good.bytes:gsub('^(xdp1\no)(%d+):',function(prefix,count)
+        return prefix..'0'..count..':'
+    end,1)
+    check(noncanonical~=good.bytes,'the probe fixture is genuinely noncanonical')
+    local opened,err=Codec.open(noncanonical)
+    check(opened==nil and err.cause=='noncanonical_bytes','a noncanonical snapshot is refused by open')
+    local store=Store.new()
+    local stored,storeErr=Store.setDraft(store,{bytes=noncanonical,hash=good.hash,version=1},nil)
+    check(stored==nil and storeErr.code=='invalid_snapshot' and storeErr.cause=='noncanonical_bytes'
+        and not Store.has(store,'draft'),
+        'the store refuses noncanonical bytes (nothing published)')
+    -- A noncanonical NUMBER spelling is refused the same way.
+    local ncNum=good.bytes:gsub('#i(%-?%d+);','#d%1;',1)
+    if ncNum~=good.bytes then
+        check(select(1,Codec.open(ncNum))==nil,'a noncanonical number spelling is refused')
+    end
+    -- Canonical bytes still open and hash to the derived hash.
+    check(select(1,Codec.open(good.bytes))~=nil and Codec.hash(good.bytes)==good.hash,
+        'canonical bytes still open and hash normally')
+end
+
+-- ===========================================================================
+-- XDP-REV-05: invalid UTF-8 is a typed constructor fault BEFORE encode.
+-- ===========================================================================
+do
+    local bad=policy()
+    bad.name=string.char(255)
+    local before=Codec.stats()
+    local ok,snap,err=pcall(Codec.prepare,bad,'utf8')
+    check(ok==true and snap==nil and err.code=='invalid_document' and err.cause=='invalid_utf8',
+        'invalid UTF-8 in a value is a typed audit fault, not an untyped throw')
+    local after=Codec.stats()
+    check(after.encodes==before.encodes,'invalid UTF-8 is refused before any encode')
+    local store=Store.new()
+    local okStore,stored,storeErr=pcall(Store.setDraft,store,bad,nil)
+    check(okStore==true and stored==nil and storeErr.code=='invalid_document'
+        and storeErr.cause=='invalid_utf8' and not Store.has(store,'draft'),
+        'invalid UTF-8 becomes a typed store fault with no draft published')
+    -- An invalid-UTF-8 KEY is refused too (the hash projection JSON-encodes keys).
+    local badKey=policy()
+    badKey[string.char(254)]='x'
+    local okKey,keySnap,keyErr=pcall(Codec.prepare,badKey,'utf8key')
+    check(okKey==true and keySnap==nil and keyErr.cause=='invalid_utf8_key',
+        'invalid UTF-8 in a KEY is a typed audit fault')
+    -- Hostile BYTES carrying an invalid-UTF-8 string value are refused by open.
+    local good2=assert(Codec.prepare(policy(),'good2'))
+    local hostile=good2.bytes:gsub('s2:p1','s2:'..string.char(255)..string.char(255),1)
+    check(hostile~=good2.bytes,'the hostile-bytes probe fixture is genuinely altered')
+    local openedB,openErrB=Codec.open(hostile)
+    check(openedB==nil and openErrB.code=='invalid_document' and openErrB.cause=='invalid_utf8',
+        'a hostile byte string carrying invalid UTF-8 is refused by open')
 end
 
 -- ===========================================================================

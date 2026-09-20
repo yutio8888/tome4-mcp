@@ -385,18 +385,17 @@ end
 -- ALWAYS audited+validated before it is encoded, and the immutable bytes (not
 -- the table) are what downstream state binds. A raw caller table — including a
 -- policy that lost ownership across an ordinary MCP round-trip — works; a
--- malformed one is refused typed before any hash/encode/store. A snapshot
--- record is accepted directly: its bytes are immutable and its content is
--- re-validated under the CURRENT schema by the consumer's `Codec.open`.
+-- malformed one is refused typed before any hash/encode/store.
 --
--- This replaces the X-prime table-identity mechanism (XPS1-R2-01): identity
--- proved a past check, not the current value, so any later edit of a returned
--- copy — schema-valid or not — could change an approved/running policy.
+-- XDP-REV-01/03: a snapshot-SHAPED table (e.g. a wire dict that survived a JSON
+-- round-trip) is never returned as-is and its supplied `.hash` is never
+-- trusted: `Codec.normalise` re-opens the bytes, re-validates them under the
+-- CURRENT schema and re-derives the hash from the exact bytes into a FRESH
+-- private record. The caller's table never becomes authority (this replaces
+-- the X-prime table-identity mechanism, XPS1-R2-01).
 function M.policySnapshot(policy,sink)
     if Codec.isSnapshot(policy) then
-        local tree,err=Codec.open(policy)
-        if not tree then return nil,err end
-        return policy
+        return Codec.normalise(policy)
     end
     return Codec.prepare(policy,sink or 'policy')
 end

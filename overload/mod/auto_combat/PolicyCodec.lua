@@ -13,11 +13,20 @@
 --   prepare(raw, sink)  structural audit of the COMPLETE original input (typed
 --                       fault, no key ever dropped) -> schema/catalog validation
 --                       -> canonical bytes -> snapshot record
---   open(snapshot)      bounded decode + full schema/catalog validation -> a
---                       transaction-private plain working tree
+--   open(snapshot)      bounded decode + CANONICAL-BYTE check (the exact bytes
+--                       must equal the canonical re-encoding) + full
+--                       schema/catalog validation -> a transaction-private
+--                       plain working tree
 --   encode(value)       validate then encode
---   hash(value)         snapshot record, or validate then project
+--   hash(value)         bytes/snapshot record, or a COMPLETE prepare audit
+--                       then project (the same audit as prepare — XDP-REV-03)
 --   copy(snapshot)      a detached decoded copy
+--   normalise(record)   a fresh record re-derived from the exact bytes (the
+--                       supplied `.hash` is discarded — XDP-REV-01/03)
+--   matchesSnapshot(tree, bytes)
+--                       exact transaction validation: no metatables anywhere
+--                       in the tree AND the canonical re-encoding is exactly
+--                       the recorded bytes (XDP-REV-02)
 --
 -- The **codec** (the typed byte encoding below) is NOT the content-hash
 -- projection: the projection is the historical `PolicySchema.canonical`
@@ -72,6 +81,11 @@ local function keyLabel(key)
     return '<'..type(key)..'>'
 end
 M.keyLabel=keyLabel
+
+-- exact set `Json.encode` would later throw on, but audited here BEFORE any
+-- encode so the fault is the typed constructor fault (XDP-REV-05). The single
+-- source of truth is `Json.utf8Valid` (the validator `quote` itself uses).
+local validUtf8=Json.utf8Valid
 
 local function fault(code,input,cause,key)
     local out={code=code}
@@ -136,7 +150,13 @@ local function audit(value,path,depth,seen)
         end
         return nil
     end
-    if kind=='string' or kind=='boolean' then return nil end
+    if kind=='string' then
+        if not validUtf8(value) then
+            return fault('invalid_document',path,'invalid_utf8')
+        end
+        return nil
+    end
+    if kind=='boolean' then return nil end
     if kind~='table' then
         return fault('invalid_document',path,'unsupported_type',kind)
     end
@@ -162,7 +182,17 @@ local function audit(value,path,depth,seen)
         end
     else
         local keys={}
-        for k in pairs(value) do keys[#keys+1]=k end
+        for k in pairs(value) do
+            if type(k)=='string' and not validUtf8(k) then
+                -- XDP-REV-05: an invalid-UTF-8 KEY would throw inside
+                -- `Json.encode(key)` during the hash projection; refuse it
+                -- typed here (the diagnostic carries the byte length, never
+                -- the offending bytes).
+                seen[value]=nil
+                return fault('invalid_document',path,'invalid_utf8_key','#'..#k)
+            end
+            keys[#keys+1]=k
+        end
         table.sort(keys)
         for _,k in ipairs(keys) do
             local child=audit(value[k],path=='' and k or (path..'.'..k),depth+1,seen)
@@ -468,6 +498,21 @@ function M.open(snapshot)
     if not tree then return nil,err end
     local cached=cacheGet(bytes)
     if cached~=nil then return tree,nil,bytes,cached end
+    -- XDP-REV-04: the authoritative byte form is CANONICAL. A decode whose
+    -- exact bytes differ from the canonical re-encoding (alternate lexical
+    -- forms: leading-zero counts/lengths, non-canonical number spellings) is
+    -- refused typed instead of being kept as authoritative bytes.
+    local ok,canonical=pcall(encodeDocument,tree)
+    if not ok or canonical~=bytes then
+        return nil,fault('invalid_snapshot','snapshot','noncanonical_bytes')
+    end
+    -- XDP-REV-05: a hostile byte string never produced by this codec can carry
+    -- strings the hash projection could not JSON-encode; the decoded tree runs
+    -- the SAME complete audit before validation (cached per exact bytes).
+    local audited=audit(tree,'snapshot',0,{})
+    if audited then
+        return nil,fault('invalid_document','snapshot',audited.cause,audited.key)
+    end
     local valid,semantic=verifySemantics(tree)
     if not valid then return nil,semantic end
     local hash=hashValidated(tree)
@@ -488,22 +533,52 @@ function M.isSnapshot(value)
         and type(value.hash)=='string'
 end
 
--- Hash a snapshot record (re-derived from its bytes) or a validated tree. A
--- tampered record cannot report a stale hash: the bytes are re-opened.
--- Hash a snapshot record or a validated tree. A record's hash is derived from
--- its bytes through the exact-bytes cache (a tampered record whose bytes were
--- never validated re-runs the full transaction and is refused if invalid).
-function M.hash(value)
-    if M.isSnapshot(value) then
-        local cached=cacheGet(value.bytes)
-        if cached~=nil then return cached end
-        local tree,err=M.open(value.bytes)
-        if not tree then return nil,err end
-        return cacheGet(value.bytes)
+-- XDP-REV-02: exact transaction validation of a working tree against the
+-- bytes it claims to come from. A digest comparison is not sufficient: the
+-- projection uses `pairs`, so inherited values supplied through a root
+-- `__index` are invisible to it while the evaluator WOULD read them. The tree
+-- is intact only when (a) no table anywhere in it carries a metatable and
+-- (b) its canonical re-encoding is EXACTLY the recorded bytes.
+local function noMetatables(value,depth,seen)
+    if type(value)~='table' then return true end
+    if getmetatable(value)~=nil then return false end
+    if seen[value] then return true end
+    if depth>M.MAX_DEPTH then return false end
+    seen[value]=true
+    for _,child in pairs(value) do
+        if not noMetatables(child,depth+1,seen) then return false end
     end
-    local valid,err=verifySemantics(value)
-    if not valid then return nil,err end
-    return hashValidated(value)
+    return true
+end
+
+function M.matchesSnapshot(tree,bytes)
+    if type(tree)~='table' or type(bytes)~='string' then return false end
+    if not noMetatables(tree,0,{}) then return false end
+    local ok,re=pcall(encodeDocument,tree)
+    if not ok then return false end
+    return re==bytes
+end
+
+-- Hash a byte string / snapshot record (re-derived from the exact bytes), or a
+-- raw table: the raw branch runs the SAME COMPLETE audit as `prepare` (XDP-REV-03)
+-- so a value `prepare` refuses can never be hashed here, and a snapshot record is
+-- never trusted for its recorded `.hash` (the hash is always re-derived from the
+-- bytes; a tampered record whose bytes were never validated re-runs the full
+-- transaction and is refused if invalid).
+function M.hash(value)
+    if type(value)=='table' and M.isSnapshot(value) then
+        return M.hash(value.bytes)
+    end
+    if type(value)=='string' then
+        local cached=cacheGet(value)
+        if cached~=nil then return cached end
+        local tree,err=M.open(value)
+        if not tree then return nil,err end
+        return cacheGet(value)
+    end
+    local snapshot,err=M.prepare(value,'hash')
+    if not snapshot then return nil,err end
+    return snapshot.hash
 end
 
 -- A detached decoded copy of a snapshot. Mutation of the result is harmless to
@@ -512,6 +587,20 @@ function M.copy(snapshot)
     local tree=select(1,M.open(snapshot))
     if not tree then return nil,fault('invalid_snapshot','copy','not_a_snapshot') end
     return tree
+end
+
+-- XDP-REV-01/03: a snapshot-shaped table is NEVER authority. Normalise it into
+-- a FRESH record: the bytes are re-opened and re-validated under the CURRENT
+-- schema, the hash is re-derived from the exact bytes, and the caller's
+-- `.hash` (and the caller's table) is discarded. This is the single normalise
+-- route every promotion/restore/wire ingress goes through.
+function M.normalise(snapshot)
+    if not M.isSnapshot(snapshot) then
+        return nil,fault('invalid_snapshot','normalise','not_a_snapshot')
+    end
+    local tree,err=M.open(snapshot)
+    if not tree then return nil,err end
+    return snapshotOf(snapshot.bytes,tree)
 end
 
 -- The full canonical projection (INCLUDING editable `updated` metadata) of a

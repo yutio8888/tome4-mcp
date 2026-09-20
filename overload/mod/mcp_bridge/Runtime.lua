@@ -504,7 +504,7 @@ function M.reset(g)
     s.auto_combat=AutoCombat.new{}
     -- Planning-level dry runs only need audited reads, so this host is wired
     -- unconditionally and never depends on allow_auto_combat_execution.
-    s.auto_combat.dry_run_host_factory=function(svc,policy) return buildAutoCombatReadHost(s,policy) end
+    s.auto_combat.dry_run_host_factory=function(policy) return buildAutoCombatReadHost(s,policy) end
     -- Replay-grade log metadata (design §10): the world tick, session revision
     -- and level instance are tagged on every decision-log entry.
     s.auto_combat.log_context=function()
@@ -520,11 +520,11 @@ function M.reset(g)
     -- remote command slot (the changed() guard below skips it).
     if config and config.settings and config.settings.tome_mcp_bridge
         and config.settings.tome_mcp_bridge.allow_auto_combat_execution==true then
-        s.auto_combat.host_factory=function(svc,policy)
-            -- X-doubleprime: the service always hands in the transaction's
-            -- validated working tree; fall back to re-opening the running
-            -- snapshot for a defensive direct caller.
-            return buildAutoCombatHost(s,policy or AutoCombat.workingPolicy(svc))
+        s.auto_combat.host_factory=function(policy)
+            -- X-doubleprime/XDP-REV-02: the service hands the factory ONLY a
+            -- detached decode of the captured running bytes — never the service
+            -- itself and never the controller's working tree.
+            return buildAutoCombatHost(s,assert(policy,'host factory requires the transaction policy'))
         end
     end
     s.snapshots={};s.snapshot_bytes=0
@@ -2405,11 +2405,10 @@ function M.setAutoCombatExecution(g,enabled)
     if not s or s.game~=g then return false end
     if enabled then
         if not s.auto_combat.host_factory then
-            s.auto_combat.host_factory=function(svc,policy)
-                -- X-doubleprime: the service always hands in the transaction's
-                -- validated working tree; fall back to re-opening the running
-                -- snapshot for a defensive direct caller.
-                return buildAutoCombatHost(s,policy or AutoCombat.workingPolicy(svc))
+            s.auto_combat.host_factory=function(policy)
+                -- X-doubleprime/XDP-REV-02: the service hands the factory ONLY
+                -- a detached decode of the captured running bytes.
+                return buildAutoCombatHost(s,assert(policy,'host factory requires the transaction policy'))
             end
         end
     else

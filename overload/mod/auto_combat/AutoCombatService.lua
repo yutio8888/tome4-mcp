@@ -32,17 +32,9 @@ M.SAFETY_PAUSES={flee_below_hp_pct=true,no_emergency_action=true,
     unexpected_target_request=true,movement_request_value_unknown=true,
     movement_request_kind_unknown=true}
 
--- X-doubleprime: `running` is an immutable snapshot record. The host is always
--- built from the transaction's validated working tree handed in by the service,
--- never from a caller-visible mutable table.
-local function workingPolicy(svc,policy)
-    if policy~=nil then return policy end
-    if svc and svc.store and svc.store.running then
-        return select(1,Codec.open(svc.store.running))
-    end
-    return nil
-end
-M.workingPolicy=workingPolicy
+-- X-doubleprime: the controller and every hash consumer work from the store's
+-- private immutable snapshot records; no callback or caller ever receives the
+-- service itself (XDP-REV-02), so no alias of the stored state can leak.
 
 function M.new(options)
     options=options or {}
@@ -111,8 +103,8 @@ function M.get(svc)
 end
 
 function M.clear(svc)
-    svc.store.draft=nil
-    svc.store.revision=svc.store.revision+1
+    Store.clearDraft(svc.store)
+    svc.revision=svc.revision+1
     svc.revision=svc.revision+1
     local hashes=Store.hashes(svc.store)
     return ok({cleared='draft',draft_hash=hashes.draft,approved_hash=hashes.approved,running_hash=hashes.running})
@@ -146,41 +138,48 @@ function M.dryRun(svc,args)
     if policy~=nil then
         source='request'
     else
-        policy,source=svc.store.running,'running'
-        if policy==nil then policy,source=svc.store.approved,'approved' end
-        if policy==nil then policy,source=svc.store.draft,'draft' end
+        policy,source=Store.getSnapshot(svc.store,'running'),'running'
+        if policy==nil then policy,source=Store.getSnapshot(svc.store,'approved'),'approved' end
+        if policy==nil then policy,source=Store.getSnapshot(svc.store,'draft'),'draft' end
     end
     if policy==nil then return fail('no_policy',{details='no draft, approved or running policy'}) end
     -- X-doubleprime: a dry run is a hash+evaluate transaction. An explicit
     -- request policy is prepared (complete audit + validation + canonical
-    -- bytes); a stored version is an immutable snapshot record whose bytes are
-    -- re-opened and re-validated under the CURRENT schema. The transaction's
-    -- working tree is a private decode, and the host factory receives a
-    -- DETACHED copy so it cannot change the evaluated value.
+    -- bytes); a stored version is normalised (bytes re-opened and re-validated
+    -- under the CURRENT schema, hash re-derived). XDP-REV-02: the EXACT bytes
+    -- are captured in a private local BEFORE any callback; the factory
+    -- receives ONLY a detached decode (never `svc`, never the working tree);
+    -- the evaluated tree is a SEPARATE decode of the captured bytes, verified
+    -- by exact canonical re-encoding (not a lossy digest) after the callback.
     local snapshot,err=AssistantAdapter.policySnapshot(policy,'dry_run')
     if not snapshot then return fail(err.code,err) end
+    local exact_bytes=snapshot.bytes
     -- Prefer the read-only host; the live executor host is a safe fallback
     -- because dry run never calls request()/execute(). Either way this ignores
     -- `allow_auto_combat_execution`: dry run only needs audited reads.
     local factory=svc.dry_run_host_factory or svc.host_factory
     if not factory then return fail('snapshot_unavailable',{details='no audited read host'}) end
-    -- The factory receives a detached copy, not the evaluated working tree, and
-    -- the evaluated value comes from an independent private decode of the same
-    -- immutable bytes; the hash is re-derived from the bytes after the callback.
-    local isolated=assert(Codec.copy(snapshot))
+    local isolated,cb_err=Codec.open(exact_bytes)
+    if not isolated then return fail(cb_err.code,cb_err) end
     local host
     do
-        local ok,returned=pcall(factory,svc,isolated)
+        -- One argument only: the detached copy. Handing the callback the
+        -- service would expose the stored records through `svc.store`.
+        local ok,returned=pcall(factory,isolated)
         if not ok or type(returned)~='table' then return fail('snapshot_unavailable') end
         host=returned
     end
-    policy=assert(Codec.open(snapshot))
+    -- The evaluated value comes from an independent private decode of the
+    -- captured bytes, taken AFTER the callback, and the transaction verifies
+    -- that the tree it evaluates re-encodes to EXACTLY the captured bytes
+    -- (a digest comparison would not see inherited metatable values).
+    local policy_tree,eval_err,_,policy_hash=Codec.open(exact_bytes)
+    if not policy_tree then return fail(eval_err.code or 'policy_conflict',eval_err) end
+    policy=policy_tree
+    if not Codec.matchesSnapshot(policy_tree,exact_bytes) then
+        return fail('policy_conflict',{cause='snapshot_changed'})
+    end
     if not host or type(host.snapshot)~='function' then return fail('snapshot_unavailable') end
-    local policy_hash=Codec.hash(snapshot)
-    -- The hash cannot move (a snapshot's bytes are immutable); this is a
-    -- defensive assertion, reported with the registered `policy_conflict` code
-    -- (no new protocol code is introduced).
-    if policy_hash==nil then return fail('policy_conflict',{cause='snapshot_changed'}) end
     local default_selector=policy.targeting and policy.targeting.default
     local function snapshotFor(selector)
         local rc=host.snapshot(selector) or {}
@@ -390,7 +389,7 @@ end
 -- invalidates the old controller generation so the reported running hash is
 -- never ahead of the executor.
 function M.activate(svc,expected_hash)
-    if not svc.store.approved then return fail('not_approved') end
+    if not Store.has(svc.store,'approved') then return fail('not_approved') end
     local previous_running=runningHash(svc)
     local granted,reason=Arbiter.grant(svc.arbiter,M.SOURCE,'auto-combat activated')
     if not granted then return fail(reason,{control_owner=svc.arbiter.owner}) end
@@ -419,7 +418,7 @@ function M.deactivate(svc)
 end
 
 function M.start(svc)
-    if not svc.store.running then return fail('not_activated') end
+    if not Store.has(svc.store,'running') then return fail('not_activated') end
     if not svc.host_factory then return fail('execution_not_available') end
     if svc.controller and svc.controller.state~='stopped' then
         return fail('already_running',{state=svc.controller.state})
@@ -434,14 +433,28 @@ function M.start(svc)
         end
     end
     -- X-doubleprime: hand the controller a private working tree derived from
-    -- the immutable running bytes (not a caller-visible table), and keep the
-    -- snapshot record so every later step can verify the controller still holds
-    -- exactly the approved content.
-    local working,err=runningWorking(svc,'start')
-    if not working then return fail(err.code,err) end
-    local host=svc.host_factory(svc,working)
+    -- the immutable running bytes (not a caller-visible table). XDP-REV-02: the
+    -- EXACT bytes are captured in a private local BEFORE the factory callback;
+    -- the factory receives ONLY a detached decode (never `svc`, never the
+    -- controller's tree), and the controller re-opens a SEPARATE tree from the
+    -- captured bytes. Every later step verifies the working tree by exact
+    -- canonical re-encoding against the recorded bytes, not a lossy digest.
+    local snapshot=Store.getSnapshot(svc.store,'running')
+    local exact_bytes=snapshot and snapshot.bytes or nil
+    if not exact_bytes then return fail('not_activated') end
+    local detached,cb_err=Codec.open(exact_bytes)
+    if not detached then return fail(cb_err.code,cb_err) end
+    local host=svc.host_factory(detached)
     if not host then return fail('execution_not_available') end
-    svc.controller=Combat.new(working,host,{strict=svc.strict,policy_snapshot=Store.getSnapshot(svc.store,'running'),notify=function(event)
+    local working,open_err,_,derived_hash=Codec.open(exact_bytes)
+    if not working then
+        return fail(open_err.code or 'no_policy',open_err)
+    end
+    -- A fresh private record re-derived from the captured bytes: the
+    -- controller's reported hash can never be a caller-supplied value.
+    local record={bytes=exact_bytes,hash=derived_hash,schema=working.schema,
+        id=working.id,version=Codec.VERSION}
+    svc.controller=Combat.new(working,host,{strict=svc.strict,policy_snapshot=record,notify=function(event)
         Log.add(svc.log,withContext(svc,{kind=event.kind,reason=event.reason,rule=event.rule,talent=event.talent,
             target=event.target,action=event.action,elapsed_ticks=event.elapsed_ticks,
             elapsed_frames=event.elapsed_frames,generation=event.generation,
@@ -457,7 +470,7 @@ function M.start(svc)
             missing=event.missing,hint=event.hint,native_message=event.native_message,
             policy_hash=runningHash(svc)}))
     end})
-    svc.controller_snapshot=Store.getSnapshot(svc.store,'running')
+    svc.controller_snapshot=record
     local started=svc.controller:start()
     return ok({run=started,state=svc.controller.state,generation=svc.controller.generation})
 end
@@ -728,15 +741,17 @@ function M.loadState(svc,data)
     -- X-doubleprime: restored versions are re-prepared under the CURRENT schema
     -- (audit + validation + fresh bytes) and the running version/control are
     -- dropped. Merely loading policy data never resumes running control.
+    -- XDP-REV-01: a snapshot-shaped record is normalised (never stored by
+    -- alias; its supplied `.hash` is discarded and re-derived from the bytes).
     local function restored(raw,sink)
         if type(raw)~='table' then return nil end
         return AssistantAdapter.policySnapshot(raw,sink)
     end
+    Store.deactivate(svc.store)
     local draft=restored(data.draft,'load_state')
-    if draft then svc.store.draft=draft end
+    if draft then Store.restore(svc.store,'draft',draft) end
     local approved=restored(data.approved,'load_state')
-    if approved then svc.store.approved=approved end
-    svc.store.running=nil; svc.store.active=false
+    if approved then Store.restore(svc.store,'approved',approved) end
     svc.controller=nil
     svc.controller_snapshot=nil
     return true

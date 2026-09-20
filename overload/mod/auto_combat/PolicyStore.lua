@@ -8,76 +8,121 @@
 -- historical projection of the validated snapshot and ignores editable
 -- metadata.
 --
--- Every entry point consumes a snapshot RECORD produced by `PolicyCodec`
--- (validated bytes + recorded hash). A raw table arriving here is prepared
--- (audited + validated + encoded) before use — never trusted because of
--- identity. `getVersion` returns a detached decoded copy; `getSnapshot`
--- returns the immutable record (bytes) itself.
+-- XDP-REV-01: snapshot RECORDS are PRIVATE. They live in a vault keyed by a
+-- unique Lua table (a key no caller can reconstruct), so no string-keyed field
+-- of the store is ever the live record. `getSnapshot` returns a fresh COPY of
+-- the record (mutating it cannot reach the store) and `getVersion` a detached
+-- decoded policy tree. Every ingress (setDraft), promotion (approve/activate)
+-- and restore (restore) normalises its input through `Codec.prepare` /
+-- `Codec.normalise`: the bytes are re-opened and re-validated under the CURRENT
+-- schema and the hash is re-derived from the exact bytes — a supplied `.hash`
+-- is never authority, and the promoted record is never the same table
+-- reference. Because every record in the vault was produced by that route, its
+-- recorded `.hash` is the derived hash of its exact bytes.
 local Codec=require 'mod.auto_combat.PolicyCodec'
 local M={}
 
+-- Unique table key: the record vault is not reachable through any string key,
+-- so an ordinary holder of the store/service table never holds a record alias.
+local PRIVATE={}
+
 function M.new()
-    return {draft=nil,approved=nil,running=nil,active=false,revision=0}
+    return {[PRIVATE]={draft=nil,approved=nil,running=nil},active=false,revision=0}
 end
 
--- Accept a snapshot record or a raw policy table. A raw table is validated and
--- encoded here (the store's own transaction boundary); a malformed table is
--- refused typed with nothing published.
+local function vault(store)
+    local v=store[PRIVATE]
+    if not v then error('PolicyStore: not a store created by PolicyStore.new',3) end
+    return v
+end
+
+local function getRecord(store,name)
+    return vault(store)[name]
+end
+
+-- Normalise ANY input (a raw policy table, a snapshot record, a wire-shaped
+-- {bytes,hash} dict) into a fresh private record: complete audit + current
+-- schema/catalog validation + canonical bytes + a hash re-derived from the
+-- exact bytes. A malformed input is refused typed with nothing published.
 local function prepare(value,sink)
     if Codec.isSnapshot(value) then
-        -- Re-derive the hash from the bytes and re-validate under the CURRENT
-        -- schema, so a retained record cannot be promoted after a schema change
-        -- or a record tamper.
-        local tree,err=Codec.open(value)
-        if not tree then return nil,err end
-        return {bytes=value.bytes,hash=Codec.hash(tree),schema=tree.schema,
-            id=tree.id,version=Codec.VERSION}
+        return Codec.normalise(value)
     end
     return Codec.prepare(value,sink or 'store')
 end
 M.prepare=prepare
 
-local function hashOf(version) return version and version.hash or nil end
+-- A caller-supplied record never becomes authority directly: restore
+-- normalises it first (used by the service's loadState).
+function M.restore(store,name,value,sink)
+    assert(name=='draft' or name=='approved','PolicyStore.restore: unknown slot')
+    local snapshot,err=prepare(value,sink or ('restore_'..name))
+    if not snapshot then return nil,err end
+    vault(store)[name]=snapshot
+    store.revision=store.revision+1
+    return snapshot
+end
+
+-- The hash is always the record's DERIVED hash: every record in the vault was
+-- normalised on ingress, so `.hash` is the hash of its exact bytes.
+local function hashOf(store,name)
+    local record=getRecord(store,name)
+    return record and record.hash or nil
+end
 
 function M.setDraft(store,policy,expected_hash)
     local snapshot,err=prepare(policy,'set_draft')
     if not snapshot then return nil,err end
-    if expected_hash~=nil and hashOf(store.draft)~=expected_hash then
-        return nil,{code='policy_conflict',current_draft_hash=hashOf(store.draft)}
+    local current=hashOf(store,'draft')
+    if expected_hash~=nil and current~=expected_hash then
+        return nil,{code='policy_conflict',current_draft_hash=current}
     end
-    store.draft=snapshot; store.revision=store.revision+1
+    vault(store).draft=snapshot; store.revision=store.revision+1
     return {draft_hash=snapshot.hash,revision=store.revision}
 end
 
 -- Approving certifies a specific snapshot. Certification is not control.
 function M.approve(store,expected_hash)
-    if not store.draft then return nil,{code='no_draft'} end
-    if expected_hash~=nil and hashOf(store.draft)~=expected_hash then
-        return nil,{code='policy_conflict',current_draft_hash=hashOf(store.draft)}
+    local draft=getRecord(store,'draft')
+    if not draft then return nil,{code='no_draft'} end
+    local current=hashOf(store,'draft')
+    if expected_hash~=nil and current~=expected_hash then
+        return nil,{code='policy_conflict',current_draft_hash=current}
     end
-    -- Bind the SPECIFIC snapshot bytes: a later edit of any returned copy
-    -- cannot change what the approval means.
-    store.approved=store.draft; store.revision=store.revision+1
-    return {approved_hash=store.approved.hash,revision=store.revision}
+    -- XDP-REV-01: promote a FRESH record re-derived from the exact bytes; a
+    -- later edit of any returned copy cannot change what the approval means.
+    local approved,err=Codec.normalise(draft)
+    if not approved then return nil,err end
+    vault(store).approved=approved; store.revision=store.revision+1
+    return {approved_hash=approved.hash,revision=store.revision}
 end
 
 -- Activating promotes the approved snapshot to the running version.
 function M.activate(store,expected_hash)
-    if not store.approved then return nil,{code='not_approved'} end
-    if expected_hash~=nil and hashOf(store.approved)~=expected_hash then
-        return nil,{code='policy_conflict',current_approved_hash=hashOf(store.approved)}
+    local approved=getRecord(store,'approved')
+    if not approved then return nil,{code='not_approved'} end
+    local current=hashOf(store,'approved')
+    if expected_hash~=nil and current~=expected_hash then
+        return nil,{code='policy_conflict',current_approved_hash=current}
     end
-    store.running=store.approved; store.active=true; store.revision=store.revision+1
-    return {running_hash=store.running.hash,revision=store.revision}
+    local running,err=Codec.normalise(approved)
+    if not running then return nil,err end
+    vault(store).running=running; store.active=true; store.revision=store.revision+1
+    return {running_hash=running.hash,revision=store.revision}
 end
 
 function M.deactivate(store)
-    store.running=nil; store.active=false; store.revision=store.revision+1
+    vault(store).running=nil; store.active=false; store.revision=store.revision+1
+    return true
+end
+
+function M.clearDraft(store)
+    vault(store).draft=nil; store.revision=store.revision+1
     return true
 end
 
 function M.hashes(store)
-    return {draft=hashOf(store.draft),approved=hashOf(store.approved),running=hashOf(store.running)}
+    return {draft=hashOf(store,'draft'),approved=hashOf(store,'approved'),running=hashOf(store,'running')}
 end
 
 function M.status(store)
@@ -86,16 +131,27 @@ function M.status(store)
         draft_hash=hashes.draft,approved_hash=hashes.approved,running_hash=hashes.running}
 end
 
+-- Whether a slot currently holds a record (the vault itself stays private).
+function M.has(store,name)
+    return getRecord(store,name)~=nil
+end
+
 -- Detached decoded copies for public consumers. Mutating them cannot reach the
 -- stored bytes.
 function M.getVersion(store,name)
-    local snapshot=store[name]
+    local snapshot=getRecord(store,name)
     if not snapshot then return nil end
     return select(1,Codec.open(snapshot))
 end
 
+-- XDP-REV-01: a fresh COPY of the private record, never the live table. The
+-- copy's fields are immutable strings (bytes/hash); a caller editing the copy
+-- edits only the copy.
 function M.getSnapshot(store,name)
-    return store[name]
+    local record=getRecord(store,name)
+    if not record then return nil end
+    return {bytes=record.bytes,hash=record.hash,schema=record.schema,
+        id=record.id,version=record.version}
 end
 
 -- Convenience for callers that only need the immutable handle.
