@@ -24,7 +24,6 @@ local Schema=require 'mod.auto_combat.PolicySchema'
 local Store=require 'mod.auto_combat.PolicyStore'
 local Adapter=require 'mod.auto_combat.AssistantAdapter'
 local Service=require 'mod.auto_combat.AutoCombatService'
-local Owned=require 'mod.auto_combat.OwnedImport'
 local Presets=require 'mod.auto_combat.PolicyPresets'
 local Json=require 'mod.mcp_bridge.Json'
 local checks=0

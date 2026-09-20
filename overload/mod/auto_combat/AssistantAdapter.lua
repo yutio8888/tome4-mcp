@@ -401,9 +401,6 @@ function M.policySnapshot(policy,sink)
     return Codec.prepare(policy,sink or 'policy')
 end
 
--- Legacy name for the same transaction (XPS1-R2-01 closes through the bytes).
-M.ownPolicy=M.policySnapshot
-
 -- A raw policy hash: validates first, then projects. Kept for callers that
 -- only need a digest; a malformed value raises a typed error rather than being
 -- hashed (XPS1-R2-03).

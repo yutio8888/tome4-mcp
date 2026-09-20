@@ -1,11 +1,11 @@
 {
   "archive": "tome-mcp-bridge.teaa",
-  "sha256": "fe59aa3ed04479e10e63596a76eb4f49c7f3f281a5aaa74903490e6288dc6184",
+  "sha256": "52dbb322a77e80540dd5924df01d18d9ae0e1020b0b96aeadff43b5ad928a7d9",
   "files": {
     "README.md": "62b71bd51c4b32f202909cf1529211e0d4f70ad5d65fffaf0072b06250f43912",
     "hooks/load.lua": "8c11d088a300e6ce1a4778c7388ef42a9c868fe60b41fa1e4fde37f667a061f6",
     "init.lua": "86313065d2d6090f12003c1cdcfb8cbe0fa370f82df2db6e04093126bafeca08",
-    "overload/mod/auto_combat/AssistantAdapter.lua": "17fb72864a39ba355d349208601f46dd8d10c4a8ef50bba28f462a555ec786e1",
+    "overload/mod/auto_combat/AssistantAdapter.lua": "d147209c7b5d88b9f969d4c6697fa109f534b9ed04166f69fe6ecd8ce385f74c",
     "overload/mod/auto_combat/AutoCombat.lua": "ec64c1279447360c2319f06e4c9fb472fafea934aabfb0d6569001024bb88cfe",
     "overload/mod/auto_combat/AutoCombatCatalog.lua": "2a0a7b569dc415f2697868e970d4667b7b33f429c3f47e9fa37a12404afbce82",
     "overload/mod/auto_combat/AutoCombatGuard.lua": "d61275094147787eb52ed79c1accb1ff251fffbcced4dcc6db40dec09f009f44",
