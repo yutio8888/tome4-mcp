@@ -44,6 +44,12 @@
 
 本次离线验证：Runtime **410 checks**、Interactive Runtime **122 checks**；真实 Runtime 本地 prepare/禁用不变；runner **26** 项默认/缺失/重复/错误进程/持久身份负例；Lua/Python 语法与 diff check 通过。依赖 policy `c7a78279995439ec5bba80d70d4b545c02e2a301`。原始证据在 `/workspace/t-engine4/tmp/mcp-system-fixes-20260922/core/pending-native/`。两个原失败结果保持 FAIL；修复后的 source/dist 原生结果 **NOT_OBSERVED**，仍由协调者执行并由独立角色裁决。
 
+## 独立审核补修：RUNTIME-REV-01
+
+实际 MCP `tome.act` 原先接受 `expected_revision=0`，与 `protocol/v4/common.schema.json` 的 Revision 下限 1 不符；act/respond/dismiss 也未统一限制协议上限 9007199254740991。Python 入口现共用 `Revision` 类型，三处 expected_revision 都限制在协议范围；dismiss 仍可省略或为 null。
+
+新增真实 MCP Client→server→BridgeClient→FakeGame 边界回归，对三个工具分别提交 0、1、max、max+1：无效值返回本地错误且 TCP 请求数不变，有效值发出恰好一个符合请求 JSON Schema 的数据包；工具发现的 min/max 同时与共享 schema 定义比较。新回归在旧实现观察到 revision=0 和三个上界越界请求到达 wire，修复后 Python **45 tests PASS**。这是 server 边界证据，不声称游戏原生验收；独立复核仍待完成。RUNTIME-REV-02 与 NATIVE-PENDING-01 是同一 finding，交叉引用，不重复计数。
+
 ## 完整问题台账
 
 独立裁决均为 PENDING，本表不替代协调者 ledger。
@@ -66,3 +72,5 @@
 | U-01 | policy Dev 取证、协调者后续定稿；API/README 明确 max_candidates 仅 schema 校验未消费 | 不宣称已修，不截断完整 footprint |
 | NATIVE-PENDING-01 | core Runtime 停止终态不再自动重泵；policy Service 补显式 step 终态保留；真实 tick/display 离线回归通过 | 是，待修复后 source/dist + Review |
 | NATIVE-IDENTITY-01 | fixture 使用持久角色 UUID/save_name，保留策略和保存哈希比较；错误身份负例通过 | 是，待修复后原生保存/载入 + Review |
+| RUNTIME-REV-01 | server 三个 expected_revision 参数共用协议 Revision 范围；实际 MCP/TCP 边界负例通过 | 待独立复核 |
+| RUNTIME-REV-02 | 同 NATIVE-PENDING-01，不重复计数 | 同该项 |
