@@ -1,0 +1,98 @@
+{
+  "task": "S3-LIVE-20260922",
+  "updated_utc": "2026-09-22T10:22:20Z",
+  "status": "INDEPENDENT_REVIEW_PENDING",
+  "test_claim": "6/6 PASS",
+  "coordinator_evidence_status": "5 rows provisionally supported, Vault request trace NOT_OBSERVED; not accepted",
+  "report_sha256": "bac775cbb29ee47fa0b74ee26d08eb52fafaf133d9dfda17d10111710ec27cff",
+  "test_agent_id": "d7d01859-3d65-41d9-a8ae-7c21d30eb0f5",
+  "test_model": "pi/opencode-go/glm-5.3-flash/high",
+  "rows": [
+    {
+      "id": "S3-LIVE-READ",
+      "result": "PASS",
+      "note": "Test reports three dry runs with annotated bounded landing; stable native positions/history/counters; independent Review pending."
+    },
+    {
+      "id": "S3-LIVE-SHADOW",
+      "result": "PASS",
+      "note": "Test observed one capped native Shadowstep, actual adjacent landing and damage/daze; literal command target_sequence is not in current public log, but this row tests resulting actor/landing/effect."
+    },
+    {
+      "id": "S3-LIVE-LEAP",
+      "result": "PASS",
+      "note": "Test observed one instant capped Leap to requested visible free grid and dummy damage/daze; reviewer to check any cross-policy annotation references in report."
+    },
+    {
+      "id": "S3-LIVE-VAULT-NO-SHIELD",
+      "result": "PASS",
+      "note": "First same-opportunity budget pause retained; later native wait establishes fresh opportunity, actual shield-message refusal with zero effective actions. Per-op native_submissions value must not be misread as a new run submission."
+    },
+    {
+      "id": "S3-LIVE-VAULT",
+      "result": "NOT_OBSERVED",
+      "note": "Actual shield attack/daze and landing observed, but two REAL native request/answer records and nolock=true were not captured. Test inferred from a planned sequence (raw037 is previous no-shield policy). Coordinator keeps mandatory request-observation subpart NOT_OBSERVED pending independent Review/supplement."
+    },
+    {
+      "id": "S3-LIVE-HANDOFF",
+      "result": "PASS",
+      "note": "Armed activation then native key moves and changes arbiter auto_combat→manual; MCP control reconnect is distinct. Only armed pre-start takeover covered."
+    }
+  ],
+  "counts": {
+    "wrapper_calls_reported": 66,
+    "saved_reply_files": 65,
+    "actual_mcp_transcript_records": 90,
+    "test_claim_pass": 6,
+    "coordinator_provisional_pass": 5,
+    "mandatory_rows": 6
+  },
+  "findings": [
+    {
+      "id": "S3-HARNESS-01",
+      "reported": "initial fixture cannot load custom zone",
+      "disposition": "FIXED_VERIFIED before Test dispatch; failed session preserved",
+      "owner": "coordinator",
+      "blocking": false
+    },
+    {
+      "id": "S3-LIVE-ISSUE-1",
+      "reported": "observe auto_combat null",
+      "coordinator_findings": "raw MCP transcript line2 has populated auto_combat; raw/001 compact response does not contain the key at all. Driver snapshot_summary omits it. Product-null inference is false; compact-driver information loss is real, no change yet.",
+      "disposition": "REVIEW_PENDING; consider focused harness follow-up",
+      "owner": "coordinator",
+      "blocking": false
+    },
+    {
+      "id": "S3-LIVE-ISSUE-2",
+      "reported": "run3 native_submissions1/effective1/run_actions0 after instant Leap",
+      "coordinator_findings": "AutoCombat.lua carries opportunity counters across starts. Counters include prior instant Leap; pre-budget pause does not demonstrate a new Vault native submission. Report interpretation needs independent check/correction.",
+      "disposition": "REVIEW_PENDING expected semantics",
+      "owner": "coordinator",
+      "blocking": false
+    },
+    {
+      "id": "S3-LIVE-ISSUE-3",
+      "reported": "policy_op log accepted despite coordinator saying not enum",
+      "coordinator_findings": "server.py604-606 explicitly includes log and615 documents it read-only. Coordinator informational reminder was incorrect. No product refusal should be introduced.",
+      "disposition": "COORDINATOR_CORRECTION; independent confirmation pending",
+      "owner": "coordinator",
+      "blocking": false
+    },
+    {
+      "id": "S3-EVIDENCE-01",
+      "reported": "actual Vault target request sequence/nolock not observed",
+      "coordinator_findings": "Entire90-record raw MCP response search contains zero target_sequence/native_result/nolock keys. Planned two-step sequence plus outcome cannot alone be called directly observed native requests.",
+      "disposition": "REVIEW_PENDING; supplement required unless existing raw proves the frozen row",
+      "owner": "coordinator",
+      "blocking": true
+    }
+  ],
+  "lifecycle": "report watcher reaped s3-live-02 whole process group and FIFO; --list empty; Test agent archived",
+  "limitations": [
+    "Training fixture, not ordinary campaign/natural growth.",
+    "First budget pause retained; erroneous equip item field retained; one duplicate observe counted though first formatted copy lost.",
+    "Armed takeover only, no pending-action handoff claim.",
+    "Source/dist historical probes not counted as this Test."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "S3-HARNESS-01",
+  "status": "FIXED_VERIFIED",
+  "scope": "fixture-only; no production change and zero scored Test rows",
+  "failed_session": "s3-live-01",
+  "error": "Zone.lua:815 cannot open /data/zones/mcp-s3-live/zone.lua",
+  "cause": "new birth helper had overload files but init.lua omitted overload=true",
+  "fix": "declare overload=true in fixture init.lua",
+  "owner": "coordinator f7a2979c-7b83-4a32-855f-d698ef2daf0a",
+  "evidence": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-01/game.log",
+  "utc": "2026-09-22T09:59:51Z",
+  "verification": "s3-live-02 birth marker confirms correct Shadowblade training arena; no Lua Error in startup log",
+  "verification_evidence": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-02/game.log",
+  "failed_raw_sha256": "2ecb6cfca31c96e1226f78413db14eda8a1615f0e7a9dba3907168054704363c"
+}

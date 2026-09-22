@@ -1,0 +1,26 @@
+# S3 独立实测反馈（2026-09-22）
+
+状态：独立 Review 待完成，S3 未宣告验收。固定产品包 `3a4e186b…f413fb`，产品代码与
+`main@8e3c219` 一致；本轮没有产品改动。Test 为全新 GLM 5.3 Flash/high，身份及角色见模型台账。
+
+Test 原报告保留 [原文](../validation/2026-09-22-s3-live/test-report.md)，声明 6/6 PASS。
+协调者预检将 Vault 行的实际请求观察子项记为 **NOT_OBSERVED**：原生攻击/晕眩/位移有记录，
+但规划中的两段队列不等于实际发出的两段请求，报告也明确没有直接观察 `nolock=true`。
+冻结六行指标不改写；其余五行的通过主张仍待独立 Review。数据索引及完整台账见
+[summary.json](../validation/2026-09-22-s3-live/summary.json) 和相邻 manifest.json。
+
+| ID | 反馈 / 当前取证 | 协调者处置（尚待独立裁决） | 是否阻塞 S3 完成 |
+| --- | --- | --- | --- |
+| S3-HARNESS-01 | 初次启动夹具缺少 `overload=true`，无法加载训练场 | 评分前已修正并验证；原启动 FAIL 和日志保留，旧会话已回收 | 否 |
+| S3-LIVE-ISSUE-1 | Test 把 compact observe 中缺省的 `auto_combat` 解读为 null | 原始 MCP 响应有完整摘要；是控制台 `snapshot_summary` 丢字段，不是产品返回 null。夹具展示后续处置由协调者负责 | 否；不影响本轮用 policy status 取得的控制状态 |
+| S3-LIVE-ISSUE-2 | 第一次 Vault start 在 Leap 已消耗的行动机会内预算暂停，opportunity 计数 1 / run 计数 0 | 初步符合跨 start 保留机会预算；该 1 不能直接称为“新提交了 Vault”。要求独立核对并纠正报告计数解释 | 待 Review 判断 |
+| S3-LIVE-ISSUE-3 | `policy_op=log` 被接受，而协调者提示它不是公开枚举 | 协调者提示有误：server.py 明确声明 `log`。保留原报告并更正说明，不能修改产品去拒绝合法操作 | 否 |
+| S3-EVIDENCE-01 | Vault 实际 request/answer 两条及 `nolock=true` 缺少直接证据 | 保持 NOT_OBSERVED；独立 Review 判断可用证据与补证方案，不以规划或“无报错”替代观测 | **是** |
+
+测试共有 66 次包装器调用、65 份保存回复和 90 条实际 MCP 记录；丢失的一次本地格式化 observe
+输出已重复获取并计数。错误装备字段的 schema 拒绝、第一次预算暂停均保留；原生等待/装备为
+明确分列的准备操作。训练场赠送技能/盾牌/资源及固定假人，不表示自然成长或常规战役已通过。
+手动接管仅覆盖 activate 后尚未 start 的 ARMED 状态，不宣称执行中 pending 接管覆盖。
+
+报告落盘后自动回收整个游戏进程组及 FIFO，`--list` 无残留；Test 代理已归档。
+下一 owner：协调者派发全新 Sol Review；所有反馈明确处置后才允许新一轮补证会话。

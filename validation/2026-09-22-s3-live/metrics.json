@@ -1,0 +1,44 @@
+{
+  "id": "S3-LIVE-20260922",
+  "revision": 1,
+  "frozen_utc": "2026-09-22T09:59:54Z",
+  "population": "first scored attempt of each mandatory row after documented native-only setup; optional repeats separately listed, never replace original results",
+  "numerator": "mandatory rows with every required observable established",
+  "denominator": 6,
+  "window": "first Test wrapper request until all rows complete/death/stall/40min or 220 wrapper calls, whichever first",
+  "stop": "death, completion, 5min no progress, wrong pin, native error, 40min or220calls; no repair/restart",
+  "missing": "BLOCKED or NOT_OBSERVED, never PASS; absent exception occurrence not proof handling exists",
+  "setup_excluded": "native movement/wait/rest/equip to get in range, clear naturally elapsed cooldown/daze; all counted separately and recorded; no Lua overrides/reset/cheat",
+  "rows": [
+    {
+      "id": "S3-LIVE-READ",
+      "entry": "tome.policy(dry_run) on valid Shadowstep policy x3 while idle",
+      "expected": "plan/target and landing uncertainty visible; no native action/history/run-counter/position/life/world_tick advancement caused by reads; RNG not an oracle"
+    },
+    {
+      "id": "S3-LIVE-SHADOW",
+      "entry": "real set_draft/approve/activate/start cap1 Shadowstep from visible target range",
+      "expected": "one settled submission, plan actor target matches visible dummy; actual endpoint within declared envelope; if actual distance1 dummy loses life and gains daze; if other allowed endpoint/fizzle record branch honestly and perform <=2 separately counted attempts after native cooldown to observe adjacent hit; no fabricated prompt deviation; adjacent-hit absence NOT_OBSERVED"
+    },
+    {
+      "id": "S3-LIVE-LEAP",
+      "entry": "cap1 Giant Leap with explicit player-known free landing grid adjacent to dummy",
+      "expected": "one settled submission, grid matches request, actual landing inside declared envelope, dummy recipient loses life/daze observed from actual landing radius1; instant action counted once; no resubmission"
+    },
+    {
+      "id": "S3-LIVE-VAULT-NO-SHIELD",
+      "entry": "cap1 agility T_VAULT from adjacent visible dummy while no shield equipped; current cooldown0/stamina sufficient",
+      "expected": "native shield refusal with cause/message, position unchanged/no damage/no prompt sequence deviation; schema/guard refusal alone is NOT proof of native refusal; flag precise layer if blocked"
+    },
+    {
+      "id": "S3-LIVE-VAULT",
+      "entry": "equip granted shield natively then cap1 agility T_VAULT with actor then different free landing grid",
+      "expected": "one settled native submission; two ordered real target requests actor hit then grid hit nolock=true with distinct values; original dummy loses life/daze, player reaches declared landing envelope; no unexpected_target_request"
+    },
+    {
+      "id": "S3-LIVE-HANDOFF",
+      "entry": "approve/activate valid policy WITHOUT start, observe arbiter owner auto_combat; native key move once; then status and three reads",
+      "expected": "native manual input revokes auto_combat ownership and moves player; no policy action submitted or old run replay. Wrapper reconnects MCP control automatically; distinguish MCP remote connection lease from auto-combat arbiter owner."
+    }
+  ]
+}
