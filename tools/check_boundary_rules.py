@@ -2,9 +2,9 @@
 """Fail closed on drift in registered Lua boundary structures (AGENTS A/B).
 
 This is a deliberately bounded structural checker, not a Lua semantic proof.
-It lexes executable tokens, scopes guards to their function/control block, and
-checks registered validation-to-consumer and field-copy paths. Comments and
-string payloads cannot satisfy code checks. New paths/refactors require an
+It lexes executable tokens, requires registered structures in their declared
+function/control scopes, and checks validation-to-consumer and field-copy paths.
+Comments and string payloads cannot satisfy code checks. New paths/refactors require an
 explicit registry update plus behavior tests; C/D/E always remain REVIEW.
 """
 from __future__ import annotations
@@ -117,7 +117,38 @@ class Lua:
         matches = [block for block in self.blocks if block.kind == "function" and block.name == name]
         if len(matches) != 1:
             raise ValueError(f"expected one function {name}, found {len(matches)}")
-        return matches[0]
+        block = matches[0]
+        # Registered local guard helpers are direct children of M.build. All
+        # other registered functions are module-level. A declaration hidden
+        # in a conditional or another helper must not redefine its own scope.
+        parents = ("M.build",) if name in {
+            "guardStationary", "resolveAdjacentCondition", "expandComplete",
+            "mixedComposition", "guard",
+        } else ()
+        actual = []
+        for start, branch in self.scopes[block.start]:
+            ancestor = next(node for node in self.blocks if node.start == start)
+            actual.append(ancestor.name if ancestor.kind == "function" and branch == 0 else None)
+        if tuple(actual) != parents:
+            raise ValueError(f"{name}: function declaration outside registered owner scope {parents}")
+        return block
+
+    def intended_scope(self, name=None, within=()):
+        block = self.function(name) if name else None
+        scope = self.scopes[block.start] + ((block.start, 0),) if block else ()
+        # Each step is a direct child block header + arm number (0=then/body,
+        # 1=first else/elseif). The expected header is itself anchored to its
+        # parent scope: wrapping BOTH a registered loop and its contents in an
+        # unrelated/dead branch cannot make them count as live registrations.
+        for header, branch in within:
+            prefix = words(header)
+            matches = [node for node in self.blocks
+                       if self.scopes[node.start] == scope
+                       and self.tokens[node.start:node.start + len(prefix)] == prefix]
+            if len(matches) != 1 or branch > matches[0].branch:
+                raise ValueError(f"{name or 'module'}: missing registered control scope {header} arm {branch}")
+            scope += ((matches[0].start, branch),)
+        return scope
 
     def find(self, pattern, block=None):
         pattern = words(pattern)
@@ -125,16 +156,17 @@ class Lua:
         return [i for i in range(start, end - len(pattern) + 1)
                 if self.tokens[i:i + len(pattern)] == pattern]
 
-    def require(self, pattern, name=None):
+    def require(self, pattern, name=None, within=()):
         block = self.function(name) if name else None
-        matches = self.find(pattern, block)
+        expected_scope = self.intended_scope(name, within)
+        matches = [index for index in self.find(pattern, block) if self.scopes[index] == expected_scope]
         if len(matches) != 1:
-            raise ValueError(f"{name or 'module'}: expected one executable structure: {pattern}")
+            raise ValueError(f"{name or 'module'}: expected one structure in registered control scope {within}: {pattern}")
         return matches[0]
 
-    def guard(self, name, assignment, flag, consumers):
+    def guard(self, name, assignment, flag, consumers, within=()):
         block = self.function(name)
-        call = self.require(assignment, name)
+        call = self.require(assignment, name, within)
         guards = [node for node in self.blocks if node.kind == "if" and node.start > call
                   and node.end < block.end and self.scopes[node.start] == self.scopes[call]
                   and node.start in self.find(f"if not {flag} then", block)]
@@ -164,6 +196,20 @@ class Lua:
                 scope = self.scopes[call]
                 if sink <= guard.end or self.scopes[sink][:len(scope)] != scope:
                     raise ValueError(f"{name}:{self.lines[sink]}: {consumer} is not dominated by {flag} validation")
+
+    def terminal_block(self, name, pattern, tail):
+        """A registered final write block has a closed body and return tail.
+
+        This bounded shape rule rejects inserted writes/calls/rebinding in or
+        after the copy loop. It is not arbitrary Lua alias/dataflow analysis;
+        legitimate new statements require updating the registration and its
+        behavioral round-trip oracle together.
+        """
+        owner = self.function(name)
+        start = self.require(pattern, name)
+        block = next(node for node in self.blocks if node.start == start)
+        if self.tokens[block.end + 1:owner.end] != words(tail):
+            raise ValueError(f"{name}: unregistered statements after final copy block; expected {tail}")
 
     def fields(self, declaration, expected, mapping):
         start = self.require(declaration) + len(words(declaration))
@@ -204,17 +250,19 @@ def check(root):
         except (OSError, ValueError) as exc:
             failures.append(f"FAIL {label} {path}: {exc}")
 
-    def structures(label, path, name, patterns):
-        rule(label, path, lambda src: [src.require(pattern, name) for pattern in patterns])
+    def structures(label, path, name, patterns, within=()):
+        rule(label, path, lambda src: [src.require(pattern, name, within) for pattern in patterns])
 
     structures("A.density", BRIDGE + "Json.lua", "M.denseArray", [
         "for key in pairs(list) do",
-        "if type(key) ~= 'number' or key % 1 ~= 0 or key < 1 then return false, 'non_integer_key' end",
-        "if key > maxKey then maxKey = key end", "count = count + 1",
         "if maxKey ~= count then return false, 'hole' end",
         "for i = 1, maxKey do if list[i] == nil then return false, 'hole' end end",
         "return true, maxKey",
     ])
+    structures("A.density-keys", BRIDGE + "Json.lua", "M.denseArray", [
+        "if type(key) ~= 'number' or key % 1 ~= 0 or key < 1 then return false, 'non_integer_key' end",
+        "if key > maxKey then maxKey = key end", "count = count + 1",
+    ], within=(("for key in pairs(list) do", 0),))
     structures("A.factory", AUTO + "MovementAdapterFactory.lua", None,
                ["local validateArray=Json.denseArray", "M.validateArray=validateArray"])
     registrations = [
@@ -228,8 +276,9 @@ def check(root):
         (AUTO + "PolicySchema.lua", "validateTargetPlan", "local planCount,planCause=denseList(plan,1)", "planCount", ["if planCount>8 then", "plan[index]"]),
     ]
     for path, name, assignment, flag, consumers in registrations:
+        within = (("if type(attempt.target_plan)=='table' then", 0),) if name == "M.plan" else ()
         rule(f"A.{name}.{flag}", path,
-             lambda src, n=name, a=assignment, f=flag, c=consumers: src.guard(n, a, f, c))
+             lambda src, n=name, a=assignment, f=flag, c=consumers, w=within: src.guard(n, a, f, c, w))
     structures("A.schema-helper", AUTO + "PolicySchema.lua", "denseList", [
         "local ok,countOrCause=Json.denseArray(value,minLength or 0)",
         "if ok then return countOrCause end", "return nil,countOrCause"])
@@ -238,7 +287,8 @@ def check(root):
     # Public JSON arrays (including observe.sections) must pass the schema
     # validator before dispatch reads them. Missing module fails on old Runtime.
     rule("A.public-arrays", BRIDGE + "RequestValidation.lua", lambda src: src.guard(
-        "validateValue", "local dense,length=Json.denseArray(value)", "dense", ["for i=1,length do"]))
+        "validateValue", "local dense,length=Json.denseArray(value)", "dense", ["for i=1,length do"],
+        within=(("if schema.type=='array' then", 0),)))
     rule("A.public-dispatch", BRIDGE + "Runtime.lua", lambda src: src.guard(
         "dispatch", "local valid,validationCode=RequestValidation.validate(request)",
         "valid", ["local a,op=request.args,request.op"]))
@@ -256,17 +306,27 @@ def check(root):
     rule("B.callbacks", AUTO + "AutoCombatGuard.lua",
          lambda src: src.fields("local FUNCTION_FIELDS={", CALLBACKS, True))
     structures("B.copy", AUTO + "AutoCombatGuard.lua", "M.copyFootprintFlags", [
-        "for _,key in ipairs(FOOTPRINT_FLAGS) do if flags[key]~=nil then",
-        "if FUNCTION_FIELDS[key] and type(flags[key])~='function' and flags[key]~=false then else spec[key]=flags[key] end"])
+        "for _,key in ipairs(FOOTPRINT_FLAGS) do if flags[key]~=nil then"])
+    structures("B.copy-fields", AUTO + "AutoCombatGuard.lua", "M.copyFootprintFlags", [
+        "if FUNCTION_FIELDS[key] and type(flags[key])~='function' and flags[key]~=false then else spec[key]=flags[key] end"
+    ], within=(("for _,key in ipairs(FOOTPRINT_FLAGS) do", 0), ("if flags[key]~=nil then", 0)))
+    rule("B.copy-terminal", AUTO + "AutoCombatGuard.lua", lambda src: src.terminal_block(
+        "M.copyFootprintFlags",
+        "for _,key in ipairs(FOOTPRINT_FLAGS) do "
+        "if flags[key]~=nil then "
+        "if FUNCTION_FIELDS[key] and type(flags[key])~='function' and flags[key]~=false then "
+        "else spec[key]=flags[key] end end end", "return spec"))
     structures("B.callback-unknown", AUTO + "AutoCombatGuard.lua", "M.malformedFunctionField", [
         "for key in pairs(FUNCTION_FIELDS) do local value=flags[key] if value~=nil and value~=false and type(value)~='function' then return key end end"])
-    structures("B.main-unknown", AUTO + "AutoCombatGuard.lua", "M.build", [
+    structures("B.main-unknown", AUTO + "AutoCombatGuard.lua", "guard", [
         "local malformedField=typ and M.malformedFunctionField(typ) or nil",
         "if malformedField then return disable('selffire_risk',{talent=talent,unknown=true,reason='malformed_function_field',field=malformedField,source=builderSource}) end"])
     structures("B.mixed-copy", AUTO + "AutoCombatGuard.lua", "mixedComposition", [
-        "for flag in pairs(Factory.RAISED_FLAG_KEYS) do if type(typ)=='table' and typ[flag]~=nil then raised[flag]=typ[flag] raisedCount=raisedCount+1 end end"])
+        "for flag in pairs(Factory.RAISED_FLAG_KEYS) do if type(typ)=='table' and typ[flag]~=nil then raised[flag]=typ[flag] raisedCount=raisedCount+1 end end"
+    ], within=(("for _,component in ipairs(entry.components) do", 0), ("if component.delivery=='attackTarget' then", 1)))
     structures("B.expander-copy", AUTO + "AutoCombatGuard.lua", "expandComplete", [
-        "for flag,value in pairs(raised or {}) do spec[flag]=value end"])
+        "for flag,value in pairs(raised or {}) do spec[flag]=value end"
+    ], within=(("for _,cell in ipairs(applicable) do", 0),))
     structures("B.footprint-call", AUTO + "AutoCombatGuard.lua", "M.footprintSpec", [
         "M.copyFootprintFlags(spec,flags)"])
     return failures

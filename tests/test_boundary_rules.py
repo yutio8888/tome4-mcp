@@ -44,6 +44,123 @@ class BoundaryTests(unittest.TestCase):
         errors = boundary.check(self.root)
         self.assertTrue(any(label in error for error in errors), errors)
 
+    def run_cli(self):
+        return subprocess.run([sys.executable, str(TOOL), '--check', '--root', str(self.root)],
+                              text=True, capture_output=True,
+                              env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'})
+
+    def assert_cli_failure(self, label):
+        result = self.run_cli()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('FAIL ' + label, result.stdout)
+        self.assertNotIn('PASS A/B', result.stdout)
+        for rule in 'CDE':
+            self.assertIn('REVIEW ' + rule + ':', result.stdout)
+            self.assertNotIn('PASS ' + rule, result.stdout)
+
+    def wrap_block(self, relative, node, condition, fallback=''):
+        path = self.root / relative
+        source = path.read_text()
+        tokens = boundary.lex(source)
+        start = tokens[node.start][1]
+        end = tokens[node.end][1] + len('end')
+        path.write_text(source[:start] + 'if ' + condition + ' then\n' + source[start:end]
+                        + '\nend\n' + fallback + source[end:])
+
+    def test_cli_rejects_dead_or_unrelated_density_body(self):
+        relative = boundary.BRIDGE + 'Json.lua'
+        path = self.root / relative
+        original = path.read_text()
+        for condition in ('false', 'unrelated_flag'):
+            with self.subTest(condition=condition):
+                path.write_text(original)
+                parsed = boundary.Lua(path)
+                node = parsed.function('M.denseArray')
+                tokens = boundary.lex(original)
+                closing = parsed.tokens.index(')', node.start)
+                body_start = tokens[closing + 1][1]
+                body_end = tokens[node.end][1]
+                path.write_text(original[:body_start] + 'if ' + condition + ' then\n'
+                                + original[body_start:body_end] + '\nend\nreturn true,0\n'
+                                + original[body_end:])
+                self.assert_cli_failure('A.density')
+
+    def test_cli_rejects_dead_or_unrelated_forwarding_loop(self):
+        relative = boundary.AUTO + 'AutoCombatGuard.lua'
+        path = self.root / relative
+        original = path.read_text()
+        for condition in ('false', 'unrelated_flag'):
+            with self.subTest(condition=condition):
+                path.write_text(original)
+                parsed = boundary.Lua(path)
+                start = parsed.require('for _,key in ipairs(FOOTPRINT_FLAGS) do', 'M.copyFootprintFlags')
+                node = next(block for block in parsed.blocks if block.start == start)
+                self.wrap_block(relative, node, condition)
+                self.assert_cli_failure('B.copy')
+
+    def test_cli_rejects_field_registries_in_unrelated_scope(self):
+        registries = [
+            ('MovementAdapterFactory.lua', 'M.RAISED_FLAG_KEYS={', 'B.raised-registry'),
+            ('AutoCombatGuard.lua', 'local FOOTPRINT_FLAGS={', 'B.footprint-registry'),
+            ('AutoCombatGuard.lua', 'local FUNCTION_FIELDS={', 'B.callbacks'),
+        ]
+        for name, declaration, label in registries:
+            with self.subTest(registry=declaration):
+                path = self.root / boundary.AUTO / name
+                original = path.read_text()
+                parsed = boundary.Lua(path)
+                tokens = boundary.lex(original)
+                start = parsed.require(declaration)
+                end = parsed.tokens.index('}', start)
+                before, after = tokens[start][1], tokens[end][1] + 1
+                path.write_text(original[:before] + 'if false then\n' + original[before:after]
+                                + '\nend\n' + original[after:])
+                self.assert_cli_failure(label)
+                path.write_text(original)
+
+    def test_cli_rejects_registered_function_declaration_in_dead_branch(self):
+        for relative, name, label in [
+            (boundary.BRIDGE + 'Json.lua', 'M.denseArray', 'A.density'),
+            (boundary.AUTO + 'AutoCombatGuard.lua', 'M.copyFootprintFlags', 'B.copy'),
+        ]:
+            with self.subTest(function=name):
+                parsed = boundary.Lua(self.root / relative)
+                self.wrap_block(relative, parsed.function(name), 'false')
+                self.assert_cli_failure(label)
+
+    def test_cli_rejects_post_copy_field_clobbers(self):
+        path = self.root / boundary.AUTO / 'AutoCombatGuard.lua'
+        original = path.read_text()
+        statements = [f'spec.{field}=nil' for field in sorted(boundary.FIELDS)]
+        statements += ["spec['no_restrict']=nil", "rawset(spec,'filter',nil)", 'spec={}']
+        for statement in statements:
+            with self.subTest(clobber=statement):
+                path.write_text(original)
+                parsed = boundary.Lua(path)
+                position = boundary.lex(original)[parsed.require('return spec', 'M.copyFootprintFlags')][1]
+                path.write_text(original[:position] + statement + '\n' + original[position:])
+                self.assert_cli_failure('B.copy-terminal')
+
+    def test_cli_rejects_clobber_inside_registered_copy_loop(self):
+        path = self.root / boundary.AUTO / 'AutoCombatGuard.lua'
+        original = path.read_text()
+        parsed = boundary.Lua(path)
+        start = parsed.require('for _,key in ipairs(FOOTPRINT_FLAGS) do', 'M.copyFootprintFlags')
+        loop = next(block for block in parsed.blocks if block.start == start)
+        position = boundary.lex(original)[loop.end][1]
+        path.write_text(original[:position] + 'spec.no_restrict=nil\n' + original[position:])
+        self.assert_cli_failure('B.copy-terminal')
+
+    def test_cli_ignores_commented_clobber(self):
+        path = self.root / boundary.AUTO / 'AutoCombatGuard.lua'
+        original = path.read_text()
+        parsed = boundary.Lua(path)
+        position = boundary.lex(original)[parsed.require('return spec', 'M.copyFootprintFlags')][1]
+        path.write_text(original[:position] + '-- spec.no_restrict=nil\n' + original[position:])
+        result = self.run_cli()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('PASS A/B registered structural checks', result.stdout)
+
     def test_registered_structures_pass(self):
         self.assertEqual(boundary.check(self.root), [])
 
@@ -79,7 +196,7 @@ class BoundaryTests(unittest.TestCase):
     def test_guard_in_unrelated_branch_cannot_dominate_sink(self):
         line = 'local ok,maxKey=Json.denseArray(cells,0)\n    if not ok then return nil end'
         self.mutate(boundary.AUTO + 'AutoCombatGuard.lua', line, 'if false then\n' + line + '\nend')
-        self.fails('not dominated')
+        self.fails('registered control scope')
 
     def test_rejection_must_return(self):
         self.mutate(boundary.AUTO + 'AutoCombatGuard.lua',
