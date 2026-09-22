@@ -1,6 +1,6 @@
 # SYSFIX-20260922 修复台账
 
-状态：已授权开始实施，尚无修复验收通过。基线产品 caefa9a；绑定决策见同日期 decisions 文档。协调者维护此文件，Dev 不修改。
+状态：三组代码已交付并在临时候选集成，统一测试通过；原生验证与独立审核进行中，尚未接受或合并 PR。基线产品 caefa9a；绑定决策见同日期 decisions 文档。协调者维护此文件，Dev 不修改。
 
 | ID | 问题 | 批次 / owner | 状态 | 验收要求 |
 | --- | --- | --- | --- | --- |
@@ -35,3 +35,13 @@
 实际模型均为内置 `gpt-6-astra` / xhigh（继承主代理，无覆盖；主代理实际运行模型已通过Paseo状态核对）。禁止Dev自行启动游戏或重建dist；source/dist原生验证和会话生命周期由协调者接手。Review将使用新的Sol/high上下文。
 
 SYS-08/09 和 U-01 的具体未完成项、依赖、owner 与后续触发条件见 `tome-mcp-system-fixes-2026-09-22-todo.md`。这些项尚未验收，首批不得宣称“全量修复完成”。
+
+## 已收集交付与候选验证
+
+- tooling：PR #27，41a34f01b5e65312e86ec0ecf49c33cc6ae1bc53；report SHA256 9ef4bda9ad9efd093d74443917aca1d9781dc847c619caeb7d06000d6afd30d3。
+- policy：PR #28，2ed857960de51635accdd07c3e771efdcd952f07；report SHA256 79311477ab9bb592c44a1063492f965c46ab871a53d689e9dd32af0f7e2735af。
+- core：PR #29，6628238c82b152e55c19a406bb160ae21e2bf19e；依赖 policy；report SHA256 ded11e761c1d12b3751a29b14f3ec5a410d0a141f8755e308d4921c32ffa448a。
+- 临时候选 d42d071dde6d9f5b993bb13d4e5e5a10d440727a；统一入口 rc0（边界15、manifest17、Lua44脚本、Python44、三个生成器）。包72文件 SHA256 1831b912ddc94f5d43a22bb3032391d135a862440f9ea38dda8e972974600fcc。这是开发/协调者证据，独立裁决仍 PENDING。
+- 新反馈 NATIVE-STARTUP-01：source `sysfix-policy-source-01` 在 addon 加载时报 sandbox os.getenv 缺失，zero checks；FAIL，已回收；owner policy Dev 修正测试夹具并更新 PR28，不得算作原生 PASS。
+- SYS-04 native runner 接线补充：owner core Dev，增加显式 opt-in 的真实 clear→保存→重载断言，更新 PR29；原生结果仍 NOT_OBSERVED。
+- fresh Review runtime：Paseo 137119c2-30bc-4f4d-9a4d-7762c9163a6f；tools/evidence：de482ffb-434f-468a-8c18-1ff3997e90c5。均 Codex gpt-5.6-sol/high、独立只读上下文；具体派发原因见 EXEC-02。

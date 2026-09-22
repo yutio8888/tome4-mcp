@@ -413,3 +413,14 @@ dist sha 与 A′ 分支一致（合并干净）。
 | `/root/fix_tooling` | Dev（fresh） | `gpt-6-astra` / xhigh，内置继承 | SYS-05/06 | running，未验收 |
 
 三位Dev均在独立worktree，以 `366b32b4b53f28c3ef6575290f5b290d358ebfb8` 为基线；共享文件单写者见简报。Test/Review尚未派发，不复用之前的Review进行实现。报告数量/模型优劣暂无任何结果，不预判通过。
+
+### SYSFIX 集成与独立审核派发（继续）
+
+三个Dev已交付PR #27/#28/#29，仍为ready_for_review；core/policy继续各自native夹具补充，身份不变。集成统一入口通过不等于验收。内置fresh Review创建两次因线程额度失败，按EXEC-02改用Paseo全新Codex会话，模型仍固定Sol/high。
+
+| 实际代理 | 角色 / 模型 | 范围 / 当前状态 |
+| --- | --- | --- |
+| 137119c2-30bc-4f4d-9a4d-7762c9163a6f | fresh Review / codex gpt-5.6-sol / high | runtime、协议、持久化、文档；审核中 |
+| de482ffb-434f-468a-8c18-1ff3997e90c5 | fresh Review / codex gpt-5.6-sol / high | tooling、manifest、候选证据；审核中 |
+
+Test尚未派发；其独立序列上次B，下一A。以上不是跨模型对比实验，native首次执行夹具启动FAIL单独保留，不从单次故障推断模型优劣。
