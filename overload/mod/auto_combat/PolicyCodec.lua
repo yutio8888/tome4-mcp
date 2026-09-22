@@ -60,7 +60,7 @@ local Json=require 'mod.mcp_bridge.Json'
 local M={}
 
 M.SCHEMA=Schema.SCHEMA
-M.VERSION=1
+M.VERSION=2
 M.HEADER='xdp1\n'
 M.MAX_DEPTH=Json.MAX_DEPTH
 -- A hard bound on an accepted snapshot, so a corrupt/hostile byte string can
@@ -623,6 +623,20 @@ function M.normalise(snapshot)
     local tree,err=M.open(snapshot)
     if not tree then return nil,err end
     return snapshotOf(snapshot.bytes,tree)
+end
+
+-- POLICY-02: migration is a separate transaction so importing an old envelope
+-- verifies its original hash BEFORE normalising semantics. The input snapshot
+-- and user table are never changed in place; warnings cannot be hidden in a hash.
+function M.migrate(snapshot)
+    local tree,err=M.open(snapshot)
+    if not tree then return nil,err end
+    local warnings=Schema.migrationWarnings(tree)
+    if #warnings==0 then return M.normalise(snapshot),nil,warnings end
+    tree.mode=tree.mode or {}
+    tree.mode.on_emergency_unavailable='release_control'
+    local migrated,migration_err=M.prepare(tree,'emergency_fallback_migration')
+    return migrated,migration_err,warnings
 end
 
 -- The full canonical projection (INCLUDING editable `updated` metadata) of a

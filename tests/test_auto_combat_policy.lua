@@ -671,7 +671,7 @@ end
 -- deny -> pause sequence forever.
 do
     local policy=basePolicy()
-    policy.mode={on_low_hp='emergency_only'}
+    policy.mode={on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'}
     policy.rules={
         {id='heal',priority=100,emergency=true,when={always={}},
             ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
@@ -679,7 +679,7 @@ do
             ['then']={action='use_talent',talent='T_MOONLIGHT_RAY',target='nearest_hostile'}},
     }
     local denied={heal=true}
-    local decision=Evaluator.evaluate(policy,ctx({hp_pct=30,denied=denied}))
+    local decision=Evaluator.evaluate(policy,ctx({hp_pct=30,denied=denied,native_denied=denied}))
     check(decision.decision=='act' and decision.rule=='melee' and decision.fallback==true,
         'a refused emergency action falls through to the next applicable rule (D-1)')
     check(decision.emergency==false and decision.critical==true,

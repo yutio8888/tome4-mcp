@@ -18,6 +18,8 @@ local Schema=require 'mod.auto_combat.PolicySchema'
 local Codec=require 'mod.auto_combat.PolicyCodec'
 local Json=require 'mod.mcp_bridge.Json'
 local M={}
+local next_run_id=0
+M.MAX_NATIVE_SUBMISSIONS_PER_OPPORTUNITY=32
 -- A rejected sustain is not retried forever: after this many rejected attempts
 -- in one run the sustain is disabled for that run (design 5.3).
 M.SUSTAIN_FAILURE_CAP=2
@@ -26,19 +28,28 @@ M.RECENT_LIMIT=8
 
 function M.new(policy,host,options)
     options=options or {}
-    return setmetatable({
+    local controller=setmetatable({
         policy=policy,host=host,state='stopped',reason=nil,generation=0,
         -- X-doubleprime: the immutable snapshot the working tree came from. Every
         -- step re-validates the working tree against it, so a mutation of the
         -- table the controller holds cannot silently change what is executed.
         policy_snapshot=options.policy_snapshot,
         attempts=0,instant_attempts=0,opportunity=0,opportunity_id=nil,actions=0,
+        native_submissions=0,submission_serial=0,pending_attempt=nil,native_denied={},
         strict=options.strict~=false,denied={},known_enemies=nil,
         rejections={},recent={},sustain_failures={},sustain_disabled={},
         rejected_landings={},
         max_attempts=(policy.limits and policy.limits.max_actions_per_tick) or 1,
         notify=options.notify or (host and host.notify),
     },{__index=M})
+    local prior=options.opportunity_budget
+    if prior then
+        for _,key in ipairs{'attempts','instant_attempts','native_submissions','opportunity',
+            'opportunity_id'} do
+            controller[key]=prior[key]
+        end
+    end
+    return controller
 end
 
 -- The content hash of the policy this run is bound to. Reported from the
@@ -59,6 +70,7 @@ function M:isStale(generation) return generation~=self.generation end
 
 function M:newOpportunity()
     self.attempts=0; self.instant_attempts=0; self.denied={}; self.rejections={}
+    self.native_submissions=0; self.native_denied={}
     -- P2-1: the deterministic landing(s) a native call refused in this
     -- opportunity. Cleared per opportunity (the native collision result is
     -- geometry-bound to it); never carried across runs.
@@ -90,6 +102,10 @@ end
 
 function M:record(entry)
     entry.generation=entry.generation or self.generation
+    entry.native_submissions=self.native_submissions
+    entry.effective_actions=self.attempts
+    entry.instant_actions=self.instant_attempts
+    entry.run_actions=self.actions
     self.recent[#self.recent+1]=entry
     if #self.recent>M.RECENT_LIMIT then table.remove(self.recent,1) end
 end
@@ -140,12 +156,17 @@ end
 
 function M:start()
     if self.state~='stopped' then return {ok=false,code='already_started',state=self.state} end
+    if self.pending_attempt then return {ok=false,code='native_pending',state=self.state} end
+    next_run_id=next_run_id+1
+    self.run_id=next_run_id; self.actions=0; self.submission_serial=0
+    self.sustain_failures={}; self.sustain_disabled={}
     self.generation=self.generation+1
     self.known_enemies=nil
     local phase=self.host and self.host.phase and self.host.phase() or 'ready'
     if phase=='ready' then
         self.state='running'; self.reason='started'
-        self:newOpportunity()
+        self:refreshOpportunity()
+        if self.opportunity==0 then self:newOpportunity() end
         return {ok=true,state=self.state,generation=self.generation,action='schedule_pump'}
     end
     self.state='awaiting_ready'; self.reason='start_when_ready'
@@ -206,6 +227,17 @@ function M:pause(reason)
 end
 
 function M:resume()
+    if self.pending_attempt then
+        if self.state=='paused' then
+            -- Resume scheduling without forcing or reissuing the native body.
+            -- Its original generation remains the settlement correlation key.
+            self.generation=self.generation+1
+            self.known_enemies=nil
+            self.state='waiting_native'; self.reason='native_pending'
+            return {ok=true,state=self.state,generation=self.generation,action='wait_native'}
+        end
+        return {ok=false,code='native_pending',state=self.state}
+    end
     if self.state=='waiting_native' then
         -- AC-01: never force a live native body; only a settled boundary resumes.
         local phase=self.host and self.host.phase and self.host.phase()
@@ -216,7 +248,7 @@ function M:resume()
     self.generation=self.generation+1
     self.known_enemies=nil  -- strict resume confirms the current enemy set
     self.state='running'; self.reason='resumed'
-    self:newOpportunity()
+    self:refreshOpportunity()
     return {ok=true,state=self.state,generation=self.generation,action='schedule_pump'}
 end
 
@@ -485,11 +517,100 @@ function M:instantBudgetExhausted()
     return self.instant_attempts>=maxInstant
 end
 
-function M:countInstant(outcome)
-    if outcome and outcome.status=='ok' and outcome.instant==true then
-        self.instant_attempts=self.instant_attempts+1
+-- POLICY-01/03: one accounting boundary shared by rules, sustains, movement
+-- and native activities. A pending body is counted on its final outcome only.
+function M:countOutcome(outcome)
+    if outcome.status=='native_pending' then return end
+    if outcome.status=='ok' or outcome.energy_spent==true then
+        self.attempts=self.attempts+1
+        self.actions=self.actions+1
+        if outcome.instant==true then self.instant_attempts=self.instant_attempts+1 end
     end
 end
+
+function M:submissionLimit()
+    local cap=(self.policy.limits and self.policy.limits.max_consecutive_actions)
+        or Schema.HARD.max_consecutive_actions
+    if self.actions>=cap then return 'max_consecutive_actions' end
+    if self.native_submissions>=M.MAX_NATIVE_SUBMISSIONS_PER_OPPORTUNITY then
+        return 'native_submission_limit'
+    end
+end
+
+function M:limitStep(outcome,rule)
+    local reason=self:submissionLimit()
+    if not reason then return nil end
+    self:stop(reason)
+    self:record({kind='stopped',reason=reason,rule=rule})
+    return {action='stopped',reason=reason,rule=rule,outcome=outcome,
+        rejections=self.rejections,state=self.state,generation=self.generation}
+end
+
+function M:submit(attempt)
+    -- Every actual host.request counts, including rejected/error/pending. A
+    -- planner or guard refusal never calls this function. Limits are checked by
+    -- the caller immediately before either the sustain or normal submission.
+    if not (self.host and type(self.host.request)=='function') then
+        return {status='error',code='execution_not_available'}
+    end
+    self.native_submissions=self.native_submissions+1
+    self.submission_serial=self.submission_serial+1
+    attempt.run_id=self.run_id; attempt.submission_id=self.submission_serial
+    local outcome=self.host.request(attempt) or {}
+    if outcome.status=='native_pending' then
+        self.pending_attempt={attempt=attempt}
+    else
+        self:countOutcome(outcome)
+    end
+    return outcome
+end
+
+-- Called by the production Runtime with the final native result before it
+-- releases an asynchronous invocation/activity. Tokens identify the submitted
+-- body, not the current scheduling generation: pause/resume cannot discard its
+-- accounting. Replays and late results from an earlier run are ignored.
+function M:nativeSettled(outcome)
+    local pending=self.pending_attempt
+    local a=pending and pending.attempt
+    if not a or type(outcome)~='table' or outcome.status=='native_pending'
+        or outcome.run_id~=a.run_id or outcome.submission_id~=a.submission_id
+        or outcome.generation~=a.generation then return nil end
+    self.pending_attempt=nil
+    self:countOutcome(outcome)
+    self:record({kind='native_settled',rule=a.rule,outcome=outcome})
+    if outcome.sequence_deviation or outcome.postcondition_mismatch then
+        return {action='settled',rule=a.rule,outcome=outcome,deviation=true}
+    end
+    -- Accounting survives a manual stop, but a late result must not restart it
+    -- or manufacture a second terminal transition.
+    if self.state=='stopped' then return {action='settled',rule=a.rule,outcome=outcome} end
+    if outcome.level_changed then
+        self:stop('level_changed')
+        return {action='stopped',reason='level_changed',rule=a.rule,outcome=outcome,
+            state=self.state,generation=self.generation}
+    end
+    local limited=self:limitStep(outcome,a.rule)
+    if limited then return limited end
+    if outcome.status=='rejected' and outcome.energy_spent~=true then
+        if a.action=='set_sustain' then
+            local count=(self.sustain_failures[a.talent] or 0)+1
+            self.sustain_failures[a.talent]=count
+            if count>=M.SUSTAIN_FAILURE_CAP then self.sustain_disabled[a.talent]=true end
+            self:deny(a.talent,'sustain_rejected')
+        else
+            self.native_denied[a.rule]=true
+            self:deny(a.rule,'native_rejected',outcome)
+        end
+    elseif outcome.status~='ok' then
+        local reason=outcome.status=='rejected' and 'action_denied' or 'action_uncertain'
+        self:stop(reason)
+        return {action='stopped',reason=reason,rule=a.rule,outcome=outcome,
+            state=self.state,generation=self.generation}
+    end
+    if self.state=='waiting_native' then self.state='running'; self.reason='native_settled' end
+    return {action='settled',rule=a.rule,outcome=outcome,state=self.state,generation=self.generation}
+end
+
 function M:rebind(ctx,decision)
     -- MFT-REV-03: the action binding is authoritative even when the default
     -- snapshot selector was nil (for example an actor step selector with no
@@ -515,6 +636,7 @@ end
 
 function M:step()
     if self.state~='running' then return {action='noop',state=self.state} end
+    if self.pending_attempt then return {action='wait_native',state=self.state,generation=self.generation} end
     -- X-doubleprime transaction boundary: re-validate the EXACT policy this
     -- opportunity will evaluate against its immutable snapshot. XDP-REV-02:
     -- the comparison is the EXACT canonical re-encoding of the working tree
@@ -528,6 +650,8 @@ function M:step()
             return {action='stopped',reason='policy_mutated',state=self.state,generation=self.generation}
         end
     end
+    local limited=self:limitStep()
+    if limited then return limited end
     local generation=self.generation
     local default_selector=self.policy.targeting and self.policy.targeting.default
     local pre=self:context(default_selector)
@@ -558,23 +682,16 @@ function M:step()
     if sched.layer=='normal' and (pre.enemy_count or 0)>0 then
         local sustain=self:sustainStep()
         if sustain then
-            local outcome=(self.host and self.host.request and self.host.request({
+            local outcome=self:submit({
                 rule='sustain:'..sustain.talent,action='set_sustain',talent=sustain.talent,
-                target='self',generation=generation})) or {}
-            -- R-1 (round anor-reg-01 fix2): the action budget counts native
-            -- submissions that took effect (a completed action or a charged
-            -- attempt). A settled refusal that produced no native action and
-            -- spent no energy does not consume it.
-            if outcome.status=='ok' or outcome.energy_spent==true then
-                self.attempts=self.attempts+1
-            end
+                target='self',generation=generation})
             if outcome.status=='native_pending' then
                 self.state='waiting_native'; self.reason='native_pending'
                 return {action='wait_native',rule='sustain:'..sustain.talent,state=self.state,generation=generation}
             end
+            local limited=self:limitStep(outcome,'sustain:'..sustain.talent)
+            if limited then return limited end
             if outcome.status=='ok' then
-                self.actions=self.actions+1
-                self:countInstant(outcome)
                 self:record({kind='acted',rule='sustain:'..sustain.talent,talent=sustain.talent})
                 return {action='acted',rule='sustain:'..sustain.talent,talent=sustain.talent,
                     outcome=outcome,rejections=self.rejections,state=self.state,generation=generation}
@@ -591,14 +708,18 @@ function M:step()
         end
     end
     for _=1,8 do
+        local limited=self:limitStep()
+        if limited then return limited end
         local ctx=self:context(default_selector)
         ctx.attempts=self.attempts
         ctx.denied=self.denied
+        ctx.native_denied=self.native_denied
         local decision=Evaluator.evaluate(self.policy,ctx,{context_for=function(selector)
             if selector==default_selector then return ctx end
             local rc=self:context(selector)
             rc.attempts=self.attempts
             rc.denied=self.denied
+            rc.native_denied=self.native_denied
             return rc
         end})
         if decision.decision=='pause' then
@@ -610,7 +731,7 @@ function M:step()
             -- as the no-rule hold: stop the run with the typed refusal reason
             -- and let the service release the lease. The reason stays honest
             -- (`action_denied`), and `start` re-acquires explicitly.
-            if decision.reason=='action_denied' and decision.fallback then
+            if decision.reason=='action_denied' and (decision.fallback or decision.release_control) then
                 self:record({kind='stopped',reason=decision.reason,rule=decision.rule})
                 self:stop(decision.reason)
                 return {action='stopped',reason=decision.reason,rule=decision.rule,
@@ -719,24 +840,22 @@ function M:step()
                 self:deny(decision.rule,guard.reason or 'safety_rejected',guard.detail)
             else
             local guard_detail=guard and guard.detail
-            local outcome=(self.host and self.host.request and self.host.request({
+            local outcome=self:submit({
                 rule=decision.rule,action=decision.action,talent=decision.talent,
                 emergency=decision.emergency==true,
                 max_turns=decision.max_turns,direction=decision.direction,
                 destination=decision.destination,target_plan=decision.target_plan,plan=plan,
-                target=decision.target,bound_target=bound.bound_target,generation=generation})) or {}
+                target=decision.target,bound_target=bound.bound_target,generation=generation})
             -- S2 rev3: the ordered prompt-response queue deviation rides on the
-            -- `native_pending` result, so it MUST be checked BEFORE the budget
-            -- increment and BEFORE the `native_pending` branch — otherwise the
+            -- `native_pending` result, so it MUST be checked before the `native_pending` branch — otherwise the
             -- pause (and the service's lease release) would be unreachable and
             -- the run would enter `waiting_native` instead. The plugin could not
             -- answer the k-th native prompt with the k-th declared value (a
             -- signature mismatch, a reordered flow, an extra prompt, an
             -- unreadable spec, a missing non-optional entry, or an unevaluable
             -- value), so it pauses with the typed reason and NEVER resubmits.
-            -- A settled queue deviation does not consume the action budget; this
-            -- is a post-commit integrity pause, not a strategy refusal and not a
-            -- native-landing exclusion.
+            -- Accounting already records a settled effective action; the more
+            -- precise deviation handoff takes priority over a budget stop.
             if outcome.sequence_deviation then
                 local reason=outcome.sequence_deviation.reason or 'unexpected_target_request'
                 -- S2-FIX5: the typed deviation event ITSELF reaches the policy
@@ -772,7 +891,7 @@ function M:step()
             -- S3 §3.2 (Path 1): a settled movement-postcondition mismatch is
             -- the same post-commit integrity class as the ordered-queue
             -- deviation: checked immediately after `sequence_deviation` and
-            -- BEFORE the budget increment and the `native_pending` branch, so
+            -- before a budget stop or the `native_pending` branch, so
             -- the pause and the service's lease release are reachable and the
             -- action is never resubmitted. Exactly one typed event.
             if outcome.postcondition_mismatch then
@@ -794,20 +913,6 @@ function M:step()
                 paused.results=decision.results;paused.rejections=self.rejections
                 return paused
             end
-            -- R-1 (round anor-reg-01 fix2): the action budget counts native
-            -- submissions that took effect (a completed action or a charged
-            -- attempt). A settled refusal that produced no native action and
-            -- spent no energy does not consume it, so the same-opportunity
-            -- fall-through stays available even at max_actions_per_tick=1. The
-            -- opportunity stays bounded without the budget: every refused rule
-            -- is denied for the rest of the opportunity (movement retries are
-            -- bounded by the excluded-landing set) and the rule loop below is
-            -- hard-capped. budget_exhausted therefore always means "this
-            -- opportunity already completed max charged actions", never "the
-            -- cause was a refusal".
-            if outcome.status=='ok' or outcome.energy_spent==true then
-                self.attempts=self.attempts+1
-            end
             -- MFT-REV-06: a scene transition is scene-boundary evidence,
             -- independent of the outcome status. Any started/completed
             -- transition stops/resets the run and requires an explicit start on
@@ -823,9 +928,9 @@ function M:step()
                 self.state='waiting_native'; self.reason='native_pending'
                 return {action='wait_native',rule=decision.rule,state=self.state,generation=generation}
             end
+            local limited=self:limitStep(outcome,decision.rule)
+            if limited then return limited end
             if outcome.status=='ok' then
-                self.actions=self.actions+1
-                self:countInstant(outcome)
                 self:record({kind='acted',rule=decision.rule,talent=decision.talent,
                     target=bound.bound_target,destination=plan and plan.annotation,
                     reduced=outcome.reduced==true or nil,
@@ -856,6 +961,7 @@ function M:step()
                 -- another rule may still be valid.
                 local key=self.landingKey(plan)
                 if key and not self.rejected_landings[key] then
+                    self.native_denied[decision.rule]=true
                     self.rejected_landings[key]=true
                     self:movementRetry({rule=decision.rule,talent=decision.talent,
                         action=decision.action,landing=key,code=outcome.code,
@@ -863,6 +969,7 @@ function M:step()
                 else
                     -- D-2: carry the typed refusal detail (native cooldown
                     -- `missing`, `hint`, `native_message`) into the policy log.
+                    self.native_denied[decision.rule]=true
                     self:deny(decision.rule,'native_rejected',
                         {missing=outcome.missing,hint=outcome.hint,native_message=outcome.native_message,landing=key})
                 end
@@ -889,13 +996,17 @@ end
 
 -- Called at each pumped action opportunity.
 function M:onOpportunity()
+    if self.pending_attempt then
+        return {action='wait_native',state=self.state,generation=self.generation}
+    end
     if self.state=='awaiting_ready' then
         if not (self.host and self.host.phase and self.host.phase()=='ready') then
             return {action='wait_for_ready',state=self.state,generation=self.generation}
         end
         self.generation=self.generation+1
         self.state='running'; self.reason='ready'
-        self:newOpportunity()
+        self:refreshOpportunity()
+        if self.opportunity==0 then self:newOpportunity() end
     end
     if self.state=='waiting_native' then
         local phase=self.host and self.host.phase and self.host.phase() or 'ready'
@@ -903,7 +1014,7 @@ function M:onOpportunity()
             return {action='wait_native',state=self.state,generation=self.generation}
         end
         self.state='running'; self.reason='native_settled'
-        self:newOpportunity()  -- a settled native action is a fresh opportunity
+        -- Only the host's ready/opportunity identity can reset a budget.
     end
     if self.state~='running' then return {action='noop',state=self.state} end
     local phase=self.host and self.host.phase and self.host.phase() or 'ready'
@@ -920,6 +1031,11 @@ end
 
 function M:status()
     return {state=self.state,reason=self.reason,generation=self.generation,
-        attempts=self.attempts,actions=self.actions,opportunity=self.opportunity,policy_hash=self:policyHash()}
+        attempts=self.attempts,actions=self.actions,opportunity=self.opportunity,policy_hash=self:policyHash(),
+        native_submissions=self.native_submissions,effective_actions=self.attempts,
+        instant_actions=self.instant_attempts,run_actions=self.actions,run_id=self.run_id,
+        max_native_submissions=M.MAX_NATIVE_SUBMISSIONS_PER_OPPORTUNITY,
+        max_consecutive_actions=(self.policy.limits and self.policy.limits.max_consecutive_actions)
+            or Schema.HARD.max_consecutive_actions}
 end
 return M

@@ -1011,7 +1011,7 @@ do
             cooldown=math.max(0,cooldown-1)
             return {status='ok',energy_spent=1000}
         end}
-    local p=policy({limits={max_actions_per_tick=2},mode={on_low_hp='emergency_only'},rules={
+    local p=policy({limits={max_actions_per_tick=2},mode={on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'},rules={
         {id='heal',priority=100,emergency=true,when={always={}},
             ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
         {id='attack',priority=40,when={always={}},
@@ -1058,7 +1058,7 @@ do
             cooldown=math.max(0,cooldown-1)
             return {status='ok',energy_spent=1000}
         end}
-    local p=policy({limits={max_actions_per_tick=1},mode={on_low_hp='emergency_only'},rules={
+    local p=policy({limits={max_actions_per_tick=1},mode={on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'},rules={
         {id='heal',priority=100,emergency=true,when={always={}},
             ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
         {id='wait',priority=40,when={always={}},['then']={action='wait'}}}})
@@ -1093,7 +1093,7 @@ do
             return {status='rejected',code='native_rejected',energy_spent=false,
                 missing={{kind='cooldown',talent='T_HEALING_LIGHT',remaining=7,required=0}}}
         end}
-    local p=policy({limits={max_actions_per_tick=1},mode={on_low_hp='emergency_only'},rules={
+    local p=policy({limits={max_actions_per_tick=1},mode={on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'},rules={
         {id='heal',priority=100,emergency=true,when={always={}},
             ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}}}})
     local svc=Service.new{host_factory=function() return host end}
@@ -1145,7 +1145,7 @@ do
                 hint='talent on cooldown; wait for the listed turns before retrying',
                 native_message='Healing Light is still on cooldown for 7 turns.'}
         end}
-    local p=policy({limits={max_actions_per_tick=1},mode={on_low_hp='emergency_only'},rules={
+    local p=policy({limits={max_actions_per_tick=1},mode={on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'},rules={
         {id='heal',priority=100,emergency=true,when={always={}},
             ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}}}})
     local svc=Service.new{host_factory=function() return host end}

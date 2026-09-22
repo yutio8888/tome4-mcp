@@ -9,10 +9,49 @@ from typing import Annotated, Any, Literal
 
 from mcp.server import MCPServer
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from . import __version__
 from .bridge import BridgeClient, BridgeError
+
+
+# Shared v4 scalar constraints. Byte limits are distinct from JSON Schema's
+# code-point maxLength; advertise both and enforce UTF-8 at the MCP boundary.
+MAX_SEQUENCE = 9_007_199_254_740_991
+
+
+def _utf8_limit(max_bytes: int):
+    def validate(value: str) -> str:
+        if len(value.encode("utf-8")) > max_bytes:
+            raise ValueError(f"value exceeds {max_bytes} UTF-8 bytes")
+        return value
+    return AfterValidator(validate)
+
+
+def _command_sequence(value: str) -> str:
+    digits = value[4:]
+    bound = str(MAX_SEQUENCE)
+    if len(digits) > len(bound) or (len(digits) == len(bound) and digits > bound):
+        raise ValueError("command sequence exceeds the v4 maximum")
+    return value
+
+
+Identifier = Annotated[str, Field(min_length=1, max_length=256,
+    pattern=r"^[^\u0000-\u001f]*$", json_schema_extra={"x-max-utf8-bytes": 256}), _utf8_limit(256)]
+OptionId = Annotated[str, Field(min_length=1, max_length=512,
+    pattern=r"^[^\u0000-\u001f]*$", json_schema_extra={"x-max-utf8-bytes": 512}), _utf8_limit(512)]
+Cursor = Annotated[str, Field(min_length=1, max_length=256,
+    pattern=r"^[\x20-\x7e]+$", json_schema_extra={"x-max-utf8-bytes": 256}), _utf8_limit(256)]
+# Inline respond.interaction_id and policy.expected_hash allow controls. They
+# share only the nonempty/byte bound, not the common identifier pattern.
+OpaqueId = Annotated[str, Field(min_length=1, max_length=256,
+    json_schema_extra={"x-max-utf8-bytes": 256}), _utf8_limit(256)]
+CommandId = Annotated[str, Field(pattern=r"^cmd-[1-9][0-9]*$", max_length=20,
+    json_schema_extra={"x-max-sequence": MAX_SEQUENCE}), AfterValidator(_command_sequence)]
+Revision = Annotated[int, Field(ge=1, le=MAX_SEQUENCE)]
+EventCursor = Annotated[int, Field(ge=0, le=MAX_SEQUENCE)]
+Coordinate = Annotated[int, Field(ge=0, le=2_147_483_647)]
+Nonnegative = Annotated[int, Field(ge=0)]
 
 
 class StrictModel(BaseModel):
@@ -43,15 +82,15 @@ class RestAction(StrictModel):
 
 class AttackAction(StrictModel):
     type: Literal["attack"]
-    target_id: str = Field(min_length=1, max_length=128)
+    target_id: Identifier
 
 
 class TalentAction(StrictModel):
     type: Literal["use_talent"]
-    talent_id: str = Field(min_length=1, max_length=128)
-    target_id: str | None = Field(default=None, max_length=128)
-    x: int | None = Field(default=None, ge=0, le=2147483647)
-    y: int | None = Field(default=None, ge=0, le=2147483647)
+    talent_id: Identifier
+    target_id: Identifier | None = None
+    x: Coordinate | None = None
+    y: Coordinate | None = None
 
     @model_validator(mode="after")
     def _validate_prefill(self) -> "TalentAction":
@@ -64,7 +103,7 @@ class TalentAction(StrictModel):
 
 class SustainAction(StrictModel):
     type: Literal["set_sustain"]
-    talent_id: str = Field(min_length=1, max_length=128)
+    talent_id: Identifier
     enabled: bool
 
 
@@ -77,13 +116,13 @@ class AnswerModel(BaseModel):
 
 class ActorAnswer(AnswerModel):
     type: Literal["actor"]
-    target_id: str = Field(min_length=1, max_length=256)
+    target_id: Identifier
 
 
 class PositionAnswer(AnswerModel):
     type: Literal["position"]
-    x: int = Field(ge=0, le=2147483647)
-    y: int = Field(ge=0, le=2147483647)
+    x: Coordinate
+    y: Coordinate
 
 
 class DirectionAnswer(AnswerModel):
@@ -93,7 +132,7 @@ class DirectionAnswer(AnswerModel):
 
 class OptionAnswer(AnswerModel):
     type: Literal["option"]
-    option_id: str = Field(min_length=1, max_length=512)
+    option_id: OptionId
 
 
 class CancelAnswer(AnswerModel):
@@ -111,37 +150,37 @@ class SpendStatAction(StrictModel):
 
 class LearnTalentAction(StrictModel):
     type: Literal["learn_talent"]
-    talent_id: str = Field(min_length=1, max_length=128)
+    talent_id: Identifier
 
 
 class LearnCategoryAction(StrictModel):
     type: Literal["learn_category"]
-    category_id: str = Field(min_length=1, max_length=128)
+    category_id: Identifier
 
 
 class UnlearnTalentAction(StrictModel):
     type: Literal["unlearn_talent"]
-    talent_id: str = Field(min_length=1, max_length=128)
+    talent_id: Identifier
 
 
 class PickupAction(StrictModel):
     type: Literal["pickup"]
-    item_id: str = Field(min_length=1, max_length=128)
+    item_id: Identifier
 
 
 class EquipAction(StrictModel):
     type: Literal["equip"]
-    item_id: str = Field(min_length=1, max_length=128)
+    item_id: Identifier
 
 
 class UnequipAction(StrictModel):
     type: Literal["unequip"]
-    item_id: str = Field(min_length=1, max_length=128)
+    item_id: Identifier
 
 
 class UseItemAction(StrictModel):
     type: Literal["use_item"]
-    item_id: str = Field(min_length=1, max_length=256)
+    item_id: Identifier
 
 
 Action = Annotated[
@@ -149,9 +188,6 @@ Action = Annotated[
     | SpendStatAction | LearnTalentAction | LearnCategoryAction | UnlearnTalentAction | PickupAction | EquipAction | UnequipAction | UseItemAction,
     Field(discriminator="type"),
 ]
-Identifier = Annotated[str, Field(min_length=1, max_length=128)]
-# Canonical command identity: cmd-<sequence> from history.next_command_id.
-CommandId = Annotated[str, Field(pattern=r"^cmd-[1-9][0-9]*$", max_length=32)]
 
 
 class Region(StrictModel):
@@ -171,10 +207,24 @@ class ListFirst(StrictModel):
 
 class ListNext(StrictModel):
     type: Literal["next"]
-    cursor: str = Field(min_length=1, max_length=256)
+    cursor: Cursor
 
 
 ListRequest = Annotated[ListFirst | ListNext, Field(discriminator="type")]
+
+
+Section = Literal["player", "map", "ground", "actors", "talents", "events", "dialogs",
+                  "scene", "effects", "sustains", "resources", "stats", "ground_effects"]
+
+
+def _unique_sections(values: list[str]) -> list[str]:
+    if len(values) != len(set(values)):
+        raise ValueError("sections must contain unique domain names")
+    return values
+
+
+Sections = Annotated[list[Section], AfterValidator(_unique_sections),
+                     Field(json_schema_extra={"uniqueItems": True})]
 
 
 class ToolReply(BaseModel):
@@ -424,10 +474,10 @@ def create_server(bridge: BridgeClient) -> MCPServer:
 
     @server.tool(name="tome.observe", annotations=read)
     async def observe(session_id: Identifier, radius: Annotated[int, Field(ge=1, le=12)] = 8,
-                      include_map: bool = True, events_after: Annotated[int, Field(ge=0)] | None = None,
-                      sections: list[str] | None = None,
+                      include_map: bool = True, events_after: EventCursor | None = None,
+                      sections: Sections | None = None,
                       detail: Literal["summary", "full"] | None = None) -> ToolReply:
-        """Read player-view state, scene, progression, inventory and visible log events without advancing the game. Set include_map=false for a compact snapshot. Pass events.cursor as events_after for subsequent event pages; respect gap/has_more. sections selects top-level domains (player, map, ground, actors, talents, events, dialogs) and keeps identity metadata; omit it for the full snapshot. Map bounds describe only this response's window."""
+        """Read player-view state, scene, progression, inventory and visible log events without advancing the game. Set include_map=false for a compact snapshot. Pass events.cursor as events_after for subsequent event pages; respect gap/has_more. sections is a unique list of declared domains (including scene, effects, sustains, resources, stats and ground_effects) and keeps identity metadata; omit it or pass [] for the full snapshot. Map bounds describe only this response's window."""
         args = {"session_id": session_id, "radius": radius, "include_map": include_map}
         if events_after is not None:
             args["events_after"] = events_after
@@ -440,8 +490,8 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     @server.tool(name="tome.inspect", annotations=read)
     async def inspect(session_id: Identifier, kind: Literal["talent", "actor", "character", "progression", "item", "compatibility"], id: Identifier,
                       target_id: Identifier | None = None,
-                      x: Annotated[int, Field(ge=0, le=2147483647)] | None = None,
-                      y: Annotated[int, Field(ge=0, le=2147483647)] | None = None,
+                      x: Coordinate | None = None,
+                      y: Coordinate | None = None,
                       computed: bool | None = None) -> ToolReply:
         """Inspect a learned talent, visible actor, the player character panel, an owned/visible item, the progression tree, or the runtime compatibility summary. Use kind=character with id=player (or self) for the stored character-sheet fields (stats, resources, life regen, energy, descriptor, unused points, equipment, base combat/resists). kind=actor/character also return a `computed` block of the native getter values the player sheet shows (effective stats, speeds, crit chance/damage, powers, accuracy/APR/damage, defense/armor/fatigue, saves, resists, per-type damage increase and resistance penetration, vision) unless computed=false; overridden/missing getters are listed in computed.unknown. kind=talent adds a read-only query with range, costs, cooldown, affordability and readiness; pass target_id or x/y to include distance. Reads never evaluate dynamic talent descriptions or identify objects."""
         args: dict[str, Any] = {"session_id": session_id, "kind": kind, "id": id}
@@ -460,7 +510,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
         session_id: Identifier,
         control_token: Identifier,
         command_id: CommandId,
-        expected_revision: Annotated[int, Field(ge=0)],
+        expected_revision: Revision,
         action: Action,
         wait_ms: Annotated[int, Field(ge=0, le=10000)] = 2000,
         include_map: bool = False,
@@ -495,7 +545,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     @server.tool(name="tome.status", annotations=read)
     async def status(session_id: Identifier, command_id: CommandId, include_map: bool = False,
                      response_id: Identifier | None = None,
-                     options_offset: Annotated[int, Field(ge=0, le=2147483647)] | None = None,
+                     options_offset: Nonnegative | None = None,
                      compact: bool = False) -> ToolReply:
         """Read the original command result without executing it again. Use after a pending act or after explicitly reconnecting following an uncertain result."""
         args = {"session_id": session_id, "command_id": command_id, "include_map": include_map}
@@ -509,8 +559,8 @@ def create_server(bridge: BridgeClient) -> MCPServer:
 
     @server.tool(name="tome.respond", annotations=write)
     async def respond(session_id: Identifier, control_token: Identifier, command_id: CommandId,
-                      interaction_id: Identifier, response_id: Identifier,
-                      expected_revision: Annotated[int, Field(ge=1)], answer: Answer,
+                      interaction_id: OpaqueId, response_id: Identifier,
+                      expected_revision: Revision, answer: Answer,
                       wait_ms: Annotated[int, Field(ge=0, le=10000)] = 2000,
                       include_map: bool = False) -> ToolReply:
         """Answer a command-owned native interaction exactly once. Keep the original command_id and a unique response_id. Wait for the next input or command result; on uncertainty query those IDs, never repeat the talent. Cancel preserves native cancellation semantics and can produce further effects or questions. A native top-level popup (sealed door, lore, running, death screen) has no command_id and is answered with tome.dismiss instead."""
@@ -524,10 +574,10 @@ def create_server(bridge: BridgeClient) -> MCPServer:
 
     @server.tool(name="tome.dismiss", annotations=write)
     async def dismiss(session_id: Identifier, control_token: Identifier, answer: Answer,
-                      interaction_id: Identifier | None = None,
-                      expected_revision: Annotated[int, Field(ge=1)] | None = None,
+                      interaction_id: str | None = None,
+                      expected_revision: Revision | None = None,
                       include_map: bool = False) -> ToolReply:
-        """Dismiss or answer a native popup raised outside a command (sealed door, lore, running, death screen). observe exposes it as a top-level interaction; use only the answer types it offers, for example {"type":"option","option_id":"<option_id>"} for a dialog.choice/list_menu or {"type":"confirm","value":true} for a confirmation (observe.interaction lists answer_types and option ids). This has no command_id; use tome.respond for command-owned interactions."""
+        """Dismiss or answer a native popup raised outside a command (sealed door, lore, running, death screen). observe exposes it as a top-level interaction; use only the answer types it offers, for example {"type":"option","option_id":"<option_id>"} for a dialog.choice/list_menu or dialog.confirm. Read observe.interaction.answer_types and options; confirmations use the offered option_id too. Use {"type":"cancel"} only when cancel is offered. This has no command_id; use tome.respond for command-owned interactions."""
         args: dict[str, Any] = {"session_id": session_id, "control_token": control_token,
                                 "answer": answer.model_dump(), "include_map": include_map}
         if interaction_id is not None:
@@ -555,7 +605,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
                                         "deactivate", "start", "stop", "pause", "resume", "log", "replay",
                                         "presets", "preset", "export", "import", "import_assistant"],
                      policy: dict[str, Any] | None = None,
-                     expected_hash: str | None = None,
+                     expected_hash: OpaqueId | None = None,
                      reason: str | None = None,
                      limit: Annotated[int, Field(ge=1, le=256)] | None = None,
                      after_seq: Annotated[int, Field(ge=0)] | None = None,

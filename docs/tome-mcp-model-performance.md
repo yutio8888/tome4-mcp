@@ -381,3 +381,56 @@ dist sha 与 A′ 分支一致（合并干净）。
 7. **协调者的派发缺陷**：`paseo --cwd <worktree>` 被解析为 workspace 根 → 近期所有代理实际在主 worktree
    工作；且我误归档了仍在工作的 Sol（复用原则要求复核自身 finding 时复用同一代理）。**已记录**在
    `tmp/mcp-play-support/dispatch-cwd-quirk.md`。
+
+
+## 2026-09-22：SYSREV 系统审核（只审查，不推进 Dev/Test 轮换）
+
+用户明确指定 Codex 内置 subagent；本轮据此使用内置 fresh contexts，保留 Review 固定 **GPT-5.6 Sol / high** 的模型要求，未使用 pi 启动 Review。
+
+| 身份 | 实际角色 / 模型 | 实际结果 |
+| --- | --- | --- |
+| `/root/protocol` | Review / `gpt-5.6-sol` / high | 平台内容检查中止，无报告，不计入覆盖；另派全新代理 |
+| `/root/protocol2` | Review / `gpt-5.6-sol` / high | changes_required；原始 P1=1/P2=1/P3=2 |
+| `/root/combat` | Review / `gpt-5.6-sol` / high | changes_required；原始 P1=3/P2=1/P3=0 |
+| `/root/architecture` | Review / `gpt-5.6-sol` / high | changes_required；原始 P1=1/P2=5/P3=1 |
+| Dev / Test | N/A：本轮没有产品实现或实机游玩代理 | 各自轮换计数不变；下一独立 Dev 仍按前文回到 A |
+
+固定基线 `caefa9a94af85dabd73c0d7e74ef764081b1fb3e`，dist SHA256 `5b32c28ad639a652e6ab83fa3cf88a6badc1b49dbaf753e329f0937af77c75e2`。去重后 **13 项（P0=0/P1=5/P2=6/P3=2）**；边界 checker 两路严重度不同，综合采用架构 Review 的 P1 验证门禁级别，未把它描述为已证运行错误。
+
+本轮重跑 Lua 43 脚本、Python 39 tests、三个生成器均通过；70-member source/dist/manifest 一致。受控模块复现发现测试覆盖外的契约/行为缺口，**native 本轮 NOT_OBSERVED**。这些结果不是跨模型比较实验，不能从发现数量推断模型优劣。
+
+产物：[系统审核报告](tome-mcp-system-review-2026-09-22.md)、[修改方案](tome-mcp-remediation-plan-2026-09-22.md)。原始报告和证据保留在 `/workspace/t-engine4/tmp/mcp-system-review-20260922`，哈希见审核报告。此次仅新增文档和此记录，没有产品修复、打包、提交或合并。
+
+
+## 2026-09-22：SYSFIX 首批开发已派发
+
+用户要求启动subagent修复上轮报告，沿用其Codex内置代理选择。EXEC-01@1将本轮记为执行方式例外：内置不提供pi的A/B模型，因此不推进A/B轮换；原序列Dev上次B、下一A保持。
+
+| 实际代理 | 角色 | 实际模型/思考 | 范围 | 当前状态 |
+| --- | --- | --- | --- | --- |
+| `/root/fix_core` | Dev（fresh） | `gpt-6-astra` / xhigh，内置继承 | SYS-04/10/11/12/13 | running，未验收 |
+| `/root/fix_policy` | Dev（fresh） | `gpt-6-astra` / xhigh，内置继承 | SYS-01/02/03 + U-01取证 | running，未验收 |
+| `/root/fix_tooling` | Dev（fresh） | `gpt-6-astra` / xhigh，内置继承 | SYS-05/06 | running，未验收 |
+
+三位Dev均在独立worktree，以 `366b32b4b53f28c3ef6575290f5b290d358ebfb8` 为基线；共享文件单写者见简报。Test/Review尚未派发，不复用之前的Review进行实现。报告数量/模型优劣暂无任何结果，不预判通过。
+
+### SYSFIX 集成与独立审核派发（继续）
+
+三个Dev已交付PR #27/#28/#29，仍为ready_for_review；core/policy继续各自native夹具补充，身份不变。集成统一入口通过不等于验收。内置fresh Review创建两次因线程额度失败，按EXEC-02改用Paseo全新Codex会话，模型仍固定Sol/high。
+
+| 实际代理 | 角色 / 模型 | 范围 / 当前状态 |
+| --- | --- | --- |
+| 137119c2-30bc-4f4d-9a4d-7762c9163a6f | fresh Review / codex gpt-5.6-sol / high | runtime、协议、持久化、文档；审核中 |
+| de482ffb-434f-468a-8c18-1ff3997e90c5 | fresh Review / codex gpt-5.6-sol / high | tooling、manifest、候选证据；审核中 |
+
+Test尚未派发；其独立序列上次B，下一A。以上不是跨模型对比实验，native首次执行夹具启动FAIL单独保留，不从单次故障推断模型优劣。
+
+### SYSFIX 最终候选验证（2026-09-22）
+
+候选源码 `084642634b1d92dfb5e2880f43998672469798ab`；包 `3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb`。三位内置 Dev 已交付，最终 core4bc0bb2 / policydca36dc / tooling06f393f，仍须独立最终验收。Runtime Reviewer 已关闭四项源码修复，tooling Reviewer 已关闭两项 checker finding；原生/证据适用性仍在复核。
+
+新鲜 `[Test]` 代理 `4231c485-6ce6-40c5-84c5-6a096b74edb3` 使用 **pi/commandcode/deepseek/deepseek-v4.1-flash / high**（Test 序列上次 B，本轮 A，下次 B）。会话 `sysfix-live-01` 仅验证固定包 cap1/cap3、公开边界拒绝和 draft clear，不作完整通关或跨模型实验。Dev A/B 计数仍不变（内置执行例外）。原生 probe 由协调者执行，不能记为此 Test 代理的实机发现。
+
+Test 交付4/4 PASS；额外一次非必要手动wait发生于所有断言之后，保留为brief偏离，不计入策略动作。会话在报告创建时即回收，Test代理已归档；最终证据适用性仍由原独立 Review 裁决。
+
+最终两位Sol/high独立Reviewer均ACCEPT：Runtime8个SYS项、evidence3个SYS项；全部本轮6个审核finding关闭。独立Test4/4证据获接受，额外事后wait仍记为非阻塞brief偏差。所有原生/测试会话已回收；固定验证与报告见validation/2026-09-22-system-fixes/acceptance.json。本轮不是可比较的模型实验，不据发现数或通过数评价模型优劣。

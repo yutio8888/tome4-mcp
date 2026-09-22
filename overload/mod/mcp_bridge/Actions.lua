@@ -1,5 +1,5 @@
--- GPL-3.0-or-later. Protocol 3 only: native calls only; observations never run
--- talent callbacks. The legacy v1 talent whitelist and v2/v3 forks are gone.
+-- GPL-3.0-or-later. Public protocol 4 and private native action carriers.
+-- The executor submits through the current game-native entrypoints.
 local Json = require 'mod.mcp_bridge.Json'
 local Progression = require 'mod.mcp_bridge.Progression'
 local Items = require 'mod.mcp_bridge.Items'
@@ -370,6 +370,15 @@ function M.validate(action)
     else return nil, 'unsupported_action' end
     for key in pairs(action) do if not allowed[key] then return nil, 'unexpected_action_field' end end
     return a
+end
+-- Public TCP actions expose one-shot prefill only. The internal carrier
+-- validator above remains shared by the auto host and native executor.
+function M.validatePublic(action)
+    if type(action)~='table' or action==Json.null or Json.isArrayMarked(action) then return nil,'invalid_action' end
+    for _,key in ipairs{'force_actor','force_grid','authoritative_target','sequence'} do
+        if action[key]~=nil then return nil,'unexpected_action_field' end
+    end
+    return M.validate(action)
 end
 function M.fingerprint(action, revision)
     -- Json.encode sorts object keys. Include every normalized field so a new

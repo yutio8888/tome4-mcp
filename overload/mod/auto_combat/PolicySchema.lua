@@ -26,6 +26,7 @@ M.ACTIVITY_ACTIONS={rest=true,auto_explore=true,change_level=true}
 -- by `emergency_only`; it never grants or removes an action capability.
 M.NO_ENEMY_MODES={stop=true,evaluate_rules=true}
 M.LOW_HP_MODES={pause=true,emergency_only=true,evaluate_rules=true}
+M.EMERGENCY_UNAVAILABLE_MODES={release_control=true,evaluate_rules=true}
 -- D-3: a new visible hostile is a preset/mode choice. `pause` is the
 -- conservative legacy default; `continue` updates the visible target set and
 -- keeps acting (a group fight must not park on every wanderer entering sight).
@@ -388,6 +389,23 @@ local function validateTargetPlan(plan,path,errors)
     end
 end
 
+-- POLICY-02: warn only where the formerly implicit emergency fallback can
+-- affect scheduling. Validation remains read-only; store ingress normalises a
+-- detached copy and restored approval must be explicitly renewed.
+function M.migrationWarnings(policy)
+    local mode=type(policy.mode)=='table' and policy.mode or {}
+    local safety=type(policy.safety)=='table' and policy.safety or {}
+    if mode.on_emergency_unavailable==nil
+        and (mode.on_low_hp=='emergency_only'
+            or (mode.on_low_hp==nil and safety.min_hp_pct~=nil)) then
+        return Json.array{{code='emergency_fallback_migration',
+            path='mode.on_emergency_unavailable',default='release_control',
+            requires_reapproval=true,
+            message='Emergency refusal now releases control; choose evaluate_rules explicitly for ordinary fallback and approve again.'}}
+    end
+    return Json.array()
+end
+
 function M.validate(policy)
     local errors=Json.array()
     if type(policy)~='table' or policy==Json.null then return nil,{{path='',code='not_an_object'}} end
@@ -401,12 +419,15 @@ function M.validate(policy)
     if policy.mode~=nil then
         if type(policy.mode)~='table' then errors[#errors+1]={path='mode',code='invalid_mode'}
         else
-            onlyKeys(policy.mode,{on_no_enemy=true,on_low_hp=true,on_new_enemy=true},'mode',errors)
+            onlyKeys(policy.mode,{on_no_enemy=true,on_low_hp=true,on_new_enemy=true,on_emergency_unavailable=true},'mode',errors)
             if policy.mode.on_no_enemy~=nil and not M.NO_ENEMY_MODES[policy.mode.on_no_enemy] then
                 errors[#errors+1]={path='mode.on_no_enemy',code='invalid_mode_value'}
             end
             if policy.mode.on_low_hp~=nil and not M.LOW_HP_MODES[policy.mode.on_low_hp] then
                 errors[#errors+1]={path='mode.on_low_hp',code='invalid_mode_value'}
+            end
+            if policy.mode.on_emergency_unavailable~=nil and not M.EMERGENCY_UNAVAILABLE_MODES[policy.mode.on_emergency_unavailable] then
+                errors[#errors+1]={path='mode.on_emergency_unavailable',code='invalid_mode_value'}
             end
             if policy.mode.on_new_enemy~=nil and not M.NEW_ENEMY_MODES[policy.mode.on_new_enemy] then
                 errors[#errors+1]={path='mode.on_new_enemy',code='invalid_mode_value'}
@@ -639,7 +660,7 @@ function M.validate(policy)
         end
     end
     if #errors>0 then return nil,errors end
-    return true
+    return true,nil,M.migrationWarnings(policy)
 end
 
 -- X-doubleprime: the one content-hash entry point. The authoritative policy

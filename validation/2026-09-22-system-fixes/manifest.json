@@ -1,0 +1,902 @@
+{
+  "schema_version": 2,
+  "candidate_id": "SYSFIX-20260922",
+  "product_version": "0.9.0",
+  "protocol_version": 4,
+  "code_baseline": "caefa9a94af85dabd73c0d7e74ef764081b1fb3e",
+  "candidate_commit": "084642634b1d92dfb5e2880f43998672469798ab",
+  "candidate_commit_note": "Frozen source contains runtime/tests; later coordinator documentation and integration commits must preserve production bytes.",
+  "evidence_note": "Absolute raw paths are local retained evidence. Use exact hashes and source/archive identities; older failures retained, no native result inferred from offline checks.",
+  "raw_sources": [
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-01/input.json",
+      "sha256": "eb6f156db187c1f837e635b1ff3ff67044a5467b5a3b5bf32ec6c5a9cf5f6ebf",
+      "base": "absolute",
+      "note": "preserved failed run: NATIVE-STARTUP-01: engine sandbox has no os.getenv; zero checks"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-01/result.json",
+      "sha256": "c86dfb73e777119a552557fcffcaa6e2bdc5fc112e5e701beda88f1cad11fe60",
+      "base": "absolute",
+      "note": "preserved failed run: NATIVE-STARTUP-01: engine sandbox has no os.getenv; zero checks"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-01/game.log",
+      "sha256": "b71779958e7117faf9e9578286db055910148b721faf69f6491c691fbd169008",
+      "base": "absolute",
+      "note": "preserved failed run: NATIVE-STARTUP-01: engine sandbox has no os.getenv; zero checks"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-01/candidate.zip",
+      "sha256": "414f9d6ed6d800026f6bb837f44a3bf5190c209c9b20eb458329a4a71f480c9b",
+      "base": "absolute",
+      "note": "preserved failed run: NATIVE-STARTUP-01: engine sandbox has no os.getenv; zero checks"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-02/input.json",
+      "sha256": "0bae1ce14074d39396b410c470de3ce95dad3dd6961365f8001ab3b442461c82",
+      "base": "absolute",
+      "note": "preserved failed run: RUNTIME-REV-02 / NATIVE-PENDING-01: completed rest final status lost by same-frame pump"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-02/result.json",
+      "sha256": "47facb2da0dd7ba868c290abbeca2c4a75718f3af46f385f037434639b3c7b25",
+      "base": "absolute",
+      "note": "preserved failed run: RUNTIME-REV-02 / NATIVE-PENDING-01: completed rest final status lost by same-frame pump"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-02/game.log",
+      "sha256": "67acb17d8a70011369628529f983d6c527f7daf37dfd3ebcc42ad38790c2f224",
+      "base": "absolute",
+      "note": "preserved failed run: RUNTIME-REV-02 / NATIVE-PENDING-01: completed rest final status lost by same-frame pump"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-02/candidate.zip",
+      "sha256": "e37bb06bc605e2c19384ea5edcd399bc1c0207635a37427f1acbe06230869f94",
+      "base": "absolute",
+      "note": "preserved failed run: RUNTIME-REV-02 / NATIVE-PENDING-01: completed rest final status lost by same-frame pump"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-01/input.json",
+      "sha256": "7e17a221e5782e970fc9fedf16612819d41ea60f9468468b7dd54b9134e90884",
+      "base": "absolute",
+      "note": "preserved failed run: NATIVE-IDENTITY-01: fixture incorrectly assumed transient uid survives reload"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-01/result.json",
+      "sha256": "8240472ba70f8d5ae383eafaa44f28fc562a054ef2a0b164c832fe0ebae0a4dd",
+      "base": "absolute",
+      "note": "preserved failed run: NATIVE-IDENTITY-01: fixture incorrectly assumed transient uid survives reload"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-01/game.log",
+      "sha256": "c84d9e1fab9f49d9d17cb1b6ecb0ca6be426369a3aea5610805189ca6c9fb6d1",
+      "base": "absolute",
+      "note": "preserved failed run: NATIVE-IDENTITY-01: fixture incorrectly assumed transient uid survives reload"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-01/reload.log",
+      "sha256": "a0f9a553034c3d5f2598c9957bd81605970731e44bd38bfa735218859e2294ea",
+      "base": "absolute",
+      "note": "preserved failed run: NATIVE-IDENTITY-01: fixture incorrectly assumed transient uid survives reload"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-01/wire.json",
+      "sha256": "9927d3f856d6c38b34bd4290e42d0a700f17bcc75432c8a4f8bff3c7f1563cc4",
+      "base": "absolute",
+      "note": "preserved failed run: NATIVE-IDENTITY-01: fixture incorrectly assumed transient uid survives reload"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-01/candidate.zip",
+      "sha256": "cc4458fddf6d33b28b62baca1a0ef7921af57ce13e596dfae2d117b4c1af00f8",
+      "base": "absolute",
+      "note": "preserved failed run: NATIVE-IDENTITY-01: fixture incorrectly assumed transient uid survives reload"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-04/candidate.zip",
+      "sha256": "de7141e34b489396637e9be8cddfe686d8a3d282aea25ca0fbe6b0454bce3a38",
+      "base": "absolute",
+      "note": "sysfix-policy-source-04"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-04/game.log",
+      "sha256": "6e01c67e1ec0c01e6c49d7b45dcb35f76ec9b962eb4ceaf6937444c24fbdc741",
+      "base": "absolute",
+      "note": "sysfix-policy-source-04"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-04/input.json",
+      "sha256": "2673326cf5b415ebd6d5e562fa8b59a42d8006ce27d81d62181dcaefbb29d92e",
+      "base": "absolute",
+      "note": "sysfix-policy-source-04"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-04/result.json",
+      "sha256": "8f64e2f7dbbf32b6d342c908b2a307a80a769891443ef654bdcb2ee9130ff796",
+      "base": "absolute",
+      "note": "sysfix-policy-source-04"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-04/xvfb.log",
+      "sha256": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+      "base": "absolute",
+      "note": "sysfix-policy-source-04"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-04/home/.t-engine/4.0/settings/mcp-test.cfg",
+      "sha256": "469e9409d6236a627cdc00c6deb933b1199c91830c3c5161d0d99a727bdf5619",
+      "base": "absolute",
+      "note": "sysfix-policy-source-04 actual loaded config"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/sysfix-policy-source-04-invocation.json",
+      "sha256": "bd1d880f66c3264554ac212d07c178a819323a234a1bdf914a5cc7aa3c65e938",
+      "base": "absolute",
+      "note": "sysfix-policy-source-04"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/sysfix-policy-source-04-runner.log",
+      "sha256": "c316cb7bc4395f93bdfcbcc90dcba7cb0aa5a5fa5d3885a23a0b403dd09a1927",
+      "base": "absolute",
+      "note": "sysfix-policy-source-04"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-dist-01/candidate.zip",
+      "sha256": "068fd1eed26bb0cbd089837e8c2710b1137fc5d17280bbef1c75bb89fa418f06",
+      "base": "absolute",
+      "note": "sysfix-policy-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-dist-01/game.log",
+      "sha256": "67854535bbf3b70e3376be07c88d3ac8e4f2a8edfc8eeb1392599b5569f5973e",
+      "base": "absolute",
+      "note": "sysfix-policy-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-dist-01/input.json",
+      "sha256": "d1de8c4a3156a5b3be431392435d65ac1c834234bcf103c68516634316a93b55",
+      "base": "absolute",
+      "note": "sysfix-policy-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-dist-01/result.json",
+      "sha256": "4090bc29bd5f092daea6e617a1539cdf0f07847f96681c5f886bdee7338ed301",
+      "base": "absolute",
+      "note": "sysfix-policy-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-dist-01/xvfb.log",
+      "sha256": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+      "base": "absolute",
+      "note": "sysfix-policy-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-dist-01/home/.t-engine/4.0/settings/mcp-test.cfg",
+      "sha256": "166c6255d72b588515f6467a98127a1be4cd1a7db91893d5592ba6ed5a644e66",
+      "base": "absolute",
+      "note": "sysfix-policy-dist-01 actual loaded config"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/sysfix-policy-dist-01-invocation.json",
+      "sha256": "ffb520c4c75f705c60904d597d1faffe2329e188ac5b416e9f0ce344d02149f1",
+      "base": "absolute",
+      "note": "sysfix-policy-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/sysfix-policy-dist-01-runner.log",
+      "sha256": "0dd7797d2716c462d9d6d71b1da4a0693b7e03676a396308af1fe10a20da9f71",
+      "base": "absolute",
+      "note": "sysfix-policy-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/candidate.zip",
+      "sha256": "dbdb71573d9eb5909269c39d6b095d4ace9c2ca6a9f6e9fa483acb5e8dc1ef6b",
+      "base": "absolute",
+      "note": "sysfix-core-source-02"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/game.log",
+      "sha256": "afc231f40a270073cf21ad7bb80ce56dc98e8fe112fc1944a11cc91fc7d6773b",
+      "base": "absolute",
+      "note": "sysfix-core-source-02"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/input.json",
+      "sha256": "e0fc6bc1e111e124df37dc6f15af00c030718ccc990065f7e937c28b741636e5",
+      "base": "absolute",
+      "note": "sysfix-core-source-02"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/mcp.log",
+      "sha256": "08bed388944a314297a47156db3918db2e1e417d863037bff7d24304ea7c1d9d",
+      "base": "absolute",
+      "note": "sysfix-core-source-02"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/reload-input.json",
+      "sha256": "191e1bff3556ce9cd60e75b9dc47e40fd7b02662dcbf2af2732c42ed6b27f5ff",
+      "base": "absolute",
+      "note": "sysfix-core-source-02"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/reload.log",
+      "sha256": "2c7977597a95e27954245acd415b3ccdc46ff7c7e3fa85e0dc82f1e83c2f1fda",
+      "base": "absolute",
+      "note": "sysfix-core-source-02"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/result.json",
+      "sha256": "457ac57833d7622716b3b6c45568ae2c8c2c550fa4c3e713f7fcdab9ddb86193",
+      "base": "absolute",
+      "note": "sysfix-core-source-02"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/wire.json",
+      "sha256": "cc75bfee314f3640f1e0e3958cbce2fe6fec1a23b4980a96d9327d13a0b18d27",
+      "base": "absolute",
+      "note": "sysfix-core-source-02"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/xvfb.log",
+      "sha256": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+      "base": "absolute",
+      "note": "sysfix-core-source-02"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/home/.t-engine/4.0/tome/save/mcp_sysfix_core_source_/game.teag",
+      "sha256": "96c5a0e6b6cf122fae317f3cbac850440e981e4e19c11ac6d39916db5e31c694",
+      "base": "absolute",
+      "note": "sysfix-core-source-02 actual saved character"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/reload-home/.t-engine/4.0/tome/save/mcp_sysfix_core_source_/game.teag",
+      "sha256": "96c5a0e6b6cf122fae317f3cbac850440e981e4e19c11ac6d39916db5e31c694",
+      "base": "absolute",
+      "note": "sysfix-core-source-02 actual saved character"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/home/.t-engine/4.0/settings/mcp-test.cfg",
+      "sha256": "c19015ab7d49ebf5c758e0d6c9fc40604adbb76a6cebd7ad219b5af5894434a6",
+      "base": "absolute",
+      "note": "sysfix-core-source-02 actual loaded config"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02/reload-home/.t-engine/4.0/settings/mcp-test.cfg",
+      "sha256": "c19015ab7d49ebf5c758e0d6c9fc40604adbb76a6cebd7ad219b5af5894434a6",
+      "base": "absolute",
+      "note": "sysfix-core-source-02 actual loaded config"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/sysfix-core-source-02-invocation.json",
+      "sha256": "2b1071fadaaa5f9c88ed870bc9cc91fc8388db986544de59ee02c68cbd55134f",
+      "base": "absolute",
+      "note": "sysfix-core-source-02"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/sysfix-core-source-02-runner.log",
+      "sha256": "78b26abdfa513387009de5a1e06bf6a37ef0449bd1081c4e184f225a0861333f",
+      "base": "absolute",
+      "note": "sysfix-core-source-02"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/candidate.zip",
+      "sha256": "272140a9cf20c29cf27547a4af5931854287df6a04fc2b8b1dda2f23402b3e18",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/game.log",
+      "sha256": "1e88b07ed7a35053caee7f01789593be336540f5c76442cf195f3c9f981ff89d",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/input.json",
+      "sha256": "f4311776af9b44416733d2ae0ad76acf362e988e6aa6f81a2c57603f6ecd0f5e",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/mcp.log",
+      "sha256": "08bed388944a314297a47156db3918db2e1e417d863037bff7d24304ea7c1d9d",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/reload-input.json",
+      "sha256": "917ba226a1cc7f0c039a3f3d9abda9c336b4a1cd8ddf2141ebb69ceef9ce9230",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/reload.log",
+      "sha256": "57b6e74c7cb0b1cb3709fc45eea3b9af52e015b5f9dd42ca68bf5a509f3f1bae",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/result.json",
+      "sha256": "5972e39e57f151a562d2cbc32d9fd7533c777769dc28d75f1e738f9a869a9239",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/wire.json",
+      "sha256": "071f37666e4e509768c6d660f99f77239b185db4d38c4c1a7f205bde10b13fcb",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/xvfb.log",
+      "sha256": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/home/.t-engine/4.0/tome/save/mcp_sysfix_core_dist_01/game.teag",
+      "sha256": "e3964346fa29a7c791604f2abd537b47693b62a16594db4c73abe4e4f74edfad",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01 actual saved character"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/reload-home/.t-engine/4.0/tome/save/mcp_sysfix_core_dist_01/game.teag",
+      "sha256": "e3964346fa29a7c791604f2abd537b47693b62a16594db4c73abe4e4f74edfad",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01 actual saved character"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/home/.t-engine/4.0/settings/mcp-test.cfg",
+      "sha256": "dbbd33f9db3e6c6c95dc1756c80cb98e8b79121a347b69ae450ac88bdde19995",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01 actual loaded config"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01/reload-home/.t-engine/4.0/settings/mcp-test.cfg",
+      "sha256": "dbbd33f9db3e6c6c95dc1756c80cb98e8b79121a347b69ae450ac88bdde19995",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01 actual loaded config"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/sysfix-core-dist-01-invocation.json",
+      "sha256": "7c03d8a984f6f8355f2cbd710000fa192405161a3f9e3ec296c191d024949957",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/sysfix-core-dist-01-runner.log",
+      "sha256": "ac9f5d4f971f0aea5c39c52a3a74bfcb42b44aafa84391cd70aa19ba41362e25",
+      "base": "absolute",
+      "note": "sysfix-core-dist-01"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/integrated-tests-pinned.log",
+      "sha256": "f10597b8934f4260aca56c449dfd4f6ff5f89609d88900338fca8b55b6678230",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/final-candidate-pin.json",
+      "sha256": "e055c9c736ac1562a18a55fa396ca9de1c7bcac1b7a0e47b217dccb68b11cc57",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/environment-pins.json",
+      "sha256": "43c4ba810a5d3da96b6354bf04aa2eea9f68545523fdd18197e6e982cbbcb1a6",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/coordinator-setup-failure.json",
+      "sha256": "20779a8463670bbfd981933f58648cf46e8d318641a76b3ebd9ce51960b2844f",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/sysfix-policy-source-03-invocation.json",
+      "sha256": "637d51c8de5487f7f4290af4698c7a147fce26d451e237906391024859a37001",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/sysfix-policy-source-03-runner.log",
+      "sha256": "d5f6519fbc30ddacfb9fde17b7f89b1ee5d5138e52c75d3150cc592a023391ab",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/prior-native-failures.json",
+      "sha256": "2e2405f59c8774cc3a36a48657629dc0eea6594758b5be33f4db5d06a1f026d1",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test-final-brief.md",
+      "sha256": "f0e5991f72f4f63ab0430646db8f621c0ad0f9ceccf25ea84a33e89dced5e594",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test-policies.json",
+      "sha256": "f8797c4dbc011e3bd2d058bdd7d003142f1e2f93a238a3dab66b34667ca226a7",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test-launch.json",
+      "sha256": "d3776c713fcf822f98fbe9dab0a5abc9003eda9b61c054131cd39e42fa5a0428",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test-dispatch.json",
+      "sha256": "da26cc90bb0f4735e8dcac08df582b9431861e131ec16c17745d1082f80f8c28",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test-reap.log",
+      "sha256": "291e8dee5a9199f07dcdea6eb7dafc40326096bfdf3089fd116068fbf8db91f3",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/agent-sysfix-play.py",
+      "sha256": "86d53f1966477cbc6d789580a8d3f66e6319d7bbeb4263bb6be0737b507f6c00",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/send-sysfix-live-01.sh",
+      "sha256": "75682b5669b4a8794246e4327931bea65fb77a9c6440814baf2afc2dceb27f3c",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/run-native-batch.py",
+      "sha256": "430be8808b3fb725d04e84ba3c68a1538b0af90bc1b45e245a847d6b91a6213d",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/core/scalar-boundary/report.md",
+      "sha256": "e3f53ffec8ded1271b984041b37cce5609f208d226029ccd3bae657d2acae1b3",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/core/pending-native/report.md",
+      "sha256": "2a52838c2e6ea3427dfb897e002db1574e09ab8401f4afa6c15e89016012033c",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/policy/pending-native/report.md",
+      "sha256": "36692e8d3dbf20b9669455cc2482951382a45a4a0a4477f0fa55a9760ca2c375",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/tooling/review-fix/report.md",
+      "sha256": "a8d2ef681a4f391bff03a5aafd9962b48583d5fca8be0e1a34b0a319f9bd8b47",
+      "base": "absolute",
+      "note": ""
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/report.md",
+      "sha256": "e0e257c753d4343d3312bb10085fd4b9f39239bd9e14519a4fa0f0695043b726",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/metrics.json",
+      "sha256": "248dd7fcaf1d8d2c71bcebf49f1cc67db5e0083e8a17ab83df1df5430348c444",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/report.sha256",
+      "sha256": "a2270564fe11b2d47ffad3740f5e4faf20f6a5d1857061c9e228a566174f19c1",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/01-baseline-observe.json",
+      "sha256": "68740b8e1f9f183982b2d2cb68b7a337d22a44880d11d5dc0588cbbd50085a5f",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/01-baseline-observe.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/02-policy-status-baseline.json",
+      "sha256": "4888cc1b268d635fc3e2965a8123976f3e2597d5de90b49f8ae7e5c8bf393ada",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/03-private-action.json",
+      "sha256": "9bbf1236e3a839edb82fb9f1366a643b74673ddcf1903b79741e26bd1111743c",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/04-after-private-observe.json",
+      "sha256": "b7c8569a0ccb640016297111a678e843f9a03bb6664580849a05e0f3cf77a73a",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/05-set-draft-cap1.json",
+      "sha256": "c492a01870c00579519a336b68f600bb550a3040541b3595a97dd335a147acc0",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/06-approve-cap1.json",
+      "sha256": "99a1ce1ab1e8f056531968e9b5e774488431ec57e2160e80882c74d0c4b1523b",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/07-set-draft-cap3-copy.json",
+      "sha256": "aa0fb3544eb384739801162a686caf1b7459d71a773d940df7b44605253ded7f",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/08-status-before-clear.json",
+      "sha256": "dd65f9e362b1ce4bc757a7ec29623cb3981ac4661140eed93fec4c5dd47f12fe",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/09-clear.json",
+      "sha256": "16694c5a6e04f2889cfd8499a4761db3e1b0ab9d7ca0a7cb2f94a419e6051a79",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/10-status-after-clear.json",
+      "sha256": "55a1b7092df65abfa10fd97d316faf133d296f4d34d784167ed890224c7dd408",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/11-get-after-clear.json",
+      "sha256": "3ac8d34df68dd9335cd7a0cac7837a25ad176c4a0f2ed170957fd933bf019c8e",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/12-activate-cap1.json",
+      "sha256": "238f90780afa08c89998b9e7042c57534924ae8ec8d8721b6aafa0bf2892cf87",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/13-auto-start-cap1.json",
+      "sha256": "a344a19dd79a9f5566a204836834f41491921190ce4f6a4d933c083bac8d2696",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/14-auto-status-cap1-a.json",
+      "sha256": "50015db64534215f78e3a44f67f41ae048db1d37d3c72a6485126ed8cc23ab7e",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/15-observe-cap1-a.json",
+      "sha256": "31eefb994c9e58f2e1f8ee2139ca09699214eaf475dfe20198aa515ebd3942a0",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/15-observe-cap1-b.json",
+      "sha256": "4d3c3fe4b60abb5ba9e03359320f63fff62a2cc9973f4331b60566a28e4d3927",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/15-observe-cap1-c.json",
+      "sha256": "c30f8e72eeb62151c0527c2ad8426da2891234ac39356651cf6a36f0ad3505c5",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/16-policy-log-cap1.json",
+      "sha256": "4627d678c27682ea687789cfe407021933b8b29128401444889e11e53de7aa1a",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/17-observe-pre-cap3.json",
+      "sha256": "72baf35c5a4e68ee87000ffaa079437ec542d9f56ca69bd41054a6d78251f19e",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/18-set-draft-cap3.json",
+      "sha256": "f2f62c6fa8c479091c6286ad9a4fcaba8ae50e9bbc621146dea8e411100498bd",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/19-approve-cap3.json",
+      "sha256": "0711c5549d1ccaf78370415d8b26256d5a1cf584cddda0bd8222a0fc72e4809d",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/20-activate-cap3.json",
+      "sha256": "a6ec484ce04f711763e344634599cfe5485605fe4a983f4c0deb35b5db9b01d0",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/21-auto-start-cap3.json",
+      "sha256": "d39a588acc0e70498051dedea84633122a299e1496a643a37ca9b7b64b997a3d",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/22-auto-status-cap3-a.json",
+      "sha256": "94a9043878b9e361d3a530b7cf48df1bd3348f49346fdd4c8fb52601cc30a844",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/23-status-cap3-stable-a.json",
+      "sha256": "76702b9b310ad51838c9705586bd4fb3f9e27813711ec2f7415a634542864557",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/23-status-cap3-stable-b.json",
+      "sha256": "b4eb3d7dd2dac6785901cc03393d19b39ced3f4b1f3f768b04dc562476db7d34",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/23-status-cap3-stable-c.json",
+      "sha256": "48a1b03d6d2868d4c3c400efdd2ba5ecd61076e106979d59431260773e5f8c3e",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/24-observe-after-cap3.json",
+      "sha256": "d7948825bb553f875c7f1f0eda9dca817b20874097530fc2c0e552c43cd699b6",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/25-manual-wait-post-cap3.json",
+      "sha256": "5d56ae43216dbeea84b42598b4313e22c6f506463f7c0050a5d424aae02d719b",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/manifest.sha256",
+      "sha256": "f1f742077bd7ed8acbcb26ed93f44dec99e7a11bafd19fcf525ed7c44846e272",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/test/raw/wrapper-calls.txt",
+      "sha256": "16655d03f8b0b8e5d6fd758151aca312dfa198c238b5434909d4d75f98cf9fa2",
+      "base": "absolute",
+      "note": "independent Test raw/report"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-live-01/candidate.zip",
+      "sha256": "ca9f06db2b97652271edc3519985523c1ee010f274243dbeae3fe033803eb20b",
+      "base": "absolute",
+      "note": "independent live Test"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-live-01/input.json",
+      "sha256": "3e6f69b2f3a2219585b01e364607f7ea2bfab1062fb3776a98768e12979e7e4c",
+      "base": "absolute",
+      "note": "independent live Test"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-live-01/play-mcp.jsonl",
+      "sha256": "b9a00b3ac54da0395040dbcab6c4e596a2c98624275259aca86de0e76bd208ef",
+      "base": "absolute",
+      "note": "independent live Test"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-live-01/decisions.jsonl",
+      "sha256": "ecc609292a7190e6924b07bcaf8b2956c3a09d519e28b65a2463005bf054107e",
+      "base": "absolute",
+      "note": "independent live Test"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-live-01/xvfb.log",
+      "sha256": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+      "base": "absolute",
+      "note": "independent live Test"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-live-01/game.log",
+      "sha256": "b6853649cbfed2821517a1dfb35c0574889b496fc77161a136256605cdcce4c5",
+      "base": "absolute",
+      "note": "independent live Test"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-live-01/observed.json",
+      "sha256": "08c12cfef6eee66aa4a6ea907afe573474b744ee6a7d3fac6dc636efc50ada7c",
+      "base": "absolute",
+      "note": "independent live Test"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-play-support/sysfix-live-01.log",
+      "sha256": "4e0713584ff7c6a469212fa54908c4846f1a0cc956909ca49534cd8bb3a3412a",
+      "base": "absolute",
+      "note": "live console"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/battle-companion-validation-20260914/runtime/t-engine",
+      "sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+      "base": "absolute",
+      "note": "engine/harness identity"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/worktrees/yron-profile-20260912/tmp/profile/deps/root/usr/bin/Xvfb",
+      "sha256": "6eda36f0c84969a0fbe3f411c4a16521620db8a16c13defbee690cad86bd9ef8",
+      "base": "absolute",
+      "note": "engine/harness identity"
+    },
+    {
+      "path": "/workspace/t-engine4/game/addons/tome-mcp-bridge/tests/native/runtime.py",
+      "sha256": "fbcc8ef69a2ca531982d287f096e8c4a6e1d002915feb7eb93cbed1f4cdbb5f8",
+      "base": "absolute",
+      "note": "engine/harness identity"
+    },
+    {
+      "path": "/workspace/t-engine4/game/addons/tome-mcp-bridge/harness/console/reap-session.sh",
+      "sha256": "a3c3851b03e652699ad7509924402d0b51a0ac3335c42640f911cefa28decddb",
+      "base": "absolute",
+      "note": "engine/harness identity"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/native-final-index.json",
+      "sha256": "4f16bc237277f495f6227f653b7e623f36197bc065a01b1a038fc2ac75675a48",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/canonical-frozen-parity.json",
+      "sha256": "e59b0df4ac25609a01278b087b92b83cdffe7e87616dc2bd89c13858ac93ca7c",
+      "base": "absolute"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/artifacts/candidate-3a4e186b0019.teaa",
+      "sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+      "base": "absolute",
+      "note": "archive"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/artifacts/candidate-3a4e186b0019-manifest.json",
+      "sha256": "cf79759b295fa246eff10bfc6038c87b2501b51579e169525c0bc49daef5fe1f",
+      "base": "absolute",
+      "note": "manifest"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/artifacts/server-084642634b1d.tar.gz",
+      "sha256": "48af733c6e4a544900570f9e03df69fa8458f4121e31d41e4351b409368100c1",
+      "base": "absolute",
+      "note": "server_archive"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/artifacts/source-084642634b1d.tar.gz",
+      "sha256": "4373d935fcc438f82b0b92a83503a23fc86b63d80364268384cdd8cf66fa9e7c",
+      "base": "absolute",
+      "note": "entire fixed source and tests at exact candidate commit"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "review-runtime-source.md",
+      "sha256": "2fc27f6580dd3001f4667cfdfff9081978f16984f1b76a8dfc8bd198ed95ff92"
+    },
+    {
+      "path": "review-evidence-source.md",
+      "sha256": "e1cb86f905ef84e98a8e7391cef978094173e16c5dc32cf26300e4cdc23d3db2"
+    },
+    {
+      "path": "live-test-report.md",
+      "sha256": "e0e257c753d4343d3312bb10085fd4b9f39239bd9e14519a4fa0f0695043b726"
+    },
+    {
+      "path": "summary.json",
+      "sha256": "452ded646036ebaeceac15d3efa76caddb603dc3b1b56b5f5f341f7560d63d38"
+    },
+    {
+      "path": "candidate-pin.json",
+      "sha256": "e055c9c736ac1562a18a55fa396ca9de1c7bcac1b7a0e47b217dccb68b11cc57"
+    },
+    {
+      "path": "offline-tests.log",
+      "sha256": "f10597b8934f4260aca56c449dfd4f6ff5f89609d88900338fca8b55b6678230"
+    }
+  ],
+  "gates": [
+    {
+      "id": "sysfix-policy-source-04",
+      "status": "passed",
+      "evidence": [
+        "summary.json"
+      ],
+      "note": "20 actually executed checks; source/package identity and raw records indexed"
+    },
+    {
+      "id": "sysfix-policy-dist-01",
+      "status": "passed",
+      "evidence": [
+        "summary.json"
+      ],
+      "note": "20 actually executed checks; source/package identity and raw records indexed"
+    },
+    {
+      "id": "sysfix-core-source-02",
+      "status": "passed",
+      "evidence": [
+        "summary.json"
+      ],
+      "note": "123 actually executed checks; source/package identity and raw records indexed"
+    },
+    {
+      "id": "sysfix-core-dist-01",
+      "status": "passed",
+      "evidence": [
+        "summary.json"
+      ],
+      "note": "123 actually executed checks; source/package identity and raw records indexed"
+    },
+    {
+      "id": "offline-unified",
+      "status": "passed",
+      "evidence": [
+        "offline-tests.log"
+      ],
+      "note": "22 boundary /17 manifest /44 Lua scripts /47 Python with 1787 actual MCP scalar cases /3 generators; offline is not native"
+    },
+    {
+      "id": "source-dist-parity",
+      "status": "passed",
+      "evidence": [
+        "candidate-pin.json"
+      ],
+      "note": "72 exact source/zip/manifest members and bytes"
+    },
+    {
+      "id": "independent-live-test",
+      "status": "passed",
+      "evidence": [
+        "live-test-report.md"
+      ],
+      "note": "Independent Test reports4/4 PASS under frozen metrics; one unnecessary manual wait after all oracles separately disclosed and excluded. Final reviewer adjudication is separate."
+    },
+    {
+      "id": "historical-failures",
+      "status": "failed",
+      "evidence": [
+        "summary.json"
+      ],
+      "note": "Earlier three native runs and one coordinator setup failure remain failed; corrected runs separately recorded"
+    }
+  ],
+  "limitations": [
+    "Native policy migration/import rows are real Service data paths inside engine; they are not actual game-file save/restart. Core source/dist explicitly perform true Ctrl-S and new-process reload.",
+    "Controlled native fixture authors are Devs; coordinator executes. Separate Test owns bounded normal-campaign observation.",
+    "SYS-08 advanced editor, SYS-09 standalone distribution, U-01 max_candidates semantics are deferred with named owner/trigger; not fixed.",
+    "This manifest verifies retrievable file/reference integrity. Independent reports determine behavioral applicability."
+  ]
+}

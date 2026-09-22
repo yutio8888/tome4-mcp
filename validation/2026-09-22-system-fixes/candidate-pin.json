@@ -1,0 +1,15 @@
+{
+  "source_commit": "084642634b1d92dfb5e2880f43998672469798ab",
+  "source_root": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/workspaces/final-candidate/game/addons/tome-mcp-bridge",
+  "archive": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/artifacts/candidate-3a4e186b0019.teaa",
+  "archive_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+  "manifest": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/artifacts/candidate-3a4e186b0019-manifest.json",
+  "manifest_sha256": "cf79759b295fa246eff10bfc6038c87b2501b51579e169525c0bc49daef5fe1f",
+  "file_count": 72,
+  "parity": "PASS: exact source/zip/manifest file set and all bytes",
+  "server_source": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/workspaces/final-candidate/game/addons/tome-mcp-bridge/server/src",
+  "server_archive": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/artifacts/server-084642634b1d.tar.gz",
+  "server_archive_sha256": "48af733c6e4a544900570f9e03df69fa8458f4121e31d41e4351b409368100c1",
+  "server_py_sha256": "36f251558046efa171eb1e63a6796a04c21e76fd07c5ba170502591ace91dec9",
+  "policy_probe_sha256": "2db315362602f6925c5117f107ae2c83f7335838a431808a2fa63ce5e7bb7f30"
+}

@@ -72,6 +72,8 @@ function M.add(log,event)
     local entry={seq=log.next_seq,kind=event.kind or 'event',reason=event.reason,
         rule=event.rule,talent=event.talent,target=event.target,native_result=event.native_result,
         action=event.action,
+        native_submissions=event.native_submissions,effective_actions=event.effective_actions,
+        instant_actions=event.instant_actions,run_actions=event.run_actions,
         -- P3-c: `landing` is only ever a bounded string produced by the movement
         -- retry path; guard the type so a hostile policy cannot grow the ring.
         landing=boundedString(event.landing,64),
