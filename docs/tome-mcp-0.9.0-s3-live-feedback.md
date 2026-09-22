@@ -37,3 +37,16 @@ Review 已关闭 `REV-S3-02/03`，仅 `REV-S3-01` 保持 OPEN。
 `REV-S3-02/03` 的协调者勘误已由原 Reviewer 复核关闭；其余三项原反馈保留上表处置。
 下一 owner：Dev 交付代码/单测/PR 后，协调者核对全量台账，再启动独立 Test 补证；
 实机请求证据仍是完成 S3 的必需项，不能以工具单测代替。
+
+## 补证实现交付与启动门（2026-09-22）
+
+独立 Dev 已交付 [PR #32](https://github.com/yutio8888/tome4-mcp/pull/32)，源码
+`440a5a7f1c4bba27accb076b9f7235d23838c0f4`。控制台转发修复与测试专用被动观察器
+均已提交；68 项机制检查、完整 `bash tests/run.sh`（含全部生成器）exit0。初次入口失败由
+隔离布局缺少只读依赖引起，其日志保留。单测不能替代真实 Vault 请求证据。
+
+全量反馈的实现阶段处置见
+[补证启动台账](../validation/2026-09-22-s3-supplement/implementation-ledger.json)。
+协调者使用新的 `supplement/agent-play.py`，首轮 driver/metrics/raw/报告保持原样。
+产品 72 个 archive member 仍一致，测试观察器作为第三个独立 addon 显式加载。
+下一步是新的独立 Test 实机补证，再由原 Sol 复核 `REV-S3-01`；S3 此时仍未验收。

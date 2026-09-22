@@ -458,10 +458,15 @@ Test 交付4/4 PASS；额外一次非必要手动wait发生于所有断言之后
 | 实际代理 | 角色 / 启动模型与思考 | 状态与范围 |
 | --- | --- | --- |
 | 302ada78-e664-4298-b53b-5c1243821a99 | fresh Review / pi `openai-codex/gpt-5.6-sol` / high | 初审要求补齐 Vault 实际两段请求证据；初版报告多处身份/hash/坐标标注与实文件不符，原 Reviewer 已重新取证更正；33 个原始文件哈希经协调者复算一致，初审结论 5/6、REV-S3-01 仍 OPEN，REV-S3-02/03 关闭 |
-| 4791e304-4f35-47ec-8a81-b8f9d745a6bb | fresh Dev / pi `commandcode/deepseek/deepseek-v4.1-flash` / high | 仅修复 compact observe 转发、实现测试专用被动请求记录及单测；产品包不变，尚未交付 |
+| 4791e304-4f35-47ec-8a81-b8f9d745a6bb | fresh Dev / pi `commandcode/deepseek/deepseek-v4.1-flash` / high | 已交付 PR #32（440a5a7），compact 转发/测试专用记录器及 68 项机制检查；完整入口 exit0，尚待独立实机/Review |
 
 Dev 序列上次 B，本次 A，下次 B；前轮 SYSFIX 内置执行例外未推进轮换。Test 独立序列上次 B，下一次 A。
 初审报告原文保存在 support 的 `review/report-initial-unverified.md`，更正不得覆盖原始证据。
 已单独建立证据索引勘误：`raw/010` 实际为空，其成功 observe 原始回复见 MCP transcript 第 13/14 条；
 Vault gate 在新版索引标为 `partial`，缺少实际请求观测的子项仍为 `NOT_OBSERVED`。初次六行指标及 Test 报告不改写。
 这不是等量跨模型实验，不据一次报告错误推断模型整体能力。
+
+S3 Dev 初段约 25 分钟反复分析但无改动，协调者中断并以具体实现顺序恢复同一代理，未推进轮换。
+交付时协调者发现四项记录器接入/透传边界问题及五项文档事实问题，均由原 Dev 修正并提交；
+首个完整测试入口因隔离布局缺少兄弟 addon 失败，补只读路径后重跑 exit0，失败日志保留。
+这些是本轮过程事实，不是已冻结的模型对比指标；产品包仍为 `3a4e186b…f413fb`。
