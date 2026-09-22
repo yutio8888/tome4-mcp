@@ -457,7 +457,7 @@ Test 交付4/4 PASS；额外一次非必要手动wait发生于所有断言之后
 
 | 实际代理 | 角色 / 启动模型与思考 | 状态与范围 |
 | --- | --- | --- |
-| 302ada78-e664-4298-b53b-5c1243821a99 | fresh Review / pi `openai-codex/gpt-5.6-sol` / high | 初审要求补齐 Vault 实际两段请求证据；初版报告多处身份/hash/坐标标注与实文件不符，原 Reviewer 正在复核自身报告，尚未用于验收 |
+| 302ada78-e664-4298-b53b-5c1243821a99 | fresh Review / pi `openai-codex/gpt-5.6-sol` / high | 初审要求补齐 Vault 实际两段请求证据；初版报告多处身份/hash/坐标标注与实文件不符，原 Reviewer 已重新取证更正；33 个原始文件哈希经协调者复算一致，初审结论 5/6、REV-S3-01 仍 OPEN，REV-S3-02/03 关闭 |
 | 4791e304-4f35-47ec-8a81-b8f9d745a6bb | fresh Dev / pi `commandcode/deepseek/deepseek-v4.1-flash` / high | 仅修复 compact observe 转发、实现测试专用被动请求记录及单测；产品包不变，尚未交付 |
 
 Dev 序列上次 B，本次 A，下次 B；前轮 SYSFIX 内置执行例外未推进轮换。Test 独立序列上次 B，下一次 A。
