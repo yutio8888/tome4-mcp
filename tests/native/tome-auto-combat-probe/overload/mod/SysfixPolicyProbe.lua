@@ -4,8 +4,11 @@
 local Runtime=require 'mod.mcp_bridge.Runtime'
 local Service=require 'mod.auto_combat.AutoCombatService'
 local Json=require 'mod.mcp_bridge.Json'
+local Codec=require 'mod.auto_combat.PolicyCodec'
+local PolicyIO=require 'mod.auto_combat.PolicyIO'
 local M={pending=false,checks={},failures=0,index=0,frames=0}
-local CASES={'wait_cap','emergency_release','emergency_fallback','submission_cap','sustain_instant','pending_rest'}
+local CASES={'wait_cap','emergency_release','emergency_fallback','submission_cap','sustain_instant',
+    'pending_rest','migration_archive','import_integrity'}
 local function emit(record) print('[AutoCombatProbe] '..Json.encode(record)) end
 local function check(name,passed,details)
     local row={kind='auto_combat_check',name='sysfix:'..name,passed=passed==true,details=details}
@@ -78,6 +81,72 @@ local function waitingDetails(w,reason)
         rest_live=w.native_rest~=nil and game.player.resting==w.native_rest,
         rest_turns=w.native_rest and w.native_rest.cnt,
         energy=game.player.energy.value,paused=game.paused,log=Service.log(w.svc,6)}
+end
+-- These scenarios exercise the loaded source/package's real Service data
+-- paths. saveState roundtrips are not engine savefile/restart evidence.
+local function migrationCase()
+    local svc=Runtime.autoCombatService(game)
+    local before=Service.saveState(svc)
+    M.restore=function() Service.loadState(svc,before) end
+    local draft=policy(); draft.id='native-original-draft'; draft.updated='draft metadata'
+    draft.mode.on_emergency_unavailable=nil; draft.rules[1].priority=31
+    local approved=policy(); approved.id='native-original-approved'; approved.updated='approval metadata'
+    approved.mode.on_emergency_unavailable=nil; approved.rules[1].priority=43
+    local draftBytes=assert(Codec.encode(draft))
+    local approvedBytes=assert(Codec.encode(approved))
+    local migrated=Json.decode(Json.encode(approved)); migrated.mode.on_emergency_unavailable='release_control'
+    local migratedBytes=assert(Codec.encode(migrated))
+    local saved={format=2,draft=draft,approved=approved}
+    for round=1,3 do
+        assert(Service.loadState(svc,saved))
+        local got=Service.get(svc)
+        local previous=got.migration and got.migration.previous_draft
+        local original=got.migration and got.migration.original_approved
+        local previousBytes=previous and Codec.encode(previous)
+        local originalBytes=original and Codec.encode(original)
+        local activate=Service.activate(svc)
+        check('migration_originals_round'..round,previousBytes==draftBytes and originalBytes==approvedBytes
+            and Codec.encode(got.draft)==migratedBytes and got.migration.requires_reapproval==true
+            and got.approved==nil and got.running==nil and got.active==false
+            and activate.ok==false and activate.error.code=='not_approved',
+            {round=round,expected_draft=draftBytes,previous_draft=previousBytes,
+                expected_approved=approvedBytes,original_approved=originalBytes,
+                requires_reapproval=got.migration and got.migration.requires_reapproval,activate=activate})
+        saved=Json.decode(Json.encode(Service.saveState(svc)))
+    end
+end
+local function importCase()
+    local svc=Runtime.autoCombatService(game)
+    local before=Json.encode{saved=Service.saveState(svc),versions=Service.get(svc),status=Service.status(svc)}
+    local function unchanged()
+        return before==Json.encode{saved=Service.saveState(svc),versions=Service.get(svc),status=Service.status(svc)}
+    end
+    local exported=assert(PolicyIO.export(policy()))
+    for _,case in ipairs{{name='missing'},{name='null',hash=Json.null},{name='numeric',hash=42},{name='empty',hash=''}} do
+        local data=Json.decode(exported); data.hash=case.hash
+        local result=Service.import(svc,Json.encode(data))
+        local same=unchanged()
+        check('import_hash_'..case.name,result.ok==false and result.error.code=='invalid_document'
+            and result.error.details.input=='hash' and same,{result=result,store_unchanged=same})
+    end
+    local mismatch=Json.decode(exported); mismatch.hash='mismatching-nonempty-hash'
+    local rejected=Service.import(svc,Json.encode(mismatch))
+    check('import_hash_mismatch',rejected.ok==false and rejected.error.code=='hash_mismatch' and unchanged(),
+        {result=rejected,store_unchanged=unchanged()})
+    local valid=Service.import(svc,exported)
+    check('import_hash_valid',valid.ok==true and valid.hash==valid.original_hash and unchanged(),
+        {result=valid,store_unchanged=unchanged()})
+    local legacy=policy(); legacy.mode.on_emergency_unavailable=nil
+    local hash=assert(Codec.prepare(legacy)).hash
+    local envelope={format=PolicyIO.FORMAT,envelope=PolicyIO.ENVELOPE,policy=legacy,hash=hash}
+    local migrated=Service.import(svc,Json.encode(envelope))
+    check('import_legacy_original_hash',migrated.ok==true and migrated.original_hash==hash and migrated.hash~=hash
+        and migrated.policy.mode.on_emergency_unavailable=='release_control' and #migrated.warnings>0 and unchanged(),
+        {result=migrated,store_unchanged=unchanged()})
+    envelope.hash=migrated.hash
+    local wrong=Service.import(svc,Json.encode(envelope))
+    check('import_legacy_migrated_hash',wrong.ok==false and wrong.error.code=='hash_mismatch' and unchanged(),
+        {result=wrong,store_unchanged=unchanged()})
 end
 local function runCase(name)
     local p=game.player
@@ -170,6 +239,10 @@ local function runCase(name)
         -- Run the native bounded activity to a real progressed terminal; a
         -- zero-progress cancellation is correctly a rejection, not success.
         tick()
+    elseif name=='migration_archive' then
+        migrationCase(); finish()
+    elseif name=='import_integrity' then
+        importCase(); finish()
     end
 end
 function M.onFrame()

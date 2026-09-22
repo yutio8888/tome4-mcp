@@ -52,3 +52,11 @@ format 2 同时包含需要迁移的 draft 和 approved 时，旧实现先迁移
 回归分别覆盖“draft 与 approved 都为 legacy”和“draft 已为当前格式”，比较含名称、规则、limits、safety、updated 元数据的**完整 canonical bytes**；经过首次 load 和两次实际 plain-data save/reload 后，两份原始文档仍精确相等。迁移后的 approved 仍只成为当前 draft，不能 activate，必须重新 approve。另覆盖覆盖草稿、清空草稿和返回数据隔离，防止错取陈旧来源。
 
 本次执行：未修 Store 上新回归 FAIL（`migration-before.log`），修复后系统回归 **680 checks PASS**、policy bytes **209 PASS**、Service **192 PASS**。原始失败和结果均在同一 evidence root；原生 source/dist 由协调者后续执行，未在此标 PASS。状态为 ready for review。
+
+## RUNTIME-REV-04：导入封装 hash 可被省略
+
+旧 `PolicyIO.import` 只在 `hash` 为字符串时比较原文哈希，缺失、null、数字等输入会绕过校验。现在 hash 的非空字符串类型属于封装结构校验，在任何策略准备和迁移前检查；失败返回已注册的 `invalid_document`（`input=hash`）。结构有效时，仍先报告策略语义错误，再比较原始 hash，最后执行迁移，保留既有错误优先级。
+
+新增真实 PolicyIO/Service 回归覆盖 missing/null/numeric/empty/boolean/object、错误/正确字符串 hash，以及合法 legacy 原始 hash 和误用迁移后 hash。Codec 计数器证明结构失败前没有准备/投影/编码/解码策略，完整 Service store/status 比较证明成功与拒绝的 import 都不修改版本、migration、revision 或控制状态。未修实现的新回归 FAIL；修复后 **IO 110 checks PASS**、系统 **680 PASS**、当前分支 Lua 全套 PASS。没有增加公共 error code 或导入格式。
+
+实机 policy fixture 增加 3 个双 legacy 原文往返检查和 8 个 import 检查。它们使用加载中的真实 Service/Codec/PolicyIO；`saveState`/`loadState` 是**实机内数据往返**，不能声称游戏保存/重启证据（由 core 专门场景承担）。旧 9 项动作断言保留，当前预期为 **8 cases / 20 checks**。新增场景在离线 Runtime fixture 下执行了真实 Service 路径，11 checks PASS，仅证明场景接线；完整实机 source/dist 仍为 NOT_OBSERVED。
