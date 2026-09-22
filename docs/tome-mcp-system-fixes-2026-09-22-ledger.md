@@ -45,3 +45,18 @@ SYS-08/09 和 U-01 的具体未完成项、依赖、owner 与后续触发条件�
 - 新反馈 NATIVE-STARTUP-01：source `sysfix-policy-source-01` 在 addon 加载时报 sandbox os.getenv 缺失，zero checks；FAIL，已回收；owner policy Dev 修正测试夹具并更新 PR28，不得算作原生 PASS。
 - SYS-04 native runner 接线补充：owner core Dev，增加显式 opt-in 的真实 clear→保存→重载断言，更新 PR29；原生结果仍 NOT_OBSERVED。
 - fresh Review runtime：Paseo 137119c2-30bc-4f4d-9a4d-7762c9163a6f；tools/evidence：de482ffb-434f-468a-8c18-1ff3997e90c5。均 Codex gpt-5.6-sol/high、独立只读上下文；具体派发原因见 EXEC-02。
+
+## 原生与独立审核新增反馈（尚待最终复核）
+
+| Finding | 严重度 / 现象 | Owner / 已交付证据 | 状态 |
+| --- | --- | --- | --- |
+| NATIVE-STARTUP-01 | 测试夹具调用引擎沙箱不存在的 os.getenv，出生失败 | policy 29dcbcff；source-02 已实际进入9项检查 | 夹具启动修复已观测；首次 FAIL 保留 |
+| RUNTIME-REV-01 | P2：MCP act 接受 expected_revision=0，发出不符合 v4 的请求 | core；需实际 MCP 0/1/max/max+1 边界回归 | 修复中，阻塞验收 |
+| RUNTIME-REV-02 / NATIVE-PENDING-01 | P2：真实 rest 已完成，结算停机后同帧 pump 清掉 stopped controller | core 5fb875b + policy c7a7827；真实 tick/display 回归 | 已集成，source/dist 重跑及复核待办 |
+| RUNTIME-REV-03 | P2：双 legacy draft/approved 迁移丢失原 draft 表示 | policy；完整原始 canonical bytes 经 load/save/reload | 修复中，阻塞验收 |
+| RUNTIME-REV-04 | P2：导入 envelope 缺失或非字符串 hash 绕过原始哈希验证 | policy；结构有效后保留既有语义校验顺序 | 修复中，阻塞验收 |
+| EVIDENCE-REV-01 | P1：denseArray 与字段复制放在死分支，checker 仍 PASS | tooling；原 Reviewer 两个 scratch 负例与作用域注册 | 开发验证完成，提交/独立复核待办 |
+| EVIDENCE-REV-02 | P1：复制后 no_restrict=nil 未被 checker/guard 回归捕获 | tooling checker + policy 15字段真实转发 oracle | 开发验证完成，提交/独立复核待办 |
+| NATIVE-IDENTITY-01 | 夹具错误比较跨进程临时 UID；引擎加载会分配新 UID | core 5fb875b；改为 puuid/save_name、approved bytes、保存副本哈希及错误身份负例 | 已集成，source/dist 重跑待办 |
+
+失败会话 `sysfix-policy-source-01`（0 checks）、`sysfix-policy-source-02`（8 PASS/1 FAIL）、`sysfix-core-source-01`（112 PASS/1 FAIL）均已回收；原始 input/result/game/reload/wire 文件保留。索引 `/workspace/t-engine4/tmp/mcp-system-fixes-20260922/prior-native-failures.json` 记录真实整体 FAIL，不因后续修复重新标成 PASS。SYS-07 最终索引仍待新包与最终运行结果。
