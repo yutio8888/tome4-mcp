@@ -9,7 +9,7 @@ from typing import Annotated, Any, Literal
 
 from mcp.server import MCPServer
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from . import __version__
 from .bridge import BridgeClient, BridgeError
@@ -175,6 +175,20 @@ class ListNext(StrictModel):
 
 
 ListRequest = Annotated[ListFirst | ListNext, Field(discriminator="type")]
+
+
+Section = Literal["player", "map", "ground", "actors", "talents", "events", "dialogs",
+                  "scene", "effects", "sustains", "resources", "stats", "ground_effects"]
+
+
+def _unique_sections(values: list[str]) -> list[str]:
+    if len(values) != len(set(values)):
+        raise ValueError("sections must contain unique domain names")
+    return values
+
+
+Sections = Annotated[list[Section], AfterValidator(_unique_sections),
+                     Field(json_schema_extra={"uniqueItems": True})]
 
 
 class ToolReply(BaseModel):
@@ -425,9 +439,9 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     @server.tool(name="tome.observe", annotations=read)
     async def observe(session_id: Identifier, radius: Annotated[int, Field(ge=1, le=12)] = 8,
                       include_map: bool = True, events_after: Annotated[int, Field(ge=0)] | None = None,
-                      sections: list[str] | None = None,
+                      sections: Sections | None = None,
                       detail: Literal["summary", "full"] | None = None) -> ToolReply:
-        """Read player-view state, scene, progression, inventory and visible log events without advancing the game. Set include_map=false for a compact snapshot. Pass events.cursor as events_after for subsequent event pages; respect gap/has_more. sections selects top-level domains (player, map, ground, actors, talents, events, dialogs) and keeps identity metadata; omit it for the full snapshot. Map bounds describe only this response's window."""
+        """Read player-view state, scene, progression, inventory and visible log events without advancing the game. Set include_map=false for a compact snapshot. Pass events.cursor as events_after for subsequent event pages; respect gap/has_more. sections is a unique list of declared domains (including scene, effects, sustains, resources, stats and ground_effects) and keeps identity metadata; omit it or pass [] for the full snapshot. Map bounds describe only this response's window."""
         args = {"session_id": session_id, "radius": radius, "include_map": include_map}
         if events_after is not None:
             args["events_after"] = events_after
@@ -527,7 +541,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
                       interaction_id: Identifier | None = None,
                       expected_revision: Annotated[int, Field(ge=1)] | None = None,
                       include_map: bool = False) -> ToolReply:
-        """Dismiss or answer a native popup raised outside a command (sealed door, lore, running, death screen). observe exposes it as a top-level interaction; use only the answer types it offers, for example {"type":"option","option_id":"<option_id>"} for a dialog.choice/list_menu or {"type":"confirm","value":true} for a confirmation (observe.interaction lists answer_types and option ids). This has no command_id; use tome.respond for command-owned interactions."""
+        """Dismiss or answer a native popup raised outside a command (sealed door, lore, running, death screen). observe exposes it as a top-level interaction; use only the answer types it offers, for example {"type":"option","option_id":"<option_id>"} for a dialog.choice/list_menu or dialog.confirm. Read observe.interaction.answer_types and options; confirmations use the offered option_id too. Use {"type":"cancel"} only when cancel is offered. This has no command_id; use tome.respond for command-owned interactions."""
         args: dict[str, Any] = {"session_id": session_id, "control_token": control_token,
                                 "answer": answer.model_dump(), "include_map": include_map}
         if interaction_id is not None:

@@ -2,7 +2,7 @@
 
 让 MCP 客户端读取 ToME 1.7.6 的玩家视角状态，并执行一个原生游戏动作。由游戏内 Lua addon 与游戏外 Python MCP 服务组成，使用本机 TCP 通信。
 
-> **0.9.0**：内部 TCP 协议升级为 **v4**。写入使用规范序号命令身份 `cmd-<seq>`（由 `connect`/`observe` 的 `history.next_command_id` 给出）和有界命令账本；`status` 会区分保留结果、`command_history_expired` 与 `command_not_accepted`；v3 客户端会被明确拒绝（`protocol_mismatch`），不会自动降级。读路径本版还统一了技能费用的三态语义（未知费用不再伪报 `affordable`）与距离口径，并新增只读查询验收（只读边界改为“不提交动作、不泄露玩家未知信息”）。集合分页、统一审核和原生长序列验收在后续完成，见 `docs/tome-mcp-0.9.0-execution-plan.md`。
+> **0.9.0**：内部 TCP 协议升级为 **v4**。写入使用规范序号命令身份 `cmd-<seq>`（由 `connect`/`observe` 的 `history.next_command_id` 给出）和有界命令账本；`status` 会区分保留结果、`command_history_expired` 与 `command_not_accepted`；v3 客户端会被明确拒绝（`protocol_mismatch`），不会自动降级。读路径本版还统一了技能费用的三态语义（未知费用不再伪报 `affordable`）与距离口径，并新增只读查询验收（只读边界改为“不提交动作、不泄露玩家未知信息”）。当前提供 `tome.list` 集合分页与 `tome.map` 玩家已知地图；具体场景的验证范围见 [VALIDATION.md](VALIDATION.md)，未观测场景不视为已通过。
 
 ## 能力
 
@@ -12,6 +12,7 @@
 - 只读技能查询（射程、消耗、冷却、条件/可用性提示）与一次性目标预填。
 - 原生结算、状态版本检查、命令与回答去重、结果查询、手动接管；可见游戏日志游标与可选省略地图的紧凑响应。
 - 受控的单点属性、技能和类别成长；可见地面物品、脚下拾取、原生穿戴与卸下。
+- 集合游标分页、玩家已知地图、原生物品激活，以及内置自动战斗策略的草稿、批准、运行与日志接口。
 - 只读旁观模式；与 Battle Companion 0.1.1 的控制交接，以及助手状态／暂停原因摘要。
 
 根据执行中出现的原生界面提供输入；不按技能 ID 编写施法脚本。未覆盖的自定义界面仍返回 `needs_input`，由玩家在游戏窗口处理。属性/类别洗点和创建角色不在本版范围内；`unlearn_talent` 只退还原生最近学习窗口内的技能点。联网能力可用是本版前提。
@@ -82,7 +83,7 @@ Windows 使用相应环境的 `Scripts/python.exe`。
 }
 ```
 
-本服务使用官方 Python MCP SDK `mcp==2.2.0`。MCP 客户端由 SDK 处理协议协商；游戏内部使用独立的 JSON TCP 协议 v3。[官方 SDK](https://py.sdk.modelcontextprotocol.io/)
+本服务使用官方 Python MCP SDK `mcp==2.2.0`。MCP 客户端由 SDK 处理协议协商；游戏内部使用独立的 JSON TCP 协议 v4。[官方 SDK](https://py.sdk.modelcontextprotocol.io/)
 
 ## 使用方式
 
@@ -95,12 +96,19 @@ Windows 使用相应环境的 `Scripts/python.exe`。
 | 工具 | 参数概要 |
 | --- | --- |
 | `tome.connect` | 可选 `mode`：`control`（缺省）或 `observe`；从服务环境读取共享凭据 |
-| `tome.observe` | `session_id`、可选 `radius`（1–12，默认 8）、`include_map`、`events_after` |
-| `tome.inspect` | `session_id`、`kind`（`actor` / `talent` / `progression` / `item`）、`id`；v3 的 `kind=talent` 可选 `target_id` 或 `x`/`y` 以附加距离 |
+| `tome.observe` | `session_id`、可选 `radius`（1–12，默认 8）、`include_map`、`events_after`、`sections`（不重复的域列表）、`detail`（summary/full） |
+| `tome.inspect` | `session_id`、`kind`（`actor` / `character` / `talent` / `progression` / `item` / `compatibility`）、`id`；v4 的 `kind=talent` 可选 `target_id` 或 `x`/`y` 以附加距离；可选 `computed` |
 | `tome.act` | `session_id`、`control_token`、`command_id`、`expected_revision`、`action`、可选 `wait_ms`、`include_map` |
 | `tome.respond` | `session_id`、`control_token`、`command_id`、`interaction_id`、`response_id`、`expected_revision`、`answer`、可选 `wait_ms`、`include_map` |
-| `tome.status` | `session_id`、`command_id`、可选 `response_id`、`options_offset`、`include_map` |
+| `tome.status` | `session_id`、`command_id`、可选 `response_id`、`options_offset`、`include_map`、`compact` |
 | `tome.stop` | `session_id`、`control_token` |
+| `tome.dismiss` | `session_id`、`control_token`、`answer`，可选 `interaction_id`、`expected_revision`、`include_map`；回答不归属 command 的当前弹窗 |
+| `tome.abandon` | `session_id`、`control_token`；清理不可恢复的调用隔离，不回滚世界 |
+| `tome.list` | `session_id`、`request`（first + collection/filter/page_size，或 next + cursor） |
+| `tome.map` | `session_id`、可选 `source=native_map`、`format`（rows/region）、`region`（x/y/width/height）；玩家已知地图 |
+| `tome.policy` | `session_id`、`policy_op`，按操作传 `policy`、`document`、`expected_hash`、`store`、`name`、`reason`、`limit`、`after_seq` |
+| `tome.policy_log` | `session_id`、可选 `limit`（1–256）；读取保留的策略日志 |
+
 
 `tome.act` 的 `action` 示例：
 
@@ -118,7 +126,7 @@ Windows 使用相应环境的 `Scripts/python.exe`。
 
 ### 技能查询与目标预填
 
-以下两项能力随协议 3 始终可用。
+以下两项能力在当前协议 v4 中可用。
 
 **只读技能查询。** `tome.inspect(kind="talent", id=..., target_id=...)`（或传 `x`/`y`）在原有技能摘要外返回 `query`：
 
@@ -136,11 +144,13 @@ Windows 使用相应环境的 `Scripts/python.exe`。
 
 查询**不提交任何游戏动作**，也不暴露玩家未获知的信息；这是读取的两条红线。除此之外，查询**可以**调用当前实时的动态 getter/builder（包括 `getTalentRange`/`getTalentTarget`/`t.target` 等）来取得参考值，也**不承诺**零副作用或零 RNG：读值路径消耗随机数不影响正确性（ToME4 本身没有严格 RNG seed 系统）。动态求值报错、缺失或返回 `nil`/无效值时，对应字段保留 `unknown`，绝不猜测。`query_is_advisory=true`，实际能否施放仍由原生执行决定。
 
-**一次性目标预填。** v3 的 `use_talent` 可带 `target_id` 或 `x`/`y`：
+**一次性目标预填。** v4 的 `use_talent` 可带 `target_id` 或 `x`/`y`：
 
 ```json
 {"type":"use_talent","talent_id":"T_RUSH","target_id":"s1:level-1:actor-2"}
 ```
+
+公开 `action` 为闭合对象，只接受协议声明字段；`force_actor`、`force_grid`、`authoritative_target`、`sequence` 是内部执行上下文，TCP 和 MCP 客户端均不得提供。
 
 预填在**第一次原生 `getTarget` 消费一次**，随后立即交还原生目标流程；同一动作的后续提问仍用 `tome.respond` 回答。**射程与边界沿用原生规则**：静态射程在动作开始前拒绝越程（`target_out_of_range`），动态射程在第一次 `getTarget` 处校验；越界/越程或会触发原生自我警告时回退到原生目标提示，而不是盲发坐标。`tome.respond` 的 `target.grid` 位置答案也按射程校验（`position_out_of_range`）。不设置全局 `target.forced`；`target_id` 必须当前可见，`x`/`y` 不得同时与 `target_id` 出现。
 
@@ -262,7 +272,16 @@ Stunning Blow 和 Warshout 需要可见角色的 `target_id`；Warshout 沿该�
 - 与 Battle Companion 配合时，获取远程控制会先暂停助手；普通键鼠仍可接管。释放控制、断线、保存或读档都不会重启助手。
 - 原生自动施法、休息、奔跑和其他自动控制可能影响行为；以 addon 返回的阶段和能力限制为准。旁观模式不暂缓原生自动施法。
 
-### 旁观本地自动战斗
+### 内置自动战斗策略
+
+Ctrl+G（或游戏菜单 Auto-combat policy）打开策略界面，Ctrl+Shift+G 开始/停止已批准并激活的策略。执行授权默认关闭，须在界面明确开启；不需要外部 MCP 客户端。策略草稿和批准版本跟随角色保存，读取存档不会恢复运行或控制租约。`clear` 只清除草稿，并立即更新保存数据。
+
+当前界面提供预设、草稿/批准/激活、运行与日志操作；完整的规则创作和高级编辑仍未交付。自动战斗目前随 Bridge addon 一起发布，尚无独立安装包；“不连接 MCP 也能使用”不代表独立发行已经完成。
+
+`limits.max_candidates` 当前仅经过 schema 验证，执行器尚未消费；不能把它当成已生效的候选数量上限。后续语义需单独定义，不据此截断效果范围或拒绝随机落点策略。
+
+### 旁观 Battle Companion
+
 
 在游戏里用 Ctrl+B 开始 Battle Companion 后，调用 `tome.connect`，参数为 `{"mode":"observe"}`。随后可以调用 observe、inspect、status；act 和 stop 返回 `read_only_connection`。需要操作时明确调用 `{"mode":"control"}`，它会暂停助手；切回旁观会撤销远程凭据、取消尚未执行的远程动作，但不会重启助手。
 
@@ -305,4 +324,4 @@ python3 game/addons/tome-mcp-bridge/tools/package.py
 
 输出在 `dist/`，生产安装包不包含测试 probe。Python MCP 服务单独安装。
 
-源码依据与实现约定见 [架构分析](docs/tome-mcp-architecture.md) 和 [v3 契约](docs/tome-mcp-v3-talent-query.md)、[API 字段](docs/tome-mcp-api-fields.md)。
+源码依据与实现约定见 [架构分析](docs/tome-mcp-architecture.md) 和 [历史 v3 技能查询设计](docs/tome-mcp-v3-talent-query.md)、[API 字段](docs/tome-mcp-api-fields.md)。

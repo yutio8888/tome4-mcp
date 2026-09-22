@@ -595,6 +595,13 @@ function M.recordEnergy(player,before,after)
     local owner=Tracker.current()
     local task=NativeTasks.forPlayer(player)
     local root=owner and owner.root or task and task.root
+    local activity=state and state.native_activity
+    if activity and activity.owner=='auto_combat' and activity.kind=='auto_explore'
+        and state.game.player==player then
+        if Details.finite(before) and Details.finite(after) then
+            activity.energy_spent=(activity.energy_spent or 0)+math.max(0,before-after)
+        else activity.uncertain=true end
+    end
     if not root or player~=root.player then return end
     local command=root.command
     if Details.finite(before) and Details.finite(after) then
@@ -1295,6 +1302,7 @@ function M.mapAutoCombatOutcome(result,action,noEnergy)
     -- (`missing`/`hint`) and the native message are preserved (bounded, typed)
     -- so the auto policy log carries the same evidence as `tome.act`.
     local function scene(mapped)
+        if type(result.native_return)=='boolean' then mapped.native_return=result.native_return end
         if result.level_changed then mapped.level_changed=true end
         if result.pending then mapped.pending=true end
         if type(result.missing)=='table' and #result.missing>0 then mapped.missing=result.missing end
@@ -1438,6 +1446,17 @@ end
 -- Live controller host. The executor reuses Actions.execute under a synthetic
 -- command (see the changed() guard) and never becomes the remote invocation
 -- slot.
+local function autoSettlementToken(attempt)
+    if attempt.run_id==nil or attempt.submission_id==nil or attempt.generation==nil then return nil end
+    return {run_id=attempt.run_id,submission_id=attempt.submission_id,generation=attempt.generation}
+end
+local function deliverAutoSettlement(s,holder,outcome)
+    local token=holder.auto_settlement
+    if not token then return end
+    holder.auto_settlement=nil -- exactly once, including duplicate reaper calls
+    outcome.run_id,outcome.submission_id,outcome.generation=token.run_id,token.submission_id,token.generation
+    AutoCombat.nativeSettled(s.auto_combat,outcome)
+end
 buildAutoCombatHost=function(s,policy,opts)
     local g=s.game
     local reads=autoCombatReads(s,policy,opts)
@@ -1504,12 +1523,14 @@ buildAutoCombatHost=function(s,policy,opts)
         -- session activity and hold the next turns; the controller waits rather
         -- than resubmitting.
         if NativeActivity.is(attempt.action) then
-            local activity={owner='auto_combat'}
+            local activity={owner='auto_combat',start_x=g.player.x,start_y=g.player.y}
             local result=NativeActivity.start(s,activity,attempt.action,{max_turns=attempt.max_turns})
             local spent=(Details.finite(result.energy_spent) and result.energy_spent>0) or false
             if result.uncertain then return {status='uncertain',code=result.code,energy_spent=spent} end
             if not result.ok then return {status='rejected',code=result.code,energy_spent=spent} end
             if NativeActivity.live(activity,s.game and s.game.player) then
+                activity.auto_settlement=autoSettlementToken(attempt)
+                activity.energy_spent=math.max(activity.energy_spent or 0,result.energy_spent or 0)
                 return {status='native_pending',code=result.code,energy_spent=spent}
             end
             return {status='ok',code=result.code,energy_spent=spent}
@@ -1676,7 +1697,13 @@ buildAutoCombatHost=function(s,policy,opts)
             if mismatch then result.postcondition_mismatch=mismatch end
             if type(root)=='table' then root.postcondition_delivered=true end
         end
-        return M.mapAutoCombatOutcome(result,action.type,noEnergy)
+        local outcome=M.mapAutoCombatOutcome(result,action.type,noEnergy)
+        if outcome.status=='native_pending' and type(root)=='table' and not root.done then
+            root.auto_settlement=autoSettlementToken(attempt)
+            root.auto_action,root.auto_no_energy=action.type,noEnergy
+            root.auto_initial_energy=result.energy_spent or 0
+        end
+        return outcome
     end
     return AutoCombatHost.new(reads)
 end
@@ -1828,10 +1855,23 @@ local function fail(code,message,details)
     -- (and accepted/uncertain defaults) from the generated registry.
     return nil,ErrorRegistry.envelope(code,message,details)
 end
+-- STORE-01: one successful mutation -> character-save rule for local and
+-- remote callers. Execution/controller/lease state is never serialized.
+local function persistAutoCombatMutation(s,op,args,result)
+    local mutation=op=='set_draft' or op=='approve' or op=='activate' or op=='deactivate'
+        or op=='import' or op=='clear' or (op=='import_assistant' and args and args.store==true)
+    if result.ok and mutation and s.game and s.game.player then
+        s.game.player.auto_combat_policy=AutoCombat.saveState(s.auto_combat)
+    end
+end
+local RequestValidation=require 'mod.mcp_bridge.RequestValidation'
 local function dispatch(s,request)
     if type(request.v)~='number' or not stringId(request.id) or type(request.op)~='string'
         or type(request.args)~='table' or request.args==Json.null then return fail('invalid_request') end
     if request.v~=4 then return fail('protocol_mismatch') end
+    local valid,validationCode=RequestValidation.validate(request)
+    if not valid then return fail(validationCode,nil,request.op=='act'
+        and {accepted=false,uncertain=false,acceptance_scope='command'} or nil) end
     local a,op=request.args,request.op
     if op=='connect' or op=='connect_observer' then
         if type(a.token)~='string' or a.token~=s.token then return fail('authentication_failed') end
@@ -1940,18 +1980,6 @@ local function dispatch(s,request)
     if op=='observe' then
         if a.radius~=nil and not integer(a.radius,1,12) then return fail('invalid_radius') end
         if a.events_after~=nil and not integer(a.events_after,0,9007199254740991) then return fail('invalid_event_cursor') end
-        if a.sections~=nil then
-            if type(a.sections)~='table' or a.sections==Json.null then return fail('invalid_sections') end
-            local allowed={player=true,map=true,ground=true,actors=true,talents=true,events=true,dialogs=true,
-            scene=true,effects=true,sustains=true,resources=true,stats=true,ground_effects=true}
-            for _,name in ipairs(a.sections) do
-                if not allowed[name] then
-                    return fail('invalid_sections',nil,{details={allowed_sections=Json.array{
-                        'player','map','ground','actors','talents','events','dialogs','scene',
-                        'effects','sustains','resources','stats','ground_effects'}}})
-                end
-            end
-        end
         if a.detail~=nil and a.detail~='summary' and a.detail~='full' then return fail('invalid_detail') end
         return snapshot(s,a.radius,{include_map=a.include_map,events_after=a.events_after,sections=a.sections,detail=a.detail})
     elseif op=='inspect' then
@@ -2008,15 +2036,7 @@ local function dispatch(s,request)
             if type(details)~='table' then details=details and {details=details} or nil end
             return fail(result.error.code,nil,details)
         end
-        -- Persist the character-facing policy after a write; never the running
-        -- state or control.
-        if a.policy_op=='set_draft' or a.policy_op=='approve' or a.policy_op=='activate'
-            or a.policy_op=='deactivate' or a.policy_op=='import' or a.policy_op=='clear'
-            or (a.policy_op=='import_assistant' and a.store==true) then
-            if s.game and s.game.player then
-                s.game.player.auto_combat_policy=AutoCombat.saveState(s.auto_combat)
-            end
-        end
+        persistAutoCombatMutation(s,a.policy_op,a,result)
         result.ok=nil
         return result
     elseif op=='policy_log' then
@@ -2142,7 +2162,7 @@ local function dispatch(s,request)
         return {stopped=true,snapshot=snapshot(s)}
     elseif op=='act' then
         if not stringId(a.command_id) or not integer(a.expected_revision,1,9007199254740991) then return fail('invalid_command') end
-        local action,code=Actions.validate(a.action)
+        local action,code=Actions.validatePublic(a.action)
         if not action then return fail(code) end
         local fingerprint=Actions.fingerprint(action,a.expected_revision)
         -- Ledger classification precedes every lease/revision check (LED-03).
@@ -2364,39 +2384,64 @@ local function reapAutoInvocation(s)
     local root=s.auto_invocation
     if not root or not root.done then return end
     if root.error then s.native_error=s.native_error or 'native_action_error' end
-    -- S2 rev3/§6.2 Path 2 (belt-and-braces, exactly once): an ordered-queue
-    -- deviation that was not delivered inside the submitting step (for example
-    -- the native body settled without player input) is delivered here, before the
-    -- root is released. The service records it, pauses with the typed reason,
-    -- stops the run and revokes the auto lease. Runs in `onFrame` before the pump
-    -- gate, so the pause lands before the next opportunity and the pending body
-    -- can never become a fresh opportunity (the rule is never resubmitted).
+    local command=root.command or {}
+    root.sequence_deviation=root.sequence_deviation or command.sequence_deviation
+    local mismatch
+    if root.postcondition_expectation and not root.postcondition_delivered and not root.error
+        and root.native_return==true then
+        local mover=s.game and s.game.player
+        mismatch=M.movementPostconditionMismatch(root.postcondition_expectation,
+            {x=mover and mover.x,y=mover and mover.y})
+        root.postcondition_mismatch=mismatch
+    end
+    -- SETTLEMENT-01: count the real final native result before any handoff.
+    -- Deviation travels on this outcome so the controller does not cap-stop
+    -- first and then perform a second generation transition for the handoff.
+    if root.auto_settlement then
+        local energy=math.max(root.auto_initial_energy or 0,command.energy_spent or 0)
+        local result={ok=root.native_return==true,code=root.error and 'execution_error' or 'native_settled',
+            native_return=root.native_return,energy_spent=energy,
+            uncertain=root.error~=nil or type(root.native_return)~='boolean' or command.energy_spent_complete==false,
+            sequence_deviation=root.sequence_deviation,postcondition_mismatch=mismatch,
+            level_changed=command.level_changed}
+        deliverAutoSettlement(s,root,M.mapAutoCombatOutcome(result,root.auto_action,root.auto_no_energy))
+    end
     if root.sequence_deviation and not root.deviation_delivered and s.auto_combat then
         root.deviation_delivered=true
         AutoCombat.nativeDeviation(s.auto_combat,root.sequence_deviation)
     end
-    -- S3 §3.2 Path 2 (belt-and-braces, exactly once): a later-settling
-    -- `native_pending` root carries the immutable expectation; evaluate it here
-    -- before release. A native rejection/error is not a mismatch (the native
-    -- outcome remains authoritative); a success outside the declared envelope
-    -- is one typed pause, one generation advance, lease revoke, no resubmit.
-    if root.postcondition_expectation and not root.postcondition_delivered
-        and s.auto_combat then
+    if root.postcondition_expectation and not root.postcondition_delivered and s.auto_combat then
         root.postcondition_delivered=true
-        if not root.error and root.native_return==true then
-            local mover=s.game and s.game.player
-            local mismatch=M.movementPostconditionMismatch(root.postcondition_expectation,
-                {x=mover and mover.x,y=mover and mover.y})
-            if mismatch then
-                root.postcondition_mismatch=mismatch
-                AutoCombat.nativePostconditionMismatch(s.auto_combat,mismatch)
-            end
-        end
+        if mismatch and not root.sequence_deviation then AutoCombat.nativePostconditionMismatch(s.auto_combat,mismatch) end
     end
     NativeTasks.release(root);Interactions.release(root);Tracker.release(root)
     root.invocation=nil
     s.auto_invocation=nil
     bump(s)
+end
+-- NativeActivity has no Tracker root. Use observed termination/progress, never
+-- phase==ready or disappearance of the native handle alone, as success evidence.
+local function settleAutoActivity(s)
+    local activity=s.native_activity
+    if not activity or not activity.auto_settlement or NativeActivity.live(activity,s.game and s.game.player) then return end
+    local player=s.game and s.game.player
+    local ref=NativeActivity.nativeRef(activity)
+    local recorded=Details.finite(activity.turns_executed) and activity.turns_executed or 0
+    local native=type(ref)=='table' and Details.finite(ref.cnt) and ref.cnt or 0
+    local steps=math.max(recorded,native)
+    local spent=Details.finite(activity.energy_spent) and activity.energy_spent>0 or false
+    local moved=player and Details.finite(player.x) and Details.finite(player.y)
+        and Details.finite(activity.start_x) and Details.finite(activity.start_y)
+        and (player.x~=activity.start_x or player.y~=activity.start_y)
+    local completed=activity.stop_reason=='native_complete'
+    local progress=steps>0 or spent or (activity.kind=='auto_explore' and moved)
+    local status
+    if activity.uncertain or activity.stop_error then status='uncertain'
+    elseif completed or progress then status='ok'
+    elseif activity.stop_reason then status='rejected'
+    else status='error' end
+    deliverAutoSettlement(s,activity,{status=status,energy_spent=spent,instant=false,
+        code=activity.stop_reason or (progress and 'native_activity_settled' or 'native_activity_outcome_unknown')})
 end
 -- P0: bounded abort of an auto-slot native invocation that never settled. The
 -- executor cannot answer a native targeting UI, so an unresolved auto request
@@ -2490,6 +2535,7 @@ function M.onFrame(g)
             and not (auto and auto.controller and auto.controller.state~='stopped') then
             NativeActivity.stop(s,s.native_activity,'auto_combat_stopped')
         end
+        settleAutoActivity(s)
         NativeActivity.reap(s)
         if s.auto_combat and s.auto_combat.host_factory and not s.active and not s.execution
             and not s.auto_invocation
@@ -2516,11 +2562,6 @@ end
 -- Local (in-game) auto-combat surface. The editor and the standalone form use
 -- these directly; they never grant the MCP remote lease and never run without
 -- explicit local authorization (`setAutoCombatExecution`).
-local function persistAutoCombat(s)
-    if s.game and s.game.player then
-        s.game.player.auto_combat_policy=AutoCombat.saveState(s.auto_combat)
-    end
-end
 function M.autoCombatStatus(g)
     local s=state
     if not s or s.game~=g then return nil end
@@ -2530,11 +2571,7 @@ function M.autoCombatHandle(g,op,args)
     local s=state
     if not s or s.game~=g then return {ok=false,error={code='no_session'}} end
     local result=AutoCombat.handle(s.auto_combat,op,args)
-    if result.ok and (op=='set_draft' or op=='approve' or op=='activate'
-        or op=='deactivate' or op=='import'
-        or (op=='import_assistant' and args and args.store==true)) then
-        persistAutoCombat(s)
-    end
+    persistAutoCombatMutation(s,op,args,result)
     return result
 end
 function M.autoCombatExecutionEnabled(g)

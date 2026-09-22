@@ -145,6 +145,36 @@ class Acceptance:
         time.sleep(0.2)
         return self.runtime.latest_state()
 
+    def public_boundary(self) -> None:
+        """Actual TCP ingress rejections; no action is submitted by this probe."""
+        before = self.observe()
+        native_before = self.native_state()
+        base = dict(session_id=self.session_id, control_token=self.control_token,
+                    command_id=before["history"]["next_command_id"], expected_revision=before["revision"])
+        for key, value in {"force_actor": False, "force_grid": True,
+                           "authoritative_target": True, "sequence": []}.items():
+            reply = self.wire.raw("act", {**base, "action": {
+                "type": "use_talent", "talent_id": "T_LIGHTNING", key: value}})
+            self.check(not reply.get("ok") and reply["error"].get("accepted") is False,
+                       "sysfix_public_rejects_" + key, response=reply)
+        for sections in ({}, {"player": True}, ["player", "player"], ["unknown"], [None], [1]):
+            reply = self.wire.raw("observe", dict(session_id=self.session_id, sections=sections))
+            self.check(not reply.get("ok") and reply["error"]["code"] == "invalid_sections",
+                       "sysfix_invalid_sections_rejected", sections=sections, response=reply)
+        extra = self.wire.packet("observe", dict(session_id=self.session_id))
+        extra["undeclared"] = True
+        self.wire.send(extra)
+        self.check(not self.wire.receive(extra).get("ok"), "sysfix_closed_envelope")
+        reply = self.wire.raw("observe", dict(session_id=self.session_id, undeclared=True))
+        self.check(not reply.get("ok"), "sysfix_closed_args")
+        after = self.observe()
+        native_after = self.native_state()
+        self.check(before["history"] == after["history"] and before["revision"] == after["revision"],
+                   "sysfix_rejections_preserve_ledger_revision", before=before["history"], after=after["history"])
+        fields = ("x", "y", "energy", "world_tick", "actions", "enemy_acts")
+        self.check(all(native_before[k] == native_after[k] for k in fields),
+                   "sysfix_rejections_do_not_submit_native_action", before=native_before, after=native_after)
+
     def run(self) -> None:
         self.runtime.wait_ready()
         birth = self.runtime.records()
@@ -156,6 +186,7 @@ class Acceptance:
                    "fresh_native_birth_no_imported_save")
         result = self.connect(fragmented=True)
         self.check(result["snapshot"]["phase"] == "ready", "fragmented_tcp_connect_returns_ready")
+        self.public_boundary()
         native_before = self.native_state()
         first = self.observe()
         responses = self.wire.batch([("observe", dict(session_id=self.session_id)),
