@@ -1,0 +1,279 @@
+tests/run.sh: addon_dir=/workspace/t-engine4/tmp/mcp-system-fixes-20260922/workspaces/final-candidate/game/addons/tome-mcp-bridge game_root=/workspace/t-engine4/tmp/mcp-system-fixes-20260922/workspaces/final-candidate
+PASS A/B registered structural checks (not a behavior/native verdict)
+REVIEW C: tests/test_auto_combat_guard.lua (SHORT_REAL_SPEC / FIX1-01 missing/malformed landing); unknown must not shrink the candidate set
+REVIEW D: tests/test_auto_combat_controller.lua (R2-APR3-04 synchronous/asynchronous mismatch); assert exact generation delta
+REVIEW E: tools/verify_validation_manifest.py + independent review of VALIDATION.md and raw native/source/dist provenance; hashes do not prove execution
+test_callback_skip_without_unknown_rejection_fails (__main__.BoundaryTests.test_callback_skip_without_unknown_rejection_fails) ... ok
+test_cli_fails_and_cde_are_only_review (__main__.BoundaryTests.test_cli_fails_and_cde_are_only_review) ... ok
+test_cli_ignores_commented_clobber (__main__.BoundaryTests.test_cli_ignores_commented_clobber) ... ok
+test_cli_rejects_clobber_inside_registered_copy_loop (__main__.BoundaryTests.test_cli_rejects_clobber_inside_registered_copy_loop) ... ok
+test_cli_rejects_dead_or_unrelated_density_body (__main__.BoundaryTests.test_cli_rejects_dead_or_unrelated_density_body) ... ok
+test_cli_rejects_dead_or_unrelated_forwarding_loop (__main__.BoundaryTests.test_cli_rejects_dead_or_unrelated_forwarding_loop) ... ok
+test_cli_rejects_field_registries_in_unrelated_scope (__main__.BoundaryTests.test_cli_rejects_field_registries_in_unrelated_scope) ... ok
+test_cli_rejects_post_copy_field_clobbers (__main__.BoundaryTests.test_cli_rejects_post_copy_field_clobbers) ... ok
+test_cli_rejects_registered_function_declaration_in_dead_branch (__main__.BoundaryTests.test_cli_rejects_registered_function_declaration_in_dead_branch) ... ok
+test_each_historical_array_gate_fails_if_removed (__main__.BoundaryTests.test_each_historical_array_gate_fails_if_removed) ... ok
+test_early_length_and_ipairs_reads_fail (__main__.BoundaryTests.test_early_length_and_ipairs_reads_fail) ... ok
+test_false_dropping_copy_and_missing_assignment_fail (__main__.BoundaryTests.test_false_dropping_copy_and_missing_assignment_fail) ... ok
+test_guard_in_unrelated_branch_cannot_dominate_sink (__main__.BoundaryTests.test_guard_in_unrelated_branch_cannot_dominate_sink) ... ok
+test_missing_density_validation_cannot_hide_in_comment (__main__.BoundaryTests.test_missing_density_validation_cannot_hide_in_comment) ... ok
+test_missing_footprint_flag_fails (__main__.BoundaryTests.test_missing_footprint_flag_fails) ... ok
+test_missing_raised_flag_fails_even_with_comment (__main__.BoundaryTests.test_missing_raised_flag_fails_even_with_comment) ... ok
+test_public_gate_and_density_are_required (__main__.BoundaryTests.test_public_gate_and_density_are_required) ... ok
+test_registered_structures_pass (__main__.BoundaryTests.test_registered_structures_pass) ... ok
+test_rejection_must_return (__main__.BoundaryTests.test_rejection_must_return) ... ok
+test_string_with_validation_does_not_count (__main__.BoundaryTests.test_string_with_validation_does_not_count) ... ok
+test_unified_runner_really_executes_failing_gate (__main__.BoundaryTests.test_unified_runner_really_executes_failing_gate) ... ok
+test_weakened_shared_density_validator_fails (__main__.BoundaryTests.test_weakened_shared_density_validator_fails) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 26.660s
+
+OK
+test_bad_scope_or_escape (__main__.ManifestTests.test_bad_scope_or_escape) ... ok
+test_duplicate_evidence_paths_and_ids (__main__.ManifestTests.test_duplicate_evidence_paths_and_ids) ... ok
+test_duplicate_gate_id_and_reference (__main__.ManifestTests.test_duplicate_gate_id_and_reference) ... ok
+test_duplicates_in_raw_and_artifacts (__main__.ManifestTests.test_duplicates_in_raw_and_artifacts) ... ok
+test_empty_passed_gate_invalid_status_and_ref_types (__main__.ManifestTests.test_empty_passed_gate_invalid_status_and_ref_types) ... ok
+test_external_archive_is_explicit_and_verified (__main__.ManifestTests.test_external_archive_is_explicit_and_verified) ... ok
+test_file_and_hash_failures_for_every_kind (__main__.ManifestTests.test_file_and_hash_failures_for_every_kind) ... ok
+test_invalid_container_types (__main__.ManifestTests.test_invalid_container_types) ... ok
+test_legacy_package_hash_mismatch (__main__.ManifestTests.test_legacy_package_hash_mismatch) ... ok
+test_malformed_json_and_duplicate_keys (__main__.ManifestTests.test_malformed_json_and_duplicate_keys) ... ok
+test_missing_required_and_unknown_fields (__main__.ManifestTests.test_missing_required_and_unknown_fields) ... ok
+test_non_passed_gate_dangling_refs_also_fail (__main__.ManifestTests.test_non_passed_gate_dangling_refs_also_fail) ... ok
+test_original_dangling_counterexample (__main__.ManifestTests.test_original_dangling_counterexample) ... ok
+test_resolved_path_alias_duplicate (__main__.ManifestTests.test_resolved_path_alias_duplicate) ... ok
+test_unverifiable_legacy_package_does_not_pass (__main__.ManifestTests.test_unverifiable_legacy_package_does_not_pass) ... ok
+test_valid_current_manifest (__main__.ManifestTests.test_valid_current_manifest) ... ok
+test_valid_legacy_format (__main__.ManifestTests.test_valid_legacy_format) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 0.711s
+
+OK
+json: 98 checks passed
+Command ledger: 100288 checks passed
+Observation views: 120 checks passed
+transport: 31 checks passed
+Actions: 78 checks passed
+Talent query/prefill: 72 checks passed
+Query purity: 14 checks passed
+Resource filter: 3 checks passed
+Journal: 30 checks passed
+Observer: 113 checks passed; stress snapshot 194866 bytes
+Level map: 23 checks passed
+Actor combat: 28 checks passed
+Progression: 264 checks passed
+Items: 98 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Tasks: 65 checks passed
+Invocations: 29 checks passed
+Auto-combat policy: 147 checks passed
+Auto-combat pilots: 64 checks passed
+Friendly fire: 40 checks passed
+Effect manifest: 496 checks passed
+Effect manifest drift: 52 checks passed
+Effect footprint: 35 checks passed
+Effect risk: 29 checks passed
+Auto-combat guard: 426 checks passed
+Auto-combat movement: 97 checks passed
+Movement adapter factory: 169 checks passed
+Auto-combat ordered sequence: 191 checks passed
+Auto-combat ordered sequence: 239 checks passed
+Auto-combat controller: 146 checks passed
+Auto-combat catalog: 89 checks passed
+Auto-combat snapshot: 25 checks passed
+Auto-combat service: 192 checks passed
+Auto-combat A/B: 10 checks passed; divergent scenarios: 1 (boss-visible)
+Auto-combat assistant adapter: 58 checks passed
+Policy bytes (X-doubleprime): 209 checks passed
+Auto-combat execution: 31 checks passed
+Auto-combat host: 12 checks passed
+Auto-combat IO: 110 checks passed
+Auto-combat editor model: 38 checks passed
+Native activity: 17 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Runtime: 410 checks passed
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+[MCP Bridge] Listening on 127.0.0.1:17646
+Interactive Runtime: 122 checks passed
+[CHAT] selected	Rendered answer	function: 0x7fca747bcf40	done
+Chat: 20 checks passed
+Native compatibility: 17 checks passed
+Auto-combat system fixes: 680 checks passed
+test_bad_auth_is_reported_without_token (test_bridge.BridgeTests.test_bad_auth_is_reported_without_token) ... ok
+test_cancelled_request_drops_late_response_channel (test_bridge.BridgeTests.test_cancelled_request_drops_late_response_channel) ... ok
+test_command_error_preserves_recovery_metadata (test_bridge.BridgeTests.test_command_error_preserves_recovery_metadata) ... ok
+test_command_gap_error_keeps_next_command_id (test_bridge.BridgeTests.test_command_gap_error_keeps_next_command_id) ... ok
+test_explicit_connect_replaces_peer_closed_socket (test_bridge.BridgeTests.test_explicit_connect_replaces_peer_closed_socket) ... ok
+test_explicit_connect_reuses_connection (test_bridge.BridgeTests.test_explicit_connect_reuses_connection) ... ok
+test_fragmented_responses_and_concurrent_requests (test_bridge.BridgeTests.test_fragmented_responses_and_concurrent_requests) ... ok
+test_interaction_returns_without_waiting_for_terminal (test_bridge.BridgeTests.test_interaction_returns_without_waiting_for_terminal) ... ok
+test_mismatched_response_closes_connection (test_bridge.BridgeTests.test_mismatched_response_closes_connection) ... ok
+test_native_polling_submits_exactly_once (test_bridge.BridgeTests.test_native_polling_submits_exactly_once) ... ok
+test_old_bridge_rejection_never_falls_back (test_bridge.BridgeTests.test_old_bridge_rejection_never_falls_back) ... ok
+test_pending_action_is_returned_without_retry (test_bridge.BridgeTests.test_pending_action_is_returned_without_retry) ... ok
+test_read_does_not_connect_or_acquire_control (test_bridge.BridgeTests.test_read_does_not_connect_or_acquire_control) ... ok
+test_response_timeout_preserves_both_ids_and_does_not_retry (test_bridge.BridgeTests.test_response_timeout_preserves_both_ids_and_does_not_retry) ... ok
+test_stop_can_interleave_with_status_polling (test_bridge.BridgeTests.test_stop_can_interleave_with_status_polling) ... ok
+test_timeout_marks_uncertainty_and_never_resubmits (test_bridge.BridgeTests.test_timeout_marks_uncertainty_and_never_resubmits) ... ok
+test_transport_uncertainty_is_not_flattened (test_bridge.BridgeTests.test_transport_uncertainty_is_not_flattened) ... ok
+test_command_interaction_uses_respond (test_harness_respond_hint.RespondRoutingTest.test_command_interaction_uses_respond) ... ok
+test_hint_names_the_dismiss_call_and_answer_shape (test_harness_respond_hint.RespondRoutingTest.test_hint_names_the_dismiss_call_and_answer_shape) ... ok
+test_hint_offers_confirm_when_applicable (test_harness_respond_hint.RespondRoutingTest.test_hint_offers_confirm_when_applicable) ... ok
+test_native_popup_routes_to_dismiss (test_harness_respond_hint.RespondRoutingTest.test_native_popup_routes_to_dismiss) ... ok
+test_no_interaction_is_none (test_harness_respond_hint.RespondRoutingTest.test_no_interaction_is_none) ... ok
+test_generated_runtime_request_schema_is_current (test_public_contract.PublicSchemaTests.test_generated_runtime_request_schema_is_current) ... ok
+test_operation_binding_and_closed_public_actions (test_public_contract.PublicSchemaTests.test_operation_binding_and_closed_public_actions) ... ok
+test_all_tools_emit_schema_valid_tcp_requests (test_public_contract.PublicToolTests.test_all_tools_emit_schema_valid_tcp_requests) ... ok
+test_dismiss_description_examples_are_real_answers (test_public_contract.PublicToolTests.test_dismiss_description_examples_are_real_answers) ... ok
+test_revision_boundaries_reject_before_wire (test_public_contract.PublicToolTests.test_revision_boundaries_reject_before_wire) ... ok
+test_sections_and_internal_fields_reject_before_bridge (test_public_contract.PublicToolTests.test_sections_and_internal_fields_reject_before_bridge) ... ok
+test_advertised_shared_and_inline_scalar_constraints (test_scalar_contract.ScalarContractTests.test_advertised_shared_and_inline_scalar_constraints) ... ok
+test_all_mapped_scalar_boundaries_before_tcp (test_scalar_contract.ScalarContractTests.test_all_mapped_scalar_boundaries_before_tcp) ... ok
+test_answers_are_strict_and_reach_native_protocol_once (test_server.MCPTests.test_answers_are_strict_and_reach_native_protocol_once) ... ok
+test_api05_iserror_mapping (test_server.MCPTests.test_api05_iserror_mapping) ... ok
+test_campaign_actions_and_compact_polling (test_server.MCPTests.test_campaign_actions_and_compact_polling) ... ok
+test_dismiss_answers_session_popup (test_server.MCPTests.test_dismiss_answers_session_popup) ... ok
+test_error_envelope_carries_category_scope_recovery (test_server.MCPTests.test_error_envelope_carries_category_scope_recovery) ... ok
+test_growth_and_item_actions_are_specific_and_single_step (test_server.MCPTests.test_growth_and_item_actions_are_specific_and_single_step) ... ok
+test_growth_and_item_inspection_remain_read_only (test_server.MCPTests.test_growth_and_item_inspection_remain_read_only) ... ok
+test_legacy_stdio_client (test_server.MCPTests.test_legacy_stdio_client)
+Verify initialize-based clients as well as the SDK's current protocol. ... ok
+test_list_collection_is_read_only_and_typed (test_server.MCPTests.test_list_collection_is_read_only_and_typed) ... ok
+test_observer_mode_and_explicit_upgrade (test_server.MCPTests.test_observer_mode_and_explicit_upgrade) ... ok
+test_older_bridge_never_silently_acquires_control_for_observer (test_server.MCPTests.test_older_bridge_never_silently_acquires_control_for_observer) ... ok
+test_policy_dry_run_is_typed_and_forwarded (test_server.MCPTests.test_policy_dry_run_is_typed_and_forwarded) ... ok
+test_real_stdio_transport_through_tcp (test_server.MCPTests.test_real_stdio_transport_through_tcp) ... ok
+test_schema_validation_and_structured_output (test_server.MCPTests.test_schema_validation_and_structured_output) ... ok
+test_use_item_schema_accepts_owned_id_and_rejects_extra_controls (test_server.MCPTests.test_use_item_schema_accepts_owned_id_and_rejects_extra_controls) ... ok
+test_v3_prefill_and_query (test_server.MCPTests.test_v3_prefill_and_query) ... ok
+test_v3_respond_is_allowed (test_server.MCPTests.test_v3_respond_is_allowed) ... ok
+
+----------------------------------------------------------------------
+Ran 47 tests in 4.432s
+
+OK
+Public v4 scalar matrix: 1787 actual MCP boundary cases
+overload/mod/mcp_bridge/NativeManifest.lua
+overload/mod/mcp_bridge/NativeItemSeams.lua
+superload/mod/class/Object.lua
+superload/engine/interface/ActorTalents.lua
+superload/engine/interface/GameTargeting.lua
+superload/engine/Target.lua
+superload/engine/GameTurnBased.lua
+overload/mod/mcp_bridge/NativeGameSeams.lua
+overload/mod/mcp_bridge/NativeChatSeams.lua
+superload/mod/dialogs/Chat.lua
+overload/mod/mcp_bridge/NativeDialogSeams.lua
+superload/mod/dialogs/QuestPopup.lua
+superload/mod/dialogs/LorePopup.lua
+superload/mod/dialogs/ShowLore.lua
+superload/engine/interface/PlayerRest.lua
+superload/mod/dialogs/ShowInventory.lua
+superload/mod/dialogs/ShowEquipInven.lua
+overload/mod/auto_combat/EffectManifestSources.lua
+protocol check: requests: 14 live ops, 14 op-bound args unions, v=4
+protocol check: limits: 28 budgets consistent
+protocol check: errors: 75 codes valid
+protocol check: errors: 62 emitted codes all registered
+protocol check: errors: 75 envelopes match the schema
+protocol check: generated request schema and Lua/Python error registries up to date (75 codes)
+protocol check: identifiers: 4 valid, 12 invalid ids
+protocol check: integer normalization: 11 vectors
+protocol check: ledger: 10 design cases
+protocol check: result examples: 5+8+14 required fields
+protocol check: results: 14 ops documented, 0 declared gaps
+protocol check: commandview: 39 fields match the schema
+protocol check: code alignment: v4 + shared limits match
+protocol check: OK

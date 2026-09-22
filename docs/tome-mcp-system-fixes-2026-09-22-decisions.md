@@ -7,6 +7,10 @@
 
 沿用用户明确指定的 Codex 内置 subagent。Dev 使用内置当前模型（未覆盖，继承主代理模型）；Review 固定 gpt-5.6-sol/high；新建 Dev，不复用 Review 做实现。由于内置工具不提供仓库的 A/B pi 模型，本轮作为用户指定执行方式的例外，A/B 轮换不推进，逐次记录实际工具配置。Test 另派独立身份。只通过内置协作通道异步回报，避免 Paseo CLI send 阻塞父会话。
 
+## EXEC-02@1：内置线程额度耗尽后的独立审核派发
+
+2026-09-22 继续集成时，两次创建全新内置 Review 均返回 `agent thread limit reached`，对已完成代理 interrupt 后仍不可创建。本补充仅替代 EXEC-01 的派发通道限制：通过 Paseo 创建全新 Codex gpt-5.6-sol/high 会话，保持独立只读 Review 角色，不复用实现者。回报使用异步 MCP 通知及报告文件，禁止阻塞式 CLI send。若 Test 同样无法内置派发，恢复项目独立 Test 的 A/B 序列（上次 B，下一次 A），记录实际模型；已有 Dev 继续原身份。用户已明确授权继续修复、验证、独立审核通过后合并，无需重复确认合并授权。
+
 ## PUBLIC-01@1：公共 v4 请求
 
 公开 action 只接受协议声明字段；force_actor/force_grid/authoritative_target/sequence 是内部执行上下文，绝不因请求提供一个模式位而开放。内部 native executor 共用，但公开验证与内部 carrier 验证分开。入站 envelope/args/action 闭合；sections 等数组先验证稠密、闭合、元素类型再迭代。保持合法 one-shot prefill、幂等重放、账本拒绝语义和原生目标守卫。
