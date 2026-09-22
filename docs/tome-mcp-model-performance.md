@@ -381,3 +381,22 @@ dist sha 与 A′ 分支一致（合并干净）。
 7. **协调者的派发缺陷**：`paseo --cwd <worktree>` 被解析为 workspace 根 → 近期所有代理实际在主 worktree
    工作；且我误归档了仍在工作的 Sol（复用原则要求复核自身 finding 时复用同一代理）。**已记录**在
    `tmp/mcp-play-support/dispatch-cwd-quirk.md`。
+
+
+## 2026-09-22：SYSREV 系统审核（只审查，不推进 Dev/Test 轮换）
+
+用户明确指定 Codex 内置 subagent；本轮据此使用内置 fresh contexts，保留 Review 固定 **GPT-5.6 Sol / high** 的模型要求，未使用 pi 启动 Review。
+
+| 身份 | 实际角色 / 模型 | 实际结果 |
+| --- | --- | --- |
+| `/root/protocol` | Review / `gpt-5.6-sol` / high | 平台内容检查中止，无报告，不计入覆盖；另派全新代理 |
+| `/root/protocol2` | Review / `gpt-5.6-sol` / high | changes_required；原始 P1=1/P2=1/P3=2 |
+| `/root/combat` | Review / `gpt-5.6-sol` / high | changes_required；原始 P1=3/P2=1/P3=0 |
+| `/root/architecture` | Review / `gpt-5.6-sol` / high | changes_required；原始 P1=1/P2=5/P3=1 |
+| Dev / Test | N/A：本轮没有产品实现或实机游玩代理 | 各自轮换计数不变；下一独立 Dev 仍按前文回到 A |
+
+固定基线 `caefa9a94af85dabd73c0d7e74ef764081b1fb3e`，dist SHA256 `5b32c28ad639a652e6ab83fa3cf88a6badc1b49dbaf753e329f0937af77c75e2`。去重后 **13 项（P0=0/P1=5/P2=6/P3=2）**；边界 checker 两路严重度不同，综合采用架构 Review 的 P1 验证门禁级别，未把它描述为已证运行错误。
+
+本轮重跑 Lua 43 脚本、Python 39 tests、三个生成器均通过；70-member source/dist/manifest 一致。受控模块复现发现测试覆盖外的契约/行为缺口，**native 本轮 NOT_OBSERVED**。这些结果不是跨模型比较实验，不能从发现数量推断模型优劣。
+
+产物：[系统审核报告](tome-mcp-system-review-2026-09-22.md)、[修改方案](tome-mcp-remediation-plan-2026-09-22.md)。原始报告和证据保留在 `/workspace/t-engine4/tmp/mcp-system-review-20260922`，哈希见审核报告。此次仅新增文档和此记录，没有产品修复、打包、提交或合并。
