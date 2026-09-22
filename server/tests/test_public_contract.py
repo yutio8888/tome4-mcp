@@ -5,7 +5,8 @@ import re
 import subprocess
 import unittest
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, ValidationError as SchemaError
+from jsonschema.validators import extend
 from referencing import Registry, Resource
 from mcp import Client
 from pydantic import TypeAdapter, ValidationError
@@ -17,13 +18,39 @@ ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / 'protocol/v4'
 
 
+def _utf8_bytes(_validator, limit, value, _schema):
+    if isinstance(value, str) and len(value.encode('utf-8')) > limit:
+        yield SchemaError('string exceeds the v4 UTF-8 byte limit')
+
+
+def _command_sequence(_validator, limit, value, _schema):
+    if isinstance(value, str) and re.fullmatch(r'cmd-[1-9][0-9]*', value):
+        digits = value[4:]
+        bound = str(limit)
+        if len(digits) > len(bound) or (len(digits) == len(bound) and digits > bound):
+            yield SchemaError('command sequence exceeds the v4 limit')
+
+
+def _wire_pattern(_validator, pattern, value, _schema):
+    # All declared v4 patterns are anchored. Match the Lua wire validator's
+    # strict end-of-string semantics, rather than Python "$" before a final LF.
+    if isinstance(value, str) and re.fullmatch(pattern, value) is None:
+        yield SchemaError('string does not match the complete v4 wire pattern')
+
+
+ProtocolValidator = extend(Draft202012Validator, {
+    'x-max-utf8-bytes': _utf8_bytes, 'x-max-sequence': _command_sequence,
+    'pattern': _wire_pattern,
+})
+
+
 def validator():
     documents = [json.loads(p.read_text()) for p in PROTOCOL.glob('*.schema.json')]
     registry = Registry().with_resources(
         (key, Resource.from_contents(d)) for d in documents
         for key in (d['$id'], d['$id'].rsplit('/', 1)[-1]))
     schema = json.loads((PROTOCOL / 'requests.schema.json').read_text())
-    return Draft202012Validator(schema, registry=registry)
+    return ProtocolValidator(schema, registry=registry)
 
 
 class PublicSchemaTests(unittest.TestCase):
