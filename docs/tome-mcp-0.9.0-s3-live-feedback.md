@@ -18,9 +18,19 @@ Test 原报告保留 [原文](../validation/2026-09-22-s3-live/test-report.md)�
 | S3-EVIDENCE-01 | Vault 实际 request/answer 两条及 `nolock=true` 缺少直接证据 | 保持 NOT_OBSERVED；独立 Review 判断可用证据与补证方案，不以规划或“无报错”替代观测 | **是** |
 
 测试共有 66 次包装器调用、65 份保存回复和 90 条实际 MCP 记录；丢失的一次本地格式化 observe
-输出已重复获取并计数。错误装备字段的 schema 拒绝、第一次预算暂停均保留；原生等待/装备为
+输出已重复获取并计数。`raw/010` 本身为零字节；可用回复位于完整 MCP transcript 第 13/14 条，
+见 [勘误 v2](../validation/2026-09-22-s3-live/errata-v2.json)。错误装备字段的 schema 拒绝、第一次预算暂停均保留；原生等待/装备为
 明确分列的准备操作。训练场赠送技能/盾牌/资源及固定假人，不表示自然成长或常规战役已通过。
 手动接管仅覆盖 activate 后尚未 start 的 ARMED 状态，不宣称执行中 pending 接管覆盖。
 
 报告落盘后自动回收整个游戏进程组及 FIFO，`--list` 无残留；Test 代理已归档。
-下一 owner：协调者派发全新 Sol Review；所有反馈明确处置后才允许新一轮补证会话。
+初审提出 `REV-S3-01`（Vault 实际请求观测缺口）、`REV-S3-02`（空文件错误定位）、
+`REV-S3-03`（已运行但索引为 not_run）。协调者已独立核实后两项并建立
+[新版索引](../validation/2026-09-22-s3-live/manifest-v2.json)，原索引和报告保留。
+初审报告另有身份/hash/坐标抄录错误，原 Reviewer 正在更正；更正前不采纳其验收结论。
+
+独立 Dev `4791e304-4f35-47ec-8a81-b8f9d745a6bb` 已接手 `S3-LIVE-ISSUE-1` 的控制台字段修复
+及 `S3-EVIDENCE-01 / REV-S3-01` 的测试专用被动请求记录。生产协议/包保持不变。
+`REV-S3-02/03` 由协调者负责勘误，待原 Reviewer 复核；其余三项原反馈保留上表处置。
+下一 owner：Dev 交付代码/单测/PR 后，协调者核对全量台账，再启动独立 Test 补证；
+实机请求证据仍是完成 S3 的必需项，不能以工具单测代替。

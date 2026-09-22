@@ -1,0 +1,34 @@
+{
+  "id": "S3-EVIDENCE-ERRATA-v2",
+  "original_manifest_sha256": "d6f9e701fbfa89e7b5797ffb390b73a54b0fe396771950a621d7f6166b74cdb9",
+  "original_test_report_sha256": "bac775cbb29ee47fa0b74ee26d08eb52fafaf133d9dfda17d10111710ec27cff",
+  "original_metrics_sha256": "b25ee6ed4fdb07f8bc50278b5ca64e925ffc66dca606b6120a9c4f1ebae93c75",
+  "preservation": "All original report/raw/metrics/manifest bytes preserved; this index erratum does not alter frozen metric outcomes.",
+  "items": [
+    {
+      "finding_id": "REV-S3-02",
+      "disposition": "corrected_locator",
+      "artifact": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/010-observe-post-read.json",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "correction": "raw/010 is an empty failed formatted-output artifact, not the reissued response. Both retained full MCP observe replies are transcript records13 and14 (one-based).",
+      "actual_evidence": {
+        "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-02/play-mcp.jsonl",
+        "sha256": "2edfe66352b2874af72d635f63494183705b305ab19004c6e4162a2b1bc8278c",
+        "record_numbers": [
+          13,
+          14
+        ]
+      }
+    },
+    {
+      "finding_id": "REV-S3-03",
+      "disposition": "corrected_status",
+      "gate": "S3-LIVE-VAULT",
+      "old_index_status": "not_run",
+      "current_index_status": "partial",
+      "row_result": "NOT_OBSERVED",
+      "correction": "Native Vault ran and effects/landing were observed; the mandatory actual two-request/nolock observation remains NOT_OBSERVED. No change to original 5/6 supported rows or frozen metrics."
+    }
+  ]
+}

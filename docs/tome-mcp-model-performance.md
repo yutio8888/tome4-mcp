@@ -452,3 +452,16 @@ Test 交付4/4 PASS；额外一次非必要手动wait发生于所有断言之后
   派发/原始证据根：`/workspace/t-engine4/tmp/mcp-s3-live-20260922/`。
 - 启动夹具首轮 `s3-live-01` 漏 `overload=true`，未加载训练场，记录 `S3-HARNESS-01` 后修复并回收；
   `s3-live-02` 出生预检已通过。首轮无 Test 评分事件，原始启动失败证据保留，不并入通过数。
+
+### S3 初次实测审核与取证工具修复（2026-09-22）
+
+| 实际代理 | 角色 / 启动模型与思考 | 状态与范围 |
+| --- | --- | --- |
+| 302ada78-e664-4298-b53b-5c1243821a99 | fresh Review / pi `openai-codex/gpt-5.6-sol` / high | 初审要求补齐 Vault 实际两段请求证据；初版报告多处身份/hash/坐标标注与实文件不符，原 Reviewer 正在复核自身报告，尚未用于验收 |
+| 4791e304-4f35-47ec-8a81-b8f9d745a6bb | fresh Dev / pi `commandcode/deepseek/deepseek-v4.1-flash` / high | 仅修复 compact observe 转发、实现测试专用被动请求记录及单测；产品包不变，尚未交付 |
+
+Dev 序列上次 B，本次 A，下次 B；前轮 SYSFIX 内置执行例外未推进轮换。Test 独立序列上次 B，下一次 A。
+初审报告原文保存在 support 的 `review/report-initial-unverified.md`，更正不得覆盖原始证据。
+已单独建立证据索引勘误：`raw/010` 实际为空，其成功 observe 原始回复见 MCP transcript 第 13/14 条；
+Vault gate 在新版索引标为 `partial`，缺少实际请求观测的子项仍为 `NOT_OBSERVED`。初次六行指标及 Test 报告不改写。
+这不是等量跨模型实验，不据一次报告错误推断模型整体能力。
