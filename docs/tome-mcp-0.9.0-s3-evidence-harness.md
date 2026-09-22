@@ -66,10 +66,20 @@ delegate getter 与 `wrapAction` 都**先 `pack(...)` 再按 `args.n` 转发**�
 不改变游戏结果，也不吞掉原生错误；**缺失记录不得被推断为原生结果**。
 
 外部只读读取器 `supplement/trace-s3.py`（协调者所有）按 `line.partition('[S3NativeTrace]')`
-解析 `json.loads(raw)`，因此本模块只写 `print('[S3NativeTrace] ' .. json)`，且记录中
-**不省略任何键**（可空值显式写 `null`）。插件安装本身也发一条**合法 JSON** 记录
-（`kind='installation'`，COORD-HARN-01），不打印任何非 JSON 横幅，避免读取器产生
-`parse_errors`。
+解析 `json.loads(raw)`，因此本模块只写 `print('[S3NativeTrace] ' .. json)`。
+
+**JSON 键语义（DOC-HARN-02）**：记录**不是**“每个键都出现且可空即为 null”。编码器与 Lua 一致：
+值为 `nil` 的字段**直接缺席**（不写 `null`）。因此读取方必须用可区分缺席与具体值的字段判断，
+而不是看键是否存在：
+
+- `typ.nolock_present`（布尔）区分“该键完全不存”与“显式存在”；
+- `typ.nolock` 仅在键显式存在且为布尔时出现，否则缺席（非布尔时改记 `typ.nolock_type`）；
+- `typ.type`/`range`/`radius` 缺失即表示该值不可得；
+- `answer.x_class`/`y_class` 区分 `nil` 与 `false` 及实际类型；
+- `answer.arity` 给出真实返回个数，与具体坐标值无关。
+
+插件安装本身也发一条**合法 JSON** 记录（`kind='installation'`，COORD-HARN-01），
+不打印任何非 JSON 横幅，避免读取器产生 `parse_errors`。
 
 ### 仅在显式加载时生效（TRACE-03）
 
@@ -84,6 +94,13 @@ delegate getter 与 `wrapAction` 都**先 `pack(...)` 再按 `args.n` 转发**�
 独立**（COORD-HARN-02）、getter 出错后恢复、action 出错后恢复、**`__tostring` 抛错的原始
 错误对象恒等重抛**（COORD-HARN-04）、yield/resume 恢复、发射失败隔离（含不吞原生错误）、
 记录越界诚实标注、`install()` 幂等与缺技能上报、安装记录为合法 JSON。
+
+完整离线入口 `bash tests/run.sh` 已整体通过：**整条入口退出码 `0`**，包括三条生成器校验
+（`generate_native_seams.py --check`、`generate_effect_manifest.py --check`、
+`generate_protocol.py --check`）。之前的一次初始运行在生成器行失败，仅因隔离 dev-root 缺少
+同级的 `tome-battle-companion`；该输入现由协调者以只读符号链接补上，未改动任何产品文件。
+两次日志均保留（`dev-evidence/tests-run.log` 初始失败版；
+`dev-evidence/tests-run-complete.log` 完整通过版）。
 
 **限制（必须如实陈述）**：
 
@@ -103,15 +120,16 @@ delegate getter 与 `wrapAction` 都**先 `pack(...)` 再按 `args.n` 转发**�
 
 隔离会话已由协调者准备；要把本夹具挂进冻结包运行，需：
 
-1. **镜像 HARN-01 一行改动**：协调者的启动副本
-   `/workspace/t-engine4/tmp/mcp-s3-live-20260922/agent-play.py` 是
-   `harness/console/agent-play.py` 的**带环境钉定覆写的拷贝**。请把仓库版本中
-   `snapshot_summary` 的同一行
-   （`'auto_combat': s.get('auto_combat'),`，在 `'history'` 之后）同步到该副本；
-   其余钉定差异（`TOME_MCP_TEST_ARCHIVE`、角色等）保持不变。
-2. **显式加载观察插件**：以 `extra_addons={'mcp-s3-observer': <repo>/tests/native/tome-s3-observer}`
-   启动（`Runtime` 会把它复制为 `game/addons/tome-mcp-s3-observer` 并加入
-   `-Eset_addons`）。**不要**把它加入第 1 步之外的生产包。
+1. **不要动原始 helper**：`/workspace/t-engine4/tmp/mcp-s3-live-20260922/agent-play.py`
+   （以及旧 driver/birth/metrics/raw）是被 manifest 钉定的**不可变原件**，**绝不可编辑**。
+   协调者的 `prepare.py` 已把原件复制为**新副本**
+   `/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/agent-play.py`，并把仓库版本的
+   `snapshot_summary`（含 `'auto_combat': s.get('auto_combat'),`，在 `'history'` 之后）
+   与既有 `_prune` 语义植入该新副本。请只使用该新副本，其余钉定差异保持不变。
+2. **显式加载观察插件**：`Runtime(extra_addons={...})` 只**复制**插件文件（为
+   `game/addons/tome-mcp-s3-observer`），**不会**自动把它加进 `-Eset_addons`。协调者必须
+   自己显式列出**全部**要加载的 addon：`mcp-bridge`、`mcp-play-birth-s3`、`mcp-s3-observer`，
+   并**移除** `MCPProbe`（或按保留探针的意图保留其对应项）。**不要**把观察插件加入生产包。
 3. **收集**：会话 `game.log` 中按 `[S3NativeTrace]` 前缀取记录，例如
    `python3 /workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/trace-s3.py`。
    期望：同一次 Vault 提交内恰有 `invocation_start`、两次 `request`/`answer`
@@ -119,6 +137,14 @@ delegate getter 与 `wrapAction` 都**先 `pack(...)` 再按 `args.n` 转发**�
    UID）与 `invocation_finish`；`emit_failures`/`truncated` 均为假。
 4. **交叉核对**：与 policy/MCP 原始响应及观测到的落点/伤害/眩晕、`run_actions` 计数
    对齐；任何缺失字段记 `NOT_OBSERVED`，不得推断为通过。
+
+### 时序与语义（DOC-HARN-04/05）
+
+- `install()` 在 **`ToME:load`** 时捕获**当时**的 Vault action 并就地包裹；此后每次
+  **动作进入**时再捕获**当时**的 `actor.getTarget` 作为被观察/被委托对象。四者都可能在
+  期间被其他插件替换，观察器只如实反映那一刻的实际函数。
+- `invocation_finish.ok` 只表示 **action 未抛出异常**（pcall 成功），**不等于**原生 talent
+  返回真值或动作成功。实际成功与否必须由 MCP 结果与原生效果（落点/伤害/眩晕/计数）确立。
 
 ## 4. 未改动的边界
 
