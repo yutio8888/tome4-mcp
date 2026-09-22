@@ -83,8 +83,10 @@ class Wire:
 class Acceptance:
     TERMINAL = {"completed", "failed", "cancelled", "needs_input"}
 
-    def __init__(self, runtime: Runtime):
+    def __init__(self, runtime: Runtime, sysfix_core: bool = False):
         self.runtime = runtime
+        self.sysfix_core = sysfix_core
+        self.sysfix_before = None
         self.checks = []
         self.transcript = []
         self.wire = None
@@ -145,8 +147,75 @@ class Acceptance:
         time.sleep(0.2)
         return self.runtime.latest_state()
 
+    def sysfix_core_record(self, stage: str, log_name: str) -> dict:
+        """Require the opted-in record from this process, never the other log."""
+        records = []
+        for line in (self.runtime.session / log_name).read_text(errors="replace").splitlines():
+            if line.startswith("[MCPProbe] "):
+                try:
+                    record = json.loads(line.split("] ", 1)[1])
+                except json.JSONDecodeError:
+                    continue
+                if record.get("kind") == "sysfix_core":
+                    records.append(record)
+        self.check(len(records) == 1 and records[0].get("stage") == stage,
+                   "sysfix_core_exact_record_" + stage, log=log_name, records=records)
+        record = records[0]
+        expected = dict(live_draft_empty=True, saved_draft_empty=True, approved_id="sysfix-approved",
+                        runtime_handles_absent=True, save_format=3, active=False, run_present=False,
+                        control_owner="manual", execution_enabled=False)
+        self.check(all(type(record.get(k)) is type(v) and record[k] == v for k, v in expected.items())
+                   and isinstance(record.get("approved_live_bytes"), str) and bool(record["approved_live_bytes"])
+                   and record["approved_live_bytes"] == record.get("approved_saved_bytes")
+                   and isinstance(record.get("character_uuid"), str) and bool(record["character_uuid"])
+                   and isinstance(record.get("save_name"), str) and bool(record["save_name"])
+                   and isinstance(record.get("player_uid"), int),
+                   "sysfix_core_policy_and_runtime_" + stage, record=record)
+        return record
+
+    def compare_sysfix_core_reload(self, after: dict) -> None:
+        # Entity uid is intentionally volatile across engine loads. Compare the
+        # Player's persistent UUID and save identity alongside full policy bytes.
+        fields = ("character_uuid", "save_name", "approved_live_bytes", "approved_saved_bytes")
+        self.check(self.sysfix_before is not None
+                   and all(self.sysfix_before[k] == after[k] for k in fields),
+                   "sysfix_core_same_character_and_approved_policy_after_native_reload",
+                   before=self.sysfix_before, after=after)
+
+    def public_boundary(self) -> None:
+        """Actual TCP ingress rejections; no action is submitted by this probe."""
+        before = self.observe()
+        native_before = self.native_state()
+        base = dict(session_id=self.session_id, control_token=self.control_token,
+                    command_id=before["history"]["next_command_id"], expected_revision=before["revision"])
+        for key, value in {"force_actor": False, "force_grid": True,
+                           "authoritative_target": True, "sequence": []}.items():
+            reply = self.wire.raw("act", {**base, "action": {
+                "type": "use_talent", "talent_id": "T_LIGHTNING", key: value}})
+            self.check(not reply.get("ok") and reply["error"].get("accepted") is False,
+                       "sysfix_public_rejects_" + key, response=reply)
+        for sections in ({}, {"player": True}, ["player", "player"], ["unknown"], [None], [1]):
+            reply = self.wire.raw("observe", dict(session_id=self.session_id, sections=sections))
+            self.check(not reply.get("ok") and reply["error"]["code"] == "invalid_sections",
+                       "sysfix_invalid_sections_rejected", sections=sections, response=reply)
+        extra = self.wire.packet("observe", dict(session_id=self.session_id))
+        extra["undeclared"] = True
+        self.wire.send(extra)
+        self.check(not self.wire.receive(extra).get("ok"), "sysfix_closed_envelope")
+        reply = self.wire.raw("observe", dict(session_id=self.session_id, undeclared=True))
+        self.check(not reply.get("ok"), "sysfix_closed_args")
+        after = self.observe()
+        native_after = self.native_state()
+        self.check(before["history"] == after["history"] and before["revision"] == after["revision"],
+                   "sysfix_rejections_preserve_ledger_revision", before=before["history"], after=after["history"])
+        fields = ("x", "y", "energy", "world_tick", "actions", "enemy_acts")
+        self.check(all(native_before[k] == native_after[k] for k in fields),
+                   "sysfix_rejections_do_not_submit_native_action", before=native_before, after=native_after)
+
     def run(self) -> None:
         self.runtime.wait_ready()
+        if self.sysfix_core:
+            self.sysfix_before = self.sysfix_core_record("before_native_save", "game.log")
         birth = self.runtime.records()
         perception = [r for r in birth if r.get('kind') == 'visibility_check']
         self.check(len(perception)==10 and all(r['passed'] for r in perception),
@@ -156,6 +225,7 @@ class Acceptance:
                    "fresh_native_birth_no_imported_save")
         result = self.connect(fragmented=True)
         self.check(result["snapshot"]["phase"] == "ready", "fragmented_tcp_connect_returns_ready")
+        self.public_boundary()
         native_before = self.native_state()
         first = self.observe()
         responses = self.wire.batch([("observe", dict(session_id=self.session_id)),
@@ -348,6 +418,10 @@ class Acceptance:
         original_hashes = save_hashes(save_root)
         self.check(bool(original_hashes) and any(p.endswith("game.teag") for p in original_hashes),
                    "native_ctrl_s_produces_game_save")
+        if self.sysfix_core:
+            before = self.sysfix_core_record("before_native_save", "game.log")
+            self.check(self.sysfix_before is not None and before == self.sysfix_before,
+                       "sysfix_core_clear_precedes_native_save")
         self.runtime.restart_from_saved_copy()
         deadline = time.monotonic() + 90
         while not any(r.get("kind") == "reload_ready" for r in self.runtime.records()):
@@ -356,6 +430,9 @@ class Acceptance:
             assert not errors, errors
             assert time.monotonic() < deadline, "Native load did not finish"
             time.sleep(0.05)
+        if self.sysfix_core:
+            after = self.sysfix_core_record("after_native_reload", "reload.log")
+            self.compare_sysfix_core_reload(after)
         time.sleep(0.2)
         state = self.native_state()
         time.sleep(0.5)
@@ -373,9 +450,11 @@ class Acceptance:
         self.check(not response.get("ok") and response["error"]["code"] == "session_mismatch", "old_session_rejected_after_native_load")
         response = self.wire.raw("status", dict(session_id=self.session_id, command_id="cmd-1"))
         self.check(not response.get("ok") and response["error"]["code"] == "command_not_accepted", "old_command_history_not_serialized")
-        self.check(original_hashes == save_hashes(save_root), "original_fixture_save_unchanged_by_reload")
-        self.check(original_hashes == save_hashes(self.runtime.home / ".t-engine/4.0/tome/save"),
-                   "reload_does_not_rewrite_copied_fixture_save")
+        self.check(original_hashes == save_hashes(save_root), "original_fixture_save_unchanged_by_reload",
+                   files_sha256=original_hashes)
+        copied_hashes = save_hashes(self.runtime.home / ".t-engine/4.0/tome/save")
+        self.check(original_hashes == copied_hashes, "reload_does_not_rewrite_copied_fixture_save",
+                   original_files_sha256=original_hashes, copied_files_sha256=copied_hashes)
         self.act({"type": "wait"})
 
 
@@ -386,10 +465,22 @@ def main() -> int:
     parser.add_argument("--deps", type=Path, default=DEFAULT_DEPS)
     parser.add_argument("--mcp-python", type=Path, default=WORKSPACE / "tmp/tome-mcp-venv/bin/python")
     parser.add_argument("--addon-archive", type=Path, help="load a packaged .teaa instead of the production source directory")
+    parser.add_argument("--sysfix-core", action="store_true",
+                        help="verify local draft clear and approved policy across native save/reload")
     args = parser.parse_args()
     runtime = Runtime(args.session, args.source.resolve(), args.deps.resolve(),
                       args.addon_archive.resolve() if args.addon_archive else None)
-    acceptance = Acceptance(runtime)
+    if args.sysfix_core:
+        # A test-only setting is copied with the isolated home for reload; no
+        # production RPC or persistent player marker enables the fixture.
+        setting = runtime.home / ".t-engine/4.0/settings/mcp-test.cfg"
+        with setting.open("a") as stream:
+            stream.write("\ntome_mcp_sysfix_core_probe = true\n")
+        metadata_path = runtime.session / "input.json"
+        metadata = json.loads(metadata_path.read_text())
+        metadata.update(sysfix_core=True, sysfix_core_setting_sha256=sha(setting))
+        metadata_path.write_text(json.dumps(metadata, indent=2))
+    acceptance = Acceptance(runtime, sysfix_core=args.sysfix_core)
     error = None
     started = time.monotonic()
     try:
@@ -406,6 +497,7 @@ def main() -> int:
         runtime.close()
     content = "\n".join(path.read_text(errors="replace") for path in runtime.log_paths)
     result = dict(passed=error is None and "Lua Error:" not in content and "[COROUTINE] error" not in content,
+                  sysfix_core=args.sysfix_core,
                   elapsed_seconds=time.monotonic() - started, checks=acceptance.checks, error=error,
                   lua_error="Lua Error:" in content or "[COROUTINE] error" in content,
                   native_records=runtime.records())

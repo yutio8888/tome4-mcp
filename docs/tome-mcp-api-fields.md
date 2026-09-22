@@ -1,6 +1,6 @@
 # ToME MCP 接口返回字段清单
 
-日期：2026-09-18。基线：Bridge / Python server **0.9.0**、协议 **v4**（v1/v2/v3 已在测试阶段移除，见 `protocol/v4/requests.schema.json`）。本文由当前源码提取，用于审阅命名与冗余；不是新契约。
+日期：2026-09-22。基线：Bridge / Python server **0.9.0**、协议 **v4**（v1/v2/v3 已在测试阶段移除，见 `protocol/v4/requests.schema.json`）。本文由当前源码提取，用于审阅命名与冗余；不是新契约。
 
 标记：`?` 条件出现。所有字段均属于协议 v4。
 
@@ -16,6 +16,10 @@
 
 `error`：`code`、`message`、`uncertain`、`command_id?`、`response_id?`。
 （游戏内部 TCP 信封 `{v,id,ok,result,error}` 不暴露给 MCP 客户端。）
+
+公共 TCP v4 请求的 envelope 与每个 op 的 args 为闭合对象；未知键在受理前拒绝。`act.action` 按 type 使用闭合联合，`force_actor` / `force_grid` / `authoritative_target` / `sequence` 仅供内部原生执行，不是公开字段。内部计数关联 `run_id` / `submission_id` / `generation` 也不能由公开 action 注入。合法动作重放仍在租约/版本检查前通过账本分类，拒绝输入不占用 command sequence。
+
+`observe.sections` 必须是稠密、无重复的数组，元素限定为 `player/map/ground/actors/talents/events/dialogs/scene/effects/sustains/resources/stats/ground_effects`。省略或 `[]` 保留完整快照语义；`{}`、`null`、未知域、重复项和非字符串均拒绝。所有请求数组先做稠密闭合校验再遍历。可扩展 payload（如 policy/config/filter）继续由各自的生产校验器处理，不能因 envelope 闭合而绕过它们。
 
 ## 2. `tome.connect` / `tome.connect(mode="observe")`
 
@@ -241,6 +245,29 @@
 `native_task`：`task_id`、`kind`、`status`、`turns_executed`、`native_max_turns?`、`automation_max_turns`、`stop_reason?`、`native_message?`。
 
 ## 6.1 `tome.policy` / `tome.policy_log`（自动战斗）
+
+本地和远程成功的策略写操作共用持久化规则（包括 `clear`）：只保存 draft/approved 与必要的 migration 提示数据，`clear` 只清 draft。控制租约、socket、队列、协程与运行计数均不保存；加载角色不自动恢复运行。
+
+`limits.max_candidates` 当前只做 schema 范围校验，尚未被执行器消费，不能视为候选数量保证；后续独立定义其消费范围，当前不截断完整 footprint。
+
+`policy status.run` 的计数（日志事件同名字段）：
+
+| 字段 | 含义 |
+| --- | --- |
+| `native_submissions` | 同一真实 action opportunity 的实际 host.request/native 提交次数；包含原生拒绝与 pending 的首次提交，不含 guard 预拒绝；硬上限 32 |
+| `effective_actions` | 同一 opportunity 已结算且 status=ok 或 energy_spent=true 的动作数；每次仅计一次 |
+| `instant_actions` | 上述有效动作中 instant=true 的计数 |
+| `run_actions` | 本次 start 建立的 run 内累计有效动作；pause/resume 不重置 |
+| `attempts` / `actions` | 兼容别名，分别等于 effective_actions / run_actions |
+| `run_id` | 内存中的 run 关联标识；新 start 改变，不入存档 |
+| `max_native_submissions` | 内部提交硬上限，32 |
+| `max_consecutive_actions` | 本 run 有效动作上限；默认 200，策略只可收紧 |
+
+显示帧、重复 pump、重新快照以及同 opportunity 的 stop→start 不重置前三项；新 start 只重置 run_actions。达到 run/submission 上限的原因分别为 `max_consecutive_actions` / `native_submission_limit`，pending 先追踪到真实结算，再 stop/release。异步结算以 run_id+submission_id+原提交generation 关联，只计一次；旧run迟到不计入新run，缺失终态信号不猜测成功。dry_run 只读这些计数。
+
+`mode.on_emergency_unavailable` 为 `release_control`（默认）或 `evaluate_rules`。`emergency_only` 初选/重评估只选择 emergency 规则；显式 evaluate_rules 只允许已知原生 settled reject 后普通规则 fallback，unknown/pending 不扩大许可。老 emergency_only 策略缺少该字段时，validate/set_draft/import 的 warnings 包含 `{code="emergency_fallback_migration",path="mode.on_emergency_unavailable",default="release_control",requires_reapproval=true,message=...}`；import 还报告 original_hash。加载旧 approved 时保留为规范化 draft 并清 approved/running，get/status.migration 提供 reason/warnings/requires_reapproval/original_approved/previous_draft?。重新批准后 requires_reapproval=false；保存 format=3 可包含纯数据 migration 提示。
+
+
 
 `policy_log` 的 `status.log`（及 `policy status`）报**保留 ring** 的 `count`/`first_seq`/`last_seq`/
 `total`/`limit`，以及**实际返回窗口**的 `window={count,first_seq,last_seq}` 与 `semantics` 说明
