@@ -1,4 +1,4 @@
-# SYSFIX-20260922：协调者绑定决策 v1
+# SYSFIX-20260922：协调者绑定决策 v1.1
 
 状态：2026-09-22 用户已要求启动代理修复系统审核问题，本文件为该轮派发的绑定决策；不代表实现或验收已完成。
 基线产品：caefa9a94af85dabd73c0d7e74ef764081b1fb3e。依据系统审核报告与修改方案。
@@ -28,6 +28,12 @@ release_control 分支 stop(action_denied 或已定义的精确原因)+归还 le
 
 定义为一次 start 建立的 run 内累计有效原生动作；新 start 归零，pause/resume 不归零。缺省采用 Schema.HARD.max_consecutive_actions（当前200），策略只可收紧。普通规则、sustain、移动与原生活动共用计数；pending 最终结果只计一次，无耗能拒绝不计但受提交界限制。达到 cap 后不得再提交，结算后 stop/release，generation 单次转换。状态与日志可解释。
 U-01 max_candidates 本批先核实消费范围并提交明确提案/证据，不默默截断 footprint；该未定项不得被声称已修。后续由协调者补充唯一语义。
+
+## SETTLEMENT-01@1：异步原生结算（本次补充）
+
+补充 POLICY-01/03；不改变已提交动作的原生生命周期。Controller attempt 与最终 outcome 使用稳定的 run_id + submission_id + 原提交 generation 关联。pause/resume 可使未提交决策失效，但同一 run 已提交的 pending 仍接受一次结算；旧 run 的迟到结果不得计入新 run。不能只拿当前 generation 与原提交 generation 比较后丢弃结果。
+Runtime 只对初始返回 native_pending 的调用保留此关联；最终 reap 在计算 sequence/postcondition deviation 后调用 Service.nativeSettled，携带实际 native_return、累计 energy/instant 和关联信息。同步结果沿既有直接返回路径结算，不额外回报。NativeActivity 同样必须以实际可判定的终止/进展信号结算，不能把运行句柄消失或 phase ready 单独当作成功。必需信号缺失时结果为不可判定/失败。
+若同次终止伴有 sequence/postcondition deviation，先完成计数，但不得先因额度 stop 再因 deviation handoff；保留更精确的偏离原因，generation 只转换一次。必须覆盖 pending→pause/resume→settle、重复settle、旧run迟到、cap与deviation同时出现的精确计数及generation delta。
 
 ## STORE-01@1：策略持久化
 
