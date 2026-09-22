@@ -1813,6 +1813,17 @@ do
         and svc.controller.generation==generation+1,
         'cap+postcondition deviation keeps precise reason and one generation transition')
 
+    svc,invocation,complete,submissions=pendingTalent()
+    generation=svc.controller.generation
+    Runtime.abortAutoInvocationFor(g,{tick=0,ms=0,frames=0},{ticks=Runtime.AUTO_NATIVE_TIMEOUT_TICKS,
+        frames=Runtime.AUTO_NATIVE_TIMEOUT_FRAMES})
+    check(svc.controller.pending_attempt==nil and Runtime.autoInvocationFor(g)==nil,
+        'bounded timeout settles and clears the real pending submission association')
+    check(svc.controller.reason=='native_timeout' and svc.controller.generation==generation+1
+        and svc.controller:status().run_actions==0 and svc.arbiter.owner=='manual',
+        'unknown timeout preserves typed reason, does not invent success and transitions once')
+    check(Runtime.autoCombatHandle(g,'start',{}).ok,'timeout cleanup does not leave a permanently blocked next start')
+
     -- Native activities also report through the real host/reaper. Disappearing
     -- handles with no progress or termination signal are not successful.
     for _,finished in ipairs{false,true} do

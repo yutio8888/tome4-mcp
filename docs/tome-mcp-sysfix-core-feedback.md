@@ -11,7 +11,7 @@
 - **SYS-12 新增子问题**：旧根 schema 的无判别 args `oneOf` 互相重叠，真实 JSON Schema 验证会拒绝合法 stop/abandon/observe/level_map/policy_log。改为根请求按 op 判别 args，各 action 也是闭合判别联合；真实 before/after 五例均由 invalid 变 valid。生成器不认识的约束关键字/正则直接生成失败，防止漏编译约束。
 - **SYS-04**：本地和远程成功操作共用 `persistAutoCombatMutation`，包含 clear。只清 draft，保留 approved；import 仍是原有只读解析语义（共享保存规则不把它变成 set_draft）；assistant store=false 不持久化，store=true 持久化。失败操作不保存，运行态不入档。
 - **SYS-10/13**：README 当前描述统一 v4，工具表与实际 13 个 MCP 工具对齐，补本地快捷键与高级编辑器/独立包未交付范围。dismiss 示例只使用实际 option/cancel；sections 的枚举和唯一性也在 Python 入口校验。
-- **协调者追加 SETTLEMENT-01 接线**：真正 pending 的 Tracker root / NativeActivity 留下 run_id+submission_id+原 generation；真实终态在 reap 时只回报一次 `AutoCombatService.nativeSettled`。同步结果不再回报。序列/位移偏差先随最终结果记账，再单次 handoff；同一终止不先 cap-stop 后 deviation-stop。活动句柄消失或 ready 不能独立证明成功，必须有完成/步数/能量/位移信号。
+- **协调者追加 SETTLEMENT-01 接线**：真正 pending 的 Tracker root / NativeActivity 留下 run_id+submission_id+原 generation；真实终态在 reap 时只回报一次 `AutoCombatService.nativeSettled`。同步结果不再回报。序列/位移偏差先随最终结果记账，再单次 handoff；同一终止不先 cap-stop 后 deviation-stop。活动句柄消失或 ready 不能独立证明成功，必须有完成/步数/能量/位移信号。已有 bounded timeout 也会清除原 pending 关联：保留 native_timeout 的一次终止，再记实际结果/能量或 uncertain，避免下一次 start 因已释放的调用永久拒绝。
 
 ## 已执行的证据层
 
@@ -19,8 +19,8 @@
 
 | 检查 | 结果与范围 |
 | --- | --- |
-| Runtime 生产模块 | PASS，397 checks；真实 JSON→Transport→Runtime→Actions 校验，精确账本/queue/invocation/energy/turn 不变；真实 service/store/reset 两入口的 mutation 保存矩阵 |
-| 真协程生产路径 | PASS；Service→host→Actions.execute→Tracker yield/resume→Runtime reaper→Service.nativeSettled；pending pause/resume/重复/旧run、cap+postcondition 精确 generation delta=1、rest 完成与无终态信号 |
+| Runtime 生产模块 | PASS，406 checks；真实 JSON→Transport→Runtime→Actions 校验，精确账本/queue/invocation/energy/turn 不变；真实 service/store/reset 两入口的 mutation 保存矩阵 |
+| 真协程生产路径 | PASS；Service→host→Actions.execute→Tracker yield/resume→Runtime reaper→Service.nativeSettled；pending pause/resume/重复/旧run/timeout cleanup、cap+postcondition 精确 generation delta=1、rest 完成与无终态信号 |
 | 组合 Lua 全套 | PASS，43/43 已注册文件；core 的 Runtime/Actions/JSON 边界，加 policy Dev 的 auto_combat 模块和已更新的 policy 测试，来源逐文件记录在 combined-suite-manifest.json，检查期间模块 overlay 未变化 |
 | 原 core runner + 新 policy 模块 | FAIL，旧 policy test D-1 仍假设缺省 emergency fallback；这属于本轮 policy 同步修改的测试，不能混用旧测试与新契约。组合 suite 使用 policy Dev 的新版测试后通过 |
 | Python | PASS，44 tests；其中新增 5 tests 校验所有工具的实际 TCP 序列化、schema 边界、README 工具发现、dismiss Pydantic 示例 |

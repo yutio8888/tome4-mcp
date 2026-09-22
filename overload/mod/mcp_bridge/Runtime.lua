@@ -2483,12 +2483,24 @@ local function abortAutoInvocation(s,started,elapsed)
     local info={code='native_timeout',rule=command.rule,action=command.action and command.action.type,
         talent=command.action and command.action.talent_id,target=command.action and command.action.target_id,
         elapsed_ticks=elapsed.ticks,elapsed_frames=elapsed.frames}
+    -- A bounded abort is also the terminal boundary of the submitted pending
+    -- action. Preserve its typed timeout handoff first; the controller's stopped
+    -- settlement path then records energy and clears the pending token without
+    -- a second generation transition (or a permanently blocked next start).
+    AutoCombat.nativeAbort(s.auto_combat,info)
+    if root.auto_settlement then
+        local known=root.done and type(root.native_return)=='boolean' and not root.error
+        deliverAutoSettlement(s,root,M.mapAutoCombatOutcome({ok=known and root.native_return==true,
+            code='native_timeout',native_return=root.native_return,
+            uncertain=not known or command.energy_spent_complete==false,
+            energy_spent=math.max(root.auto_initial_energy or 0,command.energy_spent or 0)},
+            root.auto_action,root.auto_no_energy))
+    end
     NativeTasks.release(root);Interactions.release(root);Tracker.release(root)
     Interactions.clearTargets(root)
     root.invocation=nil
     if s.auto_invocation==root then s.auto_invocation=nil end
     s.auto_invocation_started=nil;s.auto_invocation_frames=nil
-    AutoCombat.nativeAbort(s.auto_combat,info)
     s.auto_timeout={code='native_timeout',reason=reason,cancelled=cancelled==true,
         action=info.action,talent=info.talent,target=info.target,
         elapsed_ticks=info.elapsed_ticks,elapsed_frames=info.elapsed_frames}
