@@ -1,4 +1,4 @@
-# SYSFIX-20260922：协调者绑定决策 v1.1
+# SYSFIX-20260922：协调者绑定决策 v1.2
 
 状态：2026-09-22 用户已要求启动代理修复系统审核问题，本文件为该轮派发的绑定决策；不代表实现或验收已完成。
 基线产品：caefa9a94af85dabd73c0d7e74ef764081b1fb3e。依据系统审核报告与修改方案。
@@ -11,12 +11,13 @@
 
 公开 action 只接受协议声明字段；force_actor/force_grid/authoritative_target/sequence 是内部执行上下文，绝不因请求提供一个模式位而开放。内部 native executor 共用，但公开验证与内部 carrier 验证分开。入站 envelope/args/action 闭合；sections 等数组先验证稠密、闭合、元素类型再迭代。保持合法 one-shot prefill、幂等重放、账本拒绝语义和原生目标守卫。
 
-## POLICY-01@1：有效动作与原生提交分开计数
+## POLICY-01@1.1：有效动作与原生提交分开计数
 
 取代主设计 §4.1 中“所有真实调用尝试都计入 max_actions_per_tick”的旧文本，保留 anor-reg-01 fix2 已解决的 limit-1 防活锁行为。
 max_actions_per_tick 是每 action opportunity 的有效原生动作预算：settled status=ok 或 energy_spent=true 仅计一次；无耗能 settled reject 不计入。instant 单独计数；显示帧、重复 pump、重新快照不重置 opportunity 预算。native_pending 不重发，最终结算仅计一次。
 新增内部硬上限 MAX_NATIVE_SUBMISSIONS_PER_OPPORTUNITY=32，计任何真实 host.request/native 提交（包括拒绝和 pending 的首次提交），不计 guard 预拒绝；对同一 opportunity 跨 pump 累计，不随显示帧重置。预算到顶不再提交，pending 先追踪到可判定边界，然后 stop/release。现有每步 8 次 rule-loop 界保留，不替代跨 pump 的提交界。
 status/log 明确区分 native_submissions、effective_actions、instant_actions、run_actions（可保留旧 attempts/actions 兼容别名并明确其含义）。所有 counter 在 dry_run 中只读。
+同一真实 action opportunity 的 native/effective/instant 预算跨显式 stop→new start 保留；新 start 只重置 run_id/run_actions，不以重建 controller 绕过同一机会的额度。旧 run 仍有真实 native_pending 时，允许按执行中/不可判定拒绝 start，直至原提交被追踪到结算边界；不得通过 start 丢弃旧 pending。旧 run 的迟到结果不得计入新 run 的 run_actions。回归必须覆盖同一 opportunity stop/start 的精确提交数。
 
 ## POLICY-02@1：emergency_only 与显式 fallback
 
