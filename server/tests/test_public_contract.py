@@ -55,6 +55,47 @@ class PublicSchemaTests(unittest.TestCase):
 
 
 class PublicToolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_revision_boundaries_reject_before_wire(self):
+        revision = json.loads((PROTOCOL / 'common.schema.json').read_text())['$defs']['Revision']
+        low, high = revision['minimum'], revision['maximum']
+        validate = validator()
+        async with FakeGame() as game:
+            async with Client(create_server(BridgeClient(token=game.token, port=game.port))) as client:
+                await client.call_tool('tome.connect')
+                # A real MCP act gives FakeGame the command record that respond
+                # expects. This verifies serialization, not native acceptance.
+                await client.call_tool('tome.act', {**action_args(), 'wait_ms': 0})
+                calls = {
+                    'tome.act': {**action_args(), 'wait_ms': 0},
+                    'tome.respond': {'session_id': 's1', 'control_token': 'c1', 'command_id': 'cmd-1',
+                        'interaction_id': 'i1', 'response_id': 'answer1',
+                        'answer': {'type': 'cancel'}, 'wait_ms': 0},
+                    'tome.dismiss': {'session_id': 's1', 'control_token': 'c1',
+                        'answer': {'type': 'cancel'}},
+                }
+                for name, args in calls.items():
+                    for value in (low-1, low, high, high+1):
+                        with self.subTest(tool=name, revision=value):
+                            before = len(game.requests)
+                            reply = await client.call_tool(name, {**args, 'expected_revision': value})
+                            if value < low or value > high:
+                                self.assertEqual(len(game.requests), before, game.requests[before:])
+                                self.assertTrue(reply.is_error)
+                            else:
+                                self.assertFalse(reply.is_error)
+                                self.assertEqual(len(game.requests), before+1)
+                                self.assertEqual(game.requests[-1]['args']['expected_revision'], value)
+                                validate.validate(game.requests[-1])
+                for tool in (await client.list_tools()).tools:
+                    if tool.name not in calls:
+                        continue
+                    shape = tool.input_schema['properties']['expected_revision']
+                    if 'anyOf' in shape:
+                        shape = next(s for s in shape['anyOf'] if s.get('type') == 'integer')
+                    with self.subTest(advertised_tool=tool.name):
+                        self.assertEqual(shape['minimum'], low)
+                        self.assertEqual(shape['maximum'], high)
+
     async def test_all_tools_emit_schema_valid_tcp_requests(self):
         async with FakeGame() as game:
             app = create_server(BridgeClient(token=game.token, port=game.port))

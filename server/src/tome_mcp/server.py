@@ -150,6 +150,9 @@ Action = Annotated[
     Field(discriminator="type"),
 ]
 Identifier = Annotated[str, Field(min_length=1, max_length=128)]
+# protocol/v4/common.schema.json#/$defs/Revision. The public-contract tests
+# compare every revision tool's advertised bounds with that shared definition.
+Revision = Annotated[int, Field(ge=1, le=9_007_199_254_740_991)]
 # Canonical command identity: cmd-<sequence> from history.next_command_id.
 CommandId = Annotated[str, Field(pattern=r"^cmd-[1-9][0-9]*$", max_length=32)]
 
@@ -474,7 +477,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
         session_id: Identifier,
         control_token: Identifier,
         command_id: CommandId,
-        expected_revision: Annotated[int, Field(ge=0)],
+        expected_revision: Revision,
         action: Action,
         wait_ms: Annotated[int, Field(ge=0, le=10000)] = 2000,
         include_map: bool = False,
@@ -524,7 +527,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     @server.tool(name="tome.respond", annotations=write)
     async def respond(session_id: Identifier, control_token: Identifier, command_id: CommandId,
                       interaction_id: Identifier, response_id: Identifier,
-                      expected_revision: Annotated[int, Field(ge=1)], answer: Answer,
+                      expected_revision: Revision, answer: Answer,
                       wait_ms: Annotated[int, Field(ge=0, le=10000)] = 2000,
                       include_map: bool = False) -> ToolReply:
         """Answer a command-owned native interaction exactly once. Keep the original command_id and a unique response_id. Wait for the next input or command result; on uncertainty query those IDs, never repeat the talent. Cancel preserves native cancellation semantics and can produce further effects or questions. A native top-level popup (sealed door, lore, running, death screen) has no command_id and is answered with tome.dismiss instead."""
@@ -539,7 +542,7 @@ def create_server(bridge: BridgeClient) -> MCPServer:
     @server.tool(name="tome.dismiss", annotations=write)
     async def dismiss(session_id: Identifier, control_token: Identifier, answer: Answer,
                       interaction_id: Identifier | None = None,
-                      expected_revision: Annotated[int, Field(ge=1)] | None = None,
+                      expected_revision: Revision | None = None,
                       include_map: bool = False) -> ToolReply:
         """Dismiss or answer a native popup raised outside a command (sealed door, lore, running, death screen). observe exposes it as a top-level interaction; use only the answer types it offers, for example {"type":"option","option_id":"<option_id>"} for a dialog.choice/list_menu or dialog.confirm. Read observe.interaction.answer_types and options; confirmations use the offered option_id too. Use {"type":"cancel"} only when cancel is offered. This has no command_id; use tome.respond for command-owned interactions."""
         args: dict[str, Any] = {"session_id": session_id, "control_token": control_token,
