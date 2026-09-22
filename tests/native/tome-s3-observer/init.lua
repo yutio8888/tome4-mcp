@@ -1,0 +1,10 @@
+long_name = "ToME MCP S3 native trace observer"
+short_name = "mcp-s3-observer"
+for_module = "tome"
+version = {1, 7, 6}
+addon_version = {0, 1, 0}
+weight = 100300
+author = {"MCP Bridge contributors"}
+description = [[TEST-ONLY passive observer of real native target requests/answers (T_VAULT). Never enable in an ordinary game.]]
+overload = true
+hooks = true

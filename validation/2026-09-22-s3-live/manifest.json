@@ -1,0 +1,741 @@
+{
+  "schema_version": 2,
+  "candidate_id": "S3-LIVE-20260922",
+  "product_version": "0.9.0",
+  "protocol_version": 4,
+  "code_baseline": "8e3c21978a5040ac9ba97cd2175ee36901b91819",
+  "candidate_commit": "fdd741c1c47aa65be7ecc329a06a52a8d647482f",
+  "candidate_commit_note": "This round changes coordinator docs/fixture only; archive product members are byte-identical to main baseline.",
+  "evidence_note": "Actual independent Test observations; raw local evidence indexed by hash. No source/dist unit or historical probe substituted for these rows.",
+  "raw_sources": [
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-play-support/s3-live-01.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-play-support/s3-live-02.log",
+      "sha256": "06ee2aa10a23da6534bb59c075d5e3d927a68e7233b2776f642e6778a030e600",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-play-support/tome-mcp-play-birth-s3/hooks/load.lua",
+      "sha256": "d93aac435fc551e7fc18a92cf7fc13a74eb479160b4c29f67ac871ad448bafe2",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-play-support/tome-mcp-play-birth-s3/init.lua",
+      "sha256": "aa6794f1f60519d9199050746f3b4183fb004d90fb9d13e1c866d73f823e9e4d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-play-support/tome-mcp-play-birth-s3/overload/data/zones/mcp-s3-live/grids.lua",
+      "sha256": "b79b2db3579deec51110498ad9091af65d788a51e078439bffee0217e2431a63",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-play-support/tome-mcp-play-birth-s3/overload/data/zones/mcp-s3-live/npcs.lua",
+      "sha256": "d30515eb6e5ce4230ae3721bca6858f2ba2124af00da9f5a06b2722e0216b986",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-play-support/tome-mcp-play-birth-s3/overload/data/zones/mcp-s3-live/objects.lua",
+      "sha256": "c8114a626da64ed802ab43ce6be221b7678034cc45856fe7be34b5f4868b3609",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-play-support/tome-mcp-play-birth-s3/overload/data/zones/mcp-s3-live/traps.lua",
+      "sha256": "e0f31c66e366417e102c2d38e35035e346b0101344439eb5cc139c352851483d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-play-support/tome-mcp-play-birth-s3/overload/data/zones/mcp-s3-live/zone.lua",
+      "sha256": "3a35a3db310dd95a16718d5b80b743d01848db32f29b0d95806b342e131639f9",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-play-support/tome-mcp-play-birth-s3/superload/mod/dialogs/Birther.lua",
+      "sha256": "e7586f6aeadb820ce3b002b879c235e16c296b5c20048a81bf5a6bfd62a2f5cc",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/agent-play.py",
+      "sha256": "1f8034f2579c67f713f03ef5efe5432af686f5587f109e60e5606d44bc9a74e3",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/dispatch-request.json",
+      "sha256": "2d98483af39c22eeb2c0716de7157c35c8d08dafcdc680fa6bc25d81c5e1863a",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/dispatch-stdout.json",
+      "sha256": "f21c898f2af3a99b3cd19a8ac74483e45a539ea4caafc70adcd304bdd3407b66",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/dispatch.json",
+      "sha256": "a512538073906f83b8cb99092bf33b3057951463999342306018611700dfc557",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/launch.json",
+      "sha256": "7adaf198e0fee48272f04fb0ce3c05b687c73f0feef4a1d4993fb0fa0e4a25e5",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/load-parity.json",
+      "sha256": "f6be0f1e1f47f9dac187f0ff2a16ee7c97b7a75b7eb8cbf653b466694e34f8da",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/reap.log",
+      "sha256": "d32590fcadb18f17433cd391001926c3d82be160e88a7ce13864e1f9dc5d8fb7",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/runtime-pin.json",
+      "sha256": "ba7f484eb1e5483c856f549388b929ebc0cb6e596c721a4e0b5692fad4c2083e",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp/__init__.py",
+      "sha256": "6261bd1dd3be741f12b0a13c8c142ecf9f552e2322d25e7147f7162f45397f17",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp/__main__.py",
+      "sha256": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp/bridge.py",
+      "sha256": "edad9936553abcf600731d99904ce49ab4ac0a68cb70b0da5aa06f185a3c5d6b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp/error_registry.py",
+      "sha256": "cd6dd40ec493c78cf405a45a8bdb5e4e4ece534ebd05d09a81fb18d781ed88af",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp/server.py",
+      "sha256": "36f251558046efa171eb1e63a6796a04c21e76fd07c5ba170502591ace91dec9",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp_server.egg-info/PKG-INFO",
+      "sha256": "604348953a43f4fb366b36645669be3b17ea83fabde0a203f09e7d9781a1e760",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp_server.egg-info/SOURCES.txt",
+      "sha256": "9e63800e9291dda5f0e6da1213421272f43af11aa9c5c5898dd33fc03321877d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp_server.egg-info/dependency_links.txt",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp_server.egg-info/entry_points.txt",
+      "sha256": "aef954419fde7d834f22534a270f742e718300cafe3a9efadbc155c8d3fc88bc",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp_server.egg-info/requires.txt",
+      "sha256": "01c771571873832ab0a9b1814fe45ca6d3b8cae24425c2c60102663ea5e11b70",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp_server.egg-info/top_level.txt",
+      "sha256": "dda72470616d1d3f010d5e4aecd443ef7b81d307fa2aeb3299047f8f302cd1c8",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/startup-feedback.json",
+      "sha256": "ef8b20f297bb72e744aee1ef18f08c7b97573d8938f9fe1e73138b1b0b9be107",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/startup01-launch.json",
+      "sha256": "387f3832333145753d56124d9ac97ae6fb0b5c5c8a528d6917ecb78f9510f2f2",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/calls.jsonl",
+      "sha256": "5af6edec8fbfefae0552ee36cbb1ce3e16b0eaa94e7546789689582a96fecef3",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/001-observe-initial.json",
+      "sha256": "0062d8b2de7300e674dfec25adf0f0e2a91b803eafa4b92ef8a810c057bdcd8a",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/002-inspect-talent-shadowstep.json",
+      "sha256": "1f0a00548a4cd11252adaa857ff9b49f6ae4fb25c9fef34a87b6244a4eb8c0c1",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/003-inspect-actor-dummy.json",
+      "sha256": "149a556d36d064dcf9ddab122c527baa64200c09b1d5f8423f80717a5eec022d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/004-policy-status-pre-read.json",
+      "sha256": "76bc37b5e6bca00e4f0fde6bcfed9ae6ff90ebb47fd2bb839f48a505e4461fe3",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/005-auto-status-pre-read.json",
+      "sha256": "38e3c4212aff70d4f553768bd1705a819c80e819d84e814a952071a0bdad5ac1",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/006-policy-validate-read.json",
+      "sha256": "6d407102083c0fba23d3de30636114afa1d4512adbbddf817faf228581038ff7",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/007-policy-dryrun-read-1.json",
+      "sha256": "0b5e3cfaeeed848881d727b1f84f021c4e12140bf37bfd4a6e030dc7108070ba",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/008-policy-dryrun-read-2.json",
+      "sha256": "5febfa0ba964e5b06b4008cc3a2ab22e6a4635e41533763404657ba1c5ef988d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/009-policy-dryrun-read-3.json",
+      "sha256": "c4e5862fb8108cc44d366e4166fc0fc91a9359a2668ef6df59b21595a6b25c29",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/010-observe-post-read.json",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/011-policy-status-post-read.json",
+      "sha256": "9403a09c5bd34e4ab3189527ae23c7d39efa43d8451e20c567b1bc9c0c16bb31",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/012-shadow-validate.json",
+      "sha256": "c86b31b503beb1dd71cae7bddd69cd07f2ff23dfba7772475e3adff490ed24ec",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/013-shadow-set-draft.json",
+      "sha256": "1e892d50a56b231e153ac0ba789fda161b4c374658ebea6a4dee8113246051cb",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/014-shadow-approve.json",
+      "sha256": "85c2fa8d04ead90ab8afb1fb0331dae846353a2d4e5a9a9477e75e94a98fad3f",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/015-shadow-activate.json",
+      "sha256": "ca879d0742ba733bc4c33fcecb4e3b6b3e7f050d8133df09388112363ca6d202",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/016-shadow-auto-start.json",
+      "sha256": "5a58a730999784a291c5a986ad38c71a67e2eb9d0380f61555b4a1462db5f290",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/017-shadow-auto-status-1.json",
+      "sha256": "e6b05bc37d9f2cb2371bba873dd4fb37f84156cc550028f55e09423b7ba1e22b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/018-shadow-observe-post.json",
+      "sha256": "95c03f91470bf16c6edc96a0f35b9fa6e310b1e68aa599d792dafbf587c7d39d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/019-shadow-inspect-dummy.json",
+      "sha256": "97918bd75a40a8f5b14aaad2ba2de5c2877e07fb7d90d8c629ee1b16f6f1871b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/020-map-pre-leap.json",
+      "sha256": "aa16004df19fe5a7e46d0e5554b741b882fb182814611c1515893fe4f187e664",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/021-leap-validate.json",
+      "sha256": "d8153366ffe64a45bc11ab767936e4265bb7387784b2aa4238e661a015039630",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/022-leap-set-draft.json",
+      "sha256": "7830640f41951c72ce3936a9b37f90e37bc64549925ed593d47165c744684500",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/023-leap-approve.json",
+      "sha256": "1c717000044faa7642406899b0ca5e6c14c563f0df9f46a38ce2f121e6542d93",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/024-leap-activate.json",
+      "sha256": "1c4274923427913eec497b1ffc153a191350eb167d0647adc4f12fe4cba2706a",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/025-leap-auto-start.json",
+      "sha256": "16fca50ab3b3b72ed3e12f677634d2c0c64da7baa2881ba3c4bd0ad5cf4d6c54",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/026-leap-auto-status.json",
+      "sha256": "65f6526b84c0e176ea4df6dcd5d6e1c53b5033e6b6085ec4542dd9b7ff4dd672",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/027-leap-observe-post.json",
+      "sha256": "06fb46ea16aeba338bb6105877363a77ee823b2c84bd8101ab71075347b55b14",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/028-leap-inspect-dummy.json",
+      "sha256": "4a8c5670b0b4d96d2f912d0401c20ecf0761baba1fcef3e0ed88365b0c62013a",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/029-vault-noshield-validate.json",
+      "sha256": "b6d1752811052732ab48f2e4a34d7c9b3f85b65e09e7252c6faa5cb313dec655",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/030-vault-noshield-set-draft.json",
+      "sha256": "5b9b48bf3236315c70e4b3b96e3228ff8df3a1e2c0b99087aa23fd2a194d39e1",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/031-vault-noshield-approve.json",
+      "sha256": "5da23f576336b59323def8070394ff1fb23b35df4cc5c526398af12617d38d05",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/032-vault-noshield-activate.json",
+      "sha256": "715f4b402865d86050bc28928a41ce1cf837d17e1356288f11a4f4bacf16f5a6",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/033-vault-noshield-start.json",
+      "sha256": "46925588429f98c7b7790a7c13553028eff336453fda685bb6866edb64805f46",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/034-vault-noshield-status.json",
+      "sha256": "0bf2fa4fe1136607bf04e9b7f44ebdcacd78071d509f8ab10ff28de897477630",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/035-vault-noshield-observe.json",
+      "sha256": "dd9e87b103d6e8df05ec32dad0e13f4ddd64d2071f6fbc6abfb0d9df8e4e97ac",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/036-vault-noshield-policy-log.json",
+      "sha256": "8caef3c3fe69e48384c724fa52ff8500f98b905150c8d0222fbfd28662deb934",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/037-vault-noshield-dryrun.json",
+      "sha256": "924c9c02a38513d5113a0d8cc0070519b19ff3bdb5277ae7d9a2730b10625365",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/038-vault-noshield-stop.json",
+      "sha256": "388a98a467b90cebc3a409d341d9eef83459008032ada000c7d0ffd624fb24a1",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/039-setup-native-wait-1.json",
+      "sha256": "e07c26570a51780c3d435996ab8444ff470a85cb6db8524f22c4ecedd5fd2318",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/040-vault-noshield-start-2.json",
+      "sha256": "6cb9d10ddf5322f09cdc6cdf1e8c0b79a47559a907e2a760840f85fa05c56cdb",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/041-vault-noshield-status-2.json",
+      "sha256": "3f9429b4d5541585244a68d09e7b977b6da1e54661bae412ab7636ff6c0f60d2",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/042-vault-noshield-observe-2.json",
+      "sha256": "a683fe72372a6be9f9f805abe6b2f78ce9a04f79fb57a3a04e7d0c847cab8adf",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/043-inspect-player.json",
+      "sha256": "261b0fd49f7ba11fcf7484f703054467243da55303af3a867d84a5ba4b8dd766",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/044-equip-attempt-1.json",
+      "sha256": "9c5cd495930a1975ab9390bb80ad7558fc58f1587ff94a3c3bdf61fad51f4148",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/045-equip-shield.json",
+      "sha256": "0413449bd5920fc99a830a145c0156ccb79be82c073fd5cad967f87c6c2ebaae",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/046-inspect-player-post-equip.json",
+      "sha256": "55ce2ef54b5254795d43cd8d0da1a80db910941f4df79eb0d6de0aa338f640e7",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/047-vault-validate.json",
+      "sha256": "dac6c35c5df42c969abce6f5f06ab0adf6f78ac38057b908dbd3e7454206ef32",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/048-vault-set-draft.json",
+      "sha256": "58b1faf3adb4d4d6f373ab70d83c0f65de1f9029b3f1ec339bfe826caea0bc53",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/049-vault-approve.json",
+      "sha256": "5ffd885d57909cd152ec9be607bd7550dd609ac29c7affef9c7d109539317395",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/050-vault-activate.json",
+      "sha256": "3a24689d5b7d0c2f9db5e4e7f2aaf4d66751b1d139eace71d7dce8ef853c3bae",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/051-vault-start.json",
+      "sha256": "89dbdfc9ed04ea8bce1ca285b0d0dbb6bbc89c1d92af9601b8d6f080ff0b0ff6",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/052-vault-status.json",
+      "sha256": "7b21d2d07785e54ffb0d7ba787f981e9ca985c64fb30041acf2f7df6ea5d2fc4",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/053-vault-observe.json",
+      "sha256": "9cea34589807e733fc0dfade7e46ec804f4e204a6a4a0f846237651f148cff1e",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/054-vault-inspect-dummy.json",
+      "sha256": "117f3ccf77c6cfdd4d219bc524cbe86234e8d56fe6645a9f5499bfc9d4cd0b16",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/055-handoff-validate.json",
+      "sha256": "a7f6a1eb5c8388f4c2518b79ac52691e38b001077fc6c5b6db1dca331745d45e",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/056-handoff-set-draft.json",
+      "sha256": "c025736b5aac8c8f738844ac2ee69bc253ebbbd15fa0e8e36e22bedcd6d3a26d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/057-handoff-approve.json",
+      "sha256": "618e844f436b13dac3173735d0561681ee1a7dbeaeb508852dd522c9138c3eb8",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/058-handoff-activate-nostart.json",
+      "sha256": "92f552ef4e272405189d7f94693e77ce3437f6478630aecc89dfb01e518f44c9",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/059-handoff-status-pre-key.json",
+      "sha256": "7ed4d00b77e9bc27c670458dcb96fc593362f193048fb910a733a34fef04f2b6",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/060-handoff-key-left.json",
+      "sha256": "fb71f74bfa277d5a43a222a69e349ec409abe10268a588e42042db03f8b0bf86",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/061-handoff-status-post-key.json",
+      "sha256": "4185badb4a59419aebb6cb0d850fe4e85039904a7b4b728e9c98fbc8b29d768b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/062-handoff-read-1-observe.json",
+      "sha256": "87c2b2dfbbd3c2777878a2ef5a99705bd0b775b703ae951903f0b8b728ecb16d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/063-handoff-read-2-map.json",
+      "sha256": "19ac99778d80e82afaad420140275a2992ba2c6507d87ee632b8a024cad34a5c",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/064-handoff-read-3-inspect-talent.json",
+      "sha256": "5288999f46fda83dec2df45aaa456949aa0621b788a63b62be6216f222ddc345",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/raw/065-handoff-final-status.json",
+      "sha256": "1889d0b6aadcc8c5d78578ab27b985f81031a178ee62d84ec71ee220e086604e",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/report.md",
+      "sha256": "bac775cbb29ee47fa0b74ee26d08eb52fafaf133d9dfda17d10111710ec27cff",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/report.sha256",
+      "sha256": "61fbf2d3bd3869b400683c3ecd3a1a4049678f4f9d4e64bec3eebe89bd81c41d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/scripts/build_calls.py",
+      "sha256": "b7d9e600cb555407c0fef58424cbe1e5b298585e8efc204f9f9703638ed19c80",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/scripts/handoff-policy.json",
+      "sha256": "84a19bdcf076bf0151144d899d3748d2a601c8eaabf9493bfc9c08e67507050b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/scripts/leap-policy.json",
+      "sha256": "4ff2d2d5070c045475dd95b86b81698b8cdc4ade69553901fe92ff4871517cce",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/scripts/read-policy.json",
+      "sha256": "3d73e00147ba1f4360762a28e58a50215dbc2bde5acacc961ac6ca85f70711c4",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/scripts/shadow-policy.json",
+      "sha256": "f44736cb7a1035f2cdf14201389d64fe6fbc021cda088da9f575f20227890872",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/scripts/vault-noshield-policy.json",
+      "sha256": "e1f178cf6336fcc06f24a4a1bbfe733d95fd41d7f0f2904660d958cc6c4c226e",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test/scripts/vault-policy.json",
+      "sha256": "1d3cb8aeb26c2a2a8285d021216ed83e3f7834fba3e570502e229cffff27bc59",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test-brief.md",
+      "sha256": "9349a417dcfa1eab34d34a15d292d61813268e7d14ff7c006e38a54caf046635",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/test-info-reminder.md",
+      "sha256": "d567b71c17ead8f30e3a0c659ff9a96d999e5b88e7f10de573bd07588068fad3",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/tome-s3.sh",
+      "sha256": "87447b3971d67b192f2390a8ac96fe84d78a3388d551c34261e6ecf9f5fbf26b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-01/candidate.zip",
+      "sha256": "40101e1e9794cf3f144db939222d98280ff6a6c7999b29d276a2b5c61b47c15e",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-01/decisions.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-01/game.log",
+      "sha256": "2ecb6cfca31c96e1226f78413db14eda8a1615f0e7a9dba3907168054704363c",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-01/input.json",
+      "sha256": "7233180eac205efa563d8f59d1e15abd4c138109541018cf9655ac786625ea95",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-01/play-mcp.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-01/xvfb.log",
+      "sha256": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-02/candidate.zip",
+      "sha256": "02a25e63f8f392ba09f92dd248b170393db5b8becd9d545ae849ce381fb1498d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-02/decisions.jsonl",
+      "sha256": "8835f71df357b88f98157ad0928ceaae350fcf9edf3a676826429cec044e3c3e",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-02/game.log",
+      "sha256": "bb857a6d7a424c55ef92debd1c67114d70202e38e511862cbe80900213f40920",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-02/input.json",
+      "sha256": "1a2f86f112a8a55cff1b5ce4180e98e01874a28545cc595f0aecaf78dae63a7d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-02/observed.json",
+      "sha256": "7c144b27ce9ad7ae5967f16a1c9f93fb8c5f17c8e278601550076023a49d2aa5",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-02/play-mcp.jsonl",
+      "sha256": "2edfe66352b2874af72d635f63494183705b305ab19004c6e4162a2b1bc8278c",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-02/xvfb.log",
+      "sha256": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+      "base": "absolute"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/candidate.teaa",
+      "sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+      "base": "absolute",
+      "note": "fixed production addon archive"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "test-report.md",
+      "sha256": "bac775cbb29ee47fa0b74ee26d08eb52fafaf133d9dfda17d10111710ec27cff"
+    },
+    {
+      "path": "summary.json",
+      "sha256": "0a86f5643f393205f65fd56371f773e202d42d6a45ff4d1580cbf614cb3a6c4b"
+    },
+    {
+      "path": "metrics.json",
+      "sha256": "b25ee6ed4fdb07f8bc50278b5ca64e925ffc66dca606b6120a9c4f1ebae93c75"
+    },
+    {
+      "path": "candidate-pin.json",
+      "sha256": "92e05f8fee2acd251c69da2706d6052a1dc72075ea14b46b38a6ee76485b9c2d"
+    },
+    {
+      "path": "runtime-pin.json",
+      "sha256": "ba7f484eb1e5483c856f549388b929ebc0cb6e596c721a4e0b5692fad4c2083e"
+    },
+    {
+      "path": "startup-feedback.json",
+      "sha256": "ef8b20f297bb72e744aee1ef18f08c7b97573d8938f9fe1e73138b1b0b9be107"
+    }
+  ],
+  "gates": [
+    {
+      "id": "S3-LIVE-READ",
+      "status": "passed",
+      "evidence": [
+        "test-report.md",
+        "summary.json",
+        "metrics.json"
+      ],
+      "note": "Test reports three dry runs with annotated bounded landing; stable native positions/history/counters; independent Review pending."
+    },
+    {
+      "id": "S3-LIVE-SHADOW",
+      "status": "passed",
+      "evidence": [
+        "test-report.md",
+        "summary.json",
+        "metrics.json"
+      ],
+      "note": "Test observed one capped native Shadowstep, actual adjacent landing and damage/daze; literal command target_sequence is not in current public log, but this row tests resulting actor/landing/effect."
+    },
+    {
+      "id": "S3-LIVE-LEAP",
+      "status": "passed",
+      "evidence": [
+        "test-report.md",
+        "summary.json",
+        "metrics.json"
+      ],
+      "note": "Test observed one instant capped Leap to requested visible free grid and dummy damage/daze; reviewer to check any cross-policy annotation references in report."
+    },
+    {
+      "id": "S3-LIVE-VAULT-NO-SHIELD",
+      "status": "passed",
+      "evidence": [
+        "test-report.md",
+        "summary.json",
+        "metrics.json"
+      ],
+      "note": "First same-opportunity budget pause retained; later native wait establishes fresh opportunity, actual shield-message refusal with zero effective actions. Per-op native_submissions value must not be misread as a new run submission."
+    },
+    {
+      "id": "S3-LIVE-VAULT",
+      "status": "not_run",
+      "evidence": [
+        "test-report.md",
+        "summary.json",
+        "metrics.json"
+      ],
+      "note": "Actual shield attack/daze and landing observed, but two REAL native request/answer records and nolock=true were not captured. Test inferred from a planned sequence (raw037 is previous no-shield policy). Coordinator keeps mandatory request-observation subpart NOT_OBSERVED pending independent Review/supplement."
+    },
+    {
+      "id": "S3-LIVE-HANDOFF",
+      "status": "passed",
+      "evidence": [
+        "test-report.md",
+        "summary.json",
+        "metrics.json"
+      ],
+      "note": "Armed activation then native key moves and changes arbiter auto_combat→manual; MCP control reconnect is distinct. Only armed pre-start takeover covered."
+    },
+    {
+      "id": "source-package-parity",
+      "status": "passed",
+      "evidence": [
+        "candidate-pin.json",
+        "runtime-pin.json"
+      ],
+      "note": "72 archive members match source; fixed server and fixture hashes in pins, actual runtime metadata retained."
+    },
+    {
+      "id": "startup-s3-live-01",
+      "status": "failed",
+      "evidence": [
+        "startup-feedback.json"
+      ],
+      "note": "Original fixture startup failure remains failed; corrected s3-live-02 separately observed; no Test scoring in failed session."
+    }
+  ],
+  "limitations": [
+    "Training arena and gifted talents/resources/weapon-damage history/shield/inert low-defense dummy are fixtures; not ordinary campaign or natural progression.",
+    "Manual takeover row covers armed activation before start, not interruption of native_pending.",
+    "Current Test is dist-only; no runtime product change in this round. Historical source/dist probe results remain scoped to their original versions.",
+    "SYS08/SYS09/U01 and S4 remain outside this round."
+  ]
+}

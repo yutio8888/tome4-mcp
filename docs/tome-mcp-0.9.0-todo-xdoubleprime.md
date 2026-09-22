@@ -1,5 +1,11 @@
 # TODO — X″ 冻结后的事项（0.9.0）
 
+> **当前状态更新（2026-09-22）**：下文保留冻结时的历史任务。S3 arm2 已由
+> `0033559` 合并，A′ 已由 `09753d3` 合并并完成最终 Sol 复核；原 P0 rebase/准入任务已完成。
+> 2026-09-22 系统修复经 PR #30 合入 `main@8e3c219`，本批 11 项独立验收通过；
+> 本轮临时 worktree/Paseo 工程已归档。当前后续顺序与未完成项见
+> [当前路线图](tome-mcp-roadmap.md)，不得把下文旧的 DO_NOT_MERGE/rebase 状态当作现状。
+
 ## 状态：X″ 基线已落地
 `refactor/xdoubleprime-bytes` 已合入 `main`（merge `5628fe0`），dist sha
 `1bd60e6b89375f641ae74d78f53259c60f9c509aa8408b9e28951b3785594623`。

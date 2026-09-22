@@ -1,0 +1,12 @@
+{
+  "session": "s3-live-02",
+  "input_json": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-live-02/input.json",
+  "input_sha256": "1a2f86f112a8a55cff1b5ce4180e98e01874a28545cc595f0aecaf78dae63a7d",
+  "engine_sha256": "5aa8fe5cfa8f0cde3aa82deb4602be95d8f7668e7d5d2ea4ce450cae18248dc7",
+  "candidate_zip_sha256": "02a25e63f8f392ba09f92dd248b170393db5b8becd9d545ae849ce381fb1498d",
+  "addon_archive_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+  "driver_sha256": "1f8034f2579c67f713f03ef5efe5432af686f5587f109e60e5606d44bc9a74e3",
+  "normal_campaign": false,
+  "training_fixture": true,
+  "birth_verified": true
+}

@@ -1,0 +1,26 @@
+{
+  "id": "S3-SUPPLEMENT-20260922",
+  "revision": 1,
+  "status": "frozen_before_scoring",
+  "relationship": "supplement to original S3-LIVE v1; original Vault remains NOT_OBSERVED in historical results",
+  "population": "first properly prepared scored attempt of each row; retries separately retained, never substitute",
+  "numerator": "rows with all declared observations established",
+  "denominator": 2,
+  "window": "first Test wrapper call through report or stop condition",
+  "stop": "complete/death/native error/wrong pin/5min no progress/20min/100 game wrapper calls; no self-repair/restart",
+  "missing": "NOT_OBSERVED or BLOCKED, never infer PASS",
+  "setup": "native move/equip/wait/rest only; distinguish setup counts and ensure fresh opportunity/cooldown0/adjacent known dummy/shield/stamina before first scored Vault start",
+  "rows": [
+    {
+      "id": "S3-SUP-COMPACT",
+      "entry": "wrapper observe with actual tome.observe raw response",
+      "expected": "compact auto_combat present and equal to raw object values except preexisting None pruning; false/0/empty arrays retained; no invented defaults; initial and post-policy read checked"
+    },
+    {
+      "id": "S3-SUP-VAULT",
+      "entry": "real set_draft/approve/activate/start cap1 T_VAULT with known actor target and distinct visible free destination",
+      "expected": "same invocation has start, request1/answer1, request2/answer2, finish; request1 native hit+nolock absent/false, answer1 target coordinates/UID; request2 native hit+nolock_present true+nolock true, answer2 distinct declared grid; exactly2 requests, finish.ok establishes no exception only; actual native success established by public result/effective-action and effect/landing evidence, no trace errors/truncation; actual dummy damage+daze and player landing in declared envelope; run_actions1 and one effective action, no resubmission/unexpected_target_request; correlate policy/MCP/trace/raw observations"
+    }
+  ],
+  "frozen_utc": "2026-09-22T11:22:34Z"
+}

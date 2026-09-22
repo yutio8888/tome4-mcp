@@ -1,0 +1,150 @@
+{
+  "schema_version": 2,
+  "candidate_id": "S3-LIVE-review-incomplete-20260922",
+  "code_baseline": "aaa2d309106188918b48201b2f9408927fada338",
+  "notes": "Independent report plus frozen command evidence; review is incomplete, not acceptance. Original and v2 indexes preserved.",
+  "raw_sources": [
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/archive-parity.json",
+      "sha256": "b0913a2532c6274d8e7a4dac0ff0df2d9e7b3bbf04129e203888fe5adb4b5e50",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/dispatch-envelope.txt",
+      "sha256": "b56d777a2f1a62bae52cd67e8daf2e5e62b8cdf2ef5ead0b2f1f11bcc1b6d5b4",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/dispatch-send-output.json",
+      "sha256": "de74212aec4f3b1a1e5e74c8ee0fe39c259b3742d514146a67702d8948111b5b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/dispatch-send-stderr.txt",
+      "sha256": "b275990c7ffe6950ff219ee5dc7415a8c803bf25eb3749e29f57b4ad8572e5a7",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/game-log-load-lines.txt",
+      "sha256": "f42e9723355354b8f17dfdeb6b1318107302cedf7451105ecfc154c7b84322fc",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/git-diff-output.txt",
+      "sha256": "83ddf9a081ab7762d8a7b3516b1686429540fdfa0ad5c4de4049b8d3f34bf48b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/identity-and-v2-output.txt",
+      "sha256": "5eb2cc937fe270249b68df73807599dbb51c6e4b94b0d32772968a30c6fb19c2",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/key-hashes.txt",
+      "sha256": "7d6a008eb7a658020b4903e0b3596ab14d1adc3d4fde97a0cc83df7734504e12",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/manifest-verifier-output.txt",
+      "sha256": "08d97cb191cf111482f82bba47fc791a115069260f69133cc031275dec48be72",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/raw-hash-table.md",
+      "sha256": "701f9d639760f98b71d78f50504924e05d0d5f1a6b5d0cc17df0b167ad93ddd2",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/recheck-command-output.txt",
+      "sha256": "22df42071d8643b78e7f557ba3f081caf5b38c1bee8e6238b5f3932d49d4c8bd",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/recompute_evidence.py",
+      "sha256": "64ea0a3281ef04b79366a105cb5a2980452177e376d43673e5510df319629292",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/recomputed-evidence.json",
+      "sha256": "7884db35cc4f170abf5c214feb5ef5e804e37e1ba43c5d4358703271c4f3bf9a",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/report-corrected.md",
+      "sha256": "bd35da2e2d0cb084c9e4dcc9237d36512ea7001290f4d00a077c1bc19f38d7e7",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/report-hashes.txt",
+      "sha256": "ed3b2f1ba7d9ef523f2ec19b4f7e7e2e6e107cf0e72113b1db6e955e402dc6d4",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/report-initial-unverified.md",
+      "sha256": "367c618a37e8831e921d2361c1c8ab64cf9e6f2b34e61fb5619a15373f4814ce",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/report.md",
+      "sha256": "bd35da2e2d0cb084c9e4dcc9237d36512ea7001290f4d00a077c1bc19f38d7e7",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/runtime-source-comparison.txt",
+      "sha256": "df3ce085b4a254831d44ede18ae813271cc602458637a24085e930fd8fc0fe23",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/source-excerpts.txt",
+      "sha256": "a7b5b8a2ab86d2867e6b43b3ea524d27a3bb3cfb6f6162f6615a754186884f2c",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-initial-complete/transcript-digest.txt",
+      "sha256": "a33e551ca45149d4a4e33584d03368af452bc07d33aa1d99d4415af3dbdd3af3",
+      "base": "absolute"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "d6f9e701fbfa89e7b5797ffb390b73a54b0fe396771950a621d7f6166b74cdb9"
+    },
+    {
+      "path": "manifest-v2.json",
+      "sha256": "255c070d0993285422177d814d493bb60edbd17174ea21eeb182eb67fcf35774"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-corrected-integrity.json",
+      "sha256": "3945c37aef0b2938a087ddfdeabd9dedbe541f1cd17dd0de395ccb97c0f9b659",
+      "base": "absolute"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "review-corrected.md",
+      "sha256": "bd35da2e2d0cb084c9e4dcc9237d36512ea7001290f4d00a077c1bc19f38d7e7"
+    },
+    {
+      "path": "review-summary.json",
+      "sha256": "f3924d63217d20078d33ec0ee2549e3a5614ea1f0b9e0fe515700eb3c8a851cb"
+    }
+  ],
+  "gates": [
+    {
+      "id": "S3-INDEPENDENT-REVIEW",
+      "status": "partial",
+      "evidence": [
+        "review-corrected.md",
+        "review-summary.json"
+      ],
+      "note": "5/6 supported, REV-S3-01 remains mandatory missing observation; no product acceptance"
+    },
+    {
+      "id": "S3-INDEX-ERRATA",
+      "status": "passed",
+      "evidence": [
+        "review-corrected.md"
+      ],
+      "note": "Independent own-finding recheck closed REV-S3-02/03"
+    }
+  ]
+}

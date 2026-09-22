@@ -1,0 +1,49 @@
+{
+  "id": "S3-SUPPLEMENT-20260922",
+  "revision": 1,
+  "test_agent": "522fef2b-f4c1-4931-9ef2-2a21503f4d92",
+  "model": "pi/commandcode/deepseek/deepseek-v4.1-flash/high",
+  "dev_commit": "440a5a7f1c4bba27accb076b9f7235d23838c0f4",
+  "package_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+  "state": "Test completed, coordinator raw checks passed, independent Review pending",
+  "denominator": 2,
+  "numerator": 2,
+  "rows": [
+    {
+      "id": "S3-SUP-COMPACT",
+      "result": "PASS",
+      "note": "4 actual compact/raw observe pairs type-preserving equal after existing None prune; initial and post-policy covered."
+    },
+    {
+      "id": "S3-SUP-VAULT",
+      "result": "PASS",
+      "note": "One real invocation, two ordered request/answer pairs, second nolock present+true, actor8,5 uid15424 then grid7,4; actual damage+daze+landing and1effective/run/native submission."
+    }
+  ],
+  "accounting": {
+    "wrapper_calls": 22,
+    "wrapper_categories": {
+      "observe": 4,
+      "map": 1,
+      "inspect": 5,
+      "action": 3,
+      "auto": 4,
+      "policy": 5
+    },
+    "mcp_records": 30,
+    "coordinator_startup_records": 2,
+    "test_mcp_records": 28
+  },
+  "setup_actions": 3,
+  "scored_starts": 1,
+  "retries": 0,
+  "failed_wrapper_calls": 0,
+  "historical_scope": "Original six-row first Test remains5/6 supported with Vault request subclause NOT_OBSERVED; this separate supplement closes evidence only if independently accepted.",
+  "report_errata": "report-errata.json",
+  "limitations": [
+    "Training fixture, not campaign.",
+    "No product or server changes.",
+    "finish.ok is not native success.",
+    "S4 excluded."
+  ]
+}

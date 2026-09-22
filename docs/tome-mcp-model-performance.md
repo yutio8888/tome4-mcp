@@ -434,3 +434,60 @@ Test尚未派发；其独立序列上次B，下一A。以上不是跨模型对�
 Test 交付4/4 PASS；额外一次非必要手动wait发生于所有断言之后，保留为brief偏离，不计入策略动作。会话在报告创建时即回收，Test代理已归档；最终证据适用性仍由原独立 Review 裁决。
 
 最终两位Sol/high独立Reviewer均ACCEPT：Runtime8个SYS项、evidence3个SYS项；全部本轮6个审核finding关闭。独立Test4/4证据获接受，额外事后wait仍记为非阻塞brief偏差。所有原生/测试会话已回收；固定验证与报告见validation/2026-09-22-system-fixes/acceptance.json。本轮不是可比较的模型实验，不据发现数或通过数评价模型优劣。
+
+
+## Loop: S3 独立专项训练场实测（2026-09-22，已验收）
+
+- [Test] 全新 Paseo `d7d01859-3d65-41d9-a8ae-7c21d30eb0f5`：**B** `pi/opencode-go/glm-5.3-flash`，thinking **high**。
+  Test 序列上一轮为 SYSFIX 的 A，本轮 B，下一轮 A；profile 中 max 被项目指定 high 覆盖。
+- [Dev] N/A：本轮不修改产品代码，协调者只准备隔离出生/训练场夹具与文档；Dev 轮换不推进，下一独立 Dev=A。
+- [Review] 初始派发全新 Sol/high，后续复核其自身 finding；最终结论见本节末尾。
+- 固定产品包 `3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb`，72 成员与
+  `main@8e3c219` 产品字节一致。代码/文档基线 `fdd741c1c47aa65be7ecc329a06a52a8d647482f`。
+- 本轮专测 Shadowblade 训练场中的 Shadowstep、Giant Leap、敏捷 Vault 及相关控制/只读行为；
+  强制学习技能、Giant Leap 伤害历史条件、静止低防御假人、资源和盾牌均为公开披露的夹具。
+  不记录为自然成长、常规战役或通关表现。
+- 六项指标在 Test 第一次输入前冻结；简报 SHA256 `9349a417dcfa1eab34d34a15d292d61813268e7d14ff7c006e38a54caf046635`，
+  指标 SHA256 `b25ee6ed4fdb07f8bc50278b5ca64e925ffc66dca606b6120a9c4f1ebae93c75`。
+  派发/原始证据根：`/workspace/t-engine4/tmp/mcp-s3-live-20260922/`。
+- 启动夹具首轮 `s3-live-01` 漏 `overload=true`，未加载训练场，记录 `S3-HARNESS-01` 后修复并回收；
+  `s3-live-02` 出生预检已通过。首轮无 Test 评分事件，原始启动失败证据保留，不并入通过数。
+
+### S3 初次实测审核与取证工具修复（2026-09-22）
+
+| 实际代理 | 角色 / 启动模型与思考 | 状态与范围 |
+| --- | --- | --- |
+| 302ada78-e664-4298-b53b-5c1243821a99 | fresh Review / pi `openai-codex/gpt-5.6-sol` / high | 初审要求补齐 Vault 实际两段请求证据；初版报告多处身份/hash/坐标标注与实文件不符，原 Reviewer 已重新取证更正；33 个原始文件哈希经协调者复算一致，初审结论 5/6、REV-S3-01 仍 OPEN，REV-S3-02/03 关闭 |
+| 4791e304-4f35-47ec-8a81-b8f9d745a6bb | fresh Dev / pi `commandcode/deepseek/deepseek-v4.1-flash` / high | 已交付 PR #32（440a5a7），compact 转发/测试专用记录器及 68 项机制检查；完整入口 exit0，尚待独立实机/Review |
+
+Dev 序列上次 B，本次 A，下次 B；前轮 SYSFIX 内置执行例外未推进轮换。Test 独立序列上次 B，下一次 A。
+初审报告原文保存在 support 的 `review/report-initial-unverified.md`，更正不得覆盖原始证据。
+已单独建立证据索引勘误：`raw/010` 实际为空，其成功 observe 原始回复见 MCP transcript 第 13/14 条；
+Vault gate 在新版索引标为 `partial`，缺少实际请求观测的子项仍为 `NOT_OBSERVED`。初次六行指标及 Test 报告不改写。
+这不是等量跨模型实验，不据一次报告错误推断模型整体能力。
+
+S3 Dev 初段约 25 分钟反复分析但无改动，协调者中断并以具体实现顺序恢复同一代理，未推进轮换。
+交付时协调者发现四项记录器接入/透传边界问题及五项文档事实问题，均由原 Dev 修正并提交；
+首个完整测试入口因隔离布局缺少兄弟 addon 失败，补只读路径后重跑 exit0，失败日志保留。
+这些是本轮过程事实，不是已冻结的模型对比指标；产品包仍为 `3a4e186b…f413fb`。
+
+### S3 独立补证 Test 已派发（2026-09-22）
+
+Test `522fef2b-f4c1-4931-9ef2-2a21503f4d92` 为全新独立上下文，实际配置
+**pi/commandcode/deepseek/deepseek-v4.1-flash / high**（Test 上次 B，本次 A，下次 B）。
+范围仅补充 compact `auto_combat` 真实转发与 Vault 两次实际请求/答案及第二次 `nolock=true`，
+冻结新指标两行；首轮六行原始指标不改写。候选 helper `440a5a7`、产品包 `3a4e186b…f413fb`，
+会话 `s3-supplement-01`。启动确认观察器 JSON 安装记录、零预先 Vault 调用；
+实测结果此时仍待报告及独立 Review。Dev 与 Test 各自轮换，本次碰巧均 A，身份互不复用。
+
+补证 Test 已交付：冻结 2 项均有实际观察，22 次包装器调用、3 次原生准备操作、
+1 次 Vault 评分运行、0 重试。协调者核对 64 份原始文件哈希、4 次 compact/raw 对照及
+实际两次请求/答案均一致；非行为性报告笔误另存勘误，原文保留。
+会话已回收、Test 及临时工程已归档；结果待原 Sol 对自身 `REV-S3-01` 独立复核。
+这一补证与首轮任务规模不同，不构成 A/B 模型对比。
+
+最终原 Sol/high Reviewer `302ada78-e664-4298-b53b-5c1243821a99` 复核自身问题后给出 **ACCEPT**，
+`REV-S3-01/02/03` 均关闭，无开放 P0–P3；独立复算原生双请求、结果/效果、四次 compact/raw 和
+工件来源，另行重跑 68 项观察器机制检查通过。首轮 5/6 与补证 2/2 分别保留，不改写原指标。
+终审报告 SHA256 `e2e09fb6507006b9ad76fdf6a3478633a233a9aca36c7ee6b056f239600d3280`。
+Dev/Test/Review 代理与临时 Paseo 工作区、工程已归档，原生会话已回收；下一 Dev=B、下一 Test=B。

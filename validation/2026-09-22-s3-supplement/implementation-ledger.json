@@ -1,0 +1,59 @@
+{
+  "id": "S3-SUPPLEMENT-IMPLEMENTATION-GATE",
+  "dev_commit": "440a5a7f1c4bba27accb076b9f7235d23838c0f4",
+  "dev_pr": "https://github.com/yutio8888/tome4-mcp/pull/32",
+  "package_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+  "report": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/dev-evidence/report.md",
+  "report_sha256": "8a89790432af5672d62c58bc69b2a231563cab84af32525b747d6e0fd99bd25c",
+  "full_entry": {
+    "command": "bash tests/run.sh",
+    "exit_code": 0,
+    "raw": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/dev-evidence/tests-run-complete.log",
+    "sha256": "9eb4f4cceb008a5c937a97b2677ec60235614b96ed2f765ed2b89c6f0a0a260d"
+  },
+  "initial_failed_entry_retained": {
+    "raw": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/dev-evidence/tests-run.log",
+    "sha256": "7aefc528652f1fe00f2ac86e937a1bdd29d77dcadbaf26758acaf65969de5f5e",
+    "cause": "coordinator isolated layout lacked read-only sibling addon; now provisioned"
+  },
+  "dispositions": [
+    {
+      "id": "S3-HARNESS-01",
+      "state": "fixed before original Test, failure retained"
+    },
+    {
+      "id": "S3-LIVE-ISSUE-1/HARN-01",
+      "state": "implemented and committed; full suite passed; native compact parity pending",
+      "owner": "new independent Test"
+    },
+    {
+      "id": "S3-LIVE-ISSUE-2",
+      "state": "not_a_defect per corrected independent Review; carried opportunity counters",
+      "owner": "coordinator record"
+    },
+    {
+      "id": "S3-LIVE-ISSUE-3",
+      "state": "coordinator guidance corrected; log supported per independent Review",
+      "owner": "coordinator record"
+    },
+    {
+      "id": "S3-EVIDENCE-01/REV-S3-01/TRACE-01..04",
+      "state": "test-only observer committed and mechanics verified; real native evidence mandatory and pending",
+      "owner": "coordinator lifecycle, independent Test, original Sol recheck"
+    },
+    {
+      "id": "REV-S3-02/03",
+      "state": "v2 errata accepted by independent Review"
+    },
+    {
+      "id": "COORD-HARN-01..04",
+      "state": "implemented with regression in1a0c816; full entry exit0"
+    },
+    {
+      "id": "DOC-HARN-01..05",
+      "state": "corrected in440a5a7; originals immutable, sparse JSON/timing/pcall/launcher semantics accurate"
+    }
+  ],
+  "transition": "All implementation/doc feedback dispositioned; coordinator may launch supplemental session. This is not native acceptance.",
+  "source_dist_applicability": "Product72 archived members unchanged. New product source/dist probe and rebuild N/A (test-only helper scope); actual archived-product native supplement still required."
+}

@@ -1,0 +1,42 @@
+{
+  "branch": "validation/s3-live-20260922",
+  "source_commit": "fdd741c1c47aa65be7ecc329a06a52a8d647482f",
+  "product_baseline": "8e3c21978a5040ac9ba97cd2175ee36901b91819",
+  "packaged_source_commit": "084642634b1d92dfb5e2880f43998672469798ab",
+  "archive": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/candidate.teaa",
+  "archive_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+  "product_parity": "72 archive members match current source bytes",
+  "server_source": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src",
+  "source_root": "/workspace/t-engine4/game/addons/tome-mcp-bridge",
+  "driver": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/agent-play.py",
+  "driver_sha256": "1f8034f2579c67f713f03ef5efe5432af686f5587f109e60e5606d44bc9a74e3",
+  "wrapper": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/tome-s3.sh",
+  "wrapper_sha256": "87447b3971d67b192f2390a8ac96fe84d78a3388d551c34261e6ecf9f5fbf26b",
+  "birth_root": "/workspace/t-engine4/tmp/mcp-play-support/tome-mcp-play-birth-s3",
+  "fixture_sha256": {
+    "hooks/load.lua": "d93aac435fc551e7fc18a92cf7fc13a74eb479160b4c29f67ac871ad448bafe2",
+    "init.lua": "aa6794f1f60519d9199050746f3b4183fb004d90fb9d13e1c866d73f823e9e4d",
+    "overload/data/zones/mcp-s3-live/grids.lua": "b79b2db3579deec51110498ad9091af65d788a51e078439bffee0217e2431a63",
+    "overload/data/zones/mcp-s3-live/npcs.lua": "d30515eb6e5ce4230ae3721bca6858f2ba2124af00da9f5a06b2722e0216b986",
+    "overload/data/zones/mcp-s3-live/objects.lua": "c8114a626da64ed802ab43ce6be221b7678034cc45856fe7be34b5f4868b3609",
+    "overload/data/zones/mcp-s3-live/traps.lua": "e0f31c66e366417e102c2d38e35035e346b0101344439eb5cc139c352851483d",
+    "overload/data/zones/mcp-s3-live/zone.lua": "3a35a3db310dd95a16718d5b80b743d01848db32f29b0d95806b342e131639f9",
+    "superload/mod/dialogs/Birther.lua": "e7586f6aeadb820ce3b002b879c235e16c296b5c20048a81bf5a6bfd62a2f5cc"
+  },
+  "server_sha256": {
+    "tome_mcp/__init__.py": "6261bd1dd3be741f12b0a13c8c142ecf9f552e2322d25e7147f7162f45397f17",
+    "tome_mcp/__main__.py": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+    "tome_mcp/bridge.py": "edad9936553abcf600731d99904ce49ab4ac0a68cb70b0da5aa06f185a3c5d6b",
+    "tome_mcp/error_registry.py": "cd6dd40ec493c78cf405a45a8bdb5e4e4ece534ebd05d09a81fb18d781ed88af",
+    "tome_mcp/server.py": "36f251558046efa171eb1e63a6796a04c21e76fd07c5ba170502591ace91dec9",
+    "tome_mcp_server.egg-info/PKG-INFO": "604348953a43f4fb366b36645669be3b17ea83fabde0a203f09e7d9781a1e760",
+    "tome_mcp_server.egg-info/SOURCES.txt": "9e63800e9291dda5f0e6da1213421272f43af11aa9c5c5898dd33fc03321877d",
+    "tome_mcp_server.egg-info/dependency_links.txt": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "tome_mcp_server.egg-info/entry_points.txt": "aef954419fde7d834f22534a270f742e718300cafe3a9efadbc155c8d3fc88bc",
+    "tome_mcp_server.egg-info/requires.txt": "01c771571873832ab0a9b1814fe45ca6d3b8cae24425c2c60102663ea5e11b70",
+    "tome_mcp_server.egg-info/top_level.txt": "dda72470616d1d3f010d5e4aecd443ef7b81d307fa2aeb3299047f8f302cd1c8"
+  },
+  "dirty_overlay": "only preexisting untracked docs/tome-mcp-token-usage-analysis.md; excluded from loaded assets",
+  "excluded_file_sha256": "3b6f6e42c074c8948ecf67c22a28e3e37a91c5663e40e485ecc071405070746c",
+  "no_production_changes": true
+}

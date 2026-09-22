@@ -111,6 +111,9 @@ fi
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_native_compatibility.lua"
 
 "$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_auto_combat_sysfix.lua"
+# S3 supplemental evidence harness: the observer mechanics test requires the
+# yieldable-pcall LuaJIT capability the game itself selects (see the test header).
+"$task_lua" "${task_lua_options[@]}" "$addon_dir/tests/test_s3_native_trace.lua"
 PYTHONPATH="$addon_dir/server/src${PYTHONPATH:+:$PYTHONPATH}" "$task_python" -m unittest discover -s "$addon_dir/server/tests" -v
 "$task_python" "$addon_dir/tools/generate_native_seams.py" --check --game-root "$game_root"
 "$task_python" "$addon_dir/tools/generate_effect_manifest.py" --check
