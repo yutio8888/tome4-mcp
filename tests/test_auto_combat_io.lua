@@ -17,6 +17,7 @@ local Codec=require 'mod.auto_combat.PolicyCodec'
 local Schema=require 'mod.auto_combat.PolicySchema'
 local Catalog=require 'mod.auto_combat.AutoCombatCatalog'
 local Json=require 'mod.mcp_bridge.Json'
+local Service=require 'mod.auto_combat.AutoCombatService'
 local checks=0
 local function check(value,message) checks=checks+1;assert(value,message) end
 
@@ -99,6 +100,70 @@ do
     payload.policy.rules[1]['then'].talent='T_NOT_ALLOWED'
     local policy,err2=PolicyIO.import(Json.encode(payload))
     check(policy==nil and err2.code=='invalid_policy','an invalid imported policy is refused')
+end
+
+-- RUNTIME-REV-04: hash presence/type is part of the envelope, before policy
+-- preparation. The original hash is mandatory before any semantic migration.
+do
+    local svc=Service.new()
+    assert(Service.setDraft(svc,preset).ok)
+    assert(Service.approve(svc).ok)
+    assert(Service.activate(svc).ok)
+    local before=Json.encode(Service.get(svc))
+    local statusBefore=Json.encode(Service.status(svc))
+    local function serviceImport(document,code)
+        local result=Service.import(svc,document)
+        check((code==nil and result.ok) or (not result.ok and result.error.code==code),
+            'service import reports '..tostring(code or 'success'))
+        check(Json.encode(Service.get(svc))==before,'import preserves all store versions and migration metadata')
+        check(Json.encode(Service.status(svc))==statusBefore,'import preserves revision, control and runtime state')
+        return result
+    end
+    local exported=assert(PolicyIO.export(preset))
+    for _,case in ipairs{
+        {name='missing'}, {name='null',value=Json.null}, {name='numeric',value=42},
+        {name='empty',value=''}, {name='boolean',value=false}, {name='object',value={}},
+    } do
+        local data=Json.decode(exported)
+        data.hash=case.value
+        for _,invalidPolicy in ipairs{false,true} do
+            if invalidPolicy then data.policy.rules[1]['then'].talent='T_NOT_ALLOWED' end
+            local document=Json.encode(data)
+            local traceBefore=Codec.stats()
+            local imported,err=PolicyIO.import(document)
+            local traceAfter=Codec.stats()
+            check(imported==nil and err.code=='invalid_document' and err.input=='hash',
+                'malformed '..case.name..' hash is a typed envelope error')
+            check(Json.encode(traceAfter)==Json.encode(traceBefore),
+                'malformed '..case.name..' hash refuses before policy preparation/hash/migration')
+            serviceImport(document,'invalid_document')
+        end
+    end
+    local mismatch=Json.decode(exported); mismatch.hash='mismatching-nonempty-hash'
+    local imported,err=PolicyIO.import(Json.encode(mismatch))
+    check(imported==nil and err.code=='hash_mismatch','a valid envelope must match its original policy hash')
+    serviceImport(Json.encode(mismatch),'hash_mismatch')
+    mismatch.policy.rules[1]['then'].talent='T_NOT_ALLOWED'
+    imported,err=PolicyIO.import(Json.encode(mismatch))
+    check(imported==nil and err.code=='invalid_policy','semantic invalidity precedes mismatch after structural validation')
+    serviceImport(Json.encode(mismatch),'invalid_policy')
+    local current=serviceImport(exported)
+    check(current.hash==Schema.hash(preset) and current.original_hash==current.hash,
+        'a valid current envelope retains its verified hash')
+
+    local legacy=Presets.copy('anorithil_p1a')
+    legacy.mode.on_low_hp='emergency_only'; legacy.mode.on_emergency_unavailable=nil
+    local original=assert(Codec.encode(legacy))
+    local oldHash=assert(Schema.hash(legacy))
+    local envelope={format=PolicyIO.FORMAT,envelope=PolicyIO.ENVELOPE,hash=oldHash,policy=legacy}
+    local migrated=serviceImport(Json.encode(envelope))
+    check(migrated.original_hash==oldHash and migrated.hash~=oldHash,
+        'legacy import verifies original bytes before the migrated hash changes')
+    check(migrated.policy.mode.on_emergency_unavailable=='release_control' and #migrated.warnings>0,
+        'valid original legacy hash permits explicit migration with visible warnings')
+    envelope.hash=migrated.hash
+    serviceImport(Json.encode(envelope),'hash_mismatch')
+    check(assert(Codec.encode(legacy))==original,'import never rewrites the caller legacy policy')
 end
 
 print('Auto-combat IO: '..checks..' checks passed')
