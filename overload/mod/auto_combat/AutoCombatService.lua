@@ -683,6 +683,9 @@ end
 -- Advance the controller one action opportunity (the live pump calls this).
 function M.step(svc)
     if not svc.controller then return fail('not_running') end
+    -- Settlement may stop the run and release its lease before the next pump.
+    -- Preserve that terminal result; only a live run can lose execution control.
+    if svc.controller.state=='stopped' then return fail('not_running') end
     if not Arbiter.canAct(svc.arbiter,M.SOURCE) then
         svc.controller:stop('control_lost')
         svc.controller=nil

@@ -68,6 +68,17 @@ local function finish()
     local _,oid=view(); M.previous_oid=oid
     M.current=nil; M.frames=0; tick()
 end
+local function waitingDetails(w,reason)
+    local phase,oid=view()
+    return {reason=reason,calls=w.calls,run=Service.status(w.svc).run,
+        submitted_run=w.controller:status(),controller_retained=w.svc.controller==w.controller,
+        pending=w.controller.pending_attempt~=nil,phase=phase,opportunity=oid,
+        turn_started=w.turn_started,world_tick=game.turn,frames=M.frames,
+        rest_handle_observed=w.native_rest~=nil,
+        rest_live=w.native_rest~=nil and game.player.resting==w.native_rest,
+        rest_turns=w.native_rest and w.native_rest.cnt,
+        energy=game.player.energy.value,paused=game.paused,log=Service.log(w.svc,6)}
+end
 local function runCase(name)
     local p=game.player
     p.life=p.max_life
@@ -154,7 +165,8 @@ local function runCase(name)
         check('pending_rest_submitted',#calls==1 and calls[1].status=='native_pending'
             and result.step.action=='wait_native' and svc.controller.actions==0,
             {step=result,run=svc.controller:status(),calls=calls})
-        M.waiting={svc=svc,calls=calls,generation=gen}
+        M.waiting={svc=svc,controller=svc.controller,calls=calls,generation=gen,
+            native_rest=p.resting,turn_started=game.turn}
         -- Run the native bounded activity to a real progressed terminal; a
         -- zero-progress cancellation is correctly a rejection, not success.
         tick()
@@ -172,13 +184,17 @@ function M.onFrame()
     M.frames=M.frames+1
     if M.waiting then
         local w=M.waiting
-        if w.svc.controller and w.svc.controller.pending_attempt==nil then
+        if w.svc.controller~=w.controller then
+            check('pending_rest_settled',false,waitingDetails(w,'terminal_state_lost'))
+            M.waiting=nil; finish()
+        elseif w.controller.pending_attempt==nil then
             check('pending_rest_settled',#w.calls==1 and stopped(w.svc,'max_consecutive_actions',w.generation)
-                and w.svc.controller.actions==1,
-                {run=w.svc.controller:status(),calls=w.calls,log=Service.log(w.svc,6)})
+                and w.controller.actions==1 and w.controller.attempts==1 and w.controller.native_submissions==1
+                and w.native_rest and w.native_rest.cnt==2 and game.player.resting~=w.native_rest,
+                waitingDetails(w))
             M.waiting=nil; finish()
         elseif M.frames>240 then
-            check('pending_rest_settled',false,{reason='settlement_timeout',calls=w.calls})
+            check('pending_rest_settled',false,waitingDetails(w,'settlement_timeout'))
             M.waiting=nil; finish()
         else
             tick()
