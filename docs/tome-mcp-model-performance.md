@@ -400,3 +400,16 @@ dist sha 与 A′ 分支一致（合并干净）。
 本轮重跑 Lua 43 脚本、Python 39 tests、三个生成器均通过；70-member source/dist/manifest 一致。受控模块复现发现测试覆盖外的契约/行为缺口，**native 本轮 NOT_OBSERVED**。这些结果不是跨模型比较实验，不能从发现数量推断模型优劣。
 
 产物：[系统审核报告](tome-mcp-system-review-2026-09-22.md)、[修改方案](tome-mcp-remediation-plan-2026-09-22.md)。原始报告和证据保留在 `/workspace/t-engine4/tmp/mcp-system-review-20260922`，哈希见审核报告。此次仅新增文档和此记录，没有产品修复、打包、提交或合并。
+
+
+## 2026-09-22：SYSFIX 首批开发已派发
+
+用户要求启动subagent修复上轮报告，沿用其Codex内置代理选择。EXEC-01@1将本轮记为执行方式例外：内置不提供pi的A/B模型，因此不推进A/B轮换；原序列Dev上次B、下一A保持。
+
+| 实际代理 | 角色 | 实际模型/思考 | 范围 | 当前状态 |
+| --- | --- | --- | --- | --- |
+| `/root/fix_core` | Dev（fresh） | `gpt-6-astra` / xhigh，内置继承 | SYS-04/10/11/12/13 | running，未验收 |
+| `/root/fix_policy` | Dev（fresh） | `gpt-6-astra` / xhigh，内置继承 | SYS-01/02/03 + U-01取证 | running，未验收 |
+| `/root/fix_tooling` | Dev（fresh） | `gpt-6-astra` / xhigh，内置继承 | SYS-05/06 | running，未验收 |
+
+三位Dev均在独立worktree，以 `366b32b4b53f28c3ef6575290f5b290d358ebfb8` 为基线；共享文件单写者见简报。Test/Review尚未派发，不复用之前的Review进行实现。报告数量/模型优劣暂无任何结果，不预判通过。

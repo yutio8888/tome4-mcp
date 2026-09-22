@@ -20,3 +20,16 @@
 | U-01 | max_candidates消费未定 | policy Dev取证，协调者定稿 | INVESTIGATE | 候选定义/消费点/完整footprint，禁止无证结论 |
 
 所有 ASSIGNED/PLANNED 均不等于 fixed_verified。下一门禁：三位Dev交付分支、单测与报告→协调者核对ledger→固定包/probe→独立Test与fresh Review→整改复核→PR/合并。尚未派发的角色在实际派发时记录精确ID。
+
+
+## 首批派发记录
+
+共同源码基线：`366b32b4b53f28c3ef6575290f5b290d358ebfb8`（只在 caefa9a 上加入审核/修复契约文档）。三个隔离工作区均 clean 起步；完整路径、简报与 hash 见 `/workspace/t-engine4/tmp/mcp-system-fixes-20260922/dispatch.json`。
+
+| 代理 | 唯一角色 | 分支 | 分配问题 |
+| --- | --- | --- | --- |
+| `/root/fix_core` | Dev | `fix/sysrev-core-20260922` | SYS-04/10/11/12/13 |
+| `/root/fix_policy` | Dev | `fix/sysrev-policy-20260922` | SYS-01/02/03；U-01取证 |
+| `/root/fix_tooling` | Dev | `fix/sysrev-tooling-20260922` | SYS-05/06 |
+
+实际模型均为内置 `gpt-6-astra` / xhigh（继承主代理，无覆盖；主代理实际运行模型已通过Paseo状态核对）。禁止Dev自行启动游戏或重建dist；source/dist原生验证和会话生命周期由协调者接手。Review将使用新的Sol/high上下文。
