@@ -1,0 +1,28 @@
+{
+  "fix_pull_requests": [
+    {
+      "number": 27,
+      "head": "06f393fd603483720c8506c4f3d12bf17f443359",
+      "merge_commit": "1f56338ee8b99bfaa0aa89195ebbfd5883ad834e",
+      "merged_at": "2026-09-22T07:44:45Z"
+    },
+    {
+      "number": 28,
+      "head": "dca36dc1ac1013e40710d8449cda41931af259b8",
+      "merge_commit": "aac127723a7b334d936fab377bad928712279a21",
+      "merged_at": "2026-09-22T07:44:50Z"
+    },
+    {
+      "number": 29,
+      "head": "4bc0bb206c2d1299a284efdf1e7e8a7ee2d0f7b6",
+      "merge_commit": "d1562dca71ffc64a0ec8f24feab926d3ac68a2b1",
+      "merged_at": "2026-09-22T07:44:55Z"
+    }
+  ],
+  "base_branch": "fix/sysrev-20260922",
+  "post_merge_candidate_integration": "94ee670f10594c58e34ecfa04db36947f605e3ec",
+  "production_and_tests_equal_reviewed_source": "084642634b1d92dfb5e2880f43998672469798ab",
+  "post_review_differences": "Documentation and validation evidence only; no product/test changes.",
+  "package_members_verified": 72,
+  "main_base_verified": "caefa9a94af85dabd73c0d7e74ef764081b1fb3e"
+}

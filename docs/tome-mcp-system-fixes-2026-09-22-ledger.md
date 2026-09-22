@@ -70,3 +70,5 @@ SYS-08/09 和 U-01 的具体未完成项、依赖、owner 与后续触发条件�
 - source/dist policy各20/20，core各123/123；独立Test4/4，已披露额外手动wait被原独立RuntimeReviewer判为非阻塞、不污染冻结断言。
 - NATIVE-STARTUP-01、NATIVE-PENDING-01（同REV02）、NATIVE-IDENTITY-01修复均有最终原生证据；协调者source03夹具路径失败单列并由source04替代。所有早前FAIL保持FAIL。
 - 最终报告、hash、固定版本和延期边界见 `../validation/2026-09-22-system-fixes/acceptance.json`；证据索引见相邻manifest.json。测试/原生会话均回收，Test已归档。
+
+三个修复PR #27/#28/#29已于2026-09-22合并至fix/sysrev-20260922；合并提交与固定候选字节复核记录见 `../validation/2026-09-22-system-fixes/integration.json`。主分支集成仅携带已接受产品代码与协调者验收文档。
