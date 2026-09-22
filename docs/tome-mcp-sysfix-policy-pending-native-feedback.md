@@ -42,3 +42,13 @@
 本次执行：正常 guard **426 checks PASS**、既有 Lua 全套 PASS。隔离副本中，同一 `no_restrict` 清空 mutation 对旧 192 checks 为 rc0，对新回归为 rc1；对全部 15 字段逐一追加 `spec.<field>=nil`，均在对应字段 roundtrip 断言失败（rc1）。证据见 `pending-native/guard-oracle/mutation-results.json` 及逐项原始日志。初次副本遗漏 `s3_real_specs.lua` 的搭建错误另存 `fixture-incomplete.log`，不作为产品失败或 mutation 成功证据。
 
 该 oracle 证明列明的生产转发行为与 mutation 敏感性，不声称证明任意 Lua 程序语义。结构 checker 与其负例由 tooling Dev 独立负责；本 test-only 增量按简报不要求新原生会话。状态仍为 ready for review。
+
+## RUNTIME-REV-03：双 legacy 文档的原始草稿丢失
+
+format 2 同时包含需要迁移的 draft 和 approved 时，旧实现先迁移 draft，再迁移 approved；后一步重建 migration 记录，把已规范化的 draft 放入 `previous_draft`，覆盖先前的 `original_draft`。因此原始草稿缺失的字段被静默补上，不能完整恢复作者输入。
+
+`PolicyStore` 现在在私有 vault 中把当前 draft 的迁移前 canonical snapshot 与迁移后的 draft 一起保存。每次 set/restore 更新该来源，clear 同时清除。迁移 approved 时，`previous_draft` 取当前草稿的原始 snapshot，`original_approved` 仍保存原始批准文档；不会借用可能属于旧草稿的描述性 migration 字段。此来源只在 vault 中使用，没有新增存档控制态或公共字段。
+
+回归分别覆盖“draft 与 approved 都为 legacy”和“draft 已为当前格式”，比较含名称、规则、limits、safety、updated 元数据的**完整 canonical bytes**；经过首次 load 和两次实际 plain-data save/reload 后，两份原始文档仍精确相等。迁移后的 approved 仍只成为当前 draft，不能 activate，必须重新 approve。另覆盖覆盖草稿、清空草稿和返回数据隔离，防止错取陈旧来源。
+
+本次执行：未修 Store 上新回归 FAIL（`migration-before.log`），修复后系统回归 **680 checks PASS**、policy bytes **209 PASS**、Service **192 PASS**。原始失败和结果均在同一 evidence root；原生 source/dist 由协调者后续执行，未在此标 PASS。状态为 ready for review。

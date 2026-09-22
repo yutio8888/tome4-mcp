@@ -393,4 +393,57 @@ do
     local noThreshold=policy(); noThreshold.mode=nil; noThreshold.safety={}
     check(#select(3,Schema.validate(noThreshold))==0,'unreachable emergency mode needs no migration')
 end
+-- RUNTIME-REV-03: restoring a legacy approval must archive the pre-migration
+-- bytes of an existing draft, including when that draft also needs migration.
+for _,legacyDraft in ipairs{true,false} do
+    local draft=policy{max_actions_per_tick=2,max_consecutive_actions=17}
+    draft.id='unsaved-draft'; draft.name='Original draft'; draft.updated='draft metadata'
+    draft.rules[1].priority=31; draft.safety.min_hp_pct=27
+    if legacyDraft then draft.mode.on_emergency_unavailable=nil end
+    local approved=policy{max_actions_per_tick=1,max_consecutive_actions=19}
+    approved.id='legacy-approved'; approved.name='Original approval'; approved.updated='approval metadata'
+    approved.rules[1].priority=43; approved.mode.on_emergency_unavailable=nil
+    local draftBytes=assert(Codec.encode(draft))
+    local approvedBytes=assert(Codec.encode(approved))
+    local migrated=Json.decode(Json.encode(approved))
+    migrated.mode.on_emergency_unavailable='release_control'
+    local migratedBytes=assert(Codec.encode(migrated))
+    local saved={format=2,draft=draft,approved=approved}
+    for round=1,3 do
+        local svc=Service.new()
+        check(Service.loadState(svc,saved),'load migration archive round '..round)
+        local got=Service.get(svc)
+        eq(assert(Codec.encode(got.migration.previous_draft)),draftBytes,
+            'full original draft bytes survive migration/save/reload round '..round)
+        eq(assert(Codec.encode(got.migration.original_approved)),approvedBytes,
+            'full original approved bytes survive migration/save/reload round '..round)
+        eq(assert(Codec.encode(got.draft)),migratedBytes,'only the live replacement draft is normalized')
+        check(got.approved==nil and got.running==nil and got.active==false,'load cannot reuse the old approval')
+        check(got.migration.requires_reapproval==true,'load retains explicit reapproval requirement')
+        eq(Service.activate(svc).error.code,'not_approved','reload cannot activate an archived approval')
+        saved=Json.decode(Json.encode(Service.saveState(svc)))
+        eq(saved.format,3,'migration archive survives the real plain-data save format')
+        got.migration.previous_draft.name='caller mutation'
+        eq(assert(Codec.encode(Service.get(svc).migration.previous_draft)),draftBytes,'archive result is detached')
+    end
+    eq(assert(Codec.encode(draft)),draftBytes,'load did not normalize the caller draft in place')
+    eq(assert(Codec.encode(approved)),approvedBytes,'load did not normalize the caller approval in place')
+end
+
+-- The original snapshot belongs to the CURRENT draft, not an older descriptive
+-- migration notice. Replacing or clearing the draft must update that source.
+do
+    local legacy=policy(); legacy.mode.on_emergency_unavailable=nil
+    local current=policy(); current.id='replacement'; current.updated='new draft'
+    local store=Store.new()
+    assert(Store.setDraft(store,legacy))
+    assert(Store.setDraft(store,current))
+    assert(Store.restore(store,'approved',legacy))
+    eq(assert(Codec.encode(Store.migration(store).previous_draft)),assert(Codec.encode(current)),
+        'approved migration retains the current replacement draft, not stale original_draft metadata')
+    local empty=Store.new()
+    assert(Store.setDraft(empty,legacy)); Store.clearDraft(empty)
+    assert(Store.restore(empty,'approved',legacy))
+    check(Store.migration(empty).previous_draft==nil,'clearing the draft clears its source snapshot')
+end
 print('Auto-combat system fixes: '..checks..' checks passed')

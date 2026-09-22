@@ -31,7 +31,8 @@ local Codec=require 'mod.auto_combat.PolicyCodec'
 local Json=require 'mod.mcp_bridge.Json'
 local M={}
 
--- Module-level private vault: store token -> {draft,approved,running}. Weak
+-- Module-level private vault: store token -> policy snapshots and migration
+-- metadata. draft_source keeps the current draft's pre-migration bytes. Weak
 -- keys, so a discarded store does not keep its records alive. Because it is a
 -- lexical local of this module, an ordinary holder of the store table cannot
 -- name it; because it is not an entry of the store, `pairs(store)` cannot
@@ -46,7 +47,7 @@ end
 
 function M.new()
     local store={active=false,revision=0}
-    VAULT[store]={draft=nil,approved=nil,running=nil}
+    VAULT[store]={draft=nil,draft_source=nil,approved=nil,running=nil}
     return store
 end
 
@@ -83,19 +84,23 @@ function M.restore(store,name,value,sink)
     if not snapshot then return nil,err end
     local migrated,migration_err,warnings=Codec.migrate(snapshot)
     if not migrated then return nil,migration_err end
+    local v=vault(store)
     if name=='approved' and #warnings>0 then
         -- Approval certified the old implicit fallback. Retain both documents,
         -- move its normalised replacement to draft, and require new approval.
-        local v=vault(store)
         v.migration={reason='emergency_fallback_migration',warnings=warnings,
             requires_reapproval=true,original_approved=Codec.copy(snapshot),
-            previous_draft=v.draft and Codec.copy(v.draft) or nil}
+            previous_draft=v.draft and Codec.copy(v.draft_source or v.draft) or nil}
         v.approved=nil; v.running=nil; store.active=false
-        v.draft=migrated
+        v.draft=migrated; v.draft_source=snapshot
     else
-        vault(store)[name]=migrated
+        v[name]=migrated
+        -- Capture the current draft's original bytes before migration. A later
+        -- legacy approval must not replace this user document with its already
+        -- normalized version or with an older migration notice's draft.
+        if name=='draft' then v.draft_source=snapshot end
         if #warnings>0 then
-            vault(store).migration={reason='emergency_fallback_migration',warnings=warnings,
+            v.migration={reason='emergency_fallback_migration',warnings=warnings,
                 requires_reapproval=true,original_draft=Codec.copy(snapshot)}
         end
     end
@@ -124,7 +129,7 @@ function M.setDraft(store,policy,expected_hash)
     end
     local migrated,migration_err,warnings=Codec.migrate(snapshot)
     if not migrated then return nil,migration_err end
-    vault(store).draft=migrated; store.revision=store.revision+1
+    vault(store).draft=migrated; vault(store).draft_source=snapshot; store.revision=store.revision+1
     if #warnings>0 then
         vault(store).migration={reason='emergency_fallback_migration',warnings=warnings,
             requires_reapproval=true,original_draft=Codec.copy(snapshot)}
@@ -170,7 +175,7 @@ function M.deactivate(store)
 end
 
 function M.clearDraft(store)
-    vault(store).draft=nil; store.revision=store.revision+1
+    vault(store).draft=nil; vault(store).draft_source=nil; store.revision=store.revision+1
     return true
 end
 
