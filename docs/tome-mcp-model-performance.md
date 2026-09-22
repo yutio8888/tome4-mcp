@@ -424,3 +424,11 @@ dist sha 与 A′ 分支一致（合并干净）。
 | de482ffb-434f-468a-8c18-1ff3997e90c5 | fresh Review / codex gpt-5.6-sol / high | tooling、manifest、候选证据；审核中 |
 
 Test尚未派发；其独立序列上次B，下一A。以上不是跨模型对比实验，native首次执行夹具启动FAIL单独保留，不从单次故障推断模型优劣。
+
+### SYSFIX 最终候选验证（2026-09-22）
+
+候选源码 `084642634b1d92dfb5e2880f43998672469798ab`；包 `3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb`。三位内置 Dev 已交付，最终 core4bc0bb2 / policydca36dc / tooling06f393f，仍须独立最终验收。Runtime Reviewer 已关闭四项源码修复，tooling Reviewer 已关闭两项 checker finding；原生/证据适用性仍在复核。
+
+新鲜 `[Test]` 代理 `4231c485-6ce6-40c5-84c5-6a096b74edb3` 使用 **pi/commandcode/deepseek/deepseek-v4.1-flash / high**（Test 序列上次 B，本轮 A，下次 B）。会话 `sysfix-live-01` 仅验证固定包 cap1/cap3、公开边界拒绝和 draft clear，不作完整通关或跨模型实验。Dev A/B 计数仍不变（内置执行例外）。原生 probe 由协调者执行，不能记为此 Test 代理的实机发现。
+
+Test 交付4/4 PASS；额外一次非必要手动wait发生于所有断言之后，保留为brief偏离，不计入策略动作。会话在报告创建时即回收，Test代理已归档；最终证据适用性仍由原独立 Review 裁决。

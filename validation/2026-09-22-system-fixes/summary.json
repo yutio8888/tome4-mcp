@@ -1,0 +1,1356 @@
+{
+  "candidate": {
+    "source_commit": "084642634b1d92dfb5e2880f43998672469798ab",
+    "source_root": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/workspaces/final-candidate/game/addons/tome-mcp-bridge",
+    "archive": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/artifacts/candidate-3a4e186b0019.teaa",
+    "archive_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+    "manifest": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/artifacts/candidate-3a4e186b0019-manifest.json",
+    "manifest_sha256": "cf79759b295fa246eff10bfc6038c87b2501b51579e169525c0bc49daef5fe1f",
+    "file_count": 72,
+    "parity": "PASS: exact source/zip/manifest file set and all bytes",
+    "server_source": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/workspaces/final-candidate/game/addons/tome-mcp-bridge/server/src",
+    "server_archive": "/workspace/t-engine4/tmp/mcp-system-fixes-20260922/artifacts/server-084642634b1d.tar.gz",
+    "server_archive_sha256": "48af733c6e4a544900570f9e03df69fa8458f4121e31d41e4351b409368100c1",
+    "server_py_sha256": "36f251558046efa171eb1e63a6796a04c21e76fd07c5ba170502591ace91dec9",
+    "policy_probe_sha256": "2db315362602f6925c5117f107ae2c83f7335838a431808a2fa63ce5e7bb7f30"
+  },
+  "results": [
+    {
+      "session": "sysfix-policy-source-04",
+      "status": "PASS",
+      "checks": 20,
+      "mode": "source",
+      "source_commit": "084642634b1d92dfb5e2880f43998672469798ab",
+      "archive_sha256": null,
+      "raw_root": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-04",
+      "check_results": [
+        {
+          "name": "sysfix:wait_cap",
+          "passed": true
+        },
+        {
+          "name": "sysfix:same_opportunity_restart",
+          "passed": true
+        },
+        {
+          "name": "sysfix:emergency_release",
+          "passed": true
+        },
+        {
+          "name": "sysfix:emergency_fallback",
+          "passed": true
+        },
+        {
+          "name": "sysfix:submission_cap",
+          "passed": true
+        },
+        {
+          "name": "sysfix:submission_cap_restart",
+          "passed": true
+        },
+        {
+          "name": "sysfix:sustain_instant",
+          "passed": true
+        },
+        {
+          "name": "sysfix:pending_rest_submitted",
+          "passed": true
+        },
+        {
+          "name": "sysfix:pending_rest_settled",
+          "passed": true
+        },
+        {
+          "name": "sysfix:migration_originals_round1",
+          "passed": true
+        },
+        {
+          "name": "sysfix:migration_originals_round2",
+          "passed": true
+        },
+        {
+          "name": "sysfix:migration_originals_round3",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_hash_missing",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_hash_null",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_hash_numeric",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_hash_empty",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_hash_mismatch",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_hash_valid",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_legacy_original_hash",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_legacy_migrated_hash",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "session": "sysfix-policy-dist-01",
+      "status": "PASS",
+      "checks": 20,
+      "mode": "dist",
+      "source_commit": "084642634b1d92dfb5e2880f43998672469798ab",
+      "archive_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+      "raw_root": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-dist-01",
+      "check_results": [
+        {
+          "name": "sysfix:wait_cap",
+          "passed": true
+        },
+        {
+          "name": "sysfix:same_opportunity_restart",
+          "passed": true
+        },
+        {
+          "name": "sysfix:emergency_release",
+          "passed": true
+        },
+        {
+          "name": "sysfix:emergency_fallback",
+          "passed": true
+        },
+        {
+          "name": "sysfix:submission_cap",
+          "passed": true
+        },
+        {
+          "name": "sysfix:submission_cap_restart",
+          "passed": true
+        },
+        {
+          "name": "sysfix:sustain_instant",
+          "passed": true
+        },
+        {
+          "name": "sysfix:pending_rest_submitted",
+          "passed": true
+        },
+        {
+          "name": "sysfix:pending_rest_settled",
+          "passed": true
+        },
+        {
+          "name": "sysfix:migration_originals_round1",
+          "passed": true
+        },
+        {
+          "name": "sysfix:migration_originals_round2",
+          "passed": true
+        },
+        {
+          "name": "sysfix:migration_originals_round3",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_hash_missing",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_hash_null",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_hash_numeric",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_hash_empty",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_hash_mismatch",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_hash_valid",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_legacy_original_hash",
+          "passed": true
+        },
+        {
+          "name": "sysfix:import_legacy_migrated_hash",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "session": "sysfix-core-source-02",
+      "status": "PASS",
+      "checks": 123,
+      "mode": "source",
+      "source_commit": "084642634b1d92dfb5e2880f43998672469798ab",
+      "archive_sha256": null,
+      "raw_root": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-02",
+      "check_results": [
+        {
+          "name": "sysfix_core_exact_record_before_native_save",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_policy_and_runtime_before_native_save",
+          "passed": true
+        },
+        {
+          "name": "native_world_and_dungeon_perception_regressions",
+          "passed": true
+        },
+        {
+          "name": "fresh_native_birth_no_imported_save",
+          "passed": true
+        },
+        {
+          "name": "fragmented_tcp_connect_returns_ready",
+          "passed": true
+        },
+        {
+          "name": "sysfix_public_rejects_force_actor",
+          "passed": true
+        },
+        {
+          "name": "sysfix_public_rejects_force_grid",
+          "passed": true
+        },
+        {
+          "name": "sysfix_public_rejects_authoritative_target",
+          "passed": true
+        },
+        {
+          "name": "sysfix_public_rejects_sequence",
+          "passed": true
+        },
+        {
+          "name": "sysfix_invalid_sections_rejected",
+          "passed": true
+        },
+        {
+          "name": "sysfix_invalid_sections_rejected",
+          "passed": true
+        },
+        {
+          "name": "sysfix_invalid_sections_rejected",
+          "passed": true
+        },
+        {
+          "name": "sysfix_invalid_sections_rejected",
+          "passed": true
+        },
+        {
+          "name": "sysfix_invalid_sections_rejected",
+          "passed": true
+        },
+        {
+          "name": "sysfix_invalid_sections_rejected",
+          "passed": true
+        },
+        {
+          "name": "sysfix_closed_envelope",
+          "passed": true
+        },
+        {
+          "name": "sysfix_closed_args",
+          "passed": true
+        },
+        {
+          "name": "sysfix_rejections_preserve_ledger_revision",
+          "passed": true
+        },
+        {
+          "name": "sysfix_rejections_do_not_submit_native_action",
+          "passed": true
+        },
+        {
+          "name": "multiple_tcp_packets_repeat_identical_observation",
+          "passed": true
+        },
+        {
+          "name": "inspect_native_lightning",
+          "passed": true
+        },
+        {
+          "name": "observe_inspect_preserve_native_state",
+          "passed": true
+        },
+        {
+          "name": "native_observer_calls_no_rng_perception_or_talent_prechecks",
+          "passed": true
+        },
+        {
+          "name": "inspect_unknown_actor_rejected",
+          "passed": true
+        },
+        {
+          "name": "observer_includes_perceived_enemy_and_excludes_hidden_fixture",
+          "passed": true
+        },
+        {
+          "name": "native_actor_id_is_fixture_reference",
+          "passed": true
+        },
+        {
+          "name": "inspect_real_hidden_actor_by_guessed_id_rejected",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "wait_consumes_native_energy_and_advances_world",
+          "passed": true
+        },
+        {
+          "name": "native_enemy_scheduler_runs",
+          "passed": true
+        },
+        {
+          "name": "completed_command_id_returns_existing_result",
+          "passed": true
+        },
+        {
+          "name": "duplicate_does_not_repeat_native_action",
+          "passed": true
+        },
+        {
+          "name": "command_id_conflict_rejected",
+          "passed": true
+        },
+        {
+          "name": "stale_revision_rejected",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_move_changes_requested_coordinate",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_instant_talent_updates_effect_cooldown_revision_without_world_tick",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_heal_changes_life_and_mana",
+          "passed": true
+        },
+        {
+          "name": "native_perceived_enemy_available",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_lightning_damage_resource_cooldown",
+          "passed": true
+        },
+        {
+          "name": "native_cooldown_rejection_does_not_consume_turn",
+          "passed": true
+        },
+        {
+          "name": "native_cooldown_rejection_reports_structured_cooldown",
+          "passed": true
+        },
+        {
+          "name": "unknown_talent_rejected_before_execution",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_melee_entry_invoked",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "disconnect_status_recovers_without_replaying_action",
+          "passed": true
+        },
+        {
+          "name": "reconnect_duplicate_cannot_replay_action",
+          "passed": true
+        },
+        {
+          "name": "queued_action_and_stop_accepted",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "stop_cancels_unstarted_native_action",
+          "passed": true
+        },
+        {
+          "name": "real_x11_key_disconnects_existing_controller",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "real_x11_key_revokes_old_control_and_revision",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "native_escape_menu_reports_needs_input",
+          "passed": true
+        },
+        {
+          "name": "real_dialog_key_disconnects_existing_controller",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "native_dialog_blocks_world_action",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "native_dialog_close_restores_ready",
+          "passed": true
+        },
+        {
+          "name": "official_mcp_stdio_native_integration",
+          "passed": true
+        },
+        {
+          "name": "official_mcp_all_checks_passed",
+          "passed": true
+        },
+        {
+          "name": "official_mcp_initialize_and_list_tools",
+          "passed": true
+        },
+        {
+          "name": "official_mcp_rules_resource",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.connect",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.observe",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_game_ready",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.inspect",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.inspect",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_progression_inspection",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_item_inspection_has_original_equipment",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.inspect",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_owned_item_inspection",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.observe",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_growth_item_reads_preserve_state",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.act",
+          "passed": true
+        },
+        {
+          "name": "mcp_tcp_native_wait_completed",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_wait_returns_stable_snapshot",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.status",
+          "passed": true
+        },
+        {
+          "name": "mcp_status_recovers_completed_command",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.act",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.observe",
+          "passed": true
+        },
+        {
+          "name": "mcp_duplicate_does_not_advance_game",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.stop",
+          "passed": true
+        },
+        {
+          "name": "mcp_stop_returns_manual_control",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "native_ctrl_s_save_revokes_control",
+          "passed": true
+        },
+        {
+          "name": "native_ctrl_s_produces_game_save",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_exact_record_before_native_save",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_policy_and_runtime_before_native_save",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_clear_precedes_native_save",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_exact_record_after_native_reload",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_policy_and_runtime_after_native_reload",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_same_character_and_approved_policy_after_native_reload",
+          "passed": true
+        },
+        {
+          "name": "native_reload_does_not_restore_automatic_commands",
+          "passed": true
+        },
+        {
+          "name": "reload_uses_own_saved_character_without_new_birth",
+          "passed": true
+        },
+        {
+          "name": "native_reload_creates_new_session_and_rebinds_same_port",
+          "passed": true
+        },
+        {
+          "name": "old_session_rejected_after_native_load",
+          "passed": true
+        },
+        {
+          "name": "old_command_history_not_serialized",
+          "passed": true
+        },
+        {
+          "name": "original_fixture_save_unchanged_by_reload",
+          "passed": true
+        },
+        {
+          "name": "reload_does_not_rewrite_copied_fixture_save",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "session": "sysfix-core-dist-01",
+      "status": "PASS",
+      "checks": 123,
+      "mode": "dist",
+      "source_commit": "084642634b1d92dfb5e2880f43998672469798ab",
+      "archive_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+      "raw_root": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-dist-01",
+      "check_results": [
+        {
+          "name": "sysfix_core_exact_record_before_native_save",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_policy_and_runtime_before_native_save",
+          "passed": true
+        },
+        {
+          "name": "native_world_and_dungeon_perception_regressions",
+          "passed": true
+        },
+        {
+          "name": "fresh_native_birth_no_imported_save",
+          "passed": true
+        },
+        {
+          "name": "fragmented_tcp_connect_returns_ready",
+          "passed": true
+        },
+        {
+          "name": "sysfix_public_rejects_force_actor",
+          "passed": true
+        },
+        {
+          "name": "sysfix_public_rejects_force_grid",
+          "passed": true
+        },
+        {
+          "name": "sysfix_public_rejects_authoritative_target",
+          "passed": true
+        },
+        {
+          "name": "sysfix_public_rejects_sequence",
+          "passed": true
+        },
+        {
+          "name": "sysfix_invalid_sections_rejected",
+          "passed": true
+        },
+        {
+          "name": "sysfix_invalid_sections_rejected",
+          "passed": true
+        },
+        {
+          "name": "sysfix_invalid_sections_rejected",
+          "passed": true
+        },
+        {
+          "name": "sysfix_invalid_sections_rejected",
+          "passed": true
+        },
+        {
+          "name": "sysfix_invalid_sections_rejected",
+          "passed": true
+        },
+        {
+          "name": "sysfix_invalid_sections_rejected",
+          "passed": true
+        },
+        {
+          "name": "sysfix_closed_envelope",
+          "passed": true
+        },
+        {
+          "name": "sysfix_closed_args",
+          "passed": true
+        },
+        {
+          "name": "sysfix_rejections_preserve_ledger_revision",
+          "passed": true
+        },
+        {
+          "name": "sysfix_rejections_do_not_submit_native_action",
+          "passed": true
+        },
+        {
+          "name": "multiple_tcp_packets_repeat_identical_observation",
+          "passed": true
+        },
+        {
+          "name": "inspect_native_lightning",
+          "passed": true
+        },
+        {
+          "name": "observe_inspect_preserve_native_state",
+          "passed": true
+        },
+        {
+          "name": "native_observer_calls_no_rng_perception_or_talent_prechecks",
+          "passed": true
+        },
+        {
+          "name": "inspect_unknown_actor_rejected",
+          "passed": true
+        },
+        {
+          "name": "observer_includes_perceived_enemy_and_excludes_hidden_fixture",
+          "passed": true
+        },
+        {
+          "name": "native_actor_id_is_fixture_reference",
+          "passed": true
+        },
+        {
+          "name": "inspect_real_hidden_actor_by_guessed_id_rejected",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "wait_consumes_native_energy_and_advances_world",
+          "passed": true
+        },
+        {
+          "name": "native_enemy_scheduler_runs",
+          "passed": true
+        },
+        {
+          "name": "completed_command_id_returns_existing_result",
+          "passed": true
+        },
+        {
+          "name": "duplicate_does_not_repeat_native_action",
+          "passed": true
+        },
+        {
+          "name": "command_id_conflict_rejected",
+          "passed": true
+        },
+        {
+          "name": "stale_revision_rejected",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_move_changes_requested_coordinate",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_instant_talent_updates_effect_cooldown_revision_without_world_tick",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_heal_changes_life_and_mana",
+          "passed": true
+        },
+        {
+          "name": "native_perceived_enemy_available",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_lightning_damage_resource_cooldown",
+          "passed": true
+        },
+        {
+          "name": "native_cooldown_rejection_does_not_consume_turn",
+          "passed": true
+        },
+        {
+          "name": "native_cooldown_rejection_reports_structured_cooldown",
+          "passed": true
+        },
+        {
+          "name": "unknown_talent_rejected_before_execution",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        },
+        {
+          "name": "native_melee_entry_invoked",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "disconnect_status_recovers_without_replaying_action",
+          "passed": true
+        },
+        {
+          "name": "reconnect_duplicate_cannot_replay_action",
+          "passed": true
+        },
+        {
+          "name": "queued_action_and_stop_accepted",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "stop_cancels_unstarted_native_action",
+          "passed": true
+        },
+        {
+          "name": "real_x11_key_disconnects_existing_controller",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "real_x11_key_revokes_old_control_and_revision",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "native_escape_menu_reports_needs_input",
+          "passed": true
+        },
+        {
+          "name": "real_dialog_key_disconnects_existing_controller",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "native_dialog_blocks_world_action",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "native_dialog_close_restores_ready",
+          "passed": true
+        },
+        {
+          "name": "official_mcp_stdio_native_integration",
+          "passed": true
+        },
+        {
+          "name": "official_mcp_all_checks_passed",
+          "passed": true
+        },
+        {
+          "name": "official_mcp_initialize_and_list_tools",
+          "passed": true
+        },
+        {
+          "name": "official_mcp_rules_resource",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.connect",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.observe",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_game_ready",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.inspect",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.inspect",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_progression_inspection",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_item_inspection_has_original_equipment",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.inspect",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_owned_item_inspection",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.observe",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_growth_item_reads_preserve_state",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.act",
+          "passed": true
+        },
+        {
+          "name": "mcp_tcp_native_wait_completed",
+          "passed": true
+        },
+        {
+          "name": "mcp_native_wait_returns_stable_snapshot",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.status",
+          "passed": true
+        },
+        {
+          "name": "mcp_status_recovers_completed_command",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.act",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.observe",
+          "passed": true
+        },
+        {
+          "name": "mcp_duplicate_does_not_advance_game",
+          "passed": true
+        },
+        {
+          "name": "mcp_call_tome.stop",
+          "passed": true
+        },
+        {
+          "name": "mcp_stop_returns_manual_control",
+          "passed": true
+        },
+        {
+          "name": "tcp_reconnect_preserves_game_session",
+          "passed": true
+        },
+        {
+          "name": "native_ctrl_s_save_revokes_control",
+          "passed": true
+        },
+        {
+          "name": "native_ctrl_s_produces_game_save",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_exact_record_before_native_save",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_policy_and_runtime_before_native_save",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_clear_precedes_native_save",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_exact_record_after_native_reload",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_policy_and_runtime_after_native_reload",
+          "passed": true
+        },
+        {
+          "name": "sysfix_core_same_character_and_approved_policy_after_native_reload",
+          "passed": true
+        },
+        {
+          "name": "native_reload_does_not_restore_automatic_commands",
+          "passed": true
+        },
+        {
+          "name": "reload_uses_own_saved_character_without_new_birth",
+          "passed": true
+        },
+        {
+          "name": "native_reload_creates_new_session_and_rebinds_same_port",
+          "passed": true
+        },
+        {
+          "name": "old_session_rejected_after_native_load",
+          "passed": true
+        },
+        {
+          "name": "old_command_history_not_serialized",
+          "passed": true
+        },
+        {
+          "name": "original_fixture_save_unchanged_by_reload",
+          "passed": true
+        },
+        {
+          "name": "reload_does_not_rewrite_copied_fixture_save",
+          "passed": true
+        },
+        {
+          "name": "action_starts_ready",
+          "passed": true
+        },
+        {
+          "name": "native_command_completed",
+          "passed": true
+        },
+        {
+          "name": "command_finishes_ready",
+          "passed": true
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Native policy migration/import rows are real Service data paths inside engine; they are not actual game-file save/restart. Core source/dist explicitly perform true Ctrl-S and new-process reload.",
+    "Controlled native fixture authors are Devs; coordinator executes. Separate Test owns bounded normal-campaign observation.",
+    "SYS-08 advanced editor, SYS-09 standalone distribution, U-01 max_candidates semantics are deferred with named owner/trigger; not fixed.",
+    "This manifest verifies retrievable file/reference integrity. Independent reports determine behavioral applicability."
+  ],
+  "failed_runs": [
+    {
+      "session": "sysfix-policy-source-01",
+      "passed": false,
+      "checks": 0,
+      "failed_checks": [],
+      "cause": "NATIVE-STARTUP-01: engine sandbox has no os.getenv; zero checks",
+      "files": [
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-01/input.json",
+          "sha256": "eb6f156db187c1f837e635b1ff3ff67044a5467b5a3b5bf32ec6c5a9cf5f6ebf",
+          "base": "absolute",
+          "note": "sysfix-policy-source-01/input.json"
+        },
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-01/result.json",
+          "sha256": "c86dfb73e777119a552557fcffcaa6e2bdc5fc112e5e701beda88f1cad11fe60",
+          "base": "absolute",
+          "note": "sysfix-policy-source-01/result.json"
+        },
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-01/game.log",
+          "sha256": "b71779958e7117faf9e9578286db055910148b721faf69f6491c691fbd169008",
+          "base": "absolute",
+          "note": "sysfix-policy-source-01/game.log"
+        },
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-01/candidate.zip",
+          "sha256": "414f9d6ed6d800026f6bb837f44a3bf5190c209c9b20eb458329a4a71f480c9b",
+          "base": "absolute",
+          "note": "sysfix-policy-source-01/candidate.zip"
+        }
+      ],
+      "retained_failure": true,
+      "superseded_by": "sysfix-policy-source-04"
+    },
+    {
+      "session": "sysfix-policy-source-02",
+      "passed": false,
+      "checks": 9,
+      "failed_checks": [
+        "sysfix:pending_rest_settled"
+      ],
+      "cause": "RUNTIME-REV-02 / NATIVE-PENDING-01: completed rest final status lost by same-frame pump",
+      "files": [
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-02/input.json",
+          "sha256": "0bae1ce14074d39396b410c470de3ce95dad3dd6961365f8001ab3b442461c82",
+          "base": "absolute",
+          "note": "sysfix-policy-source-02/input.json"
+        },
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-02/result.json",
+          "sha256": "47facb2da0dd7ba868c290abbeca2c4a75718f3af46f385f037434639b3c7b25",
+          "base": "absolute",
+          "note": "sysfix-policy-source-02/result.json"
+        },
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-02/game.log",
+          "sha256": "67acb17d8a70011369628529f983d6c527f7daf37dfd3ebcc42ad38790c2f224",
+          "base": "absolute",
+          "note": "sysfix-policy-source-02/game.log"
+        },
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-policy-source-02/candidate.zip",
+          "sha256": "e37bb06bc605e2c19384ea5edcd399bc1c0207635a37427f1acbe06230869f94",
+          "base": "absolute",
+          "note": "sysfix-policy-source-02/candidate.zip"
+        }
+      ],
+      "retained_failure": true,
+      "superseded_by": "sysfix-policy-source-04"
+    },
+    {
+      "session": "sysfix-core-source-01",
+      "passed": false,
+      "checks": 113,
+      "failed_checks": [
+        "sysfix_core_same_character_and_approved_policy_after_native_reload"
+      ],
+      "cause": "NATIVE-IDENTITY-01: fixture incorrectly assumed transient uid survives reload",
+      "files": [
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-01/input.json",
+          "sha256": "7e17a221e5782e970fc9fedf16612819d41ea60f9468468b7dd54b9134e90884",
+          "base": "absolute",
+          "note": "sysfix-core-source-01/input.json"
+        },
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-01/result.json",
+          "sha256": "8240472ba70f8d5ae383eafaa44f28fc562a054ef2a0b164c832fe0ebae0a4dd",
+          "base": "absolute",
+          "note": "sysfix-core-source-01/result.json"
+        },
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-01/game.log",
+          "sha256": "c84d9e1fab9f49d9d17cb1b6ecb0ca6be426369a3aea5610805189ca6c9fb6d1",
+          "base": "absolute",
+          "note": "sysfix-core-source-01/game.log"
+        },
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-01/reload.log",
+          "sha256": "a0f9a553034c3d5f2598c9957bd81605970731e44bd38bfa735218859e2294ea",
+          "base": "absolute",
+          "note": "sysfix-core-source-01/reload.log"
+        },
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-01/wire.json",
+          "sha256": "9927d3f856d6c38b34bd4290e42d0a700f17bcc75432c8a4f8bff3c7f1563cc4",
+          "base": "absolute",
+          "note": "sysfix-core-source-01/wire.json"
+        },
+        {
+          "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/sysfix-core-source-01/candidate.zip",
+          "sha256": "cc4458fddf6d33b28b62baca1a0ef7921af57ce13e596dfae2d117b4c1af00f8",
+          "base": "absolute",
+          "note": "sysfix-core-source-01/candidate.zip"
+        }
+      ],
+      "retained_failure": true,
+      "superseded_by": "sysfix-core-source-02"
+    }
+  ],
+  "setup_failure": {
+    "session": "sysfix-policy-source-03",
+    "status": "FAIL",
+    "layer": "coordinator runner setup before engine launch",
+    "checks": 0,
+    "cause": "frozen worktree omitted shared tmp fixture link; default source path absent",
+    "correction": "workspace tmp now links absolute shared support; runner passes explicit source/deps",
+    "product_changed": false,
+    "raw": [
+      "sysfix-policy-source-03-invocation.json",
+      "sysfix-policy-source-03-runner.log"
+    ],
+    "replacement": "sysfix-policy-source-04"
+  },
+  "live_test": {
+    "report": "live-test-report.md",
+    "status": "see independent per-row verdicts",
+    "source_commit": "084642634b1d92dfb5e2880f43998672469798ab",
+    "archive_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb"
+  }
+}

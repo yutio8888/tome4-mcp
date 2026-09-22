@@ -890,3 +890,20 @@ python3 game/addons/tome-mcp-bridge/tests/native/run.py release-check-01 \
 本次是受控真实游戏场景，测试 probe 仅用于布置角色/场景及记录原生调用。没有验证完整战役、全部职业、Windows/macOS、窗口最小化节流或与全部第三方 addon 的组合。真实切图中的中断、鼠标接管和复杂多段目标操作尚无本轮完整原生场景覆盖；相关边界依靠已有实现与专项检查，不能据此宣称全流程自动游玩。
 
 首版仅支持 README 列出的三种技能和基本动作。特殊感知缺少可信缓存时保守省略；地形采用有限玩家视角记录，可能少报火炬照明下角色脚下的地形。失败动作可能已经消耗能量，超时必须查询原 command_id；这些是接口语义，调用方必须处理。
+
+
+## 2026-09-22 SYSFIX 系统修复候选（最终独立验收进行中）
+
+固定源码 `084642634b1d92dfb5e2880f43998672469798ab`；72文件 source/zip/manifest 字节一致，包 SHA256 `3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb`。旧1831b912包仅属历史候选。原生输入、输出、保存与重载日志由 `validation/2026-09-22-system-fixes/manifest.json` 索引（索引待独立复核后定稿）。
+
+| 实际执行 | 结果 | 证据层 / 限定范围 |
+| --- | --- | --- |
+| 固定源码统一入口 | PASS：boundary22、manifest17、Lua44脚本、Python47（1,787实际MCP标量边界）、3生成器 | 离线模块 / 实际MCP序列化；不冒充引擎native |
+| sysfix-policy-source-04 | PASS：20/20 | source真实原生wait、冷却拒绝、sustain、rest pending结算；11项迁移/import为引擎内真实Service数据路径 |
+| sysfix-policy-dist-01 | PASS：20/20 | 固定dist，同上；Service数据往返不等于游戏文件重载 |
+| sysfix-core-source-02 | PASS：123/123 | source真实TCP/MCP/原生动作、Ctrl-S保存、新进程加载；clear后draft为空、approved原bytes/puuid/save_name保留、运行态不入档 |
+| sysfix-core-dist-01 | PASS：123/123 | 固定dist，同上，原档/复制档哈希不变 |
+| 独立普通战役 Test | PASS：4/4 | cap1/cap3/private拒绝/clear；额外一次非必要手动wait在所有断言后，单独披露且不计入策略run，最终Review判断适用性 |
+| 独立 Review 最终接受 | PENDING | source修复已关闭，native/最终索引适用性待裁决 |
+
+早前 policy-source01（零checks启动失败）、policy-source02（8/9）、core-source01（112/113）均保持整体FAIL。另有协调者 source03 启动前fixture路径失败（零checks，未启动引擎），已修正工作区路径并由source04替代；该失败不改写为PASS。SYS-08高级编辑器、SYS-09独立发行、U-01 max_candidates仍是明确后续工作，不在本批修复声明内。
