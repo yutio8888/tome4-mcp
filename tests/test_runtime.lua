@@ -1572,4 +1572,291 @@ do
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
     Runtime.reset(g);g:display()
 end
+
+-- SYS-11/SYS-12: real line-delimited JSON -> TransportSocket decoder ->
+-- Runtime receive/dispatch. Only the TCP socket and game are doubles.
+do
+    g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+    local Json=require 'mod.mcp_bridge.Json'
+    local Transport=dofile(root..'/overload/mod/mcp_bridge/TransportSocket.lua')
+    local peer={data='',settimeout=function() return 1 end,close=function() end,
+        receive=function(self,n)
+            local value=self.data:sub(1,n);self.data=self.data:sub(n+1)
+            return nil,'timeout',value
+        end,send=function(self,data,first,last) return last end}
+    local listener={pending=peer,settimeout=function() return 1 end,setoption=function() return 1 end,
+        bind=function() return 1 end,listen=function() return 1 end,close=function() end,
+        accept=function(self) local v=self.pending;self.pending=nil;return v,'timeout' end}
+    local wire=assert(Transport.new{port=55555,socket={tcp=function() return listener end},
+        onRequest=channel.options.onRequest})
+    local function send(value)
+        local before=#channel.messages
+        peer.data=Json.encode(value)..'\n';wire:poll()
+        check(#channel.messages==before+1,'real transport dispatch produces exactly one response')
+        return channel.messages[#channel.messages]
+    end
+    local function env(op,args) return {v=4,id='wire',op=op,args=args} end
+    local baseline=observe()
+    local function unchanged(label)
+        local after=observe()
+        check(after.history.last_accepted_seq==baseline.history.last_accepted_seq
+            and after.history.next_command_id==baseline.history.next_command_id
+            and after.revision==baseline.revision and #g.queue==0 and p.energy.value==1000
+            and g.turn==1 and Runtime.autoInvocationFor(g)==nil,label..': no ledger/queue/invocation/turn change')
+    end
+    local function command(action)
+        return env('act',{session_id=hello.session_id,control_token=hello.control_token,
+            command_id='cmd-1',expected_revision=baseline.revision,action=action})
+    end
+    local internal={force_actor=false,force_grid=true,authoritative_target=true,
+        sequence=Json.array{{request='grid',kind='grid',x=3,y=2,observed={cursor_type='hit'}}}}
+    for key,value in pairs(internal) do
+        local a={type='use_talent',talent_id='T_DYNAMIC',x=3,y=2};a[key]=value
+        local response=send(command(a))
+        check(response.error and response.error.code=='unexpected_action_field' and response.error.accepted==false,
+            'public action rejects internal '..key..' before admission')
+        unchanged(key)
+    end
+    local a={type='use_talent',talent_id='T_DYNAMIC',x=3,y=2}
+    for key,value in pairs(internal) do a[key]=value end
+    check(send(command(a)).error.code=='unexpected_action_field','combined internal fields rejected')
+    for _,key in ipairs{'internal','run_id','submission_id','generation'} do
+        check(send(command({type='wait',[key]=true})).error~=nil,'caller mode/tracking field cannot enable internal mode')
+    end
+    local Actions=require 'mod.mcp_bridge.Actions'
+    local normalized=Actions.validate(a)
+    check(normalized and normalized.authoritative_target and normalized.sequence,
+        'internal carrier retains independent validation and executor fields')
+    local bad=command({type='wait'});bad.extra=true
+    check(send(bad).error.code=='invalid_request','closed envelope rejects extras')
+    bad=command({type='wait'});bad.args.extra=true
+    check(send(bad).error.code=='invalid_request','closed args reject extras')
+    for _,sections in ipairs{{}, {player=true}, {['1']='player'}, Json.array{'player','player'},
+        Json.array{'unknown'}, Json.array{Json.null}, Json.array{true}, Json.array{1}, Json.array{{}}, Json.null} do
+        local reply=send(env('observe',{session_id=hello.session_id,sections=sections}))
+        check(reply.error and reply.error.code=='invalid_sections','malformed sections never become full snapshot')
+    end
+    -- Holes/non-integral/tail keys are not representable as JSON arrays; use
+    -- the same decoded Runtime inlet directly to guard Lua callers too.
+    for _,sections in ipairs{{[1]='player',[3]='map'}, {[0]='player'}, {[1.5]='player'},
+        {[1]='player',[100]='map'}, {[1]='player',extra='map'}} do
+        check(request('observe',{session_id=hello.session_id,sections=sections}).error.code=='invalid_sections',
+            'decoded sparse/mixed array rejected before traversal')
+    end
+    unchanged('all malformed JSON/decoded inputs')
+    local selected=send(env('observe',{session_id=hello.session_id,sections=Json.array{'player'}})).result
+    check(selected and selected.player and selected.map==nil,'valid sections preserve filtering')
+    check(send(env('observe',{session_id=hello.session_id,sections=Json.array()})).result~=nil,
+        'a real empty JSON array retains existing empty-filter semantics')
+    -- Unknown op and wrong op/args shape cannot borrow another op schema.
+    check(send(env('unknown',{session_id=hello.session_id})).error~=nil,'unknown operation rejected')
+    check(send(env('stop',{session_id=hello.session_id,control_token=hello.control_token,action={type='wait'}})).error~=nil,
+        'operation-bound args reject unrelated declared fields')
+    unchanged('operation-bound schemas')
+    -- Dynamic talent remains admitted. Exact retry classifies before current
+    -- lease/revision checks and cannot enqueue a second invocation.
+    local legal=command({type='use_talent',talent_id='T_DYNAMIC',x=3,y=2})
+    check(send(legal).result.status=='queued' and #g.queue==1,'public dynamic one-shot prefill remains queued')
+    legal.args.control_token='obsolete-token'
+    check(send(legal).result.status=='queued' and #g.queue==1,'valid replay precedes lease checking and never resubmits')
+    legal.args.action.x=4
+    check(send(legal).error.code=='command_conflict' and #g.queue==1,'changed fingerprint retains conflict semantics')
+    wire:close()
+end
+
+-- SYS-04: both production surfaces persist successful policy mutations. The
+-- save-state codec and service/store are real; reset reloads the saved player.
+do
+    local Json=require 'mod.mcp_bridge.Json'
+    local function policy(id)
+        return {schema='tome-auto-combat/v1',id=id,name=id,rules={{id='wait',priority=1,
+            when={always={}},['then']={action='wait'}}}}
+    end
+    for _,surface in ipairs{'local','remote'} do
+        g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+        if surface=='local' then Runtime.reset(g);g:display() end
+        local function mutation(op,args)
+            args=args or {}
+            if surface=='local' then return Runtime.autoCombatHandle(g,op,args) end
+            args.session_id=hello.session_id;args.policy_op=op
+            local reply=request('policy',args)
+            return reply.result or {ok=false,error=reply.error}
+        end
+        local draft=mutation('set_draft',{policy=policy('persist')})
+        check(draft.draft_hash and p.auto_combat_policy.draft,surface..' set_draft saved')
+        local approved=mutation('approve',{})
+        check(approved.approved_hash and p.auto_combat_policy.approved,surface..' approve saved')
+        check(mutation('activate',{}).running_hash~=nil and p.auto_combat_policy.approved~=nil,surface..' activate saved')
+        check(mutation('deactivate',{}).active==false and p.auto_combat_policy.approved~=nil,surface..' deactivate saved')
+        local before=Json.encode(p.auto_combat_policy)
+        check(mutation('set_draft',{policy={schema='invalid'}}).error~=nil
+            and Json.encode(p.auto_combat_policy)==before,surface..' failed mutation does not save')
+        local cleared=mutation('clear',{})
+        check(cleared.cleared=='draft',surface..' clear succeeds')
+        local live=Runtime.autoCombatHandle(g,'get',{})
+        check(live.draft==nil and p.auto_combat_policy.draft==nil,
+            surface..' clear empties live and saved draft')
+        check(p.auto_combat_policy.approved~=nil,surface..' clear preserves approved policy')
+        local exported=mutation('export',{})
+        local saved_before_import=p.auto_combat_policy
+        check(exported.document and mutation('import',{document=exported.document}).policy~=nil
+            and p.auto_combat_policy~=saved_before_import and p.auto_combat_policy.draft==nil,
+            surface..' successful import follows shared save rule without inventing draft mutation')
+        local assist={format='tome-auto-combat-assistant-export/v1',
+            assistant={addon='auto_talent_assistant',addon_version={2,3,9},tome_version={1,7,4}},
+            class='celestial/anorithil',settings={min_hp_pct=35},
+            talents={{talent='T_HEALING_LIGHT',enabled=true,priority=100,emergency=true,
+                when={hp_pct={lt=50}}}}}
+        local stored=p.auto_combat_policy
+        check(mutation('import_assistant',{config=assist,store=false}).imported
+            and p.auto_combat_policy==stored,surface..' generation-only assistant import does not persist')
+        check(mutation('import_assistant',{config=assist,store=true}).stored~=nil
+            and p.auto_combat_policy.draft~=nil,surface..' stored assistant import persists')
+        check(mutation('clear',{}).cleared=='draft' and p.auto_combat_policy.draft==nil,
+            surface..' imported draft clear persists')
+        for _,key in ipairs{'socket','queue','controller','control_token','lease','arbiter','invocation'} do
+            check(p.auto_combat_policy[key]==nil,surface..' saved policy excludes runtime '..key)
+        end
+        Runtime.reset(g);g:display()
+        local reloaded=Runtime.autoCombatHandle(g,'get',{})
+        check(reloaded.draft==nil and reloaded.approved~=nil,surface..' reset/load keeps draft cleared')
+    end
+end
+
+-- SETTLEMENT-01: real Service -> runtime host -> Actions.execute -> Tracker
+-- body suspension/resume -> Runtime reap -> Service.nativeSettled. The native
+-- talent producer is the double; no executor/outcome/controller is replaced.
+do
+    local Tracker=require 'mod.mcp_bridge.InvocationTracker'
+    local Service=require 'mod.auto_combat.AutoCombatService'
+    local Compat=require 'mod.mcp_bridge.NativeCompatibility'
+    local function pendingTalent()
+        config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+        g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+        Runtime.reset(g);g:display()
+        p.attr=function() return nil end
+        local body,submissions
+        submissions=0
+        p.talents={T_HEALING_LIGHT=1}
+        p.talents_def={T_HEALING_LIGHT={id='T_HEALING_LIGHT',mode='activated',no_energy=true,
+            action=function() end,range=0,requires_target=false}}
+        p.getTarget=function() return p.x,p.y,p end
+        p.useEnergy=function(self,n)
+            local before=self.energy.value;self.energy.value=before-n
+            Runtime.recordEnergy(self,before,self.energy.value)
+        end
+        g.targetGetForPlayer=function() end;g.targetMode=function() end
+        Compat.register('turnBasedTick',function() end)
+        p.useTalent=function(self,id)
+            submissions=submissions+1
+            return Tracker.call(self,id,function()
+                body=Tracker.createBody(function()
+                    coroutine.yield()
+                    self:useEnergy(0)
+                    return true
+                end)
+                assert(coroutine.resume(body))
+            end)
+        end
+        local pl={schema='tome-auto-combat/v1',id='settlement',name='settlement',
+            limits={max_actions_per_tick=4,max_instant_per_tick=3,max_consecutive_actions=1},
+            rules={{id='heal',priority=1,when={always={}},
+                ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}}}}
+        check(Runtime.autoCombatHandle(g,'set_draft',{policy=pl}).ok,'settlement policy is schema valid')
+        check(Runtime.autoCombatHandle(g,'approve',{}).ok,'settlement policy approved')
+        check(Runtime.autoCombatHandle(g,'activate',{}).ok,'settlement policy activated')
+        Runtime.setAutoCombatExecution(g,true)
+        check(Runtime.autoCombatHandle(g,'start',{}).ok,'settlement run starts')
+        local svc=Runtime.autoCombatService(g)
+        Service.step(svc)
+        local invocation=Runtime.autoInvocationFor(g)
+        check(invocation and not invocation.done and invocation.auto_settlement,
+            'real native_pending retains the submission association')
+        check(svc.controller.pending_attempt~=nil and svc.controller:status().native_submissions==1
+            and svc.controller:status().run_actions==0,'pending counts one submission and no settled action')
+        return svc,invocation,function() assert(coroutine.resume(body)) end,function() return submissions end
+    end
+    local svc,invocation,complete,submissions=pendingTalent()
+    local token={}
+    for key,value in pairs(invocation.auto_settlement) do token[key]=value end
+    check(Runtime.autoCombatHandle(g,'pause',{}).ok,'pause preserves submitted pending')
+    check(Runtime.autoCombatHandle(g,'resume',{}).ok,'resume preserves run identity')
+    for _=1,3 do Service.step(svc) end
+    check(submissions()==1,'pause/resume and repeated pump never resubmit pending')
+    local generation=svc.controller.generation
+    complete();Runtime.reapAutoInvocationFor(g)
+    local settled=svc.controller:status()
+    check(settled.run_actions==1 and settled.effective_actions==1 and settled.instant_actions==1,
+        'same-run completion after pause/resume counts real native success once')
+    check(settled.state=='stopped' and svc.arbiter.owner=='manual'
+        and settled.generation==generation+1,'cap settlement stops/releases with exact generation delta 1')
+    Runtime.reapAutoInvocationFor(g)
+    token.status='ok';token.energy_spent=false;token.instant=true
+    Service.nativeSettled(svc,token)
+    check(svc.controller:status().run_actions==1 and svc.controller.generation==generation+1,
+        'duplicate Runtime reap and duplicate service settlement are no-ops')
+    check(Runtime.autoCombatHandle(g,'start',{}).ok,'new run can start after prior pending resolved')
+    local newrun=svc.controller:status()
+    check(newrun.run_id~=token.run_id and newrun.run_actions==0,'new start establishes a distinct run')
+    Service.nativeSettled(svc,token)
+    check(svc.controller:status().run_actions==0,'old-run late settlement cannot count in the new run')
+
+    svc,invocation,complete,submissions=pendingTalent()
+    -- The production reaper computes the mismatch from the actual final caster
+    -- cell and a retained expected landing, before it sends the final outcome.
+    invocation.postcondition_expectation={talent='T_HEALING_LIGHT',mover='self',unchanged=false,
+        before={x=p.x,y=p.y},landing={kind='deterministic',center={x=p.x+1,y=p.y}}}
+    generation=svc.controller.generation
+    complete();Runtime.reapAutoInvocationFor(g)
+    check(svc.controller:status().run_actions==1,'cap+deviation still counts the settled native action')
+    check(svc.controller.reason=='movement_postcondition_mismatch' and svc.arbiter.owner=='manual'
+        and svc.controller.generation==generation+1,
+        'cap+postcondition deviation keeps precise reason and one generation transition')
+
+    svc,invocation,complete,submissions=pendingTalent()
+    generation=svc.controller.generation
+    Runtime.abortAutoInvocationFor(g,{tick=0,ms=0,frames=0},{ticks=Runtime.AUTO_NATIVE_TIMEOUT_TICKS,
+        frames=Runtime.AUTO_NATIVE_TIMEOUT_FRAMES})
+    check(svc.controller.pending_attempt==nil and Runtime.autoInvocationFor(g)==nil,
+        'bounded timeout settles and clears the real pending submission association')
+    check(svc.controller.reason=='native_timeout' and svc.controller.generation==generation+1
+        and svc.controller:status().run_actions==0 and svc.arbiter.owner=='manual',
+        'unknown timeout preserves typed reason, does not invent success and transitions once')
+    check(Runtime.autoCombatHandle(g,'start',{}).ok,'timeout cleanup does not leave a permanently blocked next start')
+
+    -- Native activities also report through the real host/reaper. Disappearing
+    -- handles with no progress or termination signal are not successful.
+    for _,finished in ipairs{false,true} do
+        config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+        g,p,enemy,hello,request,observe,act,status,ready,reconnect=fixture()
+        Runtime.reset(g);g:display()
+        p.attr=function() return nil end
+        local calls=0
+        p.restInit=function(self) calls=calls+1;self.resting={cnt=0};return true end
+        p.restStop=function(self) self.resting=nil end
+        local pl={schema='tome-auto-combat/v1',id='activity',name='activity',
+            limits={max_consecutive_actions=1},rules={{id='rest',priority=1,when={always={}},
+                ['then']={action='rest',max_turns=3}}}}
+        check(Runtime.autoCombatHandle(g,'set_draft',{policy=pl}).ok,'native activity policy valid')
+        Runtime.autoCombatHandle(g,'approve',{});Runtime.autoCombatHandle(g,'activate',{})
+        Runtime.setAutoCombatExecution(g,true);Runtime.autoCombatHandle(g,'start',{})
+        svc=Runtime.autoCombatService(g);Service.step(svc)
+        check(calls==1 and svc.controller.pending_attempt~=nil,'real native rest enters pending once')
+        if finished then
+            p.resting.cnt=1;p.resting.rested_fully=true
+            Runtime.onRestStop(p,'complete')
+        end
+        p.resting=nil;generation=svc.controller.generation
+        g:display()
+        local ended=svc.controller:status()
+        check(ended.run_actions==(finished and 1 or 0),
+            'activity success requires progress/termination evidence, not handle disappearance')
+        check(ended.state=='stopped' and svc.arbiter.owner=='manual' and calls==1,
+            'activity settles once and releases control without reissue')
+        check(ended.generation==generation+1,'activity final outcome causes one transition')
+        g:display()
+        check(svc.controller:status().run_actions==ended.run_actions,'activity repeat reap never recounts')
+    end
+    config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
+end
 print('Runtime: '..count..' checks passed')

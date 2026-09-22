@@ -40,53 +40,10 @@
       ]
     },
     "args": {
-      "$ref": "#/$defs/Args"
+      "type": "object"
     }
   },
   "$defs": {
-    "Args": {
-      "oneOf": [
-        {
-          "$ref": "#/$defs/ConnectArgs"
-        },
-        {
-          "$ref": "#/$defs/ObserveArgs"
-        },
-        {
-          "$ref": "#/$defs/InspectArgs"
-        },
-        {
-          "$ref": "#/$defs/ListArgs"
-        },
-        {
-          "$ref": "#/$defs/ActArgs"
-        },
-        {
-          "$ref": "#/$defs/RespondArgs"
-        },
-        {
-          "$ref": "#/$defs/StatusArgs"
-        },
-        {
-          "$ref": "#/$defs/StopArgs"
-        },
-        {
-          "$ref": "#/$defs/DismissArgs"
-        },
-        {
-          "$ref": "#/$defs/AbandonArgs"
-        },
-        {
-          "$ref": "#/$defs/LevelMapArgs"
-        },
-        {
-          "$ref": "#/$defs/PolicyArgs"
-        },
-        {
-          "$ref": "#/$defs/PolicyLogArgs"
-        }
-      ]
-    },
     "ConnectArgs": {
       "type": "object",
       "additionalProperties": false,
@@ -124,7 +81,22 @@
         "sections": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "player",
+              "map",
+              "ground",
+              "actors",
+              "talents",
+              "events",
+              "dialogs",
+              "scene",
+              "effects",
+              "sustains",
+              "resources",
+              "stats",
+              "ground_effects"
+            ]
           },
           "uniqueItems": true
         },
@@ -269,10 +241,7 @@
           "$ref": "common.schema.json#/$defs/Revision"
         },
         "action": {
-          "type": "object",
-          "required": [
-            "type"
-          ]
+          "$ref": "#/$defs/Action"
         },
         "wait_ms": {
           "type": "integer",
@@ -318,10 +287,7 @@
           "$ref": "common.schema.json#/$defs/Revision"
         },
         "answer": {
-          "type": "object",
-          "required": [
-            "type"
-          ]
+          "$ref": "#/$defs/Answer"
         },
         "wait_ms": {
           "type": "integer",
@@ -407,7 +373,7 @@
           "minimum": 1
         },
         "answer": {
-          "type": "object"
+          "$ref": "#/$defs/Answer"
         },
         "include_map": {
           "type": "boolean"
@@ -571,6 +537,550 @@
           "maximum": 256
         }
       }
+    },
+    "Action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "direction"
+          ],
+          "properties": {
+            "type": {
+              "const": "move"
+            },
+            "direction": {
+              "$ref": "common.schema.json#/$defs/Direction"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "wait"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "auto_explore"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "change_level"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "rest"
+            },
+            "max_turns": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "target_id"
+          ],
+          "properties": {
+            "type": {
+              "const": "attack"
+            },
+            "target_id": {
+              "$ref": "common.schema.json#/$defs/EntityId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "talent_id"
+          ],
+          "properties": {
+            "type": {
+              "const": "use_talent"
+            },
+            "talent_id": {
+              "$ref": "common.schema.json#/$defs/TalentId"
+            },
+            "target_id": {
+              "$ref": "common.schema.json#/$defs/EntityId"
+            },
+            "x": {
+              "$ref": "common.schema.json#/$defs/Coordinate"
+            },
+            "y": {
+              "$ref": "common.schema.json#/$defs/Coordinate"
+            }
+          },
+          "oneOf": [
+            {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "target_id"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "x"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "y"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "required": [
+                "target_id"
+              ],
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "x"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "y"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "required": [
+                "x",
+                "y"
+              ],
+              "not": {
+                "required": [
+                  "target_id"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "talent_id",
+            "enabled"
+          ],
+          "properties": {
+            "type": {
+              "const": "set_sustain"
+            },
+            "talent_id": {
+              "$ref": "common.schema.json#/$defs/TalentId"
+            },
+            "enabled": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "stat"
+          ],
+          "properties": {
+            "type": {
+              "const": "spend_stat"
+            },
+            "stat": {
+              "type": "string",
+              "enum": [
+                "str",
+                "dex",
+                "mag",
+                "wil",
+                "cun",
+                "con"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "talent_id"
+          ],
+          "properties": {
+            "type": {
+              "const": "learn_talent"
+            },
+            "talent_id": {
+              "$ref": "common.schema.json#/$defs/TalentId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "talent_id"
+          ],
+          "properties": {
+            "type": {
+              "const": "unlearn_talent"
+            },
+            "talent_id": {
+              "$ref": "common.schema.json#/$defs/TalentId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "category_id"
+          ],
+          "properties": {
+            "type": {
+              "const": "learn_category"
+            },
+            "category_id": {
+              "$ref": "common.schema.json#/$defs/CategoryId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "item_id"
+          ],
+          "properties": {
+            "type": {
+              "const": "pickup"
+            },
+            "item_id": {
+              "$ref": "common.schema.json#/$defs/EntityId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "item_id"
+          ],
+          "properties": {
+            "type": {
+              "const": "equip"
+            },
+            "item_id": {
+              "$ref": "common.schema.json#/$defs/EntityId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "item_id"
+          ],
+          "properties": {
+            "type": {
+              "const": "unequip"
+            },
+            "item_id": {
+              "$ref": "common.schema.json#/$defs/EntityId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "item_id"
+          ],
+          "properties": {
+            "type": {
+              "const": "use_item"
+            },
+            "item_id": {
+              "$ref": "common.schema.json#/$defs/EntityId"
+            }
+          }
+        }
+      ]
+    },
+    "Answer": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "target_id"
+          ],
+          "properties": {
+            "type": {
+              "const": "actor"
+            },
+            "target_id": {
+              "$ref": "common.schema.json#/$defs/EntityId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "x",
+            "y"
+          ],
+          "properties": {
+            "type": {
+              "const": "position"
+            },
+            "x": {
+              "$ref": "common.schema.json#/$defs/Coordinate"
+            },
+            "y": {
+              "$ref": "common.schema.json#/$defs/Coordinate"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "direction"
+          ],
+          "properties": {
+            "type": {
+              "const": "direction"
+            },
+            "direction": {
+              "$ref": "common.schema.json#/$defs/Direction"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "option_id"
+          ],
+          "properties": {
+            "type": {
+              "const": "option"
+            },
+            "option_id": {
+              "$ref": "common.schema.json#/$defs/OptionId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "cancel"
+            }
+          }
+        }
+      ]
     }
-  }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "op": {
+          "const": "connect"
+        },
+        "args": {
+          "$ref": "#/$defs/ConnectArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "connect_observer"
+        },
+        "args": {
+          "$ref": "#/$defs/ConnectArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "observe"
+        },
+        "args": {
+          "$ref": "#/$defs/ObserveArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "inspect"
+        },
+        "args": {
+          "$ref": "#/$defs/InspectArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "list_collection"
+        },
+        "args": {
+          "$ref": "#/$defs/ListArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "act"
+        },
+        "args": {
+          "$ref": "#/$defs/ActArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "respond"
+        },
+        "args": {
+          "$ref": "#/$defs/RespondArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "status"
+        },
+        "args": {
+          "$ref": "#/$defs/StatusArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "stop"
+        },
+        "args": {
+          "$ref": "#/$defs/StopArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "dismiss"
+        },
+        "args": {
+          "$ref": "#/$defs/DismissArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "abandon"
+        },
+        "args": {
+          "$ref": "#/$defs/AbandonArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "level_map"
+        },
+        "args": {
+          "$ref": "#/$defs/LevelMapArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "policy"
+        },
+        "args": {
+          "$ref": "#/$defs/PolicyArgs"
+        }
+      }
+    },
+    {
+      "properties": {
+        "op": {
+          "const": "policy_log"
+        },
+        "args": {
+          "$ref": "#/$defs/PolicyLogArgs"
+        }
+      }
+    }
+  ]
 }
