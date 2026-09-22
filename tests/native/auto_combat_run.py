@@ -21,6 +21,17 @@ from runtime import DEFAULT_DEPS, DEFAULT_SOURCE, WORKSPACE, Runtime, sha
 ADDON = Path(os.environ["TOME_MCP_ADDON_DIR"]) if os.environ.get("TOME_MCP_ADDON_DIR") else WORKSPACE / "game/addons/tome-mcp-bridge"
 
 
+def configure_policy_only(runtime: Runtime) -> None:
+    """Use the engine's settings loader; its Lua sandbox has no os.getenv."""
+    setting = runtime.home / '.t-engine/4.0/settings/mcp-test.cfg'
+    with setting.open('a') as stream:
+        stream.write('\ntome_mcp_sysfix_policy_probe = true\n')
+    metadata_path = runtime.session / 'input.json'
+    metadata = json.loads(metadata_path.read_text())
+    metadata.update(sysfix_policy=True, sysfix_policy_setting_sha256=sha(setting))
+    metadata_path.write_text(json.dumps(metadata, indent=2))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("session", help="new name; existing results are never overwritten")
@@ -37,7 +48,7 @@ def main() -> int:
                       addon_archive=args.addon_archive.resolve() if args.addon_archive else None,
                       extra_addons={"auto-combat-probe": ADDON / "tests/native/tome-auto-combat-probe"})
     if args.policy_only:
-        runtime.env['TOME_MCP_SYSFIX_POLICY_ONLY'] = '1'
+        configure_policy_only(runtime)
     error = None
     started = time.monotonic()
     checks: list[dict] = []
@@ -57,6 +68,8 @@ def main() -> int:
             assert runtime.process.poll() is None, "Game exited before auto-combat scenarios finished"
             time.sleep(0.1)
         assert done is not None, "auto-combat scenarios did not finish"
+        if args.policy_only:
+            assert done.get("suite") == "sysfix-policy", "wrong native probe suite selected"
     except Exception:
         error = traceback.format_exc()
     finally:

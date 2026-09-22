@@ -1,5 +1,9 @@
 -- Focused SYSFIX suite uses only real native submission outcomes.
-if os.getenv('TOME_MCP_SYSFIX_POLICY_ONLY')=='1' then return require 'mod.SysfixPolicyProbe' end
+-- config.settings is populated from the isolated profile before addon load.
+-- The engine sandbox deliberately omits os.getenv.
+if config and config.settings and config.settings.tome_mcp_sysfix_policy_probe==true then
+    return require 'mod.SysfixPolicyProbe'
+end
 -- GPL-3.0-or-later. Test-only native scenario runner for the P1a auto-combat
 -- controller. It runs inside the real engine against the production Runtime
 -- host (audited reads + the real Actions.execute executor) and reports one
