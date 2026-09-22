@@ -892,9 +892,9 @@ python3 game/addons/tome-mcp-bridge/tests/native/run.py release-check-01 \
 首版仅支持 README 列出的三种技能和基本动作。特殊感知缺少可信缓存时保守省略；地形采用有限玩家视角记录，可能少报火炬照明下角色脚下的地形。失败动作可能已经消耗能量，超时必须查询原 command_id；这些是接口语义，调用方必须处理。
 
 
-## 2026-09-22 SYSFIX 系统修复候选（最终独立验收进行中）
+## 2026-09-22 SYSFIX 系统修复（独立验收通过）
 
-固定源码 `084642634b1d92dfb5e2880f43998672469798ab`；72文件 source/zip/manifest 字节一致，包 SHA256 `3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb`。旧1831b912包仅属历史候选。原生输入、输出、保存与重载日志由 `validation/2026-09-22-system-fixes/manifest.json` 索引（索引待独立复核后定稿）。
+固定源码 `084642634b1d92dfb5e2880f43998672469798ab`；72文件 source/zip/manifest 字节一致，包 SHA256 `3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb`。旧1831b912包仅属历史候选。原生输入、输出、保存与重载日志由 `validation/2026-09-22-system-fixes/manifest.json` 索引（已通过独立证据复核）。
 
 | 实际执行 | 结果 | 证据层 / 限定范围 |
 | --- | --- | --- |
@@ -904,6 +904,8 @@ python3 game/addons/tome-mcp-bridge/tests/native/run.py release-check-01 \
 | sysfix-core-source-02 | PASS：123/123 | source真实TCP/MCP/原生动作、Ctrl-S保存、新进程加载；clear后draft为空、approved原bytes/puuid/save_name保留、运行态不入档 |
 | sysfix-core-dist-01 | PASS：123/123 | 固定dist，同上，原档/复制档哈希不变 |
 | 独立普通战役 Test | PASS：4/4 | cap1/cap3/private拒绝/clear；额外一次非必要手动wait在所有断言后，单独披露且不计入策略run，最终Review判断适用性 |
-| 独立 Review 最终接受 | PENDING | source修复已关闭，native/最终索引适用性待裁决 |
+| 独立 Review 最终接受 | PASS：两位Sol/high独立裁决 | Runtime全部8个分配ID通过，evidence的SYS05/06/07通过；最终报告与hash见acceptance.json |
 
 早前 policy-source01（零checks启动失败）、policy-source02（8/9）、core-source01（112/113）均保持整体FAIL。另有协调者 source03 启动前fixture路径失败（零checks，未启动引擎），已修正工作区路径并由source04替代；该失败不改写为PASS。SYS-08高级编辑器、SYS-09独立发行、U-01 max_candidates仍是明确后续工作，不在本批修复声明内。
+
+最终接受记录：[acceptance.json](validation/2026-09-22-system-fixes/acceptance.json)。本批11个SYS项已验证；两个SYS项与U-01仍在明确TODO中。

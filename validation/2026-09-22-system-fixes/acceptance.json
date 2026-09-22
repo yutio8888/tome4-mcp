@@ -1,0 +1,73 @@
+{
+  "status": "accepted",
+  "source_commit": "084642634b1d92dfb5e2880f43998672469798ab",
+  "addon_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+  "server_py_sha256": "36f251558046efa171eb1e63a6796a04c21e76fd07c5ba170502591ace91dec9",
+  "manifest_sha256": "026b973f4cf01b03d05f466c1b2bc88937c15f073e9673c3dbdcc47105cd968e",
+  "accepted_ids": [
+    "SYS-01",
+    "SYS-02",
+    "SYS-03",
+    "SYS-04",
+    "SYS-05",
+    "SYS-06",
+    "SYS-07",
+    "SYS-10",
+    "SYS-11",
+    "SYS-12",
+    "SYS-13"
+  ],
+  "deferred": [
+    "SYS-08",
+    "SYS-09",
+    "U-01"
+  ],
+  "deferred_contract": "../../docs/tome-mcp-system-fixes-2026-09-22-todo.md",
+  "reviewers": [
+    {
+      "agent_id": "137119c2-30bc-4f4d-9a4d-7762c9163a6f",
+      "role": "Review",
+      "model": "codex/gpt-5.6-sol",
+      "thinking": "high",
+      "verdict": "ACCEPT",
+      "report": "review-runtime-final.md",
+      "sha256": "9148918c0d0992ce45f749a79fae78a80821d14dcc7a630404088fd4b9429344",
+      "closed_findings": [
+        "RUNTIME-REV-01",
+        "RUNTIME-REV-02",
+        "RUNTIME-REV-03",
+        "RUNTIME-REV-04"
+      ]
+    },
+    {
+      "agent_id": "de482ffb-434f-468a-8c18-1ff3997e90c5",
+      "role": "Review",
+      "model": "codex/gpt-5.6-sol",
+      "thinking": "high",
+      "verdict": "ACCEPT",
+      "report": "review-evidence-final.md",
+      "sha256": "7b45c7dc7393966869cdc9b55dbfeeaa6026091735d52789c410aa2c0ba5d52b",
+      "closed_findings": [
+        "EVIDENCE-REV-01",
+        "EVIDENCE-REV-02"
+      ]
+    }
+  ],
+  "independent_test": {
+    "agent_id": "4231c485-6ce6-40c5-84c5-6a096b74edb3",
+    "model": "pi/commandcode/deepseek/deepseek-v4.1-flash",
+    "thinking": "high",
+    "rows_passed": 4,
+    "rows_frozen": 4,
+    "report": "live-test-report.md",
+    "sha256": "e0e257c753d4343d3312bb10085fd4b9f39239bd9e14519a4fa0f0695043b726",
+    "deviation": "One unnecessary manual wait after all scored evidence, excluded from every policy numerator; runtime reviewer independently found it non-blocking.",
+    "cleanup": "Whole process group reaped at report creation; FIFO removed; Test agent archived."
+  },
+  "pr_heads": {
+    "27": "06f393fd603483720c8506c4f3d12bf17f443359",
+    "28": "dca36dc1ac1013e40710d8449cda41931af259b8",
+    "29": "4bc0bb206c2d1299a284efdf1e7e8a7ee2d0f7b6"
+  },
+  "scope_note": "Acceptance covers the fixed integrated product bytes and indexed observations, not all future/historical behavior. Earlier FAIL runs stay FAIL; SYS08/09/U01 remain unfinished. Merge belongs to coordinator under user instruction; Review does not supply merge authority."
+}

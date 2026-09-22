@@ -432,3 +432,5 @@ Test尚未派发；其独立序列上次B，下一A。以上不是跨模型对�
 新鲜 `[Test]` 代理 `4231c485-6ce6-40c5-84c5-6a096b74edb3` 使用 **pi/commandcode/deepseek/deepseek-v4.1-flash / high**（Test 序列上次 B，本轮 A，下次 B）。会话 `sysfix-live-01` 仅验证固定包 cap1/cap3、公开边界拒绝和 draft clear，不作完整通关或跨模型实验。Dev A/B 计数仍不变（内置执行例外）。原生 probe 由协调者执行，不能记为此 Test 代理的实机发现。
 
 Test 交付4/4 PASS；额外一次非必要手动wait发生于所有断言之后，保留为brief偏离，不计入策略动作。会话在报告创建时即回收，Test代理已归档；最终证据适用性仍由原独立 Review 裁决。
+
+最终两位Sol/high独立Reviewer均ACCEPT：Runtime8个SYS项、evidence3个SYS项；全部本轮6个审核finding关闭。独立Test4/4证据获接受，额外事后wait仍记为非阻塞brief偏差。所有原生/测试会话已回收；固定验证与报告见validation/2026-09-22-system-fixes/acceptance.json。本轮不是可比较的模型实验，不据发现数或通过数评价模型优劣。
