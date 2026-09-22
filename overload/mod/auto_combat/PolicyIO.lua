@@ -31,15 +31,22 @@ function M.import(text)
     if data.envelope~=M.ENVELOPE then return nil,{code='wrong_envelope'} end
     if data.format~=M.FORMAT then return nil,{code='unsupported_format',format=data.format} end
     if type(data.policy)~='table' then return nil,{code='missing_policy'} end
+    -- The hash is required envelope structure, not an optional integrity hint.
+    -- Reject it before preparing or migrating the untrusted policy body.
+    if type(data.hash)~='string' or #data.hash==0 then
+        return nil,{code='invalid_document',input='hash',cause='nonempty_string_required'}
+    end
     -- X-doubleprime: the decoded document is untrusted; validate it fully (the
     -- same transaction every other sink uses) BEFORE projecting a hash or
     -- comparing the envelope hash.
     local snapshot,err=Adapter.policySnapshot(data.policy,'import')
     if not snapshot then return nil,err.code=='invalid_policy' and {code='invalid_policy'} or err end
     local hash=snapshot.hash
-    if type(data.hash)=='string' and data.hash~=hash then
+    if data.hash~=hash then
         return nil,{code='hash_mismatch',expected=data.hash,actual=hash}
     end
-    return select(1,Codec.open(snapshot)),{hash=hash}
+    local migrated,migration_err,warnings=Codec.migrate(snapshot)
+    if not migrated then return nil,migration_err end
+    return select(1,Codec.open(migrated)),{hash=migrated.hash,original_hash=hash,warnings=warnings}
 end
 return M

@@ -210,7 +210,8 @@ function M.scheduling(policy,hp_pct)
         layer='emergency'
     end
     return {on_low_hp=onLowHp,on_no_enemy=onNoEnemy,on_new_enemy=onNewEnemy,low_hp=lowHp,
-        below_flee=belowFlee,layer=layer,pause_reason=pauseReason}
+        below_flee=belowFlee,layer=layer,pause_reason=pauseReason,
+        on_emergency_unavailable=mode.on_emergency_unavailable or 'release_control'}
 end
 
 -- Returns one of (every decision carries `results`, the §10 per-rule trace):
@@ -306,7 +307,7 @@ function M.evaluate(policy,ctx,opts)
         end
         return {decision='pause',reason='budget_exhausted',critical=critical,results=results,layer=layer}
     end
-    local unknownRule
+    local unknownRule,unknownEmergency
     for _,rule in ipairs(eligible) do
         -- A rule denied earlier in the same action opportunity is skipped, not
         -- retried as-is (and not mistaken for an unknown safety condition).
@@ -324,28 +325,33 @@ function M.evaluate(policy,ctx,opts)
                     direction=rule['then'].direction,
                     destination=rule['then'].destination,target_plan=rule['then'].target_plan,
                     target=target,critical=critical,emergency=rule.emergency==true,results=results,layer=layer}
-            elseif value==UNKNOWN and isSafety(rule.when) then
-                unknownRule=unknownRule or rule
+            elseif value==UNKNOWN then
+                if isSafety(rule.when) then unknownRule=unknownRule or rule end
+                if sched.layer=='emergency' then unknownEmergency=unknownEmergency or rule end
             end
         end
     end
     if sched.layer=='emergency' then
-        -- D-1 (P1, round anor-reg-01): an emergency rule that matched in this
-        -- opportunity but was refused (denied) must not park the run. A pause
-        -- here freezes the world (the player still holds full energy), so a
-        -- native cooldown would never decay and every restart would repeat the
-        -- same deny -> pause forever. Continue the same opportunity over the
-        -- remaining normal rules: falling through is ordinary policy
-        -- evaluation, not a plugin-level strategy restriction. Only when
-        -- nothing at all is applicable is the typed reason the refusal
-        -- (`action_denied`), never `no_emergency_action`.
+        -- POLICY-02: a settled native refusal may enable the author's explicit
+        -- normal fallback. Guard/planner denials and unknown conditions are not
+        -- evidence of a settled native refusal and cannot widen the rule set.
         local refusedRule
         for _,row in ipairs(results) do
             if row.emergency and row.result=='denied' then
                 refusedRule=refusedRule or row.rule
             end
         end
-        if refusedRule then
+        if unknownEmergency then
+            return {decision='pause',reason='unknown_safety',critical=true,rule=unknownEmergency.id,
+                results=results,layer=layer}
+        end
+        local settledRefusal=false
+        for _,row in ipairs(results) do
+            if row.emergency and ctx.native_denied and ctx.native_denied[row.rule] then
+                settledRefusal=true
+            end
+        end
+        if refusedRule and sched.on_emergency_unavailable=='evaluate_rules' and settledRefusal then
             local fallback={}
             for index=1,rulesCount do
                 local rule=policy.rules[index]
@@ -375,6 +381,10 @@ function M.evaluate(policy,ctx,opts)
             end
             return {decision='pause',reason='action_denied',critical=true,rule=refusedRule,
                 results=results,layer=layer,fallback=true}
+        end
+        if refusedRule then
+            return {decision='pause',reason='action_denied',critical=true,rule=refusedRule,
+                results=results,layer=layer,release_control=true}
         end
         return {decision='pause',reason=sched.below_flee and 'flee_below_hp_pct' or 'no_emergency_action',
             critical=true,rule=unknownRule and unknownRule.id,results=results,layer=layer}

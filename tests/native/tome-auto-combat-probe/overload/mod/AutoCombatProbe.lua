@@ -1,3 +1,9 @@
+-- Focused SYSFIX suite uses only real native submission outcomes.
+-- config.settings is populated from the isolated profile before addon load.
+-- The engine sandbox deliberately omits os.getenv.
+if config and config.settings and config.settings.tome_mcp_sysfix_policy_probe==true then
+    return require 'mod.SysfixPolicyProbe'
+end
 -- GPL-3.0-or-later. Test-only native scenario runner for the P1a auto-combat
 -- controller. It runs inside the real engine against the production Runtime
 -- host (audited reads + the real Actions.execute executor) and reports one
@@ -48,7 +54,6 @@ end
 M.EXPECTED={
     ['start-when-ready']={'schedule_pump'},
     ['pause-resume']={'paused','schedule_pump'},
-    ['native-pending']={'wait_native','wait_native','wait_native','acted'},
     ['critical']={'fallthrough','heal_recovered','action_denied','lease_released'},
     ['strict-resume']={'new_enemy','new_enemy'},
     ['rest-policy']={'wait_native','stopped'},
@@ -178,30 +183,8 @@ local function pauseResume()
     return compare('pause-resume',{'paused',resumed.action})
 end
 
--- 3: a native_pending result is an internal wait; never resubmit while pending.
-local function nativePending()
-    forceReady()
-    local phase='ready'
-    local calls=0
-    local pol=policy({WAIT})
-    local host,attempts=recordingHost(pol,{
-        phase=function() return phase end,
-        request=function()
-            calls=calls+1
-            if calls==1 then return {status='native_pending'} end
-            return {status='ok',code='probe_action',energy_spent=true}
-        end})
-    local c=AutoCombat.new(pol,host,{strict=false})
-    c:start()
-    local r1=c:onOpportunity()
-    phase='native_pending'
-    local r2=c:onOpportunity()
-    local r3=c:onOpportunity()
-    phase='ready'
-    local r4=c:onOpportunity()
-    check('native-pending:no-resubmit',calls==2 and #attempts==2,{calls=calls,attempts=#attempts})
-    return compare('native-pending',{r1.action,r2.action,r3.action,r4.action})
-end
+-- Native pending accounting is exercised by --policy-only's real rest
+-- lifecycle. The former synthetic-outcome scenario is intentionally retired.
 
 -- 4: below min_hp_pct only emergency rules may run. D-1 (P1, round
 -- anor-reg-01): an emergency action the native engine refuses (here: the
@@ -242,6 +225,7 @@ local function criticalState()
     -- produced no native action, so it does not consume the only slot (R-1).
     forceCooldown()
     local pol=policy({HEAL,WAIT},{max_actions_per_tick=1})
+    pol.mode={on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'}
     local host,attempts=recordingHost(pol,{phase=function() return 'ready' end,
         opportunity_id=function() return oid end,
         request=function(attempt,real_request)
@@ -370,6 +354,7 @@ local function restPolicy()
     p.restCheck=previous_check
     forceReady()
     p.life=p.max_life
+    Runtime.onFrame(game)
     local r2=c:onOpportunity()
     svc.controller=nil
     return compare('rest-policy',{r1.action,r2.action})
@@ -404,6 +389,7 @@ local function explorePolicy()
     check('explore-policy:started',r1.action=='wait_native' or r1.action=='acted',
         {action=r1.action,running=game.player.running~=nil})
     if game.player.running then game.player:runStop('probe_done') end
+    Runtime.onFrame(game)
     forceReady()
     local r2=c:onOpportunity()
     svc.controller=nil
@@ -3285,7 +3271,6 @@ local function runAll()
     local ok,err=pcall(function()
         startWhenReady()
         pauseResume()
-        nativePending()
         criticalState()
         strictResume()
         restPolicy()

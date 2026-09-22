@@ -20,6 +20,78 @@ local Details=require 'mod.mcp_bridge.ObservationDetails'
 local checks=0
 local function check(value,message) checks=checks+1;assert(value,message) end
 
+-- EVIDENCE-REV-02: an independent AGENTS checklist-B oracle for all 15 required
+-- engine fields, not the implementation's allowlist. Call the actual shared
+-- forwarder and its footprintSpec caller so a later clobber still fails.
+-- Boolean false disables defaults; numeric fire chances/ranges, exclusion
+-- tables and callable engine callbacks must retain their actual values.
+do
+    local callbackCalls=0
+    local callbackSpec={}
+    local blockPath=function(typ,x,y,highlight)
+        callbackCalls=callbackCalls+1
+        return typ==callbackSpec,x==7 and y==11,highlight==true
+    end
+    local blockRadius=function(typ,x,y)
+        callbackCalls=callbackCalls+1
+        return typ==callbackSpec and x==7 and y==11
+    end
+    local filter=function(x,y)
+        callbackCalls=callbackCalls+1
+        return x==7 and y==11
+    end
+    local cases={
+        {field='friendlyblock',values={false,true}},
+        {field='friendlyfire',values={false,true,37}},
+        {field='selffire',values={false,true,29}},
+        {field='pass_terrain',values={false,true}},
+        {field='no_restrict',values={false,true}},
+        {field='actorblock',values={false,true}},
+        {field='stop_block',values={false,true}},
+        {field='force_max_range',values={false,true}},
+        {field='min_range',values={false,0,3}},
+        {field='grid_exclude',values={false,{[7]={[11]=true}}}},
+        {field='requires_knowledge',values={false,true}},
+        {field='block_path',values={false,blockPath}},
+        {field='block_radius',values={false,blockRadius}},
+        {field='filter',values={false,filter}},
+        {field='act_exclude',values={false,{[42]=true}}},
+    }
+    check(#cases==15,'checklist B declares exactly fifteen mandatory field cases')
+    local fields,allRaised={},{}
+    for _,case in ipairs(cases) do
+        check(not fields[case.field],'checklist B field appears once: '..case.field)
+        fields[case.field]=true
+        for index,value in ipairs(case.values) do
+            local label='checklist B roundtrip '..case.field..' variant '..index
+            local raised={[case.field]=value,unregistered_field='must not escape'}
+            local spec={shape='beam'}
+            local result=Guard.copyFootprintFlags(spec,raised)
+            check(result==spec,label..' keeps the caller spec')
+            check(result[case.field]==value,label..' preserves the exact raised value')
+            check(raised[case.field]==value,label..' preserves the input value')
+            check(result.shape=='beam' and result.unregistered_field==nil,
+                label..' preserves geometry and rejects unregistered fields')
+            local measured=Guard.footprintSpec({shape='beam',range=7},
+                {x=1,y=1},{x=7,y=11},raised)
+            check(measured[case.field]==value,label..' reaches the production footprint spec')
+            check(measured.unregistered_field==nil,label..' keeps the footprint field set closed')
+        end
+        allRaised[case.field]=case.values[#case.values]
+    end
+    local combined=Guard.copyFootprintFlags({},allRaised)
+    for _,case in ipairs(cases) do
+        check(combined[case.field]==allRaised[case.field],
+            'all-fields roundtrip retains '..case.field)
+    end
+    check(callbackCalls==0,'forwarding callbacks does not execute them')
+    local block,hit,radius=combined.block_path(callbackSpec,7,11,true)
+    check(block==true and hit==true and radius==true,'forwarded block_path retains its callable result tuple')
+    check(combined.block_radius(callbackSpec,7,11)==true,'forwarded block_radius remains callable')
+    check(combined.filter(7,11)==true,'forwarded filter remains callable')
+    check(callbackCalls==3,'each forwarded real callback executes exactly once when invoked')
+end
+
 local function build(opts)
     opts=opts or {}
     local p={uid=1,x=2,y=2,life=100,max_life=100,talents=opts.talents or {},
