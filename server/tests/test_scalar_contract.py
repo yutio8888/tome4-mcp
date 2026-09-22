@@ -92,7 +92,8 @@ def boundaries(shape):
         if 'x-max-sequence' in shape:
             cap = shape['x-max-sequence']
             return ['cmd-0', 'cmd-01', 'cmd-1', f'cmd-{cap}', f'cmd-{cap+1}', 'cmd-1\n']
-        values = ['', 'x', ' ', '~', 'a:/\\#|', '\0', 'bad\nvalue', '\x1f', '\x7f', 'é', '😀']
+        values = ['', 'x', ' ', '~', 'a:/\\#|', '\0', 'bad\nvalue', '\x1f', '\x7f', 'é', '😀',
+                  'x'*128, 'x'*129]  # Both sides of the historical, invalid MCP cap.
         cap = shape.get('x-max-utf8-bytes', 256)
         values += ['x'*cap, 'x'*(cap+1), 'é'*(cap//2), 'é'*(cap//2+1),
                    '😀'*(cap//4), '😀'*(cap//4+1)]
