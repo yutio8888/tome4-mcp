@@ -136,6 +136,8 @@ function M.start()
         game.paused=true
         M.instrumentObserver()
         require('mod.MCPVisibilityProbe').run(M.emit)
+        local sysfix=require('mod.SysfixCoreProbe')
+        if sysfix.enabled() then sysfix.prepareLocalClear() end
         M.ready=true
         M.emit{kind="arena_ready", enemy_uid=enemy.uid, hidden_uid=hidden.uid, state=M.state()}
         -- Let the separate auto-combat probe run its scenarios once the arena
@@ -151,6 +153,8 @@ function M.reload()
         end
         assert(M.enemy, "Saved native enemy fixture is missing")
         if __module_extra_info.mcp_probe_interactions then require('mod.MCPInteractionProbe').attach() end
+        local sysfix=require('mod.SysfixCoreProbe')
+        if sysfix.enabled() then sysfix.verifyReload() end
         M.instrumentObserver()
         M.ready = true
         M.emit{kind="reload_ready", new_character=false, state=M.state(), player_uid=game.player.uid}
