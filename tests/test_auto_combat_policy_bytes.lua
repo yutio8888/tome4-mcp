@@ -40,12 +40,13 @@ local function fresh() return fixture('anorithil_pinned.json') end
 
 -- Pinned before/after content hash: the X-doubleprime codec is a NEW explicit
 -- encoding, but the CONTENT-HASH projection must stay byte-compatible.
-local PINNED_HASH='2836a530'
+local PINNED_HASH='ffffffffeab53b17' -- POLICY-02: explicit emergency fallback mode
 
 local function policy(overrides)
     local p={
         schema='tome-auto-combat/v1',id='p1',name='p1',
         limits={max_actions_per_tick=1},
+        mode={on_emergency_unavailable='release_control'},
         safety={min_hp_pct=35,flee_below_hp_pct=25,max_selffire_risk=0},
         targeting={default='nearest_hostile'},
         rules={{id='beam',priority=50,when={enemy_count={ge=1}},
@@ -67,6 +68,10 @@ end
 -- ===========================================================================
 do
     local original=assert(Adapter.translate(fresh()).draft)
+    local historical=assert(Adapter.translate(fresh()).draft)
+    historical.mode=nil
+    check(Codec.prepare(historical,'test').hash=='2836a530',
+        'the historical content hash projection remains stable before visible migration')
     local snapshot,err=Codec.prepare(original,'test')
     check(snapshot~=nil and err==nil,'a valid preset prepares a snapshot')
     check(type(snapshot.bytes)=='string' and snapshot.bytes:sub(1,5)=='xdp1\n',
@@ -126,6 +131,7 @@ do
     -- Every finite number round-trips exactly, including fractions/fatigue.
     local doc={schema='tome-auto-combat/v1',id='num',name='num',
         limits={max_actions_per_tick=1},
+        mode={on_emergency_unavailable='release_control'},
         safety={min_hp_pct=33.333333333333,flee_below_hp_pct=0.5,max_selffire_risk=0},
         targeting={default='nearest_hostile'},
         rules={{id='r',priority=1.5,when={hp_pct={lt=12.25}},
@@ -448,7 +454,7 @@ do
     Service.handle(svc3,'approve',{})
     Service.handle(svc3,'activate',{})
     local state=Service.saveState(svc3)
-    check(state.format==2 and state.draft~=nil and state.approved~=nil,
+    check(state.format==3 and state.draft~=nil and state.approved~=nil,
         'saveState writes detached decoded versions under the new format')
     local restored=Service.new()
     check(Service.loadState(restored,state)==true,'the saved state loads')

@@ -40,6 +40,8 @@ function M.import(text)
     if type(data.hash)=='string' and data.hash~=hash then
         return nil,{code='hash_mismatch',expected=data.hash,actual=hash}
     end
-    return select(1,Codec.open(snapshot)),{hash=hash}
+    local migrated,migration_err,warnings=Codec.migrate(snapshot)
+    if not migrated then return nil,migration_err end
+    return select(1,Codec.open(migrated)),{hash=migrated.hash,original_hash=hash,warnings=warnings}
 end
 return M

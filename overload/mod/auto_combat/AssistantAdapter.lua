@@ -352,6 +352,7 @@ function M.translate(config)
         limits={max_actions_per_tick=finite(settings.max_actions_per_tick)
             and math.floor(settings.max_actions_per_tick) or 1},
         safety=safety,
+        mode={on_low_hp='emergency_only',on_emergency_unavailable='release_control'},
         targeting={default=default_target or 'nearest_hostile'},
         sustains=sustains,
         rules=rules,

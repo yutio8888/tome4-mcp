@@ -28,6 +28,7 @@
 -- by `M.new` is the only way to reach its vault, and nothing reachable from the
 -- token references the vault.
 local Codec=require 'mod.auto_combat.PolicyCodec'
+local Json=require 'mod.mcp_bridge.Json'
 local M={}
 
 -- Module-level private vault: store token -> {draft,approved,running}. Weak
@@ -80,9 +81,26 @@ function M.restore(store,name,value,sink)
     assert(name=='draft' or name=='approved','PolicyStore.restore: unknown slot')
     local snapshot,err=prepare(value,sink or ('restore_'..name))
     if not snapshot then return nil,err end
-    vault(store)[name]=snapshot
+    local migrated,migration_err,warnings=Codec.migrate(snapshot)
+    if not migrated then return nil,migration_err end
+    if name=='approved' and #warnings>0 then
+        -- Approval certified the old implicit fallback. Retain both documents,
+        -- move its normalised replacement to draft, and require new approval.
+        local v=vault(store)
+        v.migration={reason='emergency_fallback_migration',warnings=warnings,
+            requires_reapproval=true,original_approved=Codec.copy(snapshot),
+            previous_draft=v.draft and Codec.copy(v.draft) or nil}
+        v.approved=nil; v.running=nil; store.active=false
+        v.draft=migrated
+    else
+        vault(store)[name]=migrated
+        if #warnings>0 then
+            vault(store).migration={reason='emergency_fallback_migration',warnings=warnings,
+                requires_reapproval=true,original_draft=Codec.copy(snapshot)}
+        end
+    end
     store.revision=store.revision+1
-    return copyRecord(snapshot)
+    return copyRecord(migrated),nil,warnings
 end
 
 -- The hash is always the record's DERIVED hash: every record in the vault was
@@ -104,8 +122,15 @@ function M.setDraft(store,policy,expected_hash)
     if expected_hash~=nil and current~=expected_hash then
         return nil,{code='policy_conflict',current_draft_hash=current}
     end
-    vault(store).draft=snapshot; store.revision=store.revision+1
-    return {draft_hash=snapshot.hash,revision=store.revision}
+    local migrated,migration_err,warnings=Codec.migrate(snapshot)
+    if not migrated then return nil,migration_err end
+    vault(store).draft=migrated; store.revision=store.revision+1
+    if #warnings>0 then
+        vault(store).migration={reason='emergency_fallback_migration',warnings=warnings,
+            requires_reapproval=true,original_draft=Codec.copy(snapshot)}
+    end
+    return {draft_hash=migrated.hash,revision=store.revision,warnings=warnings,
+        migrated=#warnings>0 or nil}
 end
 
 -- Approving certifies a specific snapshot. Certification is not control.
@@ -121,6 +146,7 @@ function M.approve(store,expected_hash)
     local approved,err=Codec.normalise(draft)
     if not approved then return nil,err end
     vault(store).approved=approved; store.revision=store.revision+1
+    if vault(store).migration then vault(store).migration.requires_reapproval=false end
     return {approved_hash=approved.hash,revision=store.revision}
 end
 
@@ -148,6 +174,18 @@ function M.clearDraft(store)
     return true
 end
 
+function M.migration(store)
+    local value=vault(store).migration
+    return value and Json.decode(Json.encode(value)) or nil
+end
+
+function M.restoreMigration(store,value)
+    if type(value)~='table' or Codec.audit(value,'migration') then return false end
+    -- Only descriptive user data; no executable policy/approval authority.
+    vault(store).migration=Json.decode(Json.encode(value))
+    return true
+end
+
 function M.hashes(store)
     return {draft=hashOf(store,'draft'),approved=hashOf(store,'approved'),running=hashOf(store,'running')}
 end
@@ -159,7 +197,8 @@ function M.status(store)
     local hashes=M.hashes(store)
     return {active=store.active,revision=store.revision,
         draft_hash=hashes.draft,approved_hash=hashes.approved,running_hash=hashes.running,
-        draft_id=idOf(store,'draft'),approved_id=idOf(store,'approved'),running_id=idOf(store,'running')}
+        draft_id=idOf(store,'draft'),approved_id=idOf(store,'approved'),running_id=idOf(store,'running'),
+        migration=M.migration(store)}
 end
 
 -- The running policy id, via the public API only (never the private record).
