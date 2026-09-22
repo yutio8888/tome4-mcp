@@ -17,7 +17,7 @@
 | SYS-11 | public act接受internal字段 | core Dev | ASSIGNED | onRequest/JSON生产边界未受理/未排队、合法internal回归 |
 | SYS-12 | 入站闭合/数组校验 | core Dev | ASSIGNED | schema与实际解码一致、精确无动作副作用 |
 | SYS-13 | dismiss错误示例 | core Dev | ASSIGNED | 工具描述示例通过实际Pydantic/interaction契约 |
-| U-01 | max_candidates消费未定 | policy Dev取证，协调者定稿 | INVESTIGATE | 候选定义/消费点/完整footprint，禁止无证结论 |
+| U-01 | max_candidates消费未定 | policy Dev取证，协调者定稿 | REPRODUCED / DEFERRED | 已复现未消费；本批不任意截断，后续语义与owner见同日期todo文档；不得称已修 |
 
 所有 ASSIGNED/PLANNED 均不等于 fixed_verified。下一门禁：三位Dev交付分支、单测与报告→协调者核对ledger→固定包/probe→独立Test与fresh Review→整改复核→PR/合并。尚未派发的角色在实际派发时记录精确ID。
 
@@ -33,3 +33,5 @@
 | `/root/fix_tooling` | Dev | `fix/sysrev-tooling-20260922` | SYS-05/06 |
 
 实际模型均为内置 `gpt-6-astra` / xhigh（继承主代理，无覆盖；主代理实际运行模型已通过Paseo状态核对）。禁止Dev自行启动游戏或重建dist；source/dist原生验证和会话生命周期由协调者接手。Review将使用新的Sol/high上下文。
+
+SYS-08/09 和 U-01 的具体未完成项、依赖、owner 与后续触发条件见 `tome-mcp-system-fixes-2026-09-22-todo.md`。这些项尚未验收，首批不得宣称“全量修复完成”。
