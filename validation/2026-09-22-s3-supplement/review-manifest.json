@@ -1,0 +1,240 @@
+{
+  "schema_version": 2,
+  "candidate_id": "S3-SUPPLEMENT-INDEPENDENT-REVIEW-20260922",
+  "code_baseline": "4ca3caf923c1b2bb2a35773d22aa339b297075e6",
+  "candidate_commit": "440a5a7f1c4bba27accb076b9f7235d23838c0f4",
+  "notes": "Own-finding recheck by original independent Sol; immutable earlier Review retained separately.",
+  "raw_sources": [
+    {
+      "path": "/workspace/t-engine4/game/addons/tome-mcp-bridge/validation/2026-09-22-s3-live/manifest-v2.json",
+      "sha256": "255c070d0993285422177d814d493bb60edbd17174ea21eeb182eb67fcf35774",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/game/addons/tome-mcp-bridge/validation/2026-09-22-s3-live/manifest.json",
+      "sha256": "d6f9e701fbfa89e7b5797ffb390b73a54b0fe396771950a621d7f6166b74cdb9",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/game/addons/tome-mcp-bridge/validation/2026-09-22-s3-live/review-manifest.json",
+      "sha256": "11118b5376429f495ad9c2cf4db490660c1df51f69b4968b0c23f95d3dd1b144",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/game/addons/tome-mcp-bridge/validation/2026-09-22-s3-supplement/manifest.json",
+      "sha256": "6a098fa640cd8ff5ba38c0a4a204aeff9e4725348350318dafe0d5b30ddd4912",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/archive-parity.json",
+      "sha256": "b0913a2532c6274d8e7a4dac0ff0df2d9e7b3bbf04129e203888fe5adb4b5e50",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/dispatch-envelope.txt",
+      "sha256": "b56d777a2f1a62bae52cd67e8daf2e5e62b8cdf2ef5ead0b2f1f11bcc1b6d5b4",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/dispatch-send-output.json",
+      "sha256": "de74212aec4f3b1a1e5e74c8ee0fe39c259b3742d514146a67702d8948111b5b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/dispatch-send-stderr.txt",
+      "sha256": "b275990c7ffe6950ff219ee5dc7415a8c803bf25eb3749e29f57b4ad8572e5a7",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/dispatch-supplement-envelope.txt",
+      "sha256": "de59f3ec3775274f5ca14238c78d77d8f50af36691fb38ca9bf095a297d8b001",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/dispatch-supplement-send-output.json",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/dispatch-supplement-send-stderr.txt",
+      "sha256": "f71831d23f21b32979f8469a218a3f5b25735e4d04c238021bfd6c2ca064c76a",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/final-identity-status.txt",
+      "sha256": "9bca84635f346e71322b4fb916c2cfd305d4ead914ff747c23ba8d9aa0f7d828",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/focused-observer-test-output.txt",
+      "sha256": "bd65a5548e62466252cf13faa2b8e00cf1b9bbff0dcb919c8ddfbc81bd5e7730",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/frozen-full-suite-excerpts.txt",
+      "sha256": "fd8500af3796ee488329f412cccda89e75f481934f3988119cb8eadf4a7c682e",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/game-log-load-lines.txt",
+      "sha256": "f42e9723355354b8f17dfdeb6b1318107302cedf7451105ecfc154c7b84322fc",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/git-diff-output.txt",
+      "sha256": "83ddf9a081ab7762d8a7b3516b1686429540fdfa0ad5c4de4049b8d3f34bf48b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/identity-and-v2-output.txt",
+      "sha256": "5eb2cc937fe270249b68df73807599dbb51c6e4b94b0d32772968a30c6fb19c2",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/key-hashes.txt",
+      "sha256": "7d6a008eb7a658020b4903e0b3596ab14d1adc3d4fde97a0cc83df7734504e12",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/manifest-verifier-output.txt",
+      "sha256": "08d97cb191cf111482f82bba47fc791a115069260f69133cc031275dec48be72",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/raw-hash-table.md",
+      "sha256": "701f9d639760f98b71d78f50504924e05d0d5f1a6b5d0cc17df0b167ad93ddd2",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/recheck-command-output.txt",
+      "sha256": "22df42071d8643b78e7f557ba3f081caf5b38c1bee8e6238b5f3932d49d4c8bd",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/recompute_evidence.py",
+      "sha256": "64ea0a3281ef04b79366a105cb5a2980452177e376d43673e5510df319629292",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/recompute_supplement.py",
+      "sha256": "07114174df0a9b3b6d7c3576953eecf8111bb2e12d59e7bae72ed8a53af627f8",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/recomputed-evidence.json",
+      "sha256": "7884db35cc4f170abf5c214feb5ef5e804e37e1ba43c5d4358703271c4f3bf9a",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/report-corrected.md",
+      "sha256": "bd35da2e2d0cb084c9e4dcc9237d36512ea7001290f4d00a077c1bc19f38d7e7",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/report-hashes.txt",
+      "sha256": "ed3b2f1ba7d9ef523f2ec19b4f7e7e2e6e107cf0e72113b1db6e955e402dc6d4",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/report-initial-unverified.md",
+      "sha256": "367c618a37e8831e921d2361c1c8ab64cf9e6f2b34e61fb5619a15373f4814ce",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/report-supplement-final.md",
+      "sha256": "e2e09fb6507006b9ad76fdf6a3478633a233a9aca36c7ee6b056f239600d3280",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/report-supplement-final.sha256",
+      "sha256": "cadd3b5e7c4e254262fffa3302289d7d6076adf41ae731ab7f4cde52e0c91967",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/report.md",
+      "sha256": "bd35da2e2d0cb084c9e4dcc9237d36512ea7001290f4d00a077c1bc19f38d7e7",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/runtime-source-comparison.txt",
+      "sha256": "df3ce085b4a254831d44ede18ae813271cc602458637a24085e930fd8fc0fe23",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/source-excerpts.txt",
+      "sha256": "a7b5b8a2ab86d2867e6b43b3ea524d27a3bb3cfb6f6162f6615a754186884f2c",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/supplement-driver-comparison.txt",
+      "sha256": "a7d840420013a5a12482822a0bccf3a47dc72e60607c785e88c44bca150ae707",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/supplement-helper-diff.txt",
+      "sha256": "efa528db892f6b11ec524a61a0dd1521288ce34695b11097c6ea7527e5a5bbfd",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/supplement-identity-hashes.txt",
+      "sha256": "b73151f63111e438081b87870559e3c4d262f9596350f8d1e052a051f33c00d2",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/supplement-manifest-verification.txt",
+      "sha256": "77adebc7033fdb21619d363d296494fba340cd7b0d123f4d7cd484e87906b967",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/supplement-recomputed-evidence.json",
+      "sha256": "b328fec7b890c017bfb54835baf91a89ad9e2a9bed26908323dc27472a6455f1",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/supplement-source-line-excerpts.txt",
+      "sha256": "1dd71116f95eba67779fcc3f7c741381ddd26dc8248290e879c75e36b3aedc34",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/review-final-complete/transcript-digest.txt",
+      "sha256": "a33e551ca45149d4a4e33584d03368af452bc07d33aa1d99d4415af3dbdd3af3",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/integration-pin.json",
+      "sha256": "e5080855ce59e9e4cd57acc90a35a6e77511fc3f745818516adf8b1f3da956a3",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/review-brief.md",
+      "sha256": "160fd88613427cd8c0e7542d960c29a37c35d4428e1e7510aafe4db059573056",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/review-dispatch-output.json",
+      "sha256": "473a4d35a1b52566fbcddbe8b950767c216657bffd799bbe48b5daf198340ee7",
+      "base": "absolute"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "review-final.md",
+      "sha256": "e2e09fb6507006b9ad76fdf6a3478633a233a9aca36c7ee6b056f239600d3280"
+    },
+    {
+      "path": "acceptance.json",
+      "sha256": "1a8429cb1fc3e1f22c9dcb1d1960a1d0243c89871a876a208dfec2f99e13137e"
+    }
+  ],
+  "gates": [
+    {
+      "id": "S3-INDEPENDENT-ACCEPTANCE",
+      "status": "passed",
+      "evidence": [
+        "review-final.md",
+        "acceptance.json"
+      ],
+      "note": "Original five established rows plus separately frozen two-row supplement; original six-row metrics not rewritten."
+    }
+  ]
+}

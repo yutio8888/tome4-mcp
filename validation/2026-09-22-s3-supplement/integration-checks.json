@@ -1,0 +1,24 @@
+{
+  "utc": "2026-09-22T11:58:55.357681+00:00",
+  "integration_head": "1fdc23f36013d39c535a45800ffa9e562ef03ffc",
+  "reviewed_helper_head": "440a5a7f1c4bba27accb076b9f7235d23838c0f4",
+  "helper_file_count": 7,
+  "helper_sha256": {
+    "docs/tome-mcp-0.9.0-s3-evidence-harness.md": "45d83fd9417902fd87891eb7063e0e12f13498aa88188bb3d63427f512db3976",
+    "harness/console/agent-play.py": "990fea45a2e600288ea1351f8c63e54886e8864839af5ba36943d533c419709b",
+    "tests/native/tome-s3-observer/hooks/load.lua": "02bda777406466484085ded4d0cdf468f9e200148e6178aabdc7a1ed3ddb19a1",
+    "tests/native/tome-s3-observer/init.lua": "980c4e869396d23949f5372ec6274ff3c5f541e658a2048b94b70bec1cdc11a5",
+    "tests/native/tome-s3-observer/overload/mod/S3NativeTrace.lua": "df6bc20ab017f3d92481e61fc62d02ec47e34adbfc2cd30ffe2ca2fb22275484",
+    "tests/run.sh": "30da8dd08455e54c3b700820678d86f826393dbe34d1a94d920d90c248079a13",
+    "tests/test_s3_native_trace.lua": "9dce9019bce247a820eb305b64c24ea6320c7948b00776a4bdf22597be399901"
+  },
+  "product_members_byte_identical": 72,
+  "product_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+  "preexisting_untracked_preserved": true,
+  "pr32_merge": {
+    "sha": "1fdc23f36013d39c535a45800ffa9e562ef03ffc",
+    "merged": true,
+    "message": "Pull Request successfully merged"
+  },
+  "scope": "Post-PR32 integration byte verification; final coordinator docs only are uncommitted at this checkpoint. No product rebuild required."
+}

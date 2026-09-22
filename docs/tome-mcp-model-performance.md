@@ -436,12 +436,12 @@ Test 交付4/4 PASS；额外一次非必要手动wait发生于所有断言之后
 最终两位Sol/high独立Reviewer均ACCEPT：Runtime8个SYS项、evidence3个SYS项；全部本轮6个审核finding关闭。独立Test4/4证据获接受，额外事后wait仍记为非阻塞brief偏差。所有原生/测试会话已回收；固定验证与报告见validation/2026-09-22-system-fixes/acceptance.json。本轮不是可比较的模型实验，不据发现数或通过数评价模型优劣。
 
 
-## Loop: S3 独立专项训练场实测（2026-09-22，进行中）
+## Loop: S3 独立专项训练场实测（2026-09-22，已验收）
 
 - [Test] 全新 Paseo `d7d01859-3d65-41d9-a8ae-7c21d30eb0f5`：**B** `pi/opencode-go/glm-5.3-flash`，thinking **high**。
   Test 序列上一轮为 SYSFIX 的 A，本轮 B，下一轮 A；profile 中 max 被项目指定 high 覆盖。
 - [Dev] N/A：本轮不修改产品代码，协调者只准备隔离出生/训练场夹具与文档；Dev 轮换不推进，下一独立 Dev=A。
-- [Review] 待派发全新 Sol/high；目前没有独立验收结论。
+- [Review] 初始派发全新 Sol/high，后续复核其自身 finding；最终结论见本节末尾。
 - 固定产品包 `3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb`，72 成员与
   `main@8e3c219` 产品字节一致。代码/文档基线 `fdd741c1c47aa65be7ecc329a06a52a8d647482f`。
 - 本轮专测 Shadowblade 训练场中的 Shadowstep、Giant Leap、敏捷 Vault 及相关控制/只读行为；
@@ -485,3 +485,9 @@ Test `522fef2b-f4c1-4931-9ef2-2a21503f4d92` 为全新独立上下文，实际配
 实际两次请求/答案均一致；非行为性报告笔误另存勘误，原文保留。
 会话已回收、Test 及临时工程已归档；结果待原 Sol 对自身 `REV-S3-01` 独立复核。
 这一补证与首轮任务规模不同，不构成 A/B 模型对比。
+
+最终原 Sol/high Reviewer `302ada78-e664-4298-b53b-5c1243821a99` 复核自身问题后给出 **ACCEPT**，
+`REV-S3-01/02/03` 均关闭，无开放 P0–P3；独立复算原生双请求、结果/效果、四次 compact/raw 和
+工件来源，另行重跑 68 项观察器机制检查通过。首轮 5/6 与补证 2/2 分别保留，不改写原指标。
+终审报告 SHA256 `e2e09fb6507006b9ad76fdf6a3478633a233a9aca36c7ee6b056f239600d3280`。
+Dev/Test/Review 代理与临时 Paseo 工作区、工程已归档，原生会话已回收；下一 Dev=B、下一 Test=B。

@@ -19,6 +19,28 @@
 > `docs/tome-mcp-auto-combat-plugin-design.md` §8.3（及 §0.1/§1.2/§5.3/§5.4）。下方各节在相关处已加
 > **局部 supersession 注解**；未加注解的普通功能/协议验收仍有效。
 
+## 0.9.0：S3 独立实机验收闭合（2026-09-22）
+
+独立 Sol 终审 **ACCEPT**，`REV-S3-01/02/03` 全部关闭，开放 P0–P3 为零。
+固定产品包 SHA256 `3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb`，
+72 个产品成员与原基线一致；本轮只修复控制台摘要并加入独立测试观察器，未重建产品包。
+
+| 证据范围 | 结果 | 直接观察 |
+| --- | --- | --- |
+| 首轮 S3 六行 | 历史 5/6 保留 | 只读计划、Shadowstep、Giant Leap、无盾原生拒绝、ARMED 手动接管已建立；原 Vault 请求子项仍为 NOT_OBSERVED |
+| 独立补证 compact | PASS | 四次实际 compact/raw `auto_combat` 一致，保留 false/0/空数组 |
+| 独立补证 Vault | PASS | 一次原生调用、恰好两次有序请求/答案；第二次 `nolock_present=true,nolock=true`，角色 `(8,5)` UID15424 → 网格 `(7,4)`；实际伤害/晕眩/落点与一次提交/有效/run 行动对应 |
+
+补证单独冻结 **2/2**：22 次包装器调用，3 次原生准备操作，1 次评分 start、0 重试。
+完整 `bash tests/run.sh` 通过；独立 Review 另跑观察器机制 68 项通过。
+source/dist 产品新 probe 为 N/A（产品代码未变），本轮真实归档产品的 Test 证据单独保存，未以单测替代。
+训练场赠送技能/资源/盾牌且假人静止，验收范围不包括普通战役或自然成长；S4 仍待实施。
+
+原始数据、版本化勘误、终审及完整来源见
+[验收记录](validation/2026-09-22-s3-supplement/acceptance.json)、
+[终审报告](validation/2026-09-22-s3-supplement/review-final.md) 和同目录 review-manifest.json。
+旧报告、失败尝试及首轮指标保持原样；原生会话已回收，临时代理及 Paseo 工作区已归档。
+
 ## 0.9.0：S3 movement/effect composition —— Arm 2（Designer 方案实现，`feat/s3-arm2`，off `main@3dcc683`，dev 待评审）
 
 日期：2026-09-18。Role `[Dev]`（**Arm 2**，model B, rotation；配对实验：`[Designer]` 先出绑定方案

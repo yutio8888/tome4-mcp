@@ -1,0 +1,67 @@
+{
+  "id": "S3-ACCEPTANCE-20260922",
+  "utc": "2026-09-22T11:54:39.426605+00:00",
+  "recommendation": "ACCEPT",
+  "scope": "S3 independent training-fixture gameplay acceptance and associated test helper repair",
+  "reviewer": "302ada78-e664-4298-b53b-5c1243821a99",
+  "review_model": "pi/openai-codex/gpt-5.6-sol/high",
+  "review_report_sha256": "e2e09fb6507006b9ad76fdf6a3478633a233a9aca36c7ee6b056f239600d3280",
+  "coordinator_reviewed_head": "4ca3caf923c1b2bb2a35773d22aa339b297075e6",
+  "helper_reviewed_head": "440a5a7f1c4bba27accb076b9f7235d23838c0f4",
+  "product_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+  "open_findings": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0
+  },
+  "closed_review_findings": [
+    "REV-S3-01",
+    "REV-S3-02",
+    "REV-S3-03"
+  ],
+  "accepted_helper_ids": [
+    "HARN-01",
+    "TRACE-01..04",
+    "COORD-HARN-01..04",
+    "DOC-HARN-01..05",
+    "SUP-DOC-01..05"
+  ],
+  "historical_original": {
+    "supported": 5,
+    "denominator": 6,
+    "vault_request_subclause": "NOT_OBSERVED in original run; never rewritten",
+    "review_report": "../2026-09-22-s3-live/review-corrected.md"
+  },
+  "supplement": {
+    "supported": 2,
+    "denominator": 2,
+    "rows": [
+      "S3-SUP-COMPACT",
+      "S3-SUP-VAULT"
+    ],
+    "wrapper_calls": 22,
+    "test_mcp_records": 28,
+    "startup_mcp_records": 2,
+    "setup_native_actions": 3,
+    "scored_vault_starts": 1,
+    "retries": 0
+  },
+  "acceptance_basis": "Original five supported behaviors plus direct separately frozen Vault native request/effect evidence establish all required S3 behaviors; denominator histories kept separate.",
+  "validation": {
+    "full_suite": "bash tests/run.sh exit0, frozen log9eb4f4cceb008a5c937a97b2677ec60235614b96ed2f765ed2b89c6f0a0a260d",
+    "review_focused_observer_checks": 68,
+    "product_members_unchanged": 72,
+    "new_product_source_dist_probe": "N/A: product and server unchanged; separate observer actual archived-product Test provided",
+    "manifests_before_final": 4
+  },
+  "next_stage": "S4 Dimensional Step two-actor swap; separate implementation/review scope",
+  "excluded": [
+    "ordinary campaign acceptance",
+    "S4 implementation",
+    "SYS08",
+    "SYS09",
+    "U01"
+  ],
+  "lifecycle": "Test sessions reaped and Test identities/workspaces archived; coordinator finishes merge and Dev/Review archival separately."
+}

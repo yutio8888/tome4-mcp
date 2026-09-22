@@ -1,0 +1,29 @@
+{
+  "utc": "2026-09-22T11:58:55.358338+00:00",
+  "sessions": {
+    "s3-live-01": "reaped before original Test scoring",
+    "s3-live-02": "reaped on original report",
+    "s3-supplement-01": "reaped on supplemental report; no FIFO or native process remains"
+  },
+  "test_agents_archived": [
+    "d7d01859-3d65-41d9-a8ae-7c21d30eb0f5",
+    "522fef2b-f4c1-4931-9ef2-2a21503f4d92"
+  ],
+  "dev_agent_archived": "4791e304-4f35-47ec-8a81-b8f9d745a6bb",
+  "review_agent_archived": "302ada78-e664-4298-b53b-5c1243821a99",
+  "supplemental_workspaces_archived": [
+    "wks_6c0144f7cceb562a",
+    "wks_20ebe3cc722101b9",
+    "wks_b28797318666f02f"
+  ],
+  "supplemental_projects_registry_removed": [
+    "prj_c77904e4cde62a34",
+    "prj_ebe32f9cbd739f02",
+    "prj_d67b636f6cc404b2"
+  ],
+  "source_and_raw_directories": "retained to keep frozen evidence pins retrievable",
+  "reap_log": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/reap.log",
+  "reap_log_sha256": "de20eb97123619f9c0e299d304de9ea8aee3e343d28c7bbe7534c6bf4c16728d",
+  "archival_tool_output": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/final-archival-output.json",
+  "archival_tool_output_sha256": "d8f83ed4f3b192f7ff9036358c47bc207bc24b503fd15904166d20bd0b07c9f2"
+}
