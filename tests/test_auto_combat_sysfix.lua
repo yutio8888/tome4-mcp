@@ -277,6 +277,32 @@ do
     eq(svc.controller.actions,1,'new run body independently settles')
 end
 
+-- NATIVE-PENDING-01: after settlement releases the lease, another scheduler or
+-- explicit step must not reinterpret the terminal run as a control-loss event.
+-- The native outcome is a unit double; the source/dist probe covers the engine.
+for _,pending in ipairs{false,true} do
+    local h=host()
+    if pending then h.outcome={status='native_pending',energy_spent=true} end
+    local p=policy{max_consecutive_actions=1}
+    p.rules={rule('rest',false,{action='rest',max_turns=2})}
+    local svc=service(p,h)
+    local controller=svc.controller
+    local generation=controller.generation
+    Service.step(svc)
+    if pending then settle(svc,h) end
+    terminal(svc,'max_consecutive_actions',generation,1,h)
+    local status=Json.encode(Service.status(svc))
+    local log=Json.encode(Service.log(svc,32))
+    for _=1,3 do
+        local stepped=Service.step(svc)
+        eq(svc.controller,controller,'a terminal step retains the same settled controller')
+        check(not stepped.ok and stepped.error.code=='not_running','terminal step reports not_running')
+        eq(Json.encode(Service.status(svc)),status,'terminal step preserves reason, counters, generation and lease')
+        eq(Json.encode(Service.log(svc,32)),log,'terminal step emits no control_lost or duplicate stop')
+        eq(#h.requests,1,'terminal step never resubmits native work')
+    end
+end
+
 -- Settlement while paused without hitting a cap permits resume and retains the
 -- same opportunity budget; new ready identity alone resets that budget.
 do
