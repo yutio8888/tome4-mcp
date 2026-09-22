@@ -23,6 +23,7 @@ function M.prepareLocalClear()
     local function policy(id)
         return {schema='tome-auto-combat/v1',id=id,name=id,
             rules={{id='wait',priority=1,when={always={}},['then']={action='wait'}}}}
+    end
     assert(Runtime.autoCombatHandle(game,'set_draft',{policy=policy('sysfix-approved')}).ok)
     assert(Runtime.autoCombatHandle(game,'approve',{}).ok)
     assert(Runtime.autoCombatHandle(game,'set_draft',{policy=policy('sysfix-clear-me')}).ok)
