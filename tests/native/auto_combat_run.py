@@ -29,11 +29,15 @@ def main() -> int:
     parser.add_argument("--addon-archive", type=Path,
                         help="load the production addon from this .teaa instead of the source directory")
     parser.add_argument("--timeout", type=float, default=120.0)
+    parser.add_argument('--policy-only', action='store_true',
+                        help='run SYSFIX policy cases with real native submission outcomes only')
     args = parser.parse_args()
 
     runtime = Runtime(args.session, args.source.resolve(), args.deps.resolve(),
                       addon_archive=args.addon_archive.resolve() if args.addon_archive else None,
                       extra_addons={"auto-combat-probe": ADDON / "tests/native/tome-auto-combat-probe"})
+    if args.policy_only:
+        runtime.env['TOME_MCP_SYSFIX_POLICY_ONLY'] = '1'
     error = None
     started = time.monotonic()
     checks: list[dict] = []
@@ -63,6 +67,14 @@ def main() -> int:
               and "Lua Error:" not in content and "[COROUTINE] error" not in content)
     result = {
         "passed": passed,
+        "suite": "sysfix-policy" if args.policy_only else "auto-combat",
+        "probe_sha256": sha(ADDON / 'tests/native/tome-auto-combat-probe/overload/mod/SysfixPolicyProbe.lua')
+            if args.policy_only else sha(ADDON / 'tests/native/tome-auto-combat-probe/overload/mod/AutoCombatProbe.lua'),
+        "source_module_sha256": {str(p.relative_to(ADDON)): sha(p)
+                                 for p in sorted((ADDON / 'overload/mod/auto_combat').rglob('*.lua'))}
+            if not args.addon_archive else None,
+        "addon_load_mode": "dist" if args.addon_archive else "source",
+        "addon_archive_sha256": sha(args.addon_archive) if args.addon_archive else None,
         "elapsed_seconds": time.monotonic() - started,
         "error": error,
         "done": done,

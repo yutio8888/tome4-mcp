@@ -142,7 +142,7 @@ flowchart LR
   5. instant 技能通过下一次 pump 继续，受每 tick 上限约束。
 - **owner 互斥**：当 `auto_combat` 是 owner 时，不应存在远程 command；若存在视为仲裁错误并 pause（不让两个 tracker 叠加）。
 
-### 4.1 执行契约（v1.2 冻结，必须实现）
+### 4.1 执行契约（POLICY-01@1.1 / POLICY-03@1 / SETTLEMENT-01@1，2026-09-22）
 - **启动/恢复先检查边界**：`start`/`resume` 若当前已处于可接受动作的 ready 边界，**直接安排 pump**；
   否则才等下一次 ready 通知。不得出现“按下启动却没有任何动作”。
 - **动作机会与状态版本分离**：瞬发不消耗行动机会，但会改变资源/状态/技能可用性；同一行动机会内，
@@ -153,19 +153,31 @@ flowchart LR
   （可与 owner epoch 合并）；所有排队决策回调执行前比对代际，过期即丢弃。
 - **“清队列”只清插件尚未提交的决策**，不等同于撤销已进入原生的技能回调/协程；已提交的原生动作
   继续跟踪到可判定边界，暂停只停止后续自动提交。
-- **动作结果 → 预算 → 下一状态（冻结）**：
+- **有效动作预算与提交预算分开**（取代本节旧的“所有真实调用尝试都计入 max_actions_per_tick”）：
 
-  | 结果 | 预算 | 下一步 |
-  | --- | --- | --- |
-  | 执行前明确拒绝且未耗能（冷却/点数/射程） | 计入尝试 | 当前行动机会内**不得原样重试**；能确认状态未变且无原生待完成调用时可改试其他规则，否则暂停 |
-  | `native_pending` | 计入尝试 | 内部等待，不再提交；到安全边界重新评估 |
-  | 成功 | 计入尝试 | 重取状态；同一行动机会内继续（受预算） |
-  | 异常/不可判定 | 计入尝试 | 停止并解释，不自动重试 |
+  | 结果 | native_submissions | effective_actions / run_actions | 下一步 |
+  | --- | --- | --- | --- |
+  | planner/guard 执行前拒绝 | 不增加 | 不增加 | 本机会 deny，不扩大 emergency 调度集合 |
+  | 实际 host.request 返回 settled reject，未耗能 | 增加一次 | 不增加 | 本机会不得原样重试；只有显式策略允许才普通 fallback |
+  | native_pending 初次提交 | 增加一次 | 暂不增加 | 追踪同一原生调用，不重发；最终结果只结算一次 |
+  | settled status=ok 或 energy_spent=true | 提交时已计 | 两条件合计一次 | 重取状态；到 run cap 后 stop/release |
+  | 异常/不可判定 | 提交时已计 | 已知耗能才计一次 | 解释原因，不自动重试 |
 
-  - **所有真实调用尝试都计入**有界预算（不只数成功动作）。
-  - **瞬发预算以一个行动机会为单位**：显示帧、瞬发后重取快照都不重置；只有确认进入下一行动机会才重置。
-    到顶后固定选一种：停止瞬发并处理后续耗能动作，或暂停并说明。
-  - 危急状态下**预算耗尽不得成为跳过自保门禁、改放普通输出的理由**。
+  - `limits.max_actions_per_tick` 的历史字段名保留；它实际约束**每个真实 action opportunity 的有效动作数**，缺省 1。
+    `status.run.effective_actions` 为该计数；旧 `attempts` 是它的兼容别名，不再表示全部原生调用。
+  - 内部 `MAX_NATIVE_SUBMISSIONS_PER_OPPORTUNITY=32` 约束所有真实 `host.request`（包括拒绝、错误、pending 初次提交）。
+    同一机会跨 pump、显示帧、重新快照、pause/resume、显式 stop/start 均累计；只有 host 的真实 opportunity identity 改变才归零。
+    到顶不再提交；第 32 次如仍 pending，先追踪到最终可判定边界，再 `stop(native_submission_limit)` 并释放 lease。
+    每步最多 8 次 rule-loop 的现有计算界保留，不能代替跨 pump 的提交界。
+  - `instant_actions` 仅在有效动作且 `instant=true` 时增加。它与有效动作计数相互独立，同样仅由新真实机会刷新。
+  - `limits.max_consecutive_actions` 指**一次 start 建立的 run 内累计有效原生动作**，缺省 `Schema.HARD.max_consecutive_actions=200`，策略只可收紧。
+    普通规则、sustain、移动和原生活动共用 `run_actions`；旧 `actions` 为兼容别名。新 start 仅重置 run_id/run_actions；pause/resume 不重置。
+    达到 cap 的最终结果结算后立即 `stop(max_consecutive_actions)` 并释放 lease，generation 精确增加一次。
+  - pending 的最终结果由 Runtime 用 `run_id + submission_id + 原提交 generation` 回报；同 run 的 pause/resume 不丢弃原调用结算，
+    重复或旧 run 的迟到结果不记到新 run。暂停中的 pending 可 resume 到 waiting_native，仍不重新提交；未收束的旧 pending 使新 start 返回不可用。
+    如同次结算伴有 sequence/postcondition deviation，先计数，再由更精确的偏差 handoff 一次终止，不能 cap-stop 再 deviation-stop。
+  - `status.run` 与日志分别报告 `native_submissions / effective_actions / instant_actions / run_actions`；dry_run 不改变任何计数。
+  - 危急状态下预算耗尽不得成为跳过 emergency 集合、改放普通输出的理由。
 
 ---
 
@@ -179,6 +191,7 @@ flowchart LR
   "name": "星月术士 · Insane 基础战斗",
   "class": "celestial/anorithil",
   "updated": "2026-09-16T00:00:00Z",
+  "mode": { "on_low_hp": "emergency_only", "on_emergency_unavailable": "release_control" },
   "limits": { "max_actions_per_tick": 1, "max_instant_per_tick": 3, "max_consecutive_actions": 200 },
   "sustains": [ { "talent": "T_CHANT_OF_FORTRESS", "priority": 10, "min_resource_pct": 30 } ],
   "targeting": { "default": "nearest_hostile", "tie_break": ["distance", "hp", "uid"] },
@@ -272,6 +285,17 @@ visibility/passability/hazard/landing 接受条件。多次原生选目标用与
 以及移动可见度、已知通行性、已知危险与随机落点的接受条件。
 - **P1a strict preset 保留旧行为**：无可见敌人停止；低生命进入 `emergency_only` 或暂停；无撤退、随机
   传送、探索或换层规则；目的地要求由该 preset 明示。其它 preset/mode 可选择不同值。
+- **POLICY-02@1**：`mode.on_emergency_unavailable=release_control|evaluate_rules`，缺省 `release_control`。
+  首次及每次重评估仅调度 emergency 规则；当 emergency 已知 settled 原生拒绝后，仅显式 `evaluate_rules` 才可尝试普通规则。
+  默认分支 `stop(action_denied)` 并释放 lease，不回到冻结式持 lease pause。guard/planner 拒绝、unknown 或 pending 不能作为扩大集合的依据。
+  需要历史 cooldown fall-through 的内置 pilot preset 显式写 `evaluate_rules`；strict 策略示例显式写 `release_control`。
+- **旧策略可见迁移**：缺该字段且使用 emergency_only（含设有 min_hp_pct 的旧缺省模式）时，schema/validate/import/set_draft 报
+  `emergency_fallback_migration` warning；import 先校验原 envelope hash，再加入显式 release_control 并报告新 hash/原 hash。
+  load 的旧 approved 降为规范化 draft，不能直接 activate；用户必须重新 approve/activate。已有另一份 draft 与原 approved 数据保留在
+  `migration.previous_draft` / `migration.original_approved`，不会丢失。`get/status.migration` 可审阅 warning/reason；save format 3 保存迁移数据，
+  不保存运行计数、run_id、submission_id、socket、token 或 lease。未受 emergency 语义影响的策略不作迁移。
+- `limits.max_candidates` **目前仅通过 schema 校验，没有运行时消费者**（U-01，2026-09-22 实证）。selector 工作集合与完整 footprint
+  展开上限的定义仍待协调者后续拆分；本批不截断候选集合或部分 union，也不把随机落点包络硬绑到 32。
 - `emergency:true` 只标记可被 `emergency_only` 调度的规则，**不是动作能力或安全授权**。普通规则可以
   撤退、拉开距离、传送或换层；策略对其后果负责。
 - 插件报告 player-known 的 reachability/visibility/passability/hazard/landing 信息。视野外、随机或安全性

@@ -179,6 +179,9 @@ do
     local refused=c:resume()
     check(refused.ok==false and refused.code=='native_pending','resume refuses a live native body')
     host.phase_='ready'
+    c:pause('test_pause')
+    local submitted=host.requests[1]
+    c:nativeSettled({status='ok',run_id=submitted.run_id,submission_id=submitted.submission_id,generation=submitted.generation})
     local resumed=c:resume()
     check(resumed.ok==true and c.state=='running','resume proceeds once the native body settled')
 end
@@ -381,6 +384,8 @@ do
     local second=c:onOpportunity()
     check(second.action=='wait_native' and #host.requests==1,'the wait never resubmits the action')
     host.phase_='ready'
+    local submitted=host.requests[1]
+    c:nativeSettled({status='ok',run_id=submitted.run_id,submission_id=submitted.submission_id,generation=submitted.generation})
     local third=c:onOpportunity()
     check(third.action=='acted' and #host.requests==2,'after settling the run continues')
 end
@@ -401,7 +406,9 @@ do
     host.phase_='settling'
     check(c:onOpportunity().action=='wait_native' and #host.requests==1,
         'the live activity is never resubmitted')
-    host.phase_='ready'
+    host.phase_='ready'; host.oid=2
+    local submitted=host.requests[1]
+    c:nativeSettled({status='ok',run_id=submitted.run_id,submission_id=submitted.submission_id,generation=submitted.generation})
     c:onOpportunity()
     check(#host.requests==2,'the controller resumes after the activity settles')
 end
@@ -498,7 +505,7 @@ do
         cooldown=math.max(0,cooldown-1)
         return {status='ok'}
     end
-    local p=policy({mode={on_low_hp='emergency_only'},limits={max_actions_per_tick=2},rules={
+    local p=policy({mode={on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'},limits={max_actions_per_tick=2},rules={
         {id='heal',priority=100,emergency=true,when={always={}},
             ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
         {id='attack',priority=40,when={always={}},
@@ -543,7 +550,7 @@ do
         cooldown=math.max(0,cooldown-1)
         return {status='ok',energy_spent=true}
     end
-    local p=policy({mode={on_low_hp='emergency_only'},limits={max_actions_per_tick=1},rules={
+    local p=policy({mode={on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'},limits={max_actions_per_tick=1},rules={
         {id='heal',priority=100,emergency=true,when={always={}},
             ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
         {id='attack',priority=40,when={always={}},
@@ -574,7 +581,7 @@ do
         host.requests[#host.requests+1]=attempt
         return {status='rejected',code='native_rejected',energy_spent=false}
     end
-    local p=policy({mode={on_low_hp='emergency_only'},limits={max_actions_per_tick=1},rules={
+    local p=policy({mode={on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'},limits={max_actions_per_tick=1},rules={
         {id='heal',priority=100,emergency=true,when={always={}},
             ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}},
         {id='unreachable',priority=40,when={enemy_count={ge=99}},
@@ -607,7 +614,7 @@ do
             hint='talent on cooldown; wait for the listed turns before retrying',
             native_message='Healing Light is still on cooldown for 7 turns.'}
     end
-    local p=policy({mode={on_low_hp='emergency_only'},limits={max_actions_per_tick=1},rules={
+    local p=policy({mode={on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'},limits={max_actions_per_tick=1},rules={
         {id='heal',priority=100,emergency=true,when={always={}},
             ['then']={action='use_talent',talent='T_HEALING_LIGHT',target='self'}}}})
     local c=AutoCombat.new(p,host)
@@ -909,7 +916,7 @@ do
     check(c.generation==startGeneration+1,
         'exactly ONE generation transition per synchronous mismatch (R4)',
         c.generation..' vs '..startGeneration)
-    check(c.attempts==0,'a postcondition mismatch never consumes the action budget')
+    check(c.attempts==1,'a settled successful postcondition mismatch still counts its effective action')
     local typed=0
     for _,event in ipairs(events) do
         if event.kind=='paused' and event.reason=='movement_postcondition_mismatch' then

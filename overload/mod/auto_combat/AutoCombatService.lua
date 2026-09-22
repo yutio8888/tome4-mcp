@@ -69,6 +69,13 @@ end
 
 local function withContext(svc,event)
     local ctx=logContext(svc)
+    local controller=svc.controller or svc.opportunity_controller
+    if controller then
+        local counters=controller:status()
+        for _,key in ipairs{'native_submissions','effective_actions','instant_actions','run_actions'} do
+            event[key]=counters[key]
+        end
+    end
     if ctx.tick~=nil then event.tick=ctx.tick end
     if ctx.revision~=nil then event.revision=ctx.revision end
     if ctx.level_instance_id~=nil then event.level_instance_id=ctx.level_instance_id end
@@ -103,7 +110,7 @@ function M.get(svc)
         running=Store.getVersion(svc.store,'running'),
         active=svc.store.active,revision=svc.store.revision,hashes=Store.hashes(svc.store),
         draft_hash=Store.hashes(svc.store).draft,approved_hash=Store.hashes(svc.store).approved,
-        running_hash=Store.hashes(svc.store).running})
+        running_hash=Store.hashes(svc.store).running,migration=Store.migration(svc.store)})
 end
 
 function M.clear(svc)
@@ -121,7 +128,7 @@ function M.validate(svc,policy)
     -- a malformed policy is refused typed before any encode/hash.
     local snapshot,err=AssistantAdapter.policySnapshot(policy,'validate')
     if not snapshot then return fail(err.code,err) end
-    return ok({valid=true,hash=snapshot.hash})
+    return ok({valid=true,hash=snapshot.hash,warnings=Schema.migrationWarnings(assert(Codec.open(snapshot)))})
 end
 
 local function findRule(policy,id)
@@ -371,6 +378,7 @@ function M.dryRun(svc,args)
     local snapshot=type(host.snapshot_meta)=='function' and host.snapshot_meta() or nil
     return ok({dry_run=true,executed=false,side_effects='none',
         policy_hash=policy_hash,schema=Schema.SCHEMA,policy_source=source,
+        warnings=Schema.migrationWarnings(policy),
         snapshot=snapshot,
         decision=decision.decision,layer=decision.layer,critical=decision.critical==true,
         reason=decision.reason,
@@ -454,6 +462,8 @@ function M.deactivate(svc)
 end
 
 function M.start(svc)
+    local previous=svc.controller or svc.opportunity_controller
+    if previous and previous.pending_attempt then return fail('not_ready',{cause='native_pending'}) end
     if not Store.has(svc.store,'running') then return fail('not_activated') end
     if not svc.host_factory then return fail('execution_not_available') end
     if svc.controller and svc.controller.state~='stopped' then
@@ -508,7 +518,8 @@ function M.start(svc)
     -- controller's reported hash can never be a caller-supplied value.
     local record={bytes=exact_bytes,hash=derived_hash,schema=working.schema,
         id=working.id,version=Codec.VERSION}
-    svc.controller=Combat.new(working,host,{strict=svc.strict,policy_snapshot=record,notify=function(event)
+    svc.controller=Combat.new(working,host,{strict=svc.strict,policy_snapshot=record,
+        opportunity_budget=previous,notify=function(event)
         Log.add(svc.log,withContext(svc,{kind=event.kind,reason=event.reason,rule=event.rule,talent=event.talent,
             target=event.target,action=event.action,elapsed_ticks=event.elapsed_ticks,
             elapsed_frames=event.elapsed_frames,generation=event.generation,
@@ -525,6 +536,7 @@ function M.start(svc)
             policy_hash=runningHash(svc)}))
     end})
     svc.controller_snapshot=record
+    svc.opportunity_controller=svc.controller
     local started=svc.controller:start()
     return ok({run=started,state=svc.controller.state,generation=svc.controller.generation})
 end
@@ -560,6 +572,7 @@ function M.resume(svc)
     end
     local resumed=svc.controller:resume()
     if resumed and resumed.ok==false then
+        if resumed.code=='native_pending' then return fail('not_ready',{cause='native_pending',state=resumed.state}) end
         return fail(resumed.code or 'not_paused',{state=resumed.state})
     end
     return ok(resumed)
@@ -593,6 +606,26 @@ function M.nativeAbort(svc,info)
     if svc.controller and svc.controller.state~='stopped' then svc.controller:stop(code) end
     if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,code) end
     return entry
+end
+
+-- POLICY-01/03: Runtime supplies the final outcome of the submitted native
+-- body/activity. Replay/old-run tokens are ignored by the controller. A stop at
+-- a run/submission limit is one transition and releases the lease immediately.
+function M.nativeSettled(svc,outcome)
+    if not svc then return nil end
+    local controller=svc.controller or svc.opportunity_controller
+    if not controller then return nil end
+    local step=controller:nativeSettled(outcome)
+    if not step then return nil end
+    Log.add(svc.log,withContext(svc,{kind='native_settled',rule=step.rule,
+        reason=step.reason,native_result=outcome.status,
+        generation=controller.generation,policy_hash=runningHash(svc)}))
+    if step.action=='stopped' then
+        if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,step.reason) end
+        Log.add(svc.log,withContext(svc,{kind='stopped',rule=step.rule,reason=step.reason,
+            generation=controller.generation,policy_hash=runningHash(svc)}))
+    end
+    return step
 end
 
 -- S2 rev3/§6.2 (Path 2): deliver a settled-time ordered-queue deviation to the
@@ -768,7 +801,8 @@ function M.import(svc,document)
     -- it is prepared (audited + validated + encoded) before any hash or store.
     local snapshot,err=AssistantAdapter.policySnapshot(policy,'import')
     if not snapshot then return fail(err.code,err) end
-    return ok({policy=assert(Codec.open(snapshot)),hash=snapshot.hash})
+    return ok({policy=assert(Codec.open(snapshot)),hash=snapshot.hash,
+        warnings=info.warnings,original_hash=info.original_hash})
 end
 
 -- Generation-only import of a pinned legacy-assistant export. Produces a policy
@@ -817,8 +851,8 @@ end
 -- X-doubleprime: the persisted form is the detached decoded copy (the immutable
 -- bytes themselves are runtime-only and are re-derived by `loadState`).
 function M.saveState(svc)
-    return {format=2,draft=Store.getVersion(svc.store,'draft'),
-        approved=Store.getVersion(svc.store,'approved')}
+    return {format=3,draft=Store.getVersion(svc.store,'draft'),
+        approved=Store.getVersion(svc.store,'approved'),migration=Store.migration(svc.store)}
 end
 
 function M.loadState(svc,data)
@@ -833,13 +867,15 @@ function M.loadState(svc,data)
         return AssistantAdapter.policySnapshot(raw,sink)
     end
     Store.deactivate(svc.store)
+    if data.migration then Store.restoreMigration(svc.store,data.migration) end
     local draft=restored(data.draft,'load_state')
     if draft then Store.restore(svc.store,'draft',draft) end
     local approved=restored(data.approved,'load_state')
     if approved then Store.restore(svc.store,'approved',approved) end
+    if svc.arbiter.owner==M.SOURCE then Arbiter.revoke(svc.arbiter,M.SOURCE,'policy_loaded') end
     svc.controller=nil
     svc.controller_snapshot=nil
-    return true
+    return true,Store.migration(svc.store)
 end
 
 -- Dispatch a tome.policy op. `args` is the request's policy object.

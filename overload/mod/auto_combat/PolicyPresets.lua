@@ -15,7 +15,7 @@ M.PRESETS={
         -- with it (the legacy boolean still maps for older policies).
         safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=false,
             pause_on_unknown_safety=true,max_selffire_risk=0},
-        mode={on_no_enemy='stop',on_low_hp='emergency_only',on_new_enemy='continue'},
+        mode={on_no_enemy='stop',on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules',on_new_enemy='continue'},
         targeting={default='nearest_hostile'},
         sustains={
             {talent='T_CHANT_OF_FORTRESS',priority=20,min_resource_pct=20},
@@ -69,7 +69,7 @@ M.PRESETS={
         limits={max_actions_per_tick=2},
         safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=true,
             pause_on_unknown_safety=true,max_selffire_risk=0},
-        mode={on_no_enemy='stop',on_low_hp='emergency_only'},
+        mode={on_no_enemy='stop',on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'},
         targeting={default='nearest_hostile'},
         sustains={
             {talent='T_CHANT_OF_FORTRESS',priority=20,min_resource_pct=20},
@@ -106,7 +106,7 @@ M.PRESETS={
         limits={max_actions_per_tick=2},
         safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=true,
             pause_on_unknown_safety=true,max_selffire_risk=0},
-        mode={on_no_enemy='stop',on_low_hp='emergency_only'},
+        mode={on_no_enemy='stop',on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'},
         targeting={default='nearest_hostile'},
         sustains={
             {talent='T_ARCANE_POWER',priority=20,min_resource_pct=20},
@@ -137,7 +137,7 @@ M.PRESETS={
         limits={max_actions_per_tick=2},
         safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=true,
             pause_on_unknown_safety=true,max_selffire_risk=0},
-        mode={on_no_enemy='stop',on_low_hp='emergency_only'},
+        mode={on_no_enemy='stop',on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'},
         targeting={default='nearest_hostile'},
         sustains={
             {talent='T_DARK_RITUAL',priority=20,min_resource_pct=20},
@@ -172,7 +172,7 @@ M.PRESETS={
         limits={max_actions_per_tick=2},
         safety={min_hp_pct=35,flee_below_hp_pct=25,pause_on_new_enemy=true,
             pause_on_unknown_safety=true,max_selffire_risk=0},
-        mode={on_no_enemy='stop',on_low_hp='emergency_only'},
+        mode={on_no_enemy='stop',on_low_hp='emergency_only',on_emergency_unavailable='evaluate_rules'},
         targeting={default='nearest_hostile'},
         sustains={
             {talent='T_BERSERKER_RAGE',priority=20,min_resource_pct=20},
