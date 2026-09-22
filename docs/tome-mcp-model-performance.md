@@ -434,3 +434,21 @@ Test尚未派发；其独立序列上次B，下一A。以上不是跨模型对�
 Test 交付4/4 PASS；额外一次非必要手动wait发生于所有断言之后，保留为brief偏离，不计入策略动作。会话在报告创建时即回收，Test代理已归档；最终证据适用性仍由原独立 Review 裁决。
 
 最终两位Sol/high独立Reviewer均ACCEPT：Runtime8个SYS项、evidence3个SYS项；全部本轮6个审核finding关闭。独立Test4/4证据获接受，额外事后wait仍记为非阻塞brief偏差。所有原生/测试会话已回收；固定验证与报告见validation/2026-09-22-system-fixes/acceptance.json。本轮不是可比较的模型实验，不据发现数或通过数评价模型优劣。
+
+
+## Loop: S3 独立专项训练场实测（2026-09-22，进行中）
+
+- [Test] 全新 Paseo `d7d01859-3d65-41d9-a8ae-7c21d30eb0f5`：**B** `pi/opencode-go/glm-5.3-flash`，thinking **high**。
+  Test 序列上一轮为 SYSFIX 的 A，本轮 B，下一轮 A；profile 中 max 被项目指定 high 覆盖。
+- [Dev] N/A：本轮不修改产品代码，协调者只准备隔离出生/训练场夹具与文档；Dev 轮换不推进，下一独立 Dev=A。
+- [Review] 待派发全新 Sol/high；目前没有独立验收结论。
+- 固定产品包 `3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb`，72 成员与
+  `main@8e3c219` 产品字节一致。代码/文档基线 `fdd741c1c47aa65be7ecc329a06a52a8d647482f`。
+- 本轮专测 Shadowblade 训练场中的 Shadowstep、Giant Leap、敏捷 Vault 及相关控制/只读行为；
+  强制学习技能、Giant Leap 伤害历史条件、静止低防御假人、资源和盾牌均为公开披露的夹具。
+  不记录为自然成长、常规战役或通关表现。
+- 六项指标在 Test 第一次输入前冻结；简报 SHA256 `9349a417dcfa1eab34d34a15d292d61813268e7d14ff7c006e38a54caf046635`，
+  指标 SHA256 `b25ee6ed4fdb07f8bc50278b5ca64e925ffc66dca606b6120a9c4f1ebae93c75`。
+  派发/原始证据根：`/workspace/t-engine4/tmp/mcp-s3-live-20260922/`。
+- 启动夹具首轮 `s3-live-01` 漏 `overload=true`，未加载训练场，记录 `S3-HARNESS-01` 后修复并回收；
+  `s3-live-02` 出生预检已通过。首轮无 Test 评分事件，原始启动失败证据保留，不并入通过数。
