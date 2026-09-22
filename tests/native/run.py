@@ -167,9 +167,20 @@ class Acceptance:
         self.check(all(type(record.get(k)) is type(v) and record[k] == v for k, v in expected.items())
                    and isinstance(record.get("approved_live_bytes"), str) and bool(record["approved_live_bytes"])
                    and record["approved_live_bytes"] == record.get("approved_saved_bytes")
+                   and isinstance(record.get("character_uuid"), str) and bool(record["character_uuid"])
+                   and isinstance(record.get("save_name"), str) and bool(record["save_name"])
                    and isinstance(record.get("player_uid"), int),
                    "sysfix_core_policy_and_runtime_" + stage, record=record)
         return record
+
+    def compare_sysfix_core_reload(self, after: dict) -> None:
+        # Entity uid is intentionally volatile across engine loads. Compare the
+        # Player's persistent UUID and save identity alongside full policy bytes.
+        fields = ("character_uuid", "save_name", "approved_live_bytes", "approved_saved_bytes")
+        self.check(self.sysfix_before is not None
+                   and all(self.sysfix_before[k] == after[k] for k in fields),
+                   "sysfix_core_same_character_and_approved_policy_after_native_reload",
+                   before=self.sysfix_before, after=after)
 
     def public_boundary(self) -> None:
         """Actual TCP ingress rejections; no action is submitted by this probe."""
@@ -421,10 +432,7 @@ class Acceptance:
             time.sleep(0.05)
         if self.sysfix_core:
             after = self.sysfix_core_record("after_native_reload", "reload.log")
-            fields = ("player_uid", "approved_live_bytes", "approved_saved_bytes")
-            self.check(all(self.sysfix_before[k] == after[k] for k in fields),
-                       "sysfix_core_same_character_and_approved_policy_after_native_reload",
-                       before=self.sysfix_before, after=after)
+            self.compare_sysfix_core_reload(after)
         time.sleep(0.2)
         state = self.native_state()
         time.sleep(0.5)
@@ -442,9 +450,11 @@ class Acceptance:
         self.check(not response.get("ok") and response["error"]["code"] == "session_mismatch", "old_session_rejected_after_native_load")
         response = self.wire.raw("status", dict(session_id=self.session_id, command_id="cmd-1"))
         self.check(not response.get("ok") and response["error"]["code"] == "command_not_accepted", "old_command_history_not_serialized")
-        self.check(original_hashes == save_hashes(save_root), "original_fixture_save_unchanged_by_reload")
-        self.check(original_hashes == save_hashes(self.runtime.home / ".t-engine/4.0/tome/save"),
-                   "reload_does_not_rewrite_copied_fixture_save")
+        self.check(original_hashes == save_hashes(save_root), "original_fixture_save_unchanged_by_reload",
+                   files_sha256=original_hashes)
+        copied_hashes = save_hashes(self.runtime.home / ".t-engine/4.0/tome/save")
+        self.check(original_hashes == copied_hashes, "reload_does_not_rewrite_copied_fixture_save",
+                   original_files_sha256=original_hashes, copied_files_sha256=copied_hashes)
         self.act({"type": "wait"})
 
 

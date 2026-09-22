@@ -1847,15 +1847,30 @@ do
             Runtime.onRestStop(p,'complete')
         end
         p.resting=nil;generation=svc.controller.generation
+        local controller=svc.controller
+        -- NATIVE-PENDING-01: a real activity completes after a game tick. With
+        -- tick_serial==0 the frame pump is disabled and this test used to miss
+        -- a second Service.step erasing the just-settled, stopped controller.
+        g:tick()
+        local serviceStep,repumps=Service.step,0
+        Service.step=function(...)
+            repumps=repumps+1
+            return serviceStep(...)
+        end
         g:display()
+        Service.step=serviceStep
+        check(repumps==0,'frame does not repump a controller stopped by native settlement')
+        check(svc.controller==controller,'final native accounting remains visible after the frame')
         local ended=svc.controller:status()
         check(ended.run_actions==(finished and 1 or 0),
             'activity success requires progress/termination evidence, not handle disappearance')
         check(ended.state=='stopped' and svc.arbiter.owner=='manual' and calls==1,
             'activity settles once and releases control without reissue')
         check(ended.generation==generation+1,'activity final outcome causes one transition')
-        g:display()
-        check(svc.controller:status().run_actions==ended.run_actions,'activity repeat reap never recounts')
+        for _=1,3 do g:tick();g:display() end
+        check(svc.controller==controller and svc.controller:status().run_actions==ended.run_actions
+            and svc.controller.generation==generation+1,
+            'later ticks preserve final activity accounting and generation without recounting')
     end
     config.settings.tome_mcp_bridge.allow_auto_combat_execution=false
 end

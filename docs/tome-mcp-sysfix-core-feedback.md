@@ -34,7 +34,15 @@
 
 `tests/native/run.py` 的 `Acceptance.public_boundary()` 通过真实 TCP 检查四个内部字段、畸形 sections、envelope/args extras，断言账本/revision 与 native actions/energy/world_tick 未变化；已接入既有 `run()`，也可由协调者单独调用。
 
-可选 `tests/native/tome-mcp-probe/overload/mod/SysfixCoreProbe.lua` 不自动运行、不管理进程：在实际角色上调用 `prepareLocalClear()`，由协调者执行真实保存和重载，然后 `verifyReload()`。它检查 live/saved/reloaded draft 为空、approved 保留、运行态字段未保存且未恢复执行；打印 `[SysfixCoreProbe]` 原始 JSON。这些 fixture 只交付代码，未执行，不能据此记 native PASS。
+可选 `tests/native/run.py --sysfix-core` 使用隔离测试配置开关，在出生后调用 `SysfixCoreProbe.prepareLocalClear()`，沿用 Ctrl+S 原生保存和新进程加载保存副本，在 reload hook 调用 `verifyReload()`。默认不开启。出生/读档两份日志必须各有一条 `[MCPProbe]` 的 `kind=sysfix_core` 记录，断言 draft 为空、approved 完整 canonical bytes 一致、保存策略不含运行句柄、manual/inactive/execution=false。角色身份使用原生持久 `Player.puuid` 和 `game.save_name`，实体 `uid` 只作诊断；保存副本逐文件 SHA 比较保留。
+
+## 原生反馈补修：NATIVE-PENDING-01 / NATIVE-IDENTITY-01
+
+协调者执行的 `sysfix-policy-source-02` 为 **FAIL（8 PASS / 1 FAIL）**：原生日志 2475 行已经记录 rest 在 2 turns 后因 `max_turns` 结束，随后 tick 持续推进；fixture 最终报告 `settlement_timeout`。原因是 Runtime 在 `settleAutoActivity → nativeSettled` 已计数、cap-stop 并归还 lease 后，同帧仍调用 `Service.step`；它按 control_lost 路径清除了刚停止的 controller。新回归加入真实 `Game:tick → display` 调用，delegating spy 在旧代码观察到一次错误重泵并失败；原回归的 `tick_serial=0` 未进入该泵条件。Runtime 现仅推进存在且未 stopped 的 controller；policy Dev 的配套修复使显式重复 Service.step 也保留终态。完成态在后三次 tick/display 中保持 controller、计数和 generation 不变，generation 精确 delta=1。
+
+协调者执行的 `sysfix-core-source-01` 为 **FAIL（112 PASS / 1 FAIL，113 checks）**：策略内容和所有保存边界均一致，只有 `player_uid` 从 2394 变为 2865。`engine.Entity:loaded()` 原生重分配 UID；将它当持久角色身份是 fixture 错误。改为比较 `Player.puuid`（`Player:init` 仅在缺失时生成）和原生 save_name，完整 approved bytes 和保存副本 SHA 仍必须一致。原失败会话的两份 `game.teag` 均保存相同 puuid，已作为诊断证据。新增负例要求错误持久 UUID、错误 save_name、任一策略 bytes 改变均失败；仅 UID 改变可通过。
+
+本次离线验证：Runtime **410 checks**、Interactive Runtime **122 checks**；真实 Runtime 本地 prepare/禁用不变；runner **26** 项默认/缺失/重复/错误进程/持久身份负例；Lua/Python 语法与 diff check 通过。依赖 policy `c7a78279995439ec5bba80d70d4b545c02e2a301`。原始证据在 `/workspace/t-engine4/tmp/mcp-system-fixes-20260922/core/pending-native/`。两个原失败结果保持 FAIL；修复后的 source/dist 原生结果 **NOT_OBSERVED**，仍由协调者执行并由独立角色裁决。
 
 ## 完整问题台账
 
@@ -56,3 +64,5 @@
 | SYS-12 | core 生成式闭合入站校验、真实 JSON 回归通过 | 是，待 source/dist 原生与 Review |
 | SYS-13 | core 示例修正、真实 Pydantic 回归通过 | 待 Review |
 | U-01 | policy Dev 取证、协调者后续定稿；API/README 明确 max_candidates 仅 schema 校验未消费 | 不宣称已修，不截断完整 footprint |
+| NATIVE-PENDING-01 | core Runtime 停止终态不再自动重泵；policy Service 补显式 step 终态保留；真实 tick/display 离线回归通过 | 是，待修复后 source/dist + Review |
+| NATIVE-IDENTITY-01 | fixture 使用持久角色 UUID/save_name，保留策略和保存哈希比较；错误身份负例通过 | 是，待修复后原生保存/载入 + Review |
