@@ -48,7 +48,13 @@
 
 实际 MCP `tome.act` 原先接受 `expected_revision=0`，与 `protocol/v4/common.schema.json` 的 Revision 下限 1 不符；act/respond/dismiss 也未统一限制协议上限 9007199254740991。Python 入口现共用 `Revision` 类型，三处 expected_revision 都限制在协议范围；dismiss 仍可省略或为 null。
 
-新增真实 MCP Client→server→BridgeClient→FakeGame 边界回归，对三个工具分别提交 0、1、max、max+1：无效值返回本地错误且 TCP 请求数不变，有效值发出恰好一个符合请求 JSON Schema 的数据包；工具发现的 min/max 同时与共享 schema 定义比较。新回归在旧实现观察到 revision=0 和三个上界越界请求到达 wire，修复后 Python **45 tests PASS**。这是 server 边界证据，不声称游戏原生验收；独立复核仍待完成。RUNTIME-REV-02 与 NATIVE-PENDING-01 是同一 finding，交叉引用，不重复计数。
+新增真实 MCP Client→server→BridgeClient→FakeGame 边界回归，对三个工具分别提交 0、1、max、max+1：无效值返回本地错误且 TCP 请求数不变，有效值发出恰好一个符合请求 JSON Schema 的数据包；工具发现的 min/max 同时与共享 schema 定义比较。初版回归在旧实现观察到 revision=0 和三个上界越界请求到达 wire，初版修复后 Python 45 tests PASS。
+
+同一审核 finding 随后扩展到其余 v4 标量：共用 identifier 的 C0 禁止和 256 UTF-8 bytes 上限（移除原 128 字符误限）、option_id 的 512 bytes、cursor 的可打印 ASCII、command_id 的序号上限、events_after 的安全整数上限，以及嵌套 action/answer 的非空 ID。公开工具和模型均应用相应类型；实际协议允许控制字符的 inline respond.interaction_id / policy.expected_hash 只检查非空与字节上限，dismiss.interaction_id 保持其无此限制的 inline 契约。status.options_offset 移除协议未声明的 32 位上限；不新增字符或数字限制。
+
+新增矩阵从真实 common/requests schema 读取约束，覆盖 12 个有参数工具、嵌套动作/回答和可选参数的 **1,625 次实际 MCP 调用**；包含合法/非法上下界、2/4 字节 Unicode 字节边界、C0/DEL、空 ID、cursor 字符和 command 序号。每个非法输入要求本地错误且无 TCP；每个合法输入要求恰好一个经扩展 v4 validator 校验的请求。工具发现同时比较共享及 inline 的边界、pattern 与字节/序号扩展。测试 oracle 实际执行 x-max-utf8-bytes/x-max-sequence，并使用 Lua wire 的完整字符串正则语义，避免普通 JSON Schema validator 忽略扩展或 Python `$` 接受末尾换行。相同最终矩阵对冻结的前版 `79cf8c4b3389161127a5445f3e36dd005bbad898` 产生 **498 failures**，当前 Python **47 tests PASS**。原始证据在 `/workspace/t-engine4/tmp/mcp-system-fixes-20260922/core/scalar-boundary/`。
+
+这是 server 边界证据，不声称游戏原生验收；独立复核仍待完成。RUNTIME-REV-02 与 NATIVE-PENDING-01 是同一 finding，交叉引用，不重复计数。
 
 ## 完整问题台账
 
@@ -72,5 +78,5 @@
 | U-01 | policy Dev 取证、协调者后续定稿；API/README 明确 max_candidates 仅 schema 校验未消费 | 不宣称已修，不截断完整 footprint |
 | NATIVE-PENDING-01 | core Runtime 停止终态不再自动重泵；policy Service 补显式 step 终态保留；真实 tick/display 离线回归通过 | 是，待修复后 source/dist + Review |
 | NATIVE-IDENTITY-01 | fixture 使用持久角色 UUID/save_name，保留策略和保存哈希比较；错误身份负例通过 | 是，待修复后原生保存/载入 + Review |
-| RUNTIME-REV-01 | server 三个 expected_revision 参数共用协议 Revision 范围；实际 MCP/TCP 边界负例通过 | 待独立复核 |
+| RUNTIME-REV-01 | server 共享/inline v4 标量完整对齐；47 Python tests / 1,625 实际 MCP/TCP 标量边界例通过 | 待独立复核 |
 | RUNTIME-REV-02 | 同 NATIVE-PENDING-01，不重复计数 | 同该项 |
