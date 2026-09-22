@@ -1,0 +1,42 @@
+{
+  "session": "s3-supplement-01",
+  "source_branch": "fix/s3-evidence-harness-20260922",
+  "source_commit": "440a5a7f1c4bba27accb076b9f7235d23838c0f4",
+  "source_root": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/dev-root/game/addons/tome-mcp-bridge",
+  "observer_source_root": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/dev-root/game/addons/tome-mcp-bridge",
+  "dirty_overlay": "none (committed Dev helper source; ignored dependency symlink not loaded)",
+  "archive": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/candidate.teaa",
+  "archive_sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+  "server_source": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src",
+  "original_server_pin": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/pin.json",
+  "observer_name": "mcp-s3-observer",
+  "observer_root": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/observer",
+  "birth_root": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/birth",
+  "driver": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/agent-play.py",
+  "driver_sha256": "4ef747911ae9c1bb1ba43a95a5bd01da3ff6974b7625b5f6cc98cb7be0fcd3ec",
+  "wrapper": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/tome-s3.sh",
+  "wrapper_sha256": "1c3b28fe28311c076da1b1fbb6e38bf6138f1b10ac33e88de5204214707d5da3",
+  "trace_reader": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/trace-s3.py",
+  "trace_reader_sha256": "ca760b33cabc2eb498ab00ab057b0a7184fee9e28678f04e7a63452da6e17963",
+  "dev_report": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/dev-evidence/report.md",
+  "dev_report_sha256": "8a89790432af5672d62c58bc69b2a231563cab84af32525b747d6e0fd99bd25c",
+  "observer_sha256": {
+    "hooks/load.lua": "02bda777406466484085ded4d0cdf468f9e200148e6178aabdc7a1ed3ddb19a1",
+    "init.lua": "980c4e869396d23949f5372ec6274ff3c5f541e658a2048b94b70bec1cdc11a5",
+    "overload/mod/S3NativeTrace.lua": "df6bc20ab017f3d92481e61fc62d02ec47e34adbfc2cd30ffe2ca2fb22275484"
+  },
+  "birth_sha256": {
+    "hooks/load.lua": "d93aac435fc551e7fc18a92cf7fc13a74eb479160b4c29f67ac871ad448bafe2",
+    "init.lua": "aa6794f1f60519d9199050746f3b4183fb004d90fb9d13e1c866d73f823e9e4d",
+    "overload/data/zones/mcp-s3-live/grids.lua": "b79b2db3579deec51110498ad9091af65d788a51e078439bffee0217e2431a63",
+    "overload/data/zones/mcp-s3-live/npcs.lua": "d30515eb6e5ce4230ae3721bca6858f2ba2124af00da9f5a06b2722e0216b986",
+    "overload/data/zones/mcp-s3-live/objects.lua": "c8114a626da64ed802ab43ce6be221b7678034cc45856fe7be34b5f4868b3609",
+    "overload/data/zones/mcp-s3-live/traps.lua": "e0f31c66e366417e102c2d38e35035e346b0101344439eb5cc139c352851483d",
+    "overload/data/zones/mcp-s3-live/zone.lua": "3a35a3db310dd95a16718d5b80b743d01848db32f29b0d95806b342e131639f9",
+    "superload/mod/dialogs/Birther.lua": "e7586f6aeadb820ce3b002b879c235e16c296b5c20048a81bf5a6bfd62a2f5cc"
+  },
+  "normal_campaign": false,
+  "training_fixture": true,
+  "instrumentation": "separate test-only passive real-action observer; product archive unchanged",
+  "product_parity": "72/72 archive members byte-identical to Dev source production paths"
+}

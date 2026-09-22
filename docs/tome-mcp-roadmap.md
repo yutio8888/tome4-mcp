@@ -16,7 +16,7 @@
 
 | 阶段 | 状态 | 可观测交付 / 退出条件 |
 | --- | --- | --- |
-| S3 独立专项实机验收 | 实测已结束；独立复核与补证待完成 | Test 报告 6/6，但 Vault 实际两段请求与 `nolock` 缺少直接记录，协调者暂记该行 NOT_OBSERVED；效果/位移已有记录。完整反馈见 [S3 实测反馈](tome-mcp-0.9.0-s3-live-feedback.md)，未独立验收前不进入 S4 |
+| S3 独立专项实机验收 | 首轮初审 5/6；补证 Test 2/2 待原 Reviewer 复核 | 新的独立 Test 已记录 Vault 两次实际请求/答案及第二次 `nolock=true`，并验证 compact 转发；首轮原始指标保持不变。完整反馈见 [S3 实测反馈](tome-mcp-0.9.0-s3-live-feedback.md)，未独立验收前不进入 S4 |
 | S4 双主体换位 | 待 S3 反馈闭合 | Temporal Warden / Dimensional Step 有效 TL5 已知占用格：描述双方位置，忠实原生提交并验证结算；source/dist 原生证据、独立 Test 与 Review |
 | 星月术士常规回归 | 待 S4 验收 | 半身人/星月术士正常战役验证治疗、护盾、资源恢复、输出及探索衔接；不把训练场夹具当作自然成长或通关证据 |
 

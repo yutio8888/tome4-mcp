@@ -1,0 +1,36 @@
+{
+  "report_sha256": "fb6e49a1d18e1e2f1f497ab37273a3a9ebcfa2663f32a4ae1f680fbed40a0cda",
+  "report_preserved_verbatim": true,
+  "items": [
+    {
+      "id": "SUP-DOC-01",
+      "source": "Paseo completion envelope REPORT_SHA256",
+      "reported": "fb6e49a1d18e1e2f1f497ab37273a3aebcfa2663f32a4ae1f680fbed40a0cda",
+      "actual": "fb6e49a1d18e1e2f1f497ab37273a3a9ebcfa2663f32a4ae1f680fbed40a0cda",
+      "note": "Envelope omitted digit9; exact on-disk report is indexed."
+    },
+    {
+      "id": "SUP-DOC-02",
+      "source": "Report Budget/accounting breakdown",
+      "note": "Total22 is correct. Breakdown omitted raw018 auto status and raw020 actor inspect. Actual:4observe+1map+5inspect+3setup actions+4auto(start1,status3)+5policy=22."
+    },
+    {
+      "id": "SUP-DOC-03",
+      "source": "Report Paseo/session id",
+      "note": "01a0c8dc-5829-724c-9816-c7698ee0dfce is PI_SESSION_ID; actual Paseo Test agent is522fef2b-f4c1-4931-9ef2-2a21503f4d92 per dispatch.json."
+    },
+    {
+      "id": "SUP-DOC-04",
+      "source": "Report dry-run current_costs.stamina claim",
+      "note": "raw012 dry_run has no current_costs field. Native debit300\u2192284.1 is proved by raw018 resources, not by dry_run costs."
+    },
+    {
+      "id": "SUP-DOC-05",
+      "source": "Report game.log snapshot hash",
+      "note": "Log appended after snapshot and teardown. Claimed report hash matches a prefix of final log; trace snapshots independently match exact recorded prefix sizes. Final-file hash is frozen in manifest.",
+      "matching_prefix_bytes": [
+        161748
+      ]
+    }
+  ]
+}

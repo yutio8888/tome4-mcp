@@ -1,0 +1,115 @@
+{
+  "test_manifest_files_matched": 64,
+  "report_game_log_snapshot_matching_prefix_bytes": [
+    161748
+  ],
+  "trace_snapshots": [
+    {
+      "file": "trace-before.json",
+      "bytes": 158844,
+      "prefix_hash_matched": true
+    },
+    {
+      "file": "trace-pre-vault.json",
+      "bytes": 159841,
+      "prefix_hash_matched": true
+    },
+    {
+      "file": "trace-post-vault.json",
+      "bytes": 161710,
+      "prefix_hash_matched": true
+    },
+    {
+      "file": "trace-final.json",
+      "bytes": 161729,
+      "prefix_hash_matched": true
+    }
+  ],
+  "mcp_records": 30,
+  "coordinator_startup_records": 2,
+  "test_mcp_records": 28,
+  "wrapper_calls": 22,
+  "wrapper_categories": {
+    "observe": 4,
+    "map": 1,
+    "inspect": 5,
+    "action": 3,
+    "auto": 4,
+    "policy": 5
+  },
+  "compact_pairs": [
+    {
+      "file": "001-observe-initial.json",
+      "transcript_line": 3,
+      "equal_with_type_preserved": true
+    },
+    {
+      "file": "016-vault-prestart-observe.json",
+      "transcript_line": 22,
+      "equal_with_type_preserved": true
+    },
+    {
+      "file": "019-vault-observe-post.json",
+      "transcript_line": 26,
+      "equal_with_type_preserved": true
+    },
+    {
+      "file": "022-final-observe.json",
+      "transcript_line": 30,
+      "equal_with_type_preserved": true
+    }
+  ],
+  "vault": {
+    "trace_lines": [
+      2750,
+      2751,
+      2752,
+      2753,
+      2754,
+      2766
+    ],
+    "ordered_kinds": [
+      "invocation_start",
+      "request",
+      "answer",
+      "request",
+      "answer",
+      "invocation_finish"
+    ],
+    "one_invocation": true,
+    "request2_nolock_present_true": true,
+    "actor_xy": [
+      8,
+      5
+    ],
+    "actor_uid": 15424,
+    "grid_xy": [
+      7,
+      4
+    ],
+    "landing_xy": [
+      7,
+      4
+    ],
+    "damage": 17.11656306849909,
+    "dazed": true,
+    "run_counters": {
+      "actions": 1,
+      "attempts": 1,
+      "effective_actions": 1,
+      "generation": 2,
+      "instant_actions": 0,
+      "max_consecutive_actions": 1,
+      "max_native_submissions": 32,
+      "native_submissions": 1,
+      "opportunity": 1,
+      "policy_hash": "4a8da58bc3bd74ab3dc689affe788ebe",
+      "reason": "max_consecutive_actions",
+      "run_actions": 1,
+      "run_id": 1,
+      "state": "stopped"
+    },
+    "finish_ok_means": "no exception only"
+  },
+  "scope": "Coordinator evidence check, not independent Review acceptance"
+}

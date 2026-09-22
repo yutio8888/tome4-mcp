@@ -1,6 +1,6 @@
 # S3 独立实测反馈（2026-09-22）
 
-状态：独立 Review 已完成初审，**5/6 有证据，Vault 补证未完成，S3 未验收**。固定产品包 `3a4e186b…f413fb`，产品代码与
+状态：初审确认首轮 **5/6 有证据**；独立补证 Test 两项已完成，**待原 Reviewer 复核，S3 尚未验收**。固定产品包 `3a4e186b…f413fb`，产品代码与
 `main@8e3c219` 一致；本轮没有产品改动。Test 为全新 GLM 5.3 Flash/high，身份及角色见模型台账。
 
 Test 原报告保留 [原文](../validation/2026-09-22-s3-live/test-report.md)，声明 6/6 PASS。
@@ -50,3 +50,23 @@ Review 已关闭 `REV-S3-02/03`，仅 `REV-S3-01` 保持 OPEN。
 协调者使用新的 `supplement/agent-play.py`，首轮 driver/metrics/raw/报告保持原样。
 产品 72 个 archive member 仍一致，测试观察器作为第三个独立 addon 显式加载。
 下一步是新的独立 Test 实机补证，再由原 Sol 复核 `REV-S3-01`；S3 此时仍未验收。
+
+## 补证实测交付（2026-09-22）
+
+全新 Test `522fef2b-f4c1-4931-9ef2-2a21503f4d92` 已交付
+[补证报告](../validation/2026-09-22-s3-supplement/test-report.md)：冻结两行 2/2，
+22 次包装器调用、28 条 Test MCP 记录（另有 2 条协调者启动记录），3 次原生准备操作，
+1 次评分 start，无重试或失败调用。64 份 Test 原始文件哈希已复算一致。
+
+原生日志同一次 Vault 调用依次记录 request1/answer1、request2/answer2；第二次实际
+`nolock_present=true` / `nolock=true`，目标 `(8,5)`、UID 15424，第二答案 `(7,4)`。
+原生伤害、`EFF_DAZED`、落点 `(7,4)` 与 native/effective/run 各 1 相互对应。
+compact `auto_combat` 的 4 次读取与实际原始响应一致，保留 false/0/空数组。
+这些是独立 Test 的新增原生观察，未改变首轮六行历史结果；协调者核对不替代 Review。
+
+报告及回报信封的非行为性笔误已单独记录在
+[报告勘误](../validation/2026-09-22-s3-supplement/report-errata.json)：信封哈希漏一位、
+调用分类漏列两次读取、PI 与 Paseo 身份区分、dry-run 不含所称 costs 字段。
+运行中日志快照哈希均与终态日志的对应前缀一致。原报告不改写。
+报告落盘即回收会话，Test 代理/工作区及临时工程已归档；原始证据保留。
+下一 owner 为原 Sol，仅复核自身 `REV-S3-01` 及其补证工具/证据处置。

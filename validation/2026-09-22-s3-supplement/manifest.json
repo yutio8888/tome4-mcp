@@ -1,0 +1,688 @@
+{
+  "schema_version": 2,
+  "candidate_id": "S3-SUPPLEMENT-20260922",
+  "product_version": "0.9.0",
+  "protocol_version": 4,
+  "code_baseline": "8e3c21978a5040ac9ba97cd2175ee36901b91819",
+  "candidate_commit": "440a5a7f1c4bba27accb076b9f7235d23838c0f4",
+  "candidate_commit_note": "Test observer and console helper only; 72 product members unchanged.",
+  "evidence_note": "Separate two-row supplement. Original six-row metric/report/raw remain immutable. Coordinator observations await independent Review.",
+  "raw_sources": [
+    {
+      "path": "/workspace/t-engine4/game/addons/tome-mcp-bridge/validation/2026-09-22-s3-live/manifest-v2.json",
+      "sha256": "255c070d0993285422177d814d493bb60edbd17174ea21eeb182eb67fcf35774",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/game/addons/tome-mcp-bridge/validation/2026-09-22-s3-live/manifest.json",
+      "sha256": "d6f9e701fbfa89e7b5797ffb390b73a54b0fe396771950a621d7f6166b74cdb9",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/game/addons/tome-mcp-bridge/validation/2026-09-22-s3-live/review-manifest.json",
+      "sha256": "11118b5376429f495ad9c2cf4db490660c1df51f69b4968b0c23f95d3dd1b144",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-play-support/s3-supplement-01.log",
+      "sha256": "f7ccfa209405e609b85f3b2cb98f1812715fe44d93d43cdd4fe2bbb3ea4b19da",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/dev-evidence/report.md",
+      "sha256": "8a89790432af5672d62c58bc69b2a231563cab84af32525b747d6e0fd99bd25c",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/dev-evidence/tests-run-complete.log",
+      "sha256": "9eb4f4cceb008a5c937a97b2677ec60235614b96ed2f765ed2b89c6f0a0a260d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp/__init__.py",
+      "sha256": "6261bd1dd3be741f12b0a13c8c142ecf9f552e2322d25e7147f7162f45397f17",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp/__main__.py",
+      "sha256": "ddd60a1df996b2b744c45953165711e5afe2711f5f0249f4e98875e1342411df",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp/bridge.py",
+      "sha256": "edad9936553abcf600731d99904ce49ab4ac0a68cb70b0da5aa06f185a3c5d6b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp/error_registry.py",
+      "sha256": "cd6dd40ec493c78cf405a45a8bdb5e4e4ece534ebd05d09a81fb18d781ed88af",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp/server.py",
+      "sha256": "36f251558046efa171eb1e63a6796a04c21e76fd07c5ba170502591ace91dec9",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp_server.egg-info/PKG-INFO",
+      "sha256": "604348953a43f4fb366b36645669be3b17ea83fabde0a203f09e7d9781a1e760",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp_server.egg-info/SOURCES.txt",
+      "sha256": "9e63800e9291dda5f0e6da1213421272f43af11aa9c5c5898dd33fc03321877d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp_server.egg-info/dependency_links.txt",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp_server.egg-info/entry_points.txt",
+      "sha256": "aef954419fde7d834f22534a270f742e718300cafe3a9efadbc155c8d3fc88bc",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp_server.egg-info/requires.txt",
+      "sha256": "01c771571873832ab0a9b1814fe45ca6d3b8cae24425c2c60102663ea5e11b70",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/server-src/tome_mcp_server.egg-info/top_level.txt",
+      "sha256": "dda72470616d1d3f010d5e4aecd443ef7b81d307fa2aeb3299047f8f302cd1c8",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/agent-play.py",
+      "sha256": "4ef747911ae9c1bb1ba43a95a5bd01da3ff6974b7625b5f6cc98cb7be0fcd3ec",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/birth/hooks/load.lua",
+      "sha256": "d93aac435fc551e7fc18a92cf7fc13a74eb479160b4c29f67ac871ad448bafe2",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/birth/init.lua",
+      "sha256": "aa6794f1f60519d9199050746f3b4183fb004d90fb9d13e1c866d73f823e9e4d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/birth/overload/data/zones/mcp-s3-live/grids.lua",
+      "sha256": "b79b2db3579deec51110498ad9091af65d788a51e078439bffee0217e2431a63",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/birth/overload/data/zones/mcp-s3-live/npcs.lua",
+      "sha256": "d30515eb6e5ce4230ae3721bca6858f2ba2124af00da9f5a06b2722e0216b986",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/birth/overload/data/zones/mcp-s3-live/objects.lua",
+      "sha256": "c8114a626da64ed802ab43ce6be221b7678034cc45856fe7be34b5f4868b3609",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/birth/overload/data/zones/mcp-s3-live/traps.lua",
+      "sha256": "e0f31c66e366417e102c2d38e35035e346b0101344439eb5cc139c352851483d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/birth/overload/data/zones/mcp-s3-live/zone.lua",
+      "sha256": "3a35a3db310dd95a16718d5b80b743d01848db32f29b0d95806b342e131639f9",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/birth/superload/mod/dialogs/Birther.lua",
+      "sha256": "e7586f6aeadb820ce3b002b879c235e16c296b5c20048a81bf5a6bfd62a2f5cc",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/collect-evidence.py",
+      "sha256": "34de228e9ee60a7c2e73e2641b369179e30f1ee5c95710cbd6051aae8b9f0cfe",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/coordinator-checks.json",
+      "sha256": "5ca165121c16c10ad0bd889d360f18189a6c9f33e4bb05d5054df1261a927355",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/dispatch-request.json",
+      "sha256": "2ce44c297a5f21cd5da6ed744069f6442a431af6754b26e2183f568ac4addb41",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/dispatch-stderr.txt",
+      "sha256": "cedc8ae3de1f97b1f4a18959c0ec0c08f3ab5ad49598f08311049471eb522489",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/dispatch-stdout.json",
+      "sha256": "eae2a2e6d95bb014f5cb45c256b3abc937da0c9fb588ad4a5c14eed81f667cba",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/dispatch.json",
+      "sha256": "591d3439a5c8e24263c2ed286233c96d564d0218fa3b831e02ab0c55539c0e90",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/launch.json",
+      "sha256": "a7131e16d2df57cbf7f39ad188a7836577c3050f7ad331ebef32501caaea7531",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/metrics.json",
+      "sha256": "35f27585d61f2866e2815e99cf39f4ef3e752bdd049976aac9686f51f574fc98",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/observer/hooks/load.lua",
+      "sha256": "02bda777406466484085ded4d0cdf468f9e200148e6178aabdc7a1ed3ddb19a1",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/observer/init.lua",
+      "sha256": "980c4e869396d23949f5372ec6274ff3c5f541e658a2048b94b70bec1cdc11a5",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/observer/overload/mod/S3NativeTrace.lua",
+      "sha256": "df6bc20ab017f3d92481e61fc62d02ec47e34adbfc2cd30ffe2ca2fb22275484",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/pin-runtime.py",
+      "sha256": "49efea959bee9203152a7485ba1ae08f37bd6a9c618d64cd919d2e45414eb9ea",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/pin.json",
+      "sha256": "44f37db477a826d5b88efcc894e18974d7ab7004af6d2f7fe29a3ffe9375f447",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/post-reap-processes.txt",
+      "sha256": "2076d6104a4351ddacfb3fa2e3702e7a06ad0707fcaa9267c7bf3148dd5d52ff",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/prepare.py",
+      "sha256": "5cce0c7cb5abe1671309fdd06836f67c50e23769d9ddd30bdf40d7e9968fe8c0",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/reap.log",
+      "sha256": "de20eb97123619f9c0e299d304de9ea8aee3e343d28c7bbe7534c6bf4c16728d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/runtime-pin.json",
+      "sha256": "82d9589d38aec5fe611b4966d425ee274780496aab0845d527e58b77c90d589b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/call-log.tsv",
+      "sha256": "7dd026736545be58e9cbd64525d01b9c823ff354d7101f581372be7821b42d1b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/evidence-manifest.json",
+      "sha256": "9727720be038cda7a28bc87284d501397d775e53fae532d89f5dad813ede7278",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/001-observe-initial.json",
+      "sha256": "ce9cd54e3a0a0e1f5424949469b7a5e2a9162f2afc7b6fa9322c8be196c43975",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/001-observe-initial.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/002-map.json",
+      "sha256": "b03858b97b439977ebbb39f353d59cbe82ea74c3b9d40c63c15916abe88f440a",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/002-map.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/003-inspect-talent-vault.json",
+      "sha256": "f5daff7e2794c111e4cb4eacc16450d79ecacdbd851fa3aeee9e7c7d6edfbf94",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/003-inspect-talent-vault.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/004-inspect-character.json",
+      "sha256": "99be356c14f62bd7a7715e884a6e413088c3575b9f0a3845013550443c7355bf",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/004-inspect-character.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/005-setup-move-1.json",
+      "sha256": "0f7fbcd501c8a9ac54ffda628fce949cb1ccc2a91c05950c57ec22153ca81d9b",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/005-setup-move-1.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/006-setup-move-2.json",
+      "sha256": "b9ffab18f27625284d60594e3c8d4cea581fa9bef39fd9722af59c0bffc4735a",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/006-setup-move-2.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/007-setup-equip-shield.json",
+      "sha256": "0fbfd07910a7b8b24267919d45e81828f73413faa91311cd68c72bdb8c3c24e6",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/007-setup-equip-shield.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/008-inspect-character-postequip.json",
+      "sha256": "1f163505cb317aac5c5d1ec65ab36f43b91b61ed98cf3ce2467cb0186cb685e8",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/008-inspect-character-postequip.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/009-auto-status-setup.json",
+      "sha256": "446f98549021e3f205742683763078eb1ecf218fc0bd59543d40ee9ad5f216d2",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/009-auto-status-setup.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/010-inspect-actor-dummy.json",
+      "sha256": "67b2e3c0aa445c264e366b8fe17a73a80cea576a28f06d8d6a3f2d5aa0b1bb24",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/010-inspect-actor-dummy.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/011-vault-validate.json",
+      "sha256": "295a8152f316445e6cc58771a3051d0115ec514ae89a2537d814b7a3ea5f49cf",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/011-vault-validate.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/012-vault-dryrun.json",
+      "sha256": "807fc8da8dfe8780b265ead2f559362bb0605806e7810788dcc1220cbe273add",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/012-vault-dryrun.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/013-vault-setdraft.json",
+      "sha256": "57910a103bdb4847503198daa8263442cbb78c25e63a636320b8df8c3cc1aed4",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/013-vault-setdraft.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/014-vault-approve.json",
+      "sha256": "a381ef6c819c60b283c6f893bb32e1d0ff3481976d87b01946caa3552daec498",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/014-vault-approve.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/015-vault-activate.json",
+      "sha256": "d34d240990c66c9179e16dde10f7c0e452ce02b3ae62d37a378b9bb47fe94672",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/015-vault-activate.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/016-vault-prestart-observe.json",
+      "sha256": "a9114c80ed1903697bf200bbc1eef5a239cc6e28511ea388c746f7faa8c2745e",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/016-vault-prestart-observe.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/017-vault-start.json",
+      "sha256": "5db6e4b76a93250aefb5116c0d1f789a4c85a3a13276cb94ec7878a668c0f8af",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/017-vault-start.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/018-vault-status.json",
+      "sha256": "1fece6eecf2c4ffd8962521a284023122ebb9aa8b05704e30b7b7312f53c3ecd",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/018-vault-status.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/019-vault-observe-post.json",
+      "sha256": "18fd6854976751ed9b51e983d228b607c04b363626cec9f8c7bf9cadb717dd80",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/019-vault-observe-post.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/020-vault-inspect-dummy.json",
+      "sha256": "a481f41b75dec568188fd33a4de45dec20a1bec1c40f596c674dac1e3a0fa55e",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/020-vault-inspect-dummy.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/021-final-status.json",
+      "sha256": "abf987710d22c95fbdc0ca7ce17046bf2eccd52b60339cfe19743b0130be0ebb",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/021-final-status.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/022-final-observe.json",
+      "sha256": "173e4030fdf47d5b82583536b89edda968eb7b315b867a7f7cc901534348b664",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/022-final-observe.json.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/compact-compare.json",
+      "sha256": "09ed1d190b481282f55c4fa862c1bbafc19a077b03f526a31b6fc7629bdca06c",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/trace-before.json",
+      "sha256": "74469590669d84b725daf7bec26b28f141301a36ad4c74fc243809c5940ca448",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/trace-final.json",
+      "sha256": "f344699b4183dc28079cd6c710727e7cf760ae3340a317ed33c04e6ac9c2cff7",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/trace-post-vault.json",
+      "sha256": "5f061da8c461e8b79ce3a083edc935fecff522b0696e65d89db277f6ed315582",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/trace-pre-vault.json",
+      "sha256": "8c441d2e288c42fbcefbc41f7074a3b774edcd1996e89af3eef4c024c9c3c723",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/transcript-raw-observe-line003.json",
+      "sha256": "a6d53fd77ce36b7ee7b459f6254cdc05acab897c67989d2bc221372e0fdce821",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/transcript-raw-observe-line022.json",
+      "sha256": "7291f8bfd285292cb8fb7aff92a3540a326949634d734249de25916ece73d5ce",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/transcript-raw-observe-line026.json",
+      "sha256": "ea891464525fa2c671f44ab4dfb1224fec13a794477c8c7635a82c1ef1f1fe2f",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/transcript-raw-observe-line030.json",
+      "sha256": "c19de111b935e0d963b19c6a99ab589d2bc3154c5bd5a450c1e352c9564f7716",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/raw/vault-correlate.json",
+      "sha256": "be08739b6a7cdfa7f06565da1c336f0591f5eab75dc3e2d84e0852663352c344",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/report.md",
+      "sha256": "fb6e49a1d18e1e2f1f497ab37273a3a9ebcfa2663f32a4ae1f680fbed40a0cda",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/report.sha256",
+      "sha256": "4ba75b11b7b048ed8df06d980becf5fc95e02041bad955e3458b76eae44cdc55",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/scripts/call.sh",
+      "sha256": "3d4524a8fffd98c1823522ca205561e444754619b75aaf4a780347b46eb14e2f",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/scripts/cmd-activate.json",
+      "sha256": "218a7cef496d6447e76091295a6510c5e731508c4b584399c8fcb2beec26ff3e",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/scripts/cmd-approve.json",
+      "sha256": "b11dffa55e876b3b4fb835a3b1d0e5995451a8fd0dbfdcfe6b3646590f39b2d4",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/scripts/cmd-dryrun.json",
+      "sha256": "3c066c59bf526f64d837827eb23f833ad545c628f3d4eec57e77e0fb8b525b85",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/scripts/cmd-setdraft.json",
+      "sha256": "6711ddca109c138add684b859aa35a2277b227ebab84a9da42b8d5b5c90bd6fa",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/scripts/cmd-validate.json",
+      "sha256": "ee1e4bb2b7212714b6dd0e12bbde56bd16c758ed4d40ad609f133e672273b5d8",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/scripts/compare-compact.py",
+      "sha256": "a4fef511b21b24a624ef68921b6a1055bd5cf766592b151858b42aea0d099c66",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/scripts/correlate-vault.py",
+      "sha256": "41eb140c3637bc60f74e7bee3eecee1c807139358dbc91a784058fe281a23348",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test/scripts/vault-policy.json",
+      "sha256": "3b7ce9d1825c5f61dbbc3ed7d39b6ea38e03a297b10fcc44818db49f1dd4c69d",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/test-brief.md",
+      "sha256": "a7a09de7a3054b98f9e36feba77a0e15fdfc6361cb88ff47147d2118c2192dfe",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/tome-s3.sh",
+      "sha256": "1c3b28fe28311c076da1b1fbb6e38bf6138f1b10ac33e88de5204214707d5da3",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/trace-s3.py",
+      "sha256": "ca760b33cabc2eb498ab00ab057b0a7184fee9e28678f04e7a63452da6e17963",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-supplement-01/candidate.zip",
+      "sha256": "7f465ee8f18470b55a604c17cab3d0b4b84170e1e42388696fce0ac3c5abb890",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-supplement-01/decisions.jsonl",
+      "sha256": "4f1449f360b0ad374d8a8796ffa49387f03aaf671e134ecf2aee33aa6a6d0cbc",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-supplement-01/game.log",
+      "sha256": "f154bebdd0b1da04124efa855e55f099910c62c9e1e17cc259f35a8c61e1a99a",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-supplement-01/input.json",
+      "sha256": "5ba7aa3f1536454e6906486a4567cf2197c18a1257c47425d41706008c969cf7",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-supplement-01/observed.json",
+      "sha256": "e9a57e534f2a6a843d69f95bc8bb8340fa82c03debcdc78a9abf0f0f5d8881f5",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-supplement-01/play-mcp.jsonl",
+      "sha256": "4db2fd25791b7070596a964357fc9419b2d8277fd86a47bcbc124a60e2d88f77",
+      "base": "absolute"
+    },
+    {
+      "path": "/workspace/t-engine4/tmp/tome-mcp-validation/sessions/s3-supplement-01/xvfb.log",
+      "sha256": "87e9572cf030493a1f7ba83d385129046b224374ca1414911674b30fc44276d7",
+      "base": "absolute"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/workspace/t-engine4/tmp/mcp-s3-live-20260922/supplement/candidate.teaa",
+      "sha256": "3a4e186b001971bdebfa9315a33dcac3ddd06c9abd7a1698c9af6caf03f413fb",
+      "base": "absolute"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "test-report.md",
+      "sha256": "fb6e49a1d18e1e2f1f497ab37273a3a9ebcfa2663f32a4ae1f680fbed40a0cda"
+    },
+    {
+      "path": "summary.json",
+      "sha256": "fa7823bcd579d4ff46d9d9817ef7815e68d6aa88fe4dabba53cd74c01d73a618"
+    },
+    {
+      "path": "metrics.json",
+      "sha256": "35f27585d61f2866e2815e99cf39f4ef3e752bdd049976aac9686f51f574fc98"
+    },
+    {
+      "path": "candidate-pin.json",
+      "sha256": "44f37db477a826d5b88efcc894e18974d7ab7004af6d2f7fe29a3ffe9375f447"
+    },
+    {
+      "path": "runtime-pin.json",
+      "sha256": "82d9589d38aec5fe611b4966d425ee274780496aab0845d527e58b77c90d589b"
+    },
+    {
+      "path": "trace-final.json",
+      "sha256": "1347e056858f072d15d921703d0cf96b0a8551c9bdccffb6169094b08feaa4da"
+    },
+    {
+      "path": "report-errata.json",
+      "sha256": "aa8a34a69a1500bd42170ae7b4d14720d70123e453b4a961e818933a6dba7b03"
+    },
+    {
+      "path": "coordinator-checks.json",
+      "sha256": "5ca165121c16c10ad0bd889d360f18189a6c9f33e4bb05d5054df1261a927355"
+    },
+    {
+      "path": "implementation-ledger.json",
+      "sha256": "720c2968f9c53e88f48abc50ce65c55f213aaa48ff3def2d6d2910ce5752320d"
+    }
+  ],
+  "gates": [
+    {
+      "id": "S3-SUP-COMPACT",
+      "status": "passed",
+      "evidence": [
+        "test-report.md",
+        "summary.json",
+        "metrics.json",
+        "trace-final.json"
+      ],
+      "note": "4 actual compact/raw observe pairs type-preserving equal after existing None prune; initial and post-policy covered."
+    },
+    {
+      "id": "S3-SUP-VAULT",
+      "status": "passed",
+      "evidence": [
+        "test-report.md",
+        "summary.json",
+        "metrics.json",
+        "trace-final.json"
+      ],
+      "note": "One real invocation, two ordered request/answer pairs, second nolock present+true, actor8,5 uid15424 then grid7,4; actual damage+daze+landing and1effective/run/native submission."
+    }
+  ],
+  "limitations": [
+    "Disclosed training fixture, not ordinary campaign or natural progression.",
+    "Passive test observer is instrumentation, not shipped public protocol.",
+    "finish.ok only means pcall returned normally; native success requires actual public results/effects.",
+    "No new product source/dist probe or rebuild: production bytes unchanged; real archived-product Test required.",
+    "S4 and SYS08/SYS09/U01 remain outside this stage."
+  ]
+}
