@@ -124,6 +124,13 @@ def snapshot_summary(s):
         'sustains': player.get('sustains'),
         'events': s.get('events'),
         'history': s.get('history'),
+        # S3-LIVE-ISSUE-1 (HARN-01): the production observe result carries a
+        # public `auto_combat` object (state/enabled/active/actions/counters and
+        # nullable fields). Forward it so the compact console summary cannot
+        # silently drop the key. The existing `_prune` below applies unchanged:
+        # real false/0/[] values are PRESERVED, nested None and empty dicts are
+        # removed, and a domain the bridge omitted stays absent.
+        'auto_combat': s.get('auto_combat'),
         'ground_effects': s.get('ground_effects'),
         'ground_effects_truncated': s.get('ground_effects_truncated'),
         'inventory': player.get('inventory'),
