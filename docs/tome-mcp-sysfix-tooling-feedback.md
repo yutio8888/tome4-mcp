@@ -119,3 +119,40 @@ bash /absolute/candidate/addon/tests/run.sh
 
 下一阶段由 `/root` 固定整合候选、核对全量 ledger、授权 package/probe、派独立 Test/fresh Review。
 本批仅 ready_for_review，不宣称 accepted、merged 或 13 项全修。
+
+## 独立审核整改：EVIDENCE-REV-01 / EVIDENCE-REV-02
+
+上文 15 项工具回归及初次提交检查保留为历史记录；本节替代其 SYS-05 证据适用结论与最新测试计数。
+
+2026-09-22，原独立 Sol reviewer `de482ffb-434f-468a-8c18-1ff3997e90c5` 给出两个 P1；
+它们阻塞 SYS-05，先前工具测试全绿不能覆盖这些新反例。协调者简报
+`SYSFIX-tooling-reviewfix rev2`（SHA256 `2cf3ada9ca83ce1fa77c1e7e3d75a7b143b85bfafce5280c1670007136b668d5`）
+授权本 Dev 只修同一 checker、其测试与本文；manifest 语义、产品代码和 native 生命周期均不改。
+
+**EVIDENCE-REV-01**：把 `Json.denseArray` 整体藏在 `if false` 后返回 `true,0`，
+或把 `copyFootprintFlags` 整个转发循环放入 `if false`，旧工具仍输出 A/B PASS。
+原因是结构/字段检查只限制到函数范围，没有限制到实际应处的控制分支。
+现在每个注册结构必须位于明确作用域：模块级字段/alias、函数直接语句，或逐层指定的
+loop/if 分支。被额外的 dead/unrelated 分支包住时失败；函数声明本身也必须位于其注册 owner。
+`denseArray` 的键检查明确位于全键循环内；B 的 copy、mixed、expander、unknown 路径均有明确定位。
+这不是对任意 Lua 路径的可达性证明，不使用 getter 身份门禁。
+
+**EVIDENCE-REV-02**：在正常转发循环之后插入 `spec.no_restrict=nil`，旧 checker、
+15 项工具测试和旧 guard 的 192 checks 都通过。现在 `B.copy-terminal` 注册**完整转发循环**，
+并要求该循环之后的函数尾部只剩 `return spec`。因此循环内部新增清空语句、循环后逐字段
+清空、下标写入、`rawset` 或整个 `spec` 重绑定都会要求重审并失败。
+这是针对这个短小 helper 的闭合结构约束，不声称分析任意 Lua 别名/动态调用或代替行为回归。
+未来若此处需新语句，须连同注册与实际字段 round-trip 回归一起审阅。
+
+工具回归增至 22 项，新增真实 CLI 负例分别覆盖两个 REV-01 死/无关分支、三类字段表的死分支、
+函数声明死分支，以及 REV-02 的 15 个强制字段逐一清空、下标/rawset/rebinding、循环内清空。
+注释中的相同文字仍可通过。所有失败分支保持 C/D/E 为 REVIEW。
+完整 15 字段、显式 false、真实 callback 的**产品行为 round-trip**由独立的 policy Dev 在
+`tests/test_auto_combat_guard.lua` 补充；本 Dev 不越过该文件单写者边界。
+
+本轮证据根：`/workspace/t-engine4/tmp/mcp-system-fixes-20260922/tooling/review-fix/`。
+两个原 reviewer scratch 现分别返回非零（REV-01：A/B；REV-02：B.copy-terminal），正常 canonical
+产品结构检查返回 0；精确受检源码 hash 和前后稳定性记录在该目录索引中。
+本隔离分支尚无 SYS-12 生产模块，整分支入口依赖仍如实失败；不因此放宽 gate。
+这里仍仅 `ready_for_review`，由同一 finding owner 复核这两项；native N/A（tool-only 简报授权），
+native NOT_OBSERVED；产品 source/dist 验收和 SYS-07 归档仍由协调者负责。
