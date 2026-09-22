@@ -32,3 +32,13 @@
 | 修复后 source/dist 原生场景 | NOT_OBSERVED | 协调者下一阶段 |
 
 离线 host outcome 是明确的 unit double；证明的是 Service 状态保留与计数不变量。真实引擎完成休息的证据来自上述失败场景，修复后完整结果必须由新 source/dist 会话补齐。原始失败不覆盖、不改标 PASS。
+
+## EVIDENCE-REV-02：15 个必需字段的转发证据缺口
+
+独立审核发现：在 `copyFootprintFlags` 正常转发循环末尾添加 `spec.no_restrict=nil`，原有 guard 192 checks 仍通过。真实产品 forwarder 没有这一丢弃缺陷；此项只补测试，不修改产品 Guard。
+
+`tests/test_auto_combat_guard.lua` 新增独立按 AGENTS checklist B 声明的 15 字段表，不引用产品内部 allowlist。每字段分别通过实际 `copyFootprintFlags` 及 `footprintSpec` 调用检查精确值，覆盖显式 false、布尔 true、数值概率/最小距离、排除表和真实 callback。另检查所有字段同时转发、未注册字段不外泄、callback 身份和实际调用结果。原有 malformed callback 的 typed unknown/fail-closed 检查保留。
+
+本次执行：正常 guard **426 checks PASS**、既有 Lua 全套 PASS。隔离副本中，同一 `no_restrict` 清空 mutation 对旧 192 checks 为 rc0，对新回归为 rc1；对全部 15 字段逐一追加 `spec.<field>=nil`，均在对应字段 roundtrip 断言失败（rc1）。证据见 `pending-native/guard-oracle/mutation-results.json` 及逐项原始日志。初次副本遗漏 `s3_real_specs.lua` 的搭建错误另存 `fixture-incomplete.log`，不作为产品失败或 mutation 成功证据。
+
+该 oracle 证明列明的生产转发行为与 mutation 敏感性，不声称证明任意 Lua 程序语义。结构 checker 与其负例由 tooling Dev 独立负责；本 test-only 增量按简报不要求新原生会话。状态仍为 ready for review。
