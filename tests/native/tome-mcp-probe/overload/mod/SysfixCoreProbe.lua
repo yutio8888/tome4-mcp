@@ -39,7 +39,12 @@ local function record(stage)
         'automatic policy/run unexpectedly active')
     assert(state.control_owner=='manual','automatic/remote control survived into fixture boundary')
     assert(Runtime.autoCombatExecutionEnabled(game)==false,'execution unexpectedly enabled')
+    -- Entity.loaded assigns a fresh uid on every load. Player.puuid is the
+    -- persistent character identity; the runner also verifies the copied save.
+    assert(type(game.player.puuid)=='string' and #game.player.puuid>0,'missing persistent character UUID')
+    assert(type(game.save_name)=='string' and #game.save_name>0,'missing native save name')
     local out={kind='sysfix_core',stage=stage,player_uid=game.player.uid,
+        character_uuid=game.player.puuid,save_name=game.save_name,
         live_draft_empty=true,saved_draft_empty=true,approved_id=live.approved.id,
         approved_live_bytes=live_bytes,approved_saved_bytes=saved_bytes,
         runtime_handles_absent=true,save_format=saved.format,

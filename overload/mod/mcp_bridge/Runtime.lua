@@ -2549,7 +2549,11 @@ function M.onFrame(g)
         end
         settleAutoActivity(s)
         NativeActivity.reap(s)
-        if s.auto_combat and s.auto_combat.host_factory and not s.active and not s.execution
+        -- Native settlement above can stop the controller and release its
+        -- lease. Its terminal counters/reason remain observable; do not send
+        -- the stopped run back through the action-opportunity/lease path.
+        if s.auto_combat and s.auto_combat.host_factory and s.auto_combat.controller
+            and s.auto_combat.controller.state~='stopped' and not s.active and not s.execution
             and not s.auto_invocation
             and not (s.native_activity and s.native_activity.owner=='auto_combat')
             and s.tick_depth==0 and s.tick_serial>0 then
